@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Contains classes for handling project item execution.
+Contains the SpineEngine class for running Spine Toolbox DAGs.
 
 :authors: M. Marin (KTH)
 :date:   20.11.2019
@@ -51,7 +51,7 @@ class SpineEngine:
     An engine for executing a Spine Toolbox DAG-workflow.
 
     The engine consists of two pipelines:
-    - One backwards, where ProjectItems collect resources from succesor items if apply
+    - One backwards, where ProjectItems collect resources from successor items if applies
     - One forward, where actual execution happens.
     """
 
@@ -60,8 +60,8 @@ class SpineEngine:
         Creates the two pipelines.
 
         Args:
-            project_items (list(ProjectItem)): The items we want to execute.
-            successors (dict): A mapping from item name to list of injector item names, dictating the dependencies.
+            project_items (list(ProjectItem)): The items to execute.
+            successors (dict): A mapping from item name to list of successor item names, dictating the dependencies.
         """
         # NOTE: The `name` argument in all dagster constructor is not allowed to have spaces,
         # so we need to use the `short_name` of our `ProjectItem`s.
@@ -135,11 +135,7 @@ class SpineEngine:
         input_defs = [InputDefinition(name=f"input_from_{n}") for n in injectors.get(item.short_name, [])]
         output_defs = [OutputDefinition(name="result")]
         return SolidDefinition(
-            name=item.short_name,
-            input_defs=input_defs,
-            compute_fn=compute_fn,
-            output_defs=output_defs,
-            description=item.name,
+            name=item.short_name, input_defs=input_defs, compute_fn=compute_fn, output_defs=output_defs
         )
 
     @staticmethod
@@ -153,7 +149,7 @@ class SpineEngine:
         Returns:
             dict: a dictionary to pass to the PipelineDefinition constructor as dependencies
         """
-        dependencies = {}
-        for item_name, injector_names in injectors.items():
-            dependencies[item_name] = {f"input_from_{n}": DependencyDefinition(n, "result") for n in injector_names}
-        return dependencies
+        return {
+            item_name: {f"input_from_{n}": DependencyDefinition(n, "result") for n in injector_names}
+            for item_name, injector_names in injectors.items()
+        }
