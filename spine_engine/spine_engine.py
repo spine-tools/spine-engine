@@ -16,6 +16,8 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 :date:   20.11.2019
 """
 
+from itertools import chain
+from enum import Enum
 from dagster import (
     PipelineDefinition,
     SolidDefinition,
@@ -24,11 +26,9 @@ from dagster import (
     DependencyDefinition,
     Output,
     Failure,
-    execute_pipeline,
     execute_pipeline_iterator,
     DagsterEventType,
 )
-from .event import SpineEngineEvent, SpineEngineEventType
 
 
 def _inverted(input_):
@@ -45,6 +45,14 @@ def _inverted(input_):
         for value in value_list:
             output.setdefault(value, list()).append(key)
     return output
+
+
+class SpineEngineState(Enum):
+    SLEEPING = 1
+    RUNNING = 2
+    USER_STOPPED = 3
+    FAILED = 4
+    COMPLETED = 5
 
 
 class SpineEngine:
@@ -72,6 +80,11 @@ class SpineEngine:
         self._backward_pipeline = self._make_pipeline(project_items, back_injectors, "backward")
         self._forward_pipeline = self._make_pipeline(project_items, forth_injectors, "forward")
         self._project_item_lookup = {item.short_name: item for item in project_items}
+        self._state = SpineEngineState.SLEEPING
+        self._running_item = None
+
+    def state(self):
+        return self._state
 
     @classmethod
     def from_cwl(cls, path):
@@ -91,21 +104,25 @@ class SpineEngine:
         Yields:
             ProjectItem, NoneType: the item whose execution just started in the forward pipeline.
         """
+        self._state = SpineEngineState.RUNNING
         environment_dict = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}}
-        for event in execute_pipeline_iterator(self._backward_pipeline, environment_dict=environment_dict):
-            if event.event_type == DagsterEventType.STEP_FAILURE:
-                yield SpineEngineEvent(
-                    type_=SpineEngineEventType.ITEM_EXECUTION_FAILURE, item=self._project_item_lookup[event.solid_name]
-                )
-        for event in execute_pipeline_iterator(self._forward_pipeline, environment_dict=environment_dict):
+        for event in chain(
+            execute_pipeline_iterator(self._backward_pipeline, environment_dict=environment_dict),
+            execute_pipeline_iterator(self._forward_pipeline, environment_dict=environment_dict),
+        ):
             if event.event_type == DagsterEventType.STEP_START:
-                yield SpineEngineEvent(
-                    type_=SpineEngineEventType.ITEM_EXECUTION_START, item=self._project_item_lookup[event.solid_name]
-                )
+                self._running_item = self._project_item_lookup[event.solid_name]
             elif event.event_type == DagsterEventType.STEP_FAILURE:
-                yield SpineEngineEvent(
-                    type_=SpineEngineEventType.ITEM_EXECUTION_FAILURE, item=self._project_item_lookup[event.solid_name]
-                )
+                self._running_item = self._project_item_lookup[event.solid_name]
+                if self._state != SpineEngineState.USER_STOPPED:
+                    self._state = SpineEngineState.FAILED
+        if self._state == SpineEngineState.RUNNING:
+            self._state = SpineEngineState.COMPLETED
+
+    def stop(self):
+        self._state = SpineEngineState.USER_STOPPED
+        if self._running_item:
+            self._running_item.stop_execution()
 
     def _make_pipeline(self, project_items, injectors, direction):
         """
@@ -124,8 +141,7 @@ class SpineEngine:
         dependencies = self._make_dependencies(injectors)
         return PipelineDefinition(name=f"{direction}_pipeline", solid_defs=solid_defs, dependencies=dependencies)
 
-    @staticmethod
-    def _make_solid_def(item, injectors, direction):
+    def _make_solid_def(self, item, injectors, direction):
         """Returns a SolidDefinition for executing the given item in the given direction.
 
         Args:
@@ -138,6 +154,8 @@ class SpineEngine:
         """
 
         def compute_fn(context, inputs):
+            if self.state() in (SpineEngineState.USER_STOPPED, SpineEngineState.FAILED):
+                raise Failure()
             inputs = [val for values in inputs.values() for val in values]
             if not item.execute(inputs, direction):
                 raise Failure()

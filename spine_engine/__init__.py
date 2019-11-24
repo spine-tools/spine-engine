@@ -10,5 +10,4 @@
 ######################################################################################################################
 
 
-from .spine_engine import SpineEngine
-from .event import SpineEngineEvent, SpineEngineEventType
+from .spine_engine import SpineEngine, SpineEngineState

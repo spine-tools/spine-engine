@@ -21,7 +21,7 @@ and intended to supersed them.
 
 import unittest
 from unittest.mock import NonCallableMagicMock, call
-from spine_engine import SpineEngine, SpineEngineEventType
+from spine_engine import SpineEngine, SpineEngineState
 
 
 class TestSpineEngine(unittest.TestCase):
@@ -62,16 +62,14 @@ class TestSpineEngine(unittest.TestCase):
         mock_item_c = self._mock_item("item_c", resources_forward=["url_c_fw"], resources_backward=["url_c_bw"])
         successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
         engine = SpineEngine([mock_item_a, mock_item_b, mock_item_c], successors)
-        item_names = [
-            event.item.name for event in engine.run() if event.type_ == SpineEngineEventType.ITEM_EXECUTION_START
-        ]
-        self.assertEqual(item_names, ["item_a", "item_b", "item_c"])
+        engine.run()
         item_a_execute_calls = [call(["url_b_bw"], "backward"), call([], "forward")]
         item_b_execute_calls = [call(["url_c_bw"], "backward"), call(["url_a_fw"], "forward")]
         item_c_execute_calls = [call([], "backward"), call(["url_b_fw"], "forward")]
         mock_item_a.execute.assert_has_calls(item_a_execute_calls)
         mock_item_b.execute.assert_has_calls(item_b_execute_calls)
         mock_item_c.execute.assert_has_calls(item_c_execute_calls)
+        self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     def test_fork_execution_succeeds(self):
         """Tests execution with three items in a fork."""
@@ -80,17 +78,14 @@ class TestSpineEngine(unittest.TestCase):
         mock_item_c = self._mock_item("item_c", resources_forward=["url_c_fw"], resources_backward=["url_c_bw"])
         successors = {"item_a": ["item_b", "item_c"]}
         engine = SpineEngine([mock_item_a, mock_item_b, mock_item_c], successors)
-        item_names = [
-            event.item.name for event in engine.run() if event.type_ == SpineEngineEventType.ITEM_EXECUTION_START
-        ]
-        self.assertEqual(item_names[0], "item_a")
-        self.assertTrue(all(name in item_names[1:] for name in ("item_b", "item_c")))
+        engine.run()
         item_a_execute_calls = [call(["url_b_bw", "url_c_bw"], "backward"), call([], "forward")]
         item_b_execute_calls = [call([], "backward"), call(["url_a_fw"], "forward")]
         item_c_execute_calls = [call([], "backward"), call(["url_a_fw"], "forward")]
         mock_item_a.execute.assert_has_calls(item_a_execute_calls)
         mock_item_b.execute.assert_has_calls(item_b_execute_calls)
         mock_item_c.execute.assert_has_calls(item_c_execute_calls)
+        self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     def test_backward_execution_fails(self):
         """Tests that execution fails going backwards."""
@@ -98,10 +93,8 @@ class TestSpineEngine(unittest.TestCase):
         mock_item_b = self._mock_item("item_b", execute_backward=False)
         successors = {"item_a": ["item_b"]}
         engine = SpineEngine([mock_item_a, mock_item_b], successors)
-        failed_item_names = [
-            event.item.name for event in engine.run() if event.type_ == SpineEngineEventType.ITEM_EXECUTION_FAILURE
-        ]
-        self.assertEqual(failed_item_names, ["item_b"])
+        engine.run()
+        self.assertEqual(engine.state(), SpineEngineState.FAILED)
 
 
 if __name__ == '__main__':
