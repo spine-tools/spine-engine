@@ -1,7 +1,7 @@
 ######################################################################################################################
 # Copyright (C) 2017 - 2019 Spine project consortium
-# This file is part of Spine Database API.
-# Spine Database API is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
+# This file is part of Spine Engine.
+# Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser
 # General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
 # option) any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
 # without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
@@ -11,3 +11,4 @@
 
 
 from .spine_engine import SpineEngine
+from .event import SpineEngineEvent, SpineEngineEventType

@@ -1,7 +1,7 @@
 ######################################################################################################################
 # Copyright (C) 2017 - 2019 Spine project consortium
-# This file is part of Spine Toolbox.
-# Spine Toolbox is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
+# This file is part of Spine Engine.
+# Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
 # any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
 # without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
@@ -28,6 +28,7 @@ from dagster import (
     execute_pipeline_iterator,
     DagsterEventType,
 )
+from .event import SpineEngineEvent, SpineEngineEventType
 
 
 def _inverted(input_):
@@ -88,13 +89,19 @@ class SpineEngine:
         """Runs this engine.
 
         Yields:
-            ProjectItem: the item whose execution just started in the forward pipeline.
+            ProjectItem, NoneType: the item whose execution just started in the forward pipeline.
         """
-        environment_dict = {"loggers": {"console": {"config": {"log_level": "ERROR"}}}}
-        execute_pipeline(self._backward_pipeline, environment_dict=environment_dict)
+        environment_dict = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}}
+        for event in execute_pipeline_iterator(self._backward_pipeline, environment_dict=environment_dict):
+            if event.event_type == DagsterEventType.STEP_FAILURE:
+                yield SpineEngineEvent(type_=SpineEngineEventType.ITEM_EXECUTION_FAILURE)
         for event in execute_pipeline_iterator(self._forward_pipeline, environment_dict=environment_dict):
             if event.event_type == DagsterEventType.STEP_START:
-                yield self._project_item_lookup[event.solid_name]
+                yield SpineEngineEvent(
+                    type_=SpineEngineEventType.ITEM_EXECUTION_START, item=self._project_item_lookup[event.solid_name]
+                )
+            elif event.event_type == DagsterEventType.STEP_FAILURE:
+                yield SpineEngineEvent(type_=SpineEngineEventType.ITEM_EXECUTION_FAILURE)
 
     def _make_pipeline(self, project_items, injectors, direction):
         """
