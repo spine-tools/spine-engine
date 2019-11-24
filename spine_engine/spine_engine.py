@@ -94,14 +94,18 @@ class SpineEngine:
         environment_dict = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}}
         for event in execute_pipeline_iterator(self._backward_pipeline, environment_dict=environment_dict):
             if event.event_type == DagsterEventType.STEP_FAILURE:
-                yield SpineEngineEvent(type_=SpineEngineEventType.ITEM_EXECUTION_FAILURE)
+                yield SpineEngineEvent(
+                    type_=SpineEngineEventType.ITEM_EXECUTION_FAILURE, item=self._project_item_lookup[event.solid_name]
+                )
         for event in execute_pipeline_iterator(self._forward_pipeline, environment_dict=environment_dict):
             if event.event_type == DagsterEventType.STEP_START:
                 yield SpineEngineEvent(
                     type_=SpineEngineEventType.ITEM_EXECUTION_START, item=self._project_item_lookup[event.solid_name]
                 )
             elif event.event_type == DagsterEventType.STEP_FAILURE:
-                yield SpineEngineEvent(type_=SpineEngineEventType.ITEM_EXECUTION_FAILURE)
+                yield SpineEngineEvent(
+                    type_=SpineEngineEventType.ITEM_EXECUTION_FAILURE, item=self._project_item_lookup[event.solid_name]
+                )
 
     def _make_pipeline(self, project_items, injectors, direction):
         """
