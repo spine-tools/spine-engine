@@ -100,9 +100,6 @@ class SpineEngine:
 
     def run(self):
         """Runs this engine.
-
-        Yields:
-            ProjectItem, NoneType: the item whose execution just started in the forward pipeline.
         """
         self._state = SpineEngineState.RUNNING
         environment_dict = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}}
@@ -120,6 +117,8 @@ class SpineEngine:
             self._state = SpineEngineState.COMPLETED
 
     def stop(self):
+        """Stops this engine.
+        """
         self._state = SpineEngineState.USER_STOPPED
         if self._running_item:
             self._running_item.stop_execution()
