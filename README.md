@@ -13,7 +13,7 @@ documentation and manual are released under the [Creative Commons BY-SA 4.0 lice
 
 To install Spine Engine into an existing Python environment, run
 
-    $ pip install git+https://gitlab.vtt.fi/spine/engine.git
+    $ pip install git+https://github.com/Spine-project/spine-engine.git#egg=spine_engine
 
 ### Dependencies
 
