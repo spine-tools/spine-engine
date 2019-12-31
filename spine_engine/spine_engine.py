@@ -64,21 +64,23 @@ class SpineEngine:
     - One forward, where actual execution happens.
     """
 
-    def __init__(self, project_items, successors):
+    def __init__(self, project_items, successors, execution_permits):
         """
         Creates the two pipelines.
 
         Args:
             project_items (list(ProjectItem)): The items to execute.
             successors (dict): A mapping from item name to list of successor item names, dictating the dependencies.
+            execution_permits (dict): A mapping from item name to a boolean value, False indicating that
+                the item is not executed, only its resources are collected.
         """
         # NOTE: The `name` argument in all dagster constructor is not allowed to have spaces,
         # so we need to use the `short_name` of our `ProjectItem`s.
         d = {item.name: item.short_name for item in project_items}
         back_injectors = {d[key]: [d[x] for x in value] for key, value in successors.items()}
         forth_injectors = _inverted(back_injectors)
-        self._backward_pipeline = self._make_pipeline(project_items, back_injectors, "backward")
-        self._forward_pipeline = self._make_pipeline(project_items, forth_injectors, "forward")
+        self._backward_pipeline = self._make_pipeline(project_items, back_injectors, "backward", execution_permits)
+        self._forward_pipeline = self._make_pipeline(project_items, forth_injectors, "forward", execution_permits)
         self._project_item_lookup = {item.short_name: item for item in project_items}
         self._state = SpineEngineState.SLEEPING
         self._running_item = None
@@ -123,30 +125,35 @@ class SpineEngine:
         if self._running_item:
             self._running_item.stop_execution()
 
-    def _make_pipeline(self, project_items, injectors, direction):
+    def _make_pipeline(self, project_items, injectors, direction, execution_permits):
         """
         Returns a PipelineDefinition for executing the given items in the given direction,
         generating dependencies from the given injectors.
 
         Args:
-            project_items (list(ProjectItem)): List of project items for creating pipeline solids
+            project_items (list(ProjectItem)): List of project items for creating pipeline solids.
             injectors (dict(str,list(str))): A mapping from item name to list of injector item names.
             direction (str): The direction of the pipeline, either "forward" or "backward".
+            execution_permits (dict): A mapping from item name to a boolean value, False indicating that
+                the item is not executed, only its resources are collected.
 
         Returns:
             PipelineDefinition
         """
-        solid_defs = [self._make_solid_def(item, injectors, direction) for item in project_items]
+        solid_defs = [
+            self._make_solid_def(item, injectors, direction, execution_permits[item.name]) for item in project_items
+        ]
         dependencies = self._make_dependencies(injectors)
         return PipelineDefinition(name=f"{direction}_pipeline", solid_defs=solid_defs, dependencies=dependencies)
 
-    def _make_solid_def(self, item, injectors, direction):
+    def _make_solid_def(self, item, injectors, direction, execute):
         """Returns a SolidDefinition for executing the given item in the given direction.
 
         Args:
             item (ProjectItem): The project item that gets executed by the solid.
             injectors (dict): Mapping from item name to list of injector item names.
             direction (str): The direction of execution, either "forward" or "backward".
+            execute (bool): If False, do not execute the item, just collect resources.
 
         Returns:
             SolidDefinition
@@ -156,7 +163,7 @@ class SpineEngine:
             if self.state() in (SpineEngineState.USER_STOPPED, SpineEngineState.FAILED):
                 raise Failure()
             inputs = [val for values in inputs.values() for val in values]
-            if not item.execute(inputs, direction):
+            if execute and not item.execute(inputs, direction):
                 raise Failure()
             yield Output(value=item.output_resources(direction), output_name="result")
 

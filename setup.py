@@ -25,7 +25,7 @@ requirements = ["dagster >= 0.6.4"]
 
 setup(
     name="spine_engine",
-    version="0.1.0",
+    version="0.2.0",
     description="A package to run Spine workflows.",
     long_description=readme,
     author="Spine Project consortium",
