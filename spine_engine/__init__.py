@@ -10,3 +10,4 @@
 ######################################################################################################################
 
 from .spine_engine import SpineEngine, SpineEngineState
+from .version import __version__
