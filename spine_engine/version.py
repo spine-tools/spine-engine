@@ -9,4 +9,4 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-from .spine_engine import SpineEngine, SpineEngineState
+__version__ = "0.2.0"
