@@ -16,8 +16,7 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 :date:   20.11.2019
 """
 
-from itertools import chain
-from enum import Enum
+from enum import auto, Enum
 from dagster import (
     PipelineDefinition,
     SolidDefinition,
@@ -29,6 +28,7 @@ from dagster import (
     execute_pipeline_iterator,
     DagsterEventType,
 )
+from PySide2.QtCore import QObject, Signal
 
 
 def _inverted(input_):
@@ -55,7 +55,12 @@ class SpineEngineState(Enum):
     COMPLETED = 5
 
 
-class SpineEngine:
+class ExecutionDirection(Enum):
+    FORWARD = auto()
+    BACKWARD = auto()
+
+
+class SpineEngine(QObject):
     """
     An engine for executing a Spine Toolbox DAG-workflow.
 
@@ -63,6 +68,11 @@ class SpineEngine:
     - One backwards, where ProjectItems collect resources from successor items if applies
     - One forward, where actual execution happens.
     """
+
+    dag_node_execution_started = Signal(str, "QVariant")
+    """Emitted just before a named DAG node execution starts."""
+    dag_node_execution_finished = Signal(str, "QVariant")
+    """Emitted after a named DAG node has finished execution."""
 
     def __init__(self, project_items, successors, execution_permits):
         """
@@ -74,6 +84,7 @@ class SpineEngine:
             execution_permits (dict): A mapping from item name to a boolean value, False indicating that
                 the item is not executed, only its resources are collected.
         """
+        super().__init__()
         # NOTE: The `name` argument in all dagster constructor is not allowed to have spaces,
         # so we need to use the `short_name` of our `ProjectItem`s.
         d = {item.name: item.short_name for item in project_items}
@@ -105,16 +116,10 @@ class SpineEngine:
         """
         self._state = SpineEngineState.RUNNING
         environment_dict = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}}
-        for event in chain(
-            execute_pipeline_iterator(self._backward_pipeline, environment_dict=environment_dict),
-            execute_pipeline_iterator(self._forward_pipeline, environment_dict=environment_dict),
-        ):
-            if event.event_type == DagsterEventType.STEP_START:
-                self._running_item = self._project_item_lookup[event.solid_name]
-            elif event.event_type == DagsterEventType.STEP_FAILURE:
-                self._running_item = self._project_item_lookup[event.solid_name]
-                if self._state != SpineEngineState.USER_STOPPED:
-                    self._state = SpineEngineState.FAILED
+        for event in execute_pipeline_iterator(self._backward_pipeline, environment_dict=environment_dict):
+            self._process_event(event, ExecutionDirection.BACKWARD)
+        for event in execute_pipeline_iterator(self._forward_pipeline, environment_dict=environment_dict):
+            self._process_event(event, ExecutionDirection.FORWARD)
         if self._state == SpineEngineState.RUNNING:
             self._state = SpineEngineState.COMPLETED
 
@@ -188,3 +193,25 @@ class SpineEngine:
             item_name: {f"input_from_{n}": DependencyDefinition(n, "result") for n in injector_names}
             for item_name, injector_names in injectors.items()
         }
+
+    def _process_event(self, event, direction):
+        """
+        Processes events from a pipeline.
+
+        Args:
+            event (DagsterEvent): an event
+            direction (ExecutionDirection): execution direction
+        """
+        if event.event_type == DagsterEventType.STEP_START:
+            item = self._project_item_lookup[event.solid_name]
+            self._running_item = item
+            self.dag_node_execution_started.emit(item.name, direction)
+        elif event.event_type == DagsterEventType.STEP_FAILURE:
+            item = self._project_item_lookup[event.solid_name]
+            self._running_item = item
+            if self._state != SpineEngineState.USER_STOPPED:
+                self._state = SpineEngineState.FAILED
+            self.dag_node_execution_finished.emit(item.name, direction)
+        elif event.event_type == DagsterEventType.STEP_SUCCESS:
+            item = self._project_item_lookup[event.solid_name]
+            self.dag_node_execution_finished.emit(item.name, direction)
