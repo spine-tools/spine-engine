@@ -28,6 +28,7 @@ from dagster import (
     execute_pipeline_iterator,
     DagsterEventType,
 )
+from dagster.core.definitions.utils import DISALLOWED_NAMES, has_valid_name_chars
 from PySide2.QtCore import QObject, Signal
 
 
@@ -87,14 +88,69 @@ class SpineEngine(QObject):
         super().__init__()
         # NOTE: The `name` argument in all dagster constructor is not allowed to have spaces,
         # so we need to use the `short_name` of our `ProjectItem`s.
-        d = {item.name: item.short_name for item in project_items}
-        back_injectors = {d[key]: [d[x] for x in value] for key, value in successors.items()}
+        # In addition, dagster has further restrictions for the name, so we may need to
+        # edit the short names a bit
+        # Make lookup table 'name' -> 'dagster friendly name'
+        self._name_lookup = self.make_name_lookup(project_items)
+        # Make lookup table. 'dagster friendly name' -> 'ProjectItem'
+        self._project_item_lookup = self.make_project_item_lookup(project_items)
+        back_injectors = {self._name_lookup[key]: [self._name_lookup[x] for x in value] for key, value in successors.items()}
         forth_injectors = _inverted(back_injectors)
-        self._backward_pipeline = self._make_pipeline(project_items, back_injectors, "backward", execution_permits)
-        self._forward_pipeline = self._make_pipeline(project_items, forth_injectors, "forward", execution_permits)
-        self._project_item_lookup = {item.short_name: item for item in project_items}
+        fixed_exec_permits = self.fix_execution_permits(execution_permits)
+        self._backward_pipeline = self._make_pipeline(project_items, back_injectors, "backward", fixed_exec_permits)
+        self._forward_pipeline = self._make_pipeline(project_items, forth_injectors, "forward", fixed_exec_permits)
         self._state = SpineEngineState.SLEEPING
         self._running_item = None
+
+    def make_name_lookup(self, project_items):
+        """Make dictionary, where key is the project item 'long'
+        name and value is the dagster friendly project item name.
+        dagster friendly name is the project item short name. If
+        item short name is a disallowed name in dagster, the name
+        is preended with 'spine_'. If item short name contains illegal
+        characters, these are converted to valid characters.
+
+        Args:
+            project_items (list(ProjectItem)): List of project items
+
+        Returns:
+            dict: Project item names as keys and dagster friendly names as values
+        """
+        # d = {item.name: item.short_name for item in project_items}
+        d = dict()
+        for item in project_items:
+            # If short name is a disallowed name, prepend with 'spine_'
+            if item.short_name in DISALLOWED_NAMES:
+                name = "spine_" + item.short_name
+            elif not has_valid_name_chars(item.short_name):
+                # If short name has invalid chars, change them to allowed characters
+                name = item.short_name.replace("å", "a").replace("ä", "a").replace("ö", "o")
+            else:
+                name = item.short_name
+            d[item.name] = name
+        return d
+
+    def fix_execution_permits(self, execution_permits):
+        """Change the key in execution_permits dict from item long name to short name."""
+        fixed = dict()
+        for name in execution_permits.keys():
+            fixed[self._name_lookup[name]] = execution_permits[name]
+        return fixed
+
+    def make_project_item_lookup(self, project_items):
+        """Returns a project item lookup table.
+
+        Args:
+            project_items (list(ProjectItem)): List of project items
+
+        Returns:
+            dict: Dagster friendly names as keys, ProjectItems as values
+        """
+        # lookup = {item.short_name: item for item in project_items}
+        lookup = dict()
+        for item in project_items:
+            lookup[self._name_lookup[item.name]] = item
+        return lookup
 
     def state(self):
         return self._state
@@ -146,7 +202,7 @@ class SpineEngine(QObject):
             PipelineDefinition
         """
         solid_defs = [
-            self._make_solid_def(item, injectors, direction, execution_permits[item.name]) for item in project_items
+            self._make_solid_def(item, injectors, direction, execution_permits[self._name_lookup[item.name]]) for item in project_items
         ]
         dependencies = self._make_dependencies(injectors)
         return PipelineDefinition(name=f"{direction}_pipeline", solid_defs=solid_defs, dependencies=dependencies)
@@ -172,10 +228,10 @@ class SpineEngine(QObject):
                 raise Failure()
             yield Output(value=item.output_resources(direction), output_name="result")
 
-        input_defs = [InputDefinition(name=f"input_from_{n}") for n in injectors.get(item.short_name, [])]
+        input_defs = [InputDefinition(name=f"input_from_{n}") for n in injectors.get(self._name_lookup[item.name], [])]
         output_defs = [OutputDefinition(name="result")]
         return SolidDefinition(
-            name=item.short_name, input_defs=input_defs, compute_fn=compute_fn, output_defs=output_defs
+            name=self._name_lookup[item.name], input_defs=input_defs, compute_fn=compute_fn, output_defs=output_defs
         )
 
     @staticmethod
