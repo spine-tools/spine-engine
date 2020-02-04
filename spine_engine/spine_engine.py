@@ -86,71 +86,60 @@ class SpineEngine(QObject):
                 the item is not executed, only its resources are collected.
         """
         super().__init__()
-        # NOTE: The `name` argument in all dagster constructor is not allowed to have spaces,
-        # so we need to use the `short_name` of our `ProjectItem`s.
-        # In addition, dagster has further restrictions for the name, so we may need to
-        # edit the short names a bit
-        # Make lookup table 'name' -> 'dagster friendly name'
+        # Make lookup table for project item names to corresponding dagster friendly names (id's)
         self._name_lookup = self.make_name_lookup(project_items)
-        # Make lookup table. 'dagster friendly name' -> 'ProjectItem'
+        # Make lookup table for dagster friendly names (id's) to corresponding ProjectItems
         self._project_item_lookup = self.make_project_item_lookup(project_items)
-        back_injectors = {self._name_lookup[key]: [self._name_lookup[x] for x in value] for key, value in successors.items()}
+        back_injectors = {self._name_lookup[key]: [self._name_lookup[x] for x in value]
+                          for key, value in successors.items()}
         forth_injectors = _inverted(back_injectors)
+        # Change project item names in execution permits to corresponding id's
         fixed_exec_permits = self.fix_execution_permits(execution_permits)
         self._backward_pipeline = self._make_pipeline(project_items, back_injectors, "backward", fixed_exec_permits)
         self._forward_pipeline = self._make_pipeline(project_items, forth_injectors, "forward", fixed_exec_permits)
         self._state = SpineEngineState.SLEEPING
         self._running_item = None
 
-    def make_name_lookup(self, project_items):
-        """Make dictionary, where key is the project item 'long'
-        name and value is the dagster friendly project item name.
-        dagster friendly name is the project item short name. If
-        item short name is a disallowed name in dagster, the name
-        is preended with 'spine_'. If item short name contains illegal
-        characters, these are converted to valid characters.
+    @staticmethod
+    def make_name_lookup(project_items):
+        """Returns a dictionary, where key is a project item 'long'
+        name and value is a dagster friendly project item id.
+        The id is just a rising integer number as a string. This
+        is needed because we want to support executing project
+        items with names that are disallowed in dagster and also
+        project items with names that contain special characters
+        that are allowed in Spine Toolbox but disallowed by dagster.
 
         Args:
             project_items (list(ProjectItem)): List of project items
 
         Returns:
-            dict: Project item names as keys and dagster friendly names as values
+            dict: Keys are project item names, values are integers as strings
         """
-        # d = {item.name: item.short_name for item in project_items}
-        d = dict()
-        for item in project_items:
-            # If short name is a disallowed name, prepend with 'spine_'
-            if item.short_name in DISALLOWED_NAMES:
-                name = "spine_" + item.short_name
-            elif not has_valid_name_chars(item.short_name):
-                # If short name has invalid chars, change them to allowed characters
-                name = item.short_name.replace("å", "a").replace("ä", "a").replace("ö", "o")
-            else:
-                name = item.short_name
-            d[item.name] = name
-        return d
-
-    def fix_execution_permits(self, execution_permits):
-        """Change the key in execution_permits dict from item long name to short name."""
-        fixed = dict()
-        for name in execution_permits.keys():
-            fixed[self._name_lookup[name]] = execution_permits[name]
-        return fixed
+        return {item.name: str(i) for i, item in enumerate(project_items)}
 
     def make_project_item_lookup(self, project_items):
-        """Returns a project item lookup table.
+        """Returns a ProjectItem lookup table.
 
         Args:
             project_items (list(ProjectItem)): List of project items
 
         Returns:
-            dict: Dagster friendly names as keys, ProjectItems as values
+            dict: Integer id's as keys, corresponding ProjectItem's as values
         """
-        # lookup = {item.short_name: item for item in project_items}
-        lookup = dict()
-        for item in project_items:
-            lookup[self._name_lookup[item.name]] = item
-        return lookup
+        return {self._name_lookup[item.name]: item for item in project_items}
+
+    def fix_execution_permits(self, execution_permits):
+        """Returns a modified execution_permits table where keys
+        have been replaced by a project item id (integer as str).
+
+        Args:
+            execution_permits (dict): Project item names as keys, booleans as values
+
+        Returns:
+            dict: Project item id's as keys, booleans as values
+        """
+        return {self._name_lookup[name]: execution_permits[name] for name in execution_permits.keys()}
 
     def state(self):
         return self._state
