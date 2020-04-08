@@ -72,7 +72,7 @@ class SpineEngine(QObject):
 
     dag_node_execution_started = Signal(str, "QVariant")
     """Emitted just before a named DAG node execution starts."""
-    dag_node_execution_finished = Signal(str, "QVariant")
+    dag_node_execution_finished = Signal(str, "QVariant", "QVariant")
     """Emitted after a named DAG node has finished execution."""
 
     def __init__(self, project_items, successors, execution_permits):
@@ -95,8 +95,8 @@ class SpineEngine(QObject):
         forth_injectors = _inverted(back_injectors)
         # Change project item names in execution permits to corresponding id's
         fixed_exec_permits = self.fix_execution_permits(execution_permits)
-        self._backward_pipeline = self._make_pipeline(project_items, back_injectors, "backward", fixed_exec_permits)
-        self._forward_pipeline = self._make_pipeline(project_items, forth_injectors, "forward", fixed_exec_permits)
+        self._backward_pipeline = self._make_pipeline(project_items, back_injectors, ExecutionDirection.BACKWARD, fixed_exec_permits)
+        self._forward_pipeline = self._make_pipeline(project_items, forth_injectors, ExecutionDirection.FORWARD, fixed_exec_permits)
         self._state = SpineEngineState.SLEEPING
         self._running_item = None
 
@@ -183,7 +183,7 @@ class SpineEngine(QObject):
         Args:
             project_items (list(ProjectItem)): List of project items for creating pipeline solids.
             injectors (dict(str,list(str))): A mapping from item name to list of injector item names.
-            direction (str): The direction of the pipeline, either "forward" or "backward".
+            direction (ExecutionDirection): The direction of the pipeline.
             execution_permits (dict): A mapping from item name to a boolean value, False indicating that
                 the item is not executed, only its resources are collected.
 
@@ -202,7 +202,7 @@ class SpineEngine(QObject):
         Args:
             item (ProjectItem): The project item that gets executed by the solid.
             injectors (dict): Mapping from item name to list of injector item names.
-            direction (str): The direction of execution, either "forward" or "backward".
+            direction (ExecutionDirection): The direction of execution.
             execute (bool): If False, do not execute the item, just collect resources.
 
         Returns:
@@ -256,7 +256,7 @@ class SpineEngine(QObject):
             self._running_item = item
             if self._state != SpineEngineState.USER_STOPPED:
                 self._state = SpineEngineState.FAILED
-            self.dag_node_execution_finished.emit(item.name, direction)
+            self.dag_node_execution_finished.emit(item.name, direction, self._state)
         elif event.event_type == DagsterEventType.STEP_SUCCESS:
             item = self._project_item_lookup[event.solid_name]
-            self.dag_node_execution_finished.emit(item.name, direction)
+            self.dag_node_execution_finished.emit(item.name, direction, self._state)
