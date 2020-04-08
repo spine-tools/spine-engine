@@ -72,7 +72,7 @@ class SpineEngine(QObject):
 
     dag_node_execution_started = Signal(str, "QVariant")
     """Emitted just before a named DAG node execution starts."""
-    dag_node_execution_finished = Signal(str, "QVariant")
+    dag_node_execution_finished = Signal(str, "QVariant", "QVariant")
     """Emitted after a named DAG node has finished execution."""
 
     def __init__(self, project_items, successors, execution_permits):
@@ -256,7 +256,7 @@ class SpineEngine(QObject):
             self._running_item = item
             if self._state != SpineEngineState.USER_STOPPED:
                 self._state = SpineEngineState.FAILED
-            self.dag_node_execution_finished.emit(item.name, direction)
+            self.dag_node_execution_finished.emit(item.name, direction, self._state)
         elif event.event_type == DagsterEventType.STEP_SUCCESS:
             item = self._project_item_lookup[event.solid_name]
-            self.dag_node_execution_finished.emit(item.name, direction)
+            self.dag_node_execution_finished.emit(item.name, direction, self._state)
