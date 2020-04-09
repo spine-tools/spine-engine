@@ -21,7 +21,7 @@ and intended to supersede them.
 
 import unittest
 from unittest.mock import NonCallableMagicMock, call
-from spine_engine import SpineEngine, SpineEngineState
+from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState
 
 
 class TestSpineEngine(unittest.TestCase):
@@ -46,12 +46,13 @@ class TestSpineEngine(unittest.TestCase):
         item = NonCallableMagicMock()
         item.name = name
         item.short_name = name.lower().replace(' ', '_')
-        item.execute.side_effect = lambda _, direction: {"forward": execute_forward, "backward": execute_backward}[
-            direction
-        ]
+        item.execute.side_effect = lambda _, direction: {
+            ExecutionDirection.FORWARD: execute_forward,
+            ExecutionDirection.BACKWARD: execute_backward,
+        }[direction]
         item.output_resources.side_effect = lambda direction: {
-            "forward": resources_forward,
-            "backward": resources_backward,
+            ExecutionDirection.FORWARD: resources_forward,
+            ExecutionDirection.BACKWARD: resources_backward,
         }[direction]
         return item
 
@@ -64,9 +65,12 @@ class TestSpineEngine(unittest.TestCase):
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
         engine = SpineEngine([mock_item_a, mock_item_b, mock_item_c], successors, execution_permits)
         engine.run()
-        item_a_execute_calls = [call(["url_b_bw"], "backward"), call([], "forward")]
-        item_b_execute_calls = [call(["url_c_bw"], "backward"), call(["url_a_fw"], "forward")]
-        item_c_execute_calls = [call([], "backward"), call(["url_b_fw"], "forward")]
+        item_a_execute_calls = [call(["url_b_bw"], ExecutionDirection.BACKWARD), call([], ExecutionDirection.FORWARD)]
+        item_b_execute_calls = [
+            call(["url_c_bw"], ExecutionDirection.BACKWARD),
+            call(["url_a_fw"], ExecutionDirection.FORWARD),
+        ]
+        item_c_execute_calls = [call([], ExecutionDirection.BACKWARD), call(["url_b_fw"], ExecutionDirection.FORWARD)]
         mock_item_a.execute.assert_has_calls(item_a_execute_calls)
         mock_item_b.execute.assert_has_calls(item_b_execute_calls)
         mock_item_c.execute.assert_has_calls(item_c_execute_calls)
@@ -81,9 +85,12 @@ class TestSpineEngine(unittest.TestCase):
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
         engine = SpineEngine([mock_item_a, mock_item_b, mock_item_c], successors, execution_permits)
         engine.run()
-        item_a_execute_calls = [call(["url_b_bw", "url_c_bw"], "backward"), call([], "forward")]
-        item_b_execute_calls = [call([], "backward"), call(["url_a_fw"], "forward")]
-        item_c_execute_calls = [call([], "backward"), call(["url_a_fw"], "forward")]
+        item_a_execute_calls = [
+            call(["url_b_bw", "url_c_bw"], ExecutionDirection.BACKWARD),
+            call([], ExecutionDirection.FORWARD),
+        ]
+        item_b_execute_calls = [call([], ExecutionDirection.BACKWARD), call(["url_a_fw"], ExecutionDirection.FORWARD)]
+        item_c_execute_calls = [call([], ExecutionDirection.BACKWARD), call(["url_a_fw"], ExecutionDirection.FORWARD)]
         mock_item_a.execute.assert_has_calls(item_a_execute_calls)
         mock_item_b.execute.assert_has_calls(item_b_execute_calls)
         mock_item_c.execute.assert_has_calls(item_c_execute_calls)
@@ -108,8 +115,8 @@ class TestSpineEngine(unittest.TestCase):
         execution_permits = {"item_a": True, "item_b": False, "item_c": True}
         engine = SpineEngine([mock_item_a, mock_item_b, mock_item_c], successors, execution_permits)
         engine.run()
-        item_a_execute_calls = [call(["url_b_bw"], "backward"), call([], "forward")]
-        item_c_execute_calls = [call([], "backward"), call(["url_b_fw"], "forward")]
+        item_a_execute_calls = [call(["url_b_bw"], ExecutionDirection.BACKWARD), call([], ExecutionDirection.FORWARD)]
+        item_c_execute_calls = [call([], ExecutionDirection.BACKWARD), call(["url_b_fw"], ExecutionDirection.FORWARD)]
         mock_item_a.execute.assert_has_calls(item_a_execute_calls)
         mock_item_b.execute.assert_not_called()
         mock_item_b.output_resources.assert_called()
