@@ -29,7 +29,6 @@ from dagster import (
     DagsterEventType,
 )
 from dagster.core.definitions.utils import DISALLOWED_NAMES, has_valid_name_chars
-from PySide2.QtCore import QObject, Signal
 
 
 def _inverted(input_):
@@ -61,7 +60,62 @@ class ExecutionDirection(Enum):
     BACKWARD = auto()
 
 
-class SpineEngine(QObject):
+class EventPublisher:
+    """
+    An event based publisher that enables dag node started and dag node finished events to be
+    dispatched to subscribers of this class.
+    """
+
+    def __init__(self, events):
+        """
+        Maps each named event to a dict
+        Args:
+            events (list(str)): list of named events e.g. ['exec_started', 'exec_finished']
+        """
+        self.events = {event: dict() for event in events}
+
+    def get_subscribers(self, event):
+        """
+        gets subscribers who are subscribed to event
+        Args:
+            event (str): named event to which subscribers are subscribed
+        """
+        return self.events[event]
+
+    def register(self, event, subscriber, callback=None):
+        """
+        register a subscriber and its callback method to an event
+        Args:
+            event (str): named event to which subscribers are subscribed
+            subscriber (Subscriber): a class designated as a subscriber, must have an update method
+            callback (method): callback method of subscriber, is triggered when dispatch() is called
+        """
+        if callback is None:
+            callback = getattr(subscriber, 'update')
+        self.get_subscribers(event)[subscriber] = callback
+
+    def unregister(self, event, subscriber):
+        """
+        removes a registered subscriber from an event
+        Args:
+            event (str): named event to which subscribers are subscribed
+            subscriber (Subscriber): a class designated as a subscriber, must have an update method
+        """
+        del self.get_subscribers(event)[subscriber]
+
+    def dispatch(self, event, node_data):
+        """
+        Iterate through subscribers of param: event and trigger subscriber callback method
+        see _process_event() for use.
+        Args:
+             event (str): named event to which subscribers are subscribed
+             node_data (dict()): dag node event data
+        """
+        for subscriber, callback in self.get_subscribers(event).items():
+            callback(node_data)
+
+
+class SpineEngine:
     """
     An engine for executing a Spine Toolbox DAG-workflow.
 
@@ -69,11 +123,6 @@ class SpineEngine(QObject):
     - One backwards, where ProjectItems collect resources from successor items if applies
     - One forward, where actual execution happens.
     """
-
-    dag_node_execution_started = Signal(str, "QVariant")
-    """Emitted just before a named DAG node execution starts."""
-    dag_node_execution_finished = Signal(str, "QVariant", "QVariant")
-    """Emitted after a named DAG node has finished execution."""
 
     def __init__(self, project_items, successors, execution_permits):
         """
@@ -86,6 +135,8 @@ class SpineEngine(QObject):
                 the item is not executed, only its resources are collected.
         """
         super().__init__()
+        # event publisher object whose dispatch method notifies subscribers on particular events
+        self.publisher = EventPublisher(['exec_started', 'exec_finished', 'log_event'])
         # Make lookup table for project item names to corresponding dagster friendly names (id's)
         self._name_lookup = self.make_name_lookup(project_items)
         # Make lookup table for dagster friendly names (id's) to corresponding ProjectItems
@@ -160,10 +211,10 @@ class SpineEngine(QObject):
         """Runs this engine.
         """
         self._state = SpineEngineState.RUNNING
-        environment_dict = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}}
-        for event in execute_pipeline_iterator(self._backward_pipeline, environment_dict=environment_dict):
+        run_config = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}}
+        for event in execute_pipeline_iterator(self._backward_pipeline, run_config=run_config):
             self._process_event(event, ExecutionDirection.BACKWARD)
-        for event in execute_pipeline_iterator(self._forward_pipeline, environment_dict=environment_dict):
+        for event in execute_pipeline_iterator(self._forward_pipeline, run_config=run_config):
             self._process_event(event, ExecutionDirection.FORWARD)
         if self._state == SpineEngineState.RUNNING:
             self._state = SpineEngineState.COMPLETED
@@ -211,10 +262,14 @@ class SpineEngine(QObject):
 
         def compute_fn(context, inputs):
             if self.state() in (SpineEngineState.USER_STOPPED, SpineEngineState.FAILED):
+                context.log.error("compute_fn() FAILURE with item: {0} is in state: {1}".format(item.name, self.state()))
                 raise Failure()
             inputs = [val for values in inputs.values() for val in values]
             if execute and not item.execute(inputs, direction):
+                context.log.error("compute_fn() FAILURE with item: {0} failed to execute".format(item.name))
                 raise Failure()
+            context.log.info("Item Name: {}".format(item.name))
+
             yield Output(value=item.output_resources(direction), output_name="result")
 
         input_defs = [InputDefinition(name=f"input_from_{n}") for n in injectors.get(self._name_lookup[item.name], [])]
@@ -250,13 +305,13 @@ class SpineEngine(QObject):
         if event.event_type == DagsterEventType.STEP_START:
             item = self._project_item_lookup[event.solid_name]
             self._running_item = item
-            self.dag_node_execution_started.emit(item.name, direction)
+            self.publisher.dispatch('exec_started', {"item_name": item.name, "direction": direction})
         elif event.event_type == DagsterEventType.STEP_FAILURE:
             item = self._project_item_lookup[event.solid_name]
             self._running_item = item
             if self._state != SpineEngineState.USER_STOPPED:
                 self._state = SpineEngineState.FAILED
-            self.dag_node_execution_finished.emit(item.name, direction, self._state)
+            self.publisher.dispatch('exec_finished', {"item_name": item.name, "direction": direction, "state": self._state})
         elif event.event_type == DagsterEventType.STEP_SUCCESS:
             item = self._project_item_lookup[event.solid_name]
-            self.dag_node_execution_finished.emit(item.name, direction, self._state)
+            self.publisher.dispatch('exec_finished', {"item_name": item.name, "direction": direction, "state": self._state})
