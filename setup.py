@@ -25,7 +25,7 @@ version = {}
 with open("spine_engine/version.py") as fp:
     exec(fp.read(), version)
 
-requirements = ["dagster >= 0.6.4, <0.9"]
+requirements = ["dagster >= 0.9.0"]
 
 setup(
     name="spine_engine",
