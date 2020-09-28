@@ -30,7 +30,7 @@ from dagster import (
 )
 from dagster.core.definitions.utils import DISALLOWED_NAMES, has_valid_name_chars
 from spine_engine.event_publisher import EventPublisher
-from spine_items import ExecutionDirection
+from spine_items.helpers import ExecutionDirection
 
 
 def _inverted(input_):
