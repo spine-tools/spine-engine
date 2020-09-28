@@ -30,6 +30,7 @@ from dagster import (
 )
 from dagster.core.definitions.utils import DISALLOWED_NAMES, has_valid_name_chars
 from spine_engine.event_publisher import EventPublisher
+from spine_items import ExecutionDirection
 
 
 def _inverted(input_):
@@ -54,11 +55,6 @@ class SpineEngineState(Enum):
     USER_STOPPED = 3
     FAILED = 4
     COMPLETED = 5
-
-
-class ExecutionDirection(Enum):
-    FORWARD = auto()
-    BACKWARD = auto()
 
 
 class SpineEngine:
@@ -87,13 +83,18 @@ class SpineEngine:
         self._name_lookup = self.make_name_lookup(project_items)
         # Make lookup table for dagster friendly names (id's) to corresponding ProjectItems
         self._project_item_lookup = self.make_project_item_lookup(project_items)
-        back_injectors = {self._name_lookup[key]: [self._name_lookup[x] for x in value]
-                          for key, value in successors.items()}
+        back_injectors = {
+            self._name_lookup[key]: [self._name_lookup[x] for x in value] for key, value in successors.items()
+        }
         forth_injectors = _inverted(back_injectors)
         # Change project item names in execution permits to corresponding id's
         fixed_exec_permits = self.fix_execution_permits(execution_permits)
-        self._backward_pipeline = self._make_pipeline(project_items, back_injectors, ExecutionDirection.BACKWARD, fixed_exec_permits)
-        self._forward_pipeline = self._make_pipeline(project_items, forth_injectors, ExecutionDirection.FORWARD, fixed_exec_permits)
+        self._backward_pipeline = self._make_pipeline(
+            project_items, back_injectors, ExecutionDirection.BACKWARD, fixed_exec_permits
+        )
+        self._forward_pipeline = self._make_pipeline(
+            project_items, forth_injectors, ExecutionDirection.FORWARD, fixed_exec_permits
+        )
         self._state = SpineEngineState.SLEEPING
         self._running_item = None
 
@@ -188,7 +189,8 @@ class SpineEngine:
             PipelineDefinition
         """
         solid_defs = [
-            self._make_solid_def(item, injectors, direction, execution_permits[self._name_lookup[item.name]]) for item in project_items
+            self._make_solid_def(item, injectors, direction, execution_permits[self._name_lookup[item.name]])
+            for item in project_items
         ]
         dependencies = self._make_dependencies(injectors)
         return PipelineDefinition(name=f"{direction}_pipeline", solid_defs=solid_defs, dependencies=dependencies)
@@ -208,7 +210,9 @@ class SpineEngine:
 
         def compute_fn(context, inputs):
             if self.state() in (SpineEngineState.USER_STOPPED, SpineEngineState.FAILED):
-                context.log.error("compute_fn() FAILURE with item: {0} is in state: {1}".format(item.name, self.state()))
+                context.log.error(
+                    "compute_fn() FAILURE with item: {0} is in state: {1}".format(item.name, self.state())
+                )
                 raise Failure()
             inputs = [val for values in inputs.values() for val in values]
             if execute and not item.execute(inputs, direction):
@@ -257,7 +261,11 @@ class SpineEngine:
             self._running_item = item
             if self._state != SpineEngineState.USER_STOPPED:
                 self._state = SpineEngineState.FAILED
-            self.publisher.dispatch('exec_finished', {"item_name": item.name, "direction": direction, "state": self._state})
+            self.publisher.dispatch(
+                'exec_finished', {"item_name": item.name, "direction": direction, "state": self._state}
+            )
         elif event.event_type == DagsterEventType.STEP_SUCCESS:
             item = self._project_item_lookup[event.solid_name]
-            self.publisher.dispatch('exec_finished', {"item_name": item.name, "direction": direction, "state": self._state})
+            self.publisher.dispatch(
+                'exec_finished', {"item_name": item.name, "direction": direction, "state": self._state}
+            )
