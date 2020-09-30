@@ -1,3 +1,6 @@
 git+https://github.com/Spine-project/Spine-Database-API.git#egg=spinedb_api
 git+https://github.com/Spine-project/spine-items.git#egg=spine_items
+# Installing dagster > 0.9 installs the latest pyrsistent.
+# tableschema 1.19.4 in Spine Toolbox requires pyrsistent < 0.17
+pyrsistent < 0.17
 -e .
