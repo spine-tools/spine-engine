@@ -18,8 +18,6 @@ Setup script for Python's setuptools.
 
 from setuptools import setup, find_packages
 
-REQUIRED_SPINE_ITEMS_VERSION = "0.1.0"
-
 with open("README.md", encoding="utf8") as readme_file:
     readme = readme_file.read()
 
@@ -29,7 +27,6 @@ with open("spine_engine/version.py") as fp:
 
 install_requires = [
     "dagster >= 0.9.0",
-    "spine_items >= {}".format(REQUIRED_SPINE_ITEMS_VERSION),
 ]
 
 
