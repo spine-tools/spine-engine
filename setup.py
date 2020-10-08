@@ -18,8 +18,6 @@ Setup script for Python's setuptools.
 
 from setuptools import setup, find_packages
 
-REQUIRED_SPINE_ITEMS_VERSION = "0.1.0"
-
 with open("README.md", encoding="utf8") as readme_file:
     readme = readme_file.read()
 
@@ -29,7 +27,6 @@ with open("spine_engine/version.py") as fp:
 
 install_requires = [
     "dagster >= 0.9.0",
-    "spine_items >= {}".format(REQUIRED_SPINE_ITEMS_VERSION),
 ]
 
 
@@ -40,8 +37,8 @@ setup(
     long_description=readme,
     author="Spine Project consortium",
     author_email="spine_info@vtt.fi",
-    url="https://gitlab.vtt.fi/spine/engine",
-    packages=find_packages(),
+    url="https://github.com/Spine-project/spine-engine",
+    packages=find_packages(exclude=("tests",)),
     include_package_data=True,
     license="LGPL-3.0-or-later",
     zip_safe=False,
