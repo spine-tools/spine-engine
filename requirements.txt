@@ -1,0 +1,2 @@
+pyrsistent < 0.17
+-e .
