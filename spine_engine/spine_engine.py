@@ -17,6 +17,8 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 """
 
 from enum import auto, Enum
+import json
+import sys
 from dagster import (
     PipelineDefinition,
     SolidDefinition,
@@ -28,13 +30,24 @@ from dagster import (
     execute_pipeline_iterator,
     DagsterEventType,
 )
-from dagster.core.definitions.utils import DISALLOWED_NAMES, has_valid_name_chars
 from spine_engine.event_publisher import EventPublisher
+from .helpers import _AppSettings, _PublisherLogger
+from .load_project_items import ProjectItemLoader, upgrade_project_items
+
+upgrade_project_items()
 
 
 class ExecutionDirection(Enum):
     FORWARD = auto()
     BACKWARD = auto()
+
+
+class SpineEngineState(Enum):
+    SLEEPING = 1
+    RUNNING = 2
+    USER_STOPPED = 3
+    FAILED = 4
+    COMPLETED = 5
 
 
 def _inverted(input_):
@@ -53,14 +66,6 @@ def _inverted(input_):
     return output
 
 
-class SpineEngineState(Enum):
-    SLEEPING = 1
-    RUNNING = 2
-    USER_STOPPED = 3
-    FAILED = 4
-    COMPLETED = 5
-
-
 class SpineEngine:
     """
     An engine for executing a Spine Toolbox DAG-workflow.
@@ -70,7 +75,7 @@ class SpineEngine:
     - One forward, where actual execution happens.
     """
 
-    def __init__(self, project_items, successors, execution_permits):
+    def __init__(self, project_items, successors, execution_permits, publisher=None):
         """
         Creates the two pipelines.
 
@@ -79,10 +84,13 @@ class SpineEngine:
             successors (dict): A mapping from item name to list of successor item names, dictating the dependencies.
             execution_permits (dict): A mapping from item name to a boolean value, False indicating that
                 the item is not executed, only its resources are collected.
+            publisher (EventPublisher, optional): an event publisher
         """
         super().__init__()
         # event publisher object whose dispatch method notifies subscribers on particular events
-        self.publisher = EventPublisher(['exec_started', 'exec_finished', 'log_event'])
+        if publisher is None:
+            publisher = EventPublisher()
+        self.publisher = publisher
         # Make lookup table for project item names to corresponding dagster friendly names (id's)
         self._name_lookup = self.make_name_lookup(project_items)
         # Make lookup table for dagster friendly names (id's) to corresponding ProjectItems
@@ -147,16 +155,46 @@ class SpineEngine:
         return self._state
 
     @classmethod
-    def from_cwl(cls, path):
-        """Returns an instance of this class from a CWL file.
+    def from_json(cls, s):
+        """Returns an instance of this class from a json string.
 
         Args:
-            path (str): Path to a CWL file with the DAG-workflow description.
+            s (str): JSON string
 
         Returns:
             SpineEngine
         """
-        # TODO
+        project_item_loader = ProjectItemLoader()
+        specification_factories = project_item_loader.load_item_specification_factories()
+        executable_item_classes = project_item_loader.load_executable_item_classes()
+        d = json.loads(s)
+        items = d["items"]
+        specifications = d["specifications"]
+        node_successors = d["node_successors"]
+        execution_permits = d["execution_permits"]
+        settings = d["settings"]
+        project_dir = d["project_dir"]
+        app_settings = _AppSettings(settings)
+        publisher = EventPublisher()
+        logger = _PublisherLogger(publisher)
+        item_specifications = {}
+        for item_type, spec_dicts in specifications.items():
+            factory = specification_factories.get(item_type)
+            if factory is None:
+                continue
+            item_specifications[item_type] = dict()
+            for spec_dict in spec_dicts:
+                spec = factory.make_specification(spec_dict, app_settings, logger)
+                item_specifications[item_type][spec.name] = spec
+        executable_items = []
+        for item_name, item_dict in items.items():
+            item_type = item_dict["type"]
+            executable_item_class = executable_item_classes[item_type]
+            item = executable_item_class.from_dict(
+                item_dict, item_name, project_dir, app_settings, item_specifications, logger
+            )
+            executable_items.append(item)
+        return cls(executable_items, node_successors, execution_permits, publisher=publisher)
 
     def run(self):
         """Runs this engine.

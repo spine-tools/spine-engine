@@ -23,12 +23,24 @@ class EventPublisher:
     dispatched to subscribers of this class.
     """
 
-    def __init__(self, events):
+    def __init__(self, events=None):
         """
         Maps each named event to a dict
         Args:
             events (list(str)): list of named events e.g. ['exec_started', 'exec_finished']
         """
+        if events is None:
+            events = (
+                'exec_started',
+                'exec_finished',
+                'log_event',
+                'msg',
+                'msg_success',
+                'msg_warning',
+                'msg_error',
+                'msg_proc',
+                'msg_proc_error',
+            )
         self.events = {event: dict() for event in events}
 
     def get_subscribers(self, event):
