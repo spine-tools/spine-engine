@@ -21,7 +21,7 @@ import importlib.util
 import subprocess
 import sys
 
-REQUIRED_SPINE_ITEMS_VERSION = "0.1.7"
+REQUIRED_SPINE_ITEMS_VERSION = "0.1.8"
 
 
 def _spine_items_version_check():
