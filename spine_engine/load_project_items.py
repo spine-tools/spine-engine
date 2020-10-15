@@ -121,18 +121,6 @@ class ProjectItemLoader(metaclass=_Singleton):
             items_root = pathlib.Path(spine_items.__file__).parent
             self._executable_item_classes[self] = executable_items = dict()
             for child in items_root.iterdir():
-                if child.stem not in (
-                    "combiner",
-                    "data_connection",
-                    "data_store",
-                    "data_transformer",
-                    "tool",
-                    "importer",
-                    'view',
-                    'gimlet',
-                    'exporter',
-                ):
-                    continue
                 if child.is_dir() and child.joinpath("executable_item_qt_free.py").exists():
                     spec = importlib.util.find_spec(f"spine_items.{child.stem}.executable_item_qt_free")
                 elif child.is_dir() and child.joinpath("executable_item.py").exists():

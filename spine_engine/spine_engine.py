@@ -41,6 +41,9 @@ class ExecutionDirection(Enum):
     FORWARD = auto()
     BACKWARD = auto()
 
+    def __str__(self):
+        return {"FORWARD": "forward", "BACKWARD": "backward"}[self.name]
+
 
 class SpineEngineState(Enum):
     SLEEPING = 1
