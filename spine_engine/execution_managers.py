@@ -17,9 +17,8 @@ Contains the ExeuctionManagerBase class and main subclasses.
 """
 
 from enum import auto, Enum
-import asyncio
-from asyncio import create_subprocess_exec
-from asyncio.subprocess import PIPE
+from subprocess import Popen, PIPE
+from threading import Thread
 
 
 class ExecutionManagerBase:
@@ -48,6 +47,12 @@ class ExecutionState(Enum):
     FAILED_TO_START = auto()
 
 
+def _start_daemon_thread(target, *args):
+    t = Thread(target=target, args=args)
+    t.daemon = True  # thread dies with the program
+    t.start()
+
+
 class StandardExecutionManager(ExecutionManagerBase):
     def __init__(self, logger, program, *args):
         """Class constructor.
@@ -63,22 +68,26 @@ class StandardExecutionManager(ExecutionManagerBase):
         self.process_failed_to_start = False
 
     def run_until_complete(self, workdir=None):
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(self._run(workdir=workdir))
-
-    async def _run(self, workdir=None):
         self.change_state(ExecutionState.STARTING)
         try:
-            process = await create_subprocess_exec(self._program, *self._args, stdout=PIPE, stderr=PIPE, cwd=workdir)
+            p = Popen([self._program, *self._args], stdout=PIPE, stderr=PIPE, bufsize=1, cwd=workdir)
         except OSError:
             self.change_state(ExecutionState.FAILED_TO_START)
             return
         self.change_state(ExecutionState.RUNNING)
-        await asyncio.wait(
-            [_read_stream(process.stdout, self.log_stdout), _read_stream(process.stderr, self.log_stderr)]
-        )
-        await process.wait()
-        return process.returncode
+        _start_daemon_thread(self.log_stdout, p.stdout)
+        _start_daemon_thread(self.log_stderr, p.stderr)
+        return p.wait()
+
+    def log_stdout(self, stdout):
+        for line in iter(stdout.readline, b''):
+            self._logger.msg_proc.emit(line.decode("UTF8"))
+        stdout.close()
+
+    def log_stderr(self, stderr):
+        for line in iter(stderr.readline, b''):
+            self._logger.msg_proc_error.emit(line.decode("UTF8"))
+        stderr.close()
 
     def change_state(self, state):
         if state == ExecutionState.STARTING:
@@ -90,18 +99,3 @@ class StandardExecutionManager(ExecutionManagerBase):
             self._logger.msg_error.emit("Process failed to start")
         elif state == ExecutionState.RUNNING:
             self._logger.msg_warning.emit("\tExecution is in progress. See Process Log for messages " "(stdout&stderr)")
-
-    def log_stdout(self, stdout):
-        self._logger.msg_proc.emit(stdout.decode("UTF8"))
-
-    def log_stderr(self, stderr):
-        self._logger.msg_proc_error.emit(stderr.decode("UTF8"))
-
-
-async def _read_stream(stream, callback):
-    while True:
-        line = await stream.readline()
-        if line:
-            callback(line)
-        else:
-            break
