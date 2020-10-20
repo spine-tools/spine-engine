@@ -10,5 +10,4 @@
 ######################################################################################################################
 
 from .spine_engine import ExecutionDirection, SpineEngine, SpineEngineState
-from .execution_managers import StandardExecutionManager
 from .version import __version__

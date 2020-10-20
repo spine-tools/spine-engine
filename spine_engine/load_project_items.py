@@ -20,6 +20,7 @@ import importlib
 import importlib.util
 import subprocess
 import sys
+from .helpers import _Singleton
 
 REQUIRED_SPINE_ITEMS_VERSION = "0.1.8"
 
@@ -67,15 +68,6 @@ UPGRADING PROJECT ITEMS...
         # Failed to install module
         return False
     return True
-
-
-class _Singleton(type):
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super().__call__(*args, **kwargs)
-        return cls._instances[cls]
 
 
 class ProjectItemLoader(metaclass=_Singleton):

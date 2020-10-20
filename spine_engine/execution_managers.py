@@ -16,9 +16,11 @@ Contains the ExeuctionManagerBase class and main subclasses.
 :date:   12.10.2020
 """
 
-from enum import auto, Enum
+import os
 from subprocess import Popen, PIPE
 from threading import Thread
+from jupyter_client.manager import KernelManager
+from .helpers import _Singleton
 
 
 class ExecutionManagerBase:
@@ -32,19 +34,13 @@ class ExecutionManagerBase:
         """
         self._logger = logger
 
-    def run_until_complete(self, workdir=None):
+    def run_until_complete(self):
         """Runs until completion.
 
         Returns:
             int: return code
         """
         raise NotImplementedError()
-
-
-class ExecutionState(Enum):
-    STARTING = auto()
-    RUNNING = auto()
-    FAILED_TO_START = auto()
 
 
 def _start_daemon_thread(target, *args):
@@ -54,7 +50,7 @@ def _start_daemon_thread(target, *args):
 
 
 class StandardExecutionManager(ExecutionManagerBase):
-    def __init__(self, logger, program, *args):
+    def __init__(self, logger, program, *args, workdir=None):
         """Class constructor.
 
         Args:
@@ -65,16 +61,17 @@ class StandardExecutionManager(ExecutionManagerBase):
         super().__init__(logger)
         self._program = program
         self._args = args
-        self.process_failed_to_start = False
+        self._workdir = workdir
 
-    def run_until_complete(self, workdir=None):
-        self.change_state(ExecutionState.STARTING)
+    def run_until_complete(self):
         try:
-            p = Popen([self._program, *self._args], stdout=PIPE, stderr=PIPE, bufsize=1, cwd=workdir)
-        except OSError:
-            self.change_state(ExecutionState.FAILED_TO_START)
+            p = Popen([self._program, *self._args], stdout=PIPE, stderr=PIPE, bufsize=1, cwd=self._workdir)
+        except OSError as e:
+            msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
+            self._logger.publisher.dispatch("msg_standard_execution", msg)
             return
-        self.change_state(ExecutionState.RUNNING)
+        msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
+        self._logger.publisher.dispatch("msg_standard_execution", msg)
         _start_daemon_thread(self.log_stdout, p.stdout)
         _start_daemon_thread(self.log_stderr, p.stderr)
         return p.wait()
@@ -89,13 +86,50 @@ class StandardExecutionManager(ExecutionManagerBase):
             self._logger.msg_proc_error.emit(line.decode("UTF8"))
         stderr.close()
 
-    def change_state(self, state):
-        if state == ExecutionState.STARTING:
-            self._logger.msg.emit("\tStarting program <b>{0}</b>".format(self._program))
-            arg_str = " ".join(self._args)
-            self._logger.msg.emit("\tArguments: <b>{0}</b>".format(arg_str))
-        elif state == ExecutionState.FAILED_TO_START:
-            self.process_failed_to_start = True
-            self._logger.msg_error.emit("Process failed to start")
-        elif state == ExecutionState.RUNNING:
-            self._logger.msg_warning.emit("\tExecution is in progress. See Process Log for messages " "(stdout&stderr)")
+
+class _KernelManagerProvider(metaclass=_Singleton):
+    _kernel_managers = {}
+
+    def new_kernel_manager(self, kernel_name):
+        if kernel_name not in self._kernel_managers:
+            self._kernel_managers[kernel_name] = KernelManager(kernel_name=kernel_name)
+        return self._kernel_managers[kernel_name]
+
+
+class KernelExecutionManager(ExecutionManagerBase):
+    def __init__(self, logger, language, kernel_name, *commands, startup_timeout=60):
+        super().__init__(logger)
+        provider = _KernelManagerProvider()
+        self._msg = dict(language=language, kernel_name=kernel_name)
+        self._commands = commands
+        self._kernel_manager = provider.new_kernel_manager(kernel_name)
+        self._startup_timeout = startup_timeout
+
+    def run_until_complete(self):
+        if not self._kernel_manager.is_alive():
+            # Start kernel and dispatch the event, so toolbox knows it needs to configure it's client
+            if not self._kernel_manager.kernel_spec:
+                msg = dict(type="kernel_spec_not_found", **self._msg)
+                self._logger.publisher.dispatch("msg_kernel_execution", msg)
+                return
+            blackhole = open(os.devnull, 'w')
+            self._kernel_manager.start_kernel(stdout=blackhole, stderr=blackhole)
+        msg = dict(type="kernel_started", connection_file=self._kernel_manager.connection_file, **self._msg)
+        self._logger.publisher.dispatch("msg_kernel_execution", msg)
+        kernel_client = self._kernel_manager.client()
+        kernel_client.start_channels()
+        try:
+            kernel_client.wait_for_ready(timeout=self._startup_timeout)
+        except RuntimeError as e:
+            kernel_client.stop_channels()
+            msg = dict(type="execution_failed_to_start", error=str(e), **self._msg)
+            self._logger.publisher.dispatch("msg_kernel_execution", msg)
+            return
+        msg = dict(type="execution_started", code=" ".join(self._commands), **self._msg)
+        self._logger.publisher.dispatch("msg_kernel_execution", msg)
+        for cmd in self._commands:
+            reply = kernel_client.execute_interactive(cmd, output_hook=lambda msg: None)
+            st = reply["content"]["status"]
+            if st != "ok":
+                return -1
+        return 0

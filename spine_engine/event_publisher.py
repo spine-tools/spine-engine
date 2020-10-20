@@ -40,6 +40,8 @@ class EventPublisher:
                 'msg_error',
                 'msg_proc',
                 'msg_proc_error',
+                'msg_kernel_execution',
+                'msg_standard_execution',
             )
         self.events = {event: dict() for event in events}
 

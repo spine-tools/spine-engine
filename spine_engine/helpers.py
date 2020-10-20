@@ -17,6 +17,15 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 """
 
 
+class _Singleton(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
 class _AppSettings:
     """
     A QSettings replacement.
@@ -53,6 +62,7 @@ class _PublisherLogger:
     """
 
     def __init__(self, publisher):
+        self.publisher = publisher
         self.msg = _Message(publisher, 'msg')
         self.msg_success = _Message(publisher, 'msg_success')
         self.msg_warning = _Message(publisher, 'msg_warning')
