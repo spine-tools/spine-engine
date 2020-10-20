@@ -78,7 +78,7 @@ class SpineEngine:
     - One forward, where actual execution happens.
     """
 
-    def __init__(self, project_items, successors, execution_permits, publisher=None):
+    def __init__(self, project_items, successors, execution_permits, publisher=None, debug=False):
         """
         Creates the two pipelines.
 
@@ -112,6 +112,7 @@ class SpineEngine:
         )
         self._state = SpineEngineState.SLEEPING
         self._running_item = None
+        self._debug = debug
 
     @staticmethod
     def make_name_lookup(project_items):
@@ -197,7 +198,7 @@ class SpineEngine:
                 item_dict, item_name, project_dir, app_settings, item_specifications, logger
             )
             executable_items.append(item)
-        return cls(executable_items, node_successors, execution_permits, publisher=publisher)
+        return cls(executable_items, node_successors, execution_permits, publisher=publisher, debug=True)
 
     def run(self):
         """Runs this engine.
@@ -309,6 +310,10 @@ class SpineEngine:
             self.publisher.dispatch(
                 'exec_finished', {"item_name": item.name, "direction": direction, "state": self._state}
             )
+            if self._debug:
+                error = event.event_specific_data.error
+                print("Traceback (most recent call last):")
+                print("".join(error.stack + [error.message]))
         elif event.event_type == DagsterEventType.STEP_SUCCESS:
             item = self._project_item_lookup[event.solid_name]
             self.publisher.dispatch(
