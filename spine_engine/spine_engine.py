@@ -16,9 +16,7 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 :date:   20.11.2019
 """
 
-from enum import auto, Enum
-import json
-import sys
+from enum import Enum
 from dagster import (
     PipelineDefinition,
     SolidDefinition,
@@ -31,18 +29,7 @@ from dagster import (
     DagsterEventType,
 )
 from spine_engine.event_publisher import EventPublisher
-from .helpers import _AppSettings, _PublisherLogger
-from .load_project_items import ProjectItemLoader, upgrade_project_items
-
-upgrade_project_items()
-
-
-class ExecutionDirection(Enum):
-    FORWARD = auto()
-    BACKWARD = auto()
-
-    def __str__(self):
-        return {"FORWARD": "forward", "BACKWARD": "backward"}[self.name]
+from spine_engine.helpers import inverted, ExecutionDirection
 
 
 class SpineEngineState(Enum):
@@ -51,22 +38,6 @@ class SpineEngineState(Enum):
     USER_STOPPED = 3
     FAILED = 4
     COMPLETED = 5
-
-
-def _inverted(input_):
-    """Inverts a dictionary of list values.
-
-    Args:
-        input_ (dict)
-
-    Returns:
-        dict: keys are list items, and values are keys listing that item from the input dictionary
-    """
-    output = dict()
-    for key, value_list in input_.items():
-        for value in value_list:
-            output.setdefault(value, list()).append(key)
-    return output
 
 
 class SpineEngine:
@@ -83,7 +54,7 @@ class SpineEngine:
         Creates the two pipelines.
 
         Args:
-            project_items (list(ProjectItem)): The items to execute.
+            project_items (list(ExecutableItemBase)): The items to execute.
             successors (dict): A mapping from item name to list of successor item names, dictating the dependencies.
             execution_permits (dict): A mapping from item name to a boolean value, False indicating that
                 the item is not executed, only its resources are collected.
@@ -101,7 +72,7 @@ class SpineEngine:
         back_injectors = {
             self._name_lookup[key]: [self._name_lookup[x] for x in value] for key, value in successors.items()
         }
-        forth_injectors = _inverted(back_injectors)
+        forth_injectors = inverted(back_injectors)
         # Change project item names in execution permits to corresponding id's
         fixed_exec_permits = self.fix_execution_permits(execution_permits)
         self._backward_pipeline = self._make_pipeline(
@@ -125,7 +96,7 @@ class SpineEngine:
         that are allowed in Spine Toolbox but disallowed by dagster.
 
         Args:
-            project_items (list(ProjectItem)): List of project items
+            project_items (list(ExecutableItemBase)): List of project items
 
         Returns:
             dict: Keys are project item names, values are integers as strings
@@ -133,13 +104,13 @@ class SpineEngine:
         return {item.name: str(i) for i, item in enumerate(project_items)}
 
     def make_project_item_lookup(self, project_items):
-        """Returns a ProjectItem lookup table.
+        """Returns a ExecutableItemBase lookup table.
 
         Args:
-            project_items (list(ProjectItem)): List of project items
+            project_items (list(ExecutableItemBase)): List of project items
 
         Returns:
-            dict: Integer id's as keys, corresponding ProjectItem's as values
+            dict: Integer id's as keys, corresponding ExecutableItemBase's as values
         """
         return {self._name_lookup[item.name]: item for item in project_items}
 
@@ -157,48 +128,6 @@ class SpineEngine:
 
     def state(self):
         return self._state
-
-    @classmethod
-    def from_json(cls, s):
-        """Returns an instance of this class from a json string.
-
-        Args:
-            s (str): JSON string
-
-        Returns:
-            SpineEngine
-        """
-        project_item_loader = ProjectItemLoader()
-        specification_factories = project_item_loader.load_item_specification_factories()
-        executable_item_classes = project_item_loader.load_executable_item_classes()
-        d = json.loads(s)
-        items = d["items"]
-        specifications = d["specifications"]
-        node_successors = d["node_successors"]
-        execution_permits = d["execution_permits"]
-        settings = d["settings"]
-        project_dir = d["project_dir"]
-        app_settings = _AppSettings(settings)
-        publisher = EventPublisher()
-        logger = _PublisherLogger(publisher)
-        item_specifications = {}
-        for item_type, spec_dicts in specifications.items():
-            factory = specification_factories.get(item_type)
-            if factory is None:
-                continue
-            item_specifications[item_type] = dict()
-            for spec_dict in spec_dicts:
-                spec = factory.make_specification(spec_dict, app_settings, logger)
-                item_specifications[item_type][spec.name] = spec
-        executable_items = []
-        for item_name, item_dict in items.items():
-            item_type = item_dict["type"]
-            executable_item_class = executable_item_classes[item_type]
-            item = executable_item_class.from_dict(
-                item_dict, item_name, project_dir, app_settings, item_specifications, logger
-            )
-            executable_items.append(item)
-        return cls(executable_items, node_successors, execution_permits, publisher=publisher, debug=True)
 
     def run(self):
         """Runs this engine.
@@ -225,7 +154,7 @@ class SpineEngine:
         generating dependencies from the given injectors.
 
         Args:
-            project_items (list(ProjectItem)): List of project items for creating pipeline solids.
+            project_items (list(ExecutableItemBase)): List of project items for creating pipeline solids.
             injectors (dict(str,list(str))): A mapping from item name to list of injector item names.
             direction (ExecutionDirection): The direction of the pipeline.
             execution_permits (dict): A mapping from item name to a boolean value, False indicating that
@@ -245,7 +174,7 @@ class SpineEngine:
         """Returns a SolidDefinition for executing the given item in the given direction.
 
         Args:
-            item (ProjectItem): The project item that gets executed by the solid.
+            item (ExecutableItemBase): The project item that gets executed by the solid.
             injectors (dict): Mapping from item name to list of injector item names.
             direction (ExecutionDirection): The direction of execution.
             execute (bool): If False, do not execute the item, just collect resources.
@@ -265,7 +194,6 @@ class SpineEngine:
                 context.log.error("compute_fn() FAILURE with item: {0} failed to execute".format(item.name))
                 raise Failure()
             context.log.info("Item Name: {}".format(item.name))
-
             yield Output(value=item.output_resources(direction), output_name="result")
 
         input_defs = [InputDefinition(name=f"input_from_{n}") for n in injectors.get(self._name_lookup[item.name], [])]
@@ -314,6 +242,7 @@ class SpineEngine:
                 error = event.event_specific_data.error
                 print("Traceback (most recent call last):")
                 print("".join(error.stack + [error.message]))
+                print("(generated by SpineEngine in debug mode)")
         elif event.event_type == DagsterEventType.STEP_SUCCESS:
             item = self._project_item_lookup[event.solid_name]
             self.publisher.dispatch(

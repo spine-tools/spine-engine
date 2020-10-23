@@ -68,10 +68,10 @@ class StandardExecutionManager(ExecutionManagerBase):
             p = Popen([self._program, *self._args], stdout=PIPE, stderr=PIPE, bufsize=1, cwd=self._workdir)
         except OSError as e:
             msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
-            self._logger.publisher.dispatch("msg_standard_execution", msg)
+            self._logger.msg_standard_execution.emit(msg)
             return
         msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
-        self._logger.publisher.dispatch("msg_standard_execution", msg)
+        self._logger.msg_standard_execution.emit(msg)
         _start_daemon_thread(self.log_stdout, p.stdout)
         _start_daemon_thread(self.log_stderr, p.stderr)
         return p.wait()
@@ -110,12 +110,12 @@ class KernelExecutionManager(ExecutionManagerBase):
             # Start kernel and dispatch the event, so toolbox knows it needs to configure it's client
             if not self._kernel_manager.kernel_spec:
                 msg = dict(type="kernel_spec_not_found", **self._msg)
-                self._logger.publisher.dispatch("msg_kernel_execution", msg)
+                self._logger.msg_kernel_execution.emit(msg)
                 return
             blackhole = open(os.devnull, 'w')
             self._kernel_manager.start_kernel(stdout=blackhole, stderr=blackhole)
         msg = dict(type="kernel_started", connection_file=self._kernel_manager.connection_file, **self._msg)
-        self._logger.publisher.dispatch("msg_kernel_execution", msg)
+        self._logger.msg_kernel_execution.emit(msg)
         kernel_client = self._kernel_manager.client()
         kernel_client.start_channels()
         try:
@@ -123,10 +123,10 @@ class KernelExecutionManager(ExecutionManagerBase):
         except RuntimeError as e:
             kernel_client.stop_channels()
             msg = dict(type="execution_failed_to_start", error=str(e), **self._msg)
-            self._logger.publisher.dispatch("msg_kernel_execution", msg)
+            self._logger.msg_kernel_execution.emit(msg)
             return
         msg = dict(type="execution_started", code=" ".join(self._commands), **self._msg)
-        self._logger.publisher.dispatch("msg_kernel_execution", msg)
+        self._logger.msg_kernel_execution.emit(msg)
         for cmd in self._commands:
             reply = kernel_client.execute_interactive(cmd, output_hook=lambda msg: None)
             st = reply["content"]["status"]
