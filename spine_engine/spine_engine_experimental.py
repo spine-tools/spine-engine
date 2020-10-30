@@ -37,13 +37,7 @@ from dagster import (
 # from dagster_celery import celery_executor
 from dagster.core.definitions.reconstructable import build_reconstructable_pipeline
 from spine_engine.event_publisher import EventPublisher
-from .helpers import (
-    AppSettings,
-    inverted,
-    Messenger,
-    ItemExecutionStart,
-    ItemExecutionFinish,
-)
+from .helpers import AppSettings, inverted, Messenger, ItemExecutionStart, ItemExecutionFinish
 from .load_project_items import ProjectItemLoader
 from .spine_engine import ExecutionDirection, SpineEngineState
 
@@ -162,22 +156,26 @@ def _make_forward_solid_def(item, execute, backward_injectors, forward_injectors
         backward_resources = [v for vals in input_values[backward_resource_first:backward_resource_last] for v in vals]
         forward_resources = [v for vals in input_values[backward_resource_last:] for v in vals]
         yield ItemExecutionStart("dummy", metadata_entries=[EventMetadataEntry.text(item.name, "")])
-        if execute:
-            # Do the work in a different thread
+        # Do the work in a different thread
 
-            def worker():
+        def worker():
+            if execute:
                 success = item.execute(backward_resources, backward)
                 success &= item.execute(forward_resources, forward)
                 messenger.close(success)
+            else:
+                item.skip_execution(backward_resources, backward)
+                item.skip_execution(forward_resources, forward)
+                messenger.close(True)
 
-            threading.Thread(target=worker).start()
-            # Do the control in the current thread
-            while True:
-                if messenger.is_closed():
-                    break
-                msg = messenger.get_msg()
-                yield msg.materialization()
-                messenger.task_done()
+        threading.Thread(target=worker).start()
+        # Do the control in the current thread
+        while True:
+            if messenger.is_closed():
+                break
+            msg = messenger.get_msg()
+            yield msg.materialization()
+            messenger.task_done()
         yield ItemExecutionFinish("dummy", metadata_entries=[EventMetadataEntry.text(item.name, "")])
         if messenger.success() is False:
             raise Failure()
@@ -313,7 +311,7 @@ class SpineEngineExperimental:
         }
         instance = DagsterInstance.local_temp()
         pipeline = build_reconstructable_pipeline(
-            "spine_engine.spine_engine_experimental", "make_pipeline", (self._json_data,),
+            "spine_engine.spine_engine_experimental", "make_pipeline", (self._json_data,)
         )
         for event in execute_pipeline_iterator(pipeline, run_config=run_config, instance=instance):
             self._process_event(event)

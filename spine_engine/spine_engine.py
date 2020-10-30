@@ -190,9 +190,12 @@ class SpineEngine:
                 )
                 raise Failure()
             inputs = [val for values in inputs.values() for val in values]
-            if execute and not item.execute(inputs, direction):
-                context.log.error("compute_fn() FAILURE with item: {0} failed to execute".format(item.name))
-                raise Failure()
+            if execute:
+                if not item.execute(inputs, direction):
+                    context.log.error("compute_fn() FAILURE with item: {0} failed to execute".format(item.name))
+                    raise Failure()
+            else:
+                item.skip_execution(inputs, direction)
             context.log.info("Item Name: {}".format(item.name))
             yield Output(value=item.output_resources(direction), output_name="result")
 
