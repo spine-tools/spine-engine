@@ -78,12 +78,12 @@ class StandardExecutionManager(ExecutionManagerBase):
 
     def log_stdout(self, stdout):
         for line in iter(stdout.readline, b''):
-            self._logger.msg_proc.emit(line.decode("UTF8"))
+            self._logger.msg_proc.emit(line.decode("UTF8").strip())
         stdout.close()
 
     def log_stderr(self, stderr):
         for line in iter(stderr.readline, b''):
-            self._logger.msg_proc_error.emit(line.decode("UTF8"))
+            self._logger.msg_proc_error.emit(line.decode("UTF8").strip())
         stderr.close()
 
 
