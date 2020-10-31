@@ -147,8 +147,7 @@ def _make_forward_solid_def(item, execute, backward_injectors, forward_injectors
     forward = ExecutionDirection.FORWARD
 
     def compute_fn(context, inputs):
-        # NOTE: Parse input into backward_resources and forward_resources, using the backward resource counts
-        # Note that this depends on the input_defs being ordered (see NOTE below)
+        # Parse input values
         input_values = list(inputs.values())
         backward_resource_first = next((k for k, x in enumerate(input_values) if isinstance(x, list)), 0)
         backward_resource_count = sum(input_values[:backward_resource_first])
@@ -181,23 +180,20 @@ def _make_forward_solid_def(item, execute, backward_injectors, forward_injectors
             raise Failure()
         yield Output(value=item.output_resources(forward), output_name="result")
 
-    # NOTE: Input defs are ordered as follows: first we have the backward resource counts,
-    # then backward resources, and finally foward resources.
-    # This is so our parsing routine in the compute function works (see NOTE above)
-    input_defs = (
-        [
-            InputDefinition(name=_make_directed_input_name(solid_names[n], backward) + "_count")
-            for n in backward_injectors.get(item.name, [])
-        ]
-        + [
-            InputDefinition(name=_make_directed_input_name(solid_names[n], backward))
-            for n in backward_injectors.get(item.name, [])
-        ]
-        + [
-            InputDefinition(name=_make_directed_input_name(solid_names[n], forward))
-            for n in forward_injectors.get(item.name, [])
-        ]
-    )
+    # Make input defs
+    backward_count_input_defs = [
+        InputDefinition(name=_make_directed_input_name(solid_names[n], backward) + "_count")
+        for n in backward_injectors.get(item.name, [])
+    ]  # Resource count per backward injector
+    backward_input_defs = [
+        InputDefinition(name=_make_directed_input_name(solid_names[n], backward))
+        for n in backward_injectors.get(item.name, [])
+    ]  # Resources per backward injector
+    forward_input_defs = [
+        InputDefinition(name=_make_directed_input_name(solid_names[n], forward))
+        for n in forward_injectors.get(item.name, [])
+    ]  # Resources per forward injector
+    input_defs = backward_count_input_defs + backward_input_defs + forward_input_defs
     output_defs = [OutputDefinition(name="result")]
     return SolidDefinition(
         name=_make_directed_solid_name(solid_names[item.name], forward),
