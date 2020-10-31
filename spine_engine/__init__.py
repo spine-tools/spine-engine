@@ -13,4 +13,4 @@ from .spine_engine import ExecutionDirection, SpineEngine, SpineEngineState
 from .version import __version__
 from .load_project_items import upgrade_project_items
 
-upgrade_project_items()
+# upgrade_project_items()
