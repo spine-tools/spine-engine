@@ -17,7 +17,6 @@ Contains the SpineEngineExperimental class for running Spine Toolbox DAGs.
 """
 
 import json
-import threading
 from dagster import (
     PipelineDefinition,
     SolidDefinition,
@@ -29,17 +28,13 @@ from dagster import (
     Failure,
     execute_pipeline_iterator,
     DagsterEventType,
-    DagsterInstance,
-    EventMetadataEntry,
     default_executors,
 )
-
-# from dagster_celery import celery_executor
-from dagster.core.definitions.reconstructable import build_reconstructable_pipeline
 from spine_engine.event_publisher import EventPublisher
-from .helpers import AppSettings, inverted, Messenger, ItemExecutionStart, ItemExecutionFinish
+from .helpers import AppSettings, inverted, PublisherLogger
 from .load_project_items import ProjectItemLoader
 from .spine_engine import ExecutionDirection, SpineEngineState
+from .executor import multithread_executor
 
 
 def _make_executable_items(items, specifications, settings, project_dir, logger):
@@ -67,190 +62,6 @@ def _make_executable_items(items, specifications, settings, project_dir, logger)
     return executable_items
 
 
-def make_pipeline(json_data):
-    """
-    Returns a PipelineDefinition for executing the given items in the given direction,
-    generating dependencies from the given injectors.
-
-    Args:
-        engine_id (int)
-
-    Returns:
-        PipelineDefinition
-    """
-    data = json.loads(json_data)
-    items = data["items"]
-    specifications = data["specifications"]
-    settings = data["settings"]
-    project_dir = data["project_dir"]
-    execution_permits = data["execution_permits"]
-    successors = data["node_successors"]
-    backward_injectors = successors
-    forward_injectors = inverted(successors)
-    messenger = Messenger()
-    executable_items = _make_executable_items(items, specifications, settings, project_dir, messenger)
-    solid_names = {item.name: str(i) for i, item in enumerate(executable_items)}
-    solid_defs = [_make_backward_solid_def(item, solid_names) for item in executable_items]
-    solid_defs += [
-        _make_forward_solid_def(
-            item, execution_permits[item.name], backward_injectors, forward_injectors, solid_names, messenger
-        )
-        for item in executable_items
-    ]
-    dependencies = _make_dependencies(backward_injectors, forward_injectors, solid_names)
-    # mode_defs = [ModeDefinition(executor_defs=default_executors + [celery_executor])]
-    mode_defs = [ModeDefinition(executor_defs=default_executors)]
-    return PipelineDefinition(name="pipeline", solid_defs=solid_defs, mode_defs=mode_defs, dependencies=dependencies)
-
-
-def _make_backward_solid_def(item, solid_names):
-    """Returns a SolidDefinition for executing the given item backward.
-
-    Args:
-        item (ExecutableItemBase): The project item that gets executed by the solid.
-        solid_names (dict): Mapping from item name to dagster-friendly solid name.
-
-    Returns:
-        SolidDefinition
-    """
-    backward = ExecutionDirection.BACKWARD
-
-    def compute_fn(context, inputs):
-        backward_resources = item.output_resources(backward)
-        yield Output(value=backward_resources, output_name="result")
-        yield Output(value=len(backward_resources), output_name="count")
-
-    output_defs = [OutputDefinition(name="result"), OutputDefinition(name="count")]
-    return SolidDefinition(
-        name=_make_directed_solid_name(solid_names[item.name], backward),
-        input_defs=[],
-        compute_fn=compute_fn,
-        output_defs=output_defs,
-    )
-
-
-def _make_forward_solid_def(item, execute, backward_injectors, forward_injectors, solid_names, messenger):
-    """Returns a SolidDefinition for executing the given item forward.
-
-    Args:
-        item (ExecutableItemBase): The project item that gets executed by the solid.
-        execute (bool): If False, do not execute the item, just collect resources.
-        backward_injectors (dict): Mapping from item name to list of injector item names.
-        forward_injectors (dict): Mapping from item name to list of injector item names.
-        solid_names (dict): Mapping from item name to dagster-friendly solid name.
-        messenger (Messenger)
-
-    Returns:
-        SolidDefinition
-    """
-    backward = ExecutionDirection.BACKWARD
-    forward = ExecutionDirection.FORWARD
-
-    def compute_fn(context, inputs):
-        # Parse input values
-        input_values = list(inputs.values())
-        backward_resource_first = next((k for k, x in enumerate(input_values) if isinstance(x, list)), 0)
-        backward_resource_count = sum(input_values[:backward_resource_first])
-        backward_resource_last = backward_resource_first + backward_resource_count
-        backward_resources = [v for vals in input_values[backward_resource_first:backward_resource_last] for v in vals]
-        forward_resources = [v for vals in input_values[backward_resource_last:] for v in vals]
-        yield ItemExecutionStart("dummy", metadata_entries=[EventMetadataEntry.text(item.name, "")])
-        # Do the work in a different thread
-
-        def worker():
-            if execute:
-                success = item.execute(backward_resources, backward)
-                success &= item.execute(forward_resources, forward)
-                messenger.close(success)
-            else:
-                item.skip_execution(backward_resources, backward)
-                item.skip_execution(forward_resources, forward)
-                messenger.close(True)
-
-        threading.Thread(target=worker).start()
-        # Do the control in the current thread
-        while True:
-            if messenger.is_closed():
-                break
-            msg = messenger.get_msg()
-            yield msg.materialization()
-            messenger.task_done()
-        yield ItemExecutionFinish("dummy", metadata_entries=[EventMetadataEntry.text(item.name, "")])
-        if messenger.success() is False:
-            raise Failure()
-        yield Output(value=item.output_resources(forward), output_name="result")
-
-    # Make input defs
-    backward_count_input_defs = [
-        InputDefinition(name=_make_directed_input_name(solid_names[n], backward) + "_count")
-        for n in backward_injectors.get(item.name, [])
-    ]  # Resource count per backward injector
-    backward_input_defs = [
-        InputDefinition(name=_make_directed_input_name(solid_names[n], backward))
-        for n in backward_injectors.get(item.name, [])
-    ]  # Resources per backward injector
-    forward_input_defs = [
-        InputDefinition(name=_make_directed_input_name(solid_names[n], forward))
-        for n in forward_injectors.get(item.name, [])
-    ]  # Resources per forward injector
-    input_defs = backward_count_input_defs + backward_input_defs + forward_input_defs
-    output_defs = [OutputDefinition(name="result")]
-    return SolidDefinition(
-        name=_make_directed_solid_name(solid_names[item.name], forward),
-        input_defs=input_defs,
-        compute_fn=compute_fn,
-        output_defs=output_defs,
-    )
-
-
-def _make_dependencies(backward_injectors, forward_injectors, solid_names):
-    """
-    Returns a dictionary of dependencies based on the given dictionaries of injectors.
-
-    Args:
-        backward_injectors (dict): Mapping from item name to list of injector item names.
-        forward_injectors (dict): Mapping from item name to list of injector item names.
-        solid_names (dict): Mapping from item name to dagstter-friendly item name.
-
-    Returns:
-        dict: a dictionary to pass to the PipelineDefinition constructor as dependencies
-    """
-    dependencies = {}
-    for item_name, solid_name in solid_names.items():
-        forward_solid_name = _make_directed_solid_name(solid_name, ExecutionDirection.FORWARD)
-        forward_solid_deps = dependencies[forward_solid_name] = dict()
-        for backward_injector_name in backward_injectors.get(item_name, []):
-            bakward_injector_solid_name = _make_directed_solid_name(
-                solid_names[backward_injector_name], ExecutionDirection.BACKWARD
-            )
-            backward_input_name = _make_input_name(bakward_injector_solid_name)
-            # Forward solid depends on the backward input
-            forward_solid_deps[backward_input_name] = DependencyDefinition(bakward_injector_solid_name, "result")
-            forward_solid_deps[backward_input_name + "_count"] = DependencyDefinition(
-                bakward_injector_solid_name, "count"
-            )
-        for forward_injector_name in forward_injectors.get(item_name, []):
-            forward_injector_solid_name = _make_directed_solid_name(
-                solid_names[forward_injector_name], ExecutionDirection.FORWARD
-            )
-            forward_input_name = _make_input_name(forward_injector_solid_name)
-            # Forward solid depends on the forward input
-            forward_solid_deps[forward_input_name] = DependencyDefinition(forward_injector_solid_name, "result")
-    return dependencies
-
-
-def _make_directed_solid_name(solid_name, direction):
-    return f"{solid_name}_{direction}"
-
-
-def _make_input_name(solid_name):
-    return f"input_from_{solid_name}"
-
-
-def _make_directed_input_name(solid_name, direction):
-    return _make_input_name(_make_directed_solid_name(solid_name, direction))
-
-
 class SpineEngineExperimental:
     """
     An engine for executing a Spine Toolbox DAG-workflow.
@@ -260,7 +71,7 @@ class SpineEngineExperimental:
     - One forward, where actual execution happens.
     """
 
-    def __init__(self, json_data, debug=True, use_multiprocess_execution=False):
+    def __init__(self, json_data, debug=True):
         """
         Inits class.
 
@@ -273,14 +84,36 @@ class SpineEngineExperimental:
                 the item is not executed, only its resources are collected.
             successors (dict(str,list(str))): A mapping from item name to list of successor item names, dictating the dependencies.
             debug (bool): Whether debug mode is active or not.
-            use_multiprocess_execution (bool): Whether or not to use multiprocess execution
         """
         super().__init__()
-        self._json_data = json_data
         self._publisher = EventPublisher()
         self._state = SpineEngineState.SLEEPING
         self._debug = debug
-        self._use_multiprocess_execution = use_multiprocess_execution
+        data = json.loads(json_data)
+        items = data["items"]
+        specifications = data["specifications"]
+        settings = data["settings"]
+        project_dir = data["project_dir"]
+        execution_permits = data["execution_permits"]
+        successors = data["node_successors"]
+        logger = PublisherLogger(self._publisher)
+        executable_items = _make_executable_items(items, specifications, settings, project_dir, logger)
+        self._solid_names = {item.name: str(i) for i, item in enumerate(executable_items)}
+        self._executable_items = {self._solid_names[item.name]: item for item in executable_items}
+        back_injectors = {
+            self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in successors.items()
+        }
+        forth_injectors = inverted(back_injectors)
+        execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
+        self._backward_pipeline = self._make_pipeline(
+            executable_items, back_injectors, ExecutionDirection.BACKWARD, execution_permits
+        )
+        self._forward_pipeline = self._make_pipeline(
+            executable_items, forth_injectors, ExecutionDirection.FORWARD, execution_permits
+        )
+        self._state = SpineEngineState.SLEEPING
+        self._running_item = None
+        self._debug = debug
 
     @property
     def publisher(self):
@@ -290,42 +123,15 @@ class SpineEngineExperimental:
         return self._state
 
     def run(self):
-        if self._use_multiprocess_execution:
-            self._run_multiprocess()
-        else:
-            self._run_singleprocess()
-
-    def _run_multiprocess(self):
-        """Runs this engine.
-        """
-        self._state = SpineEngineState.RUNNING
-        run_config = {
-            # "execution": {"celery": {}},
-            "execution": {"multiprocess": {}},
-            "storage": {"filesystem": {}},
-            "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},
-        }
-        instance = DagsterInstance.local_temp()
-        pipeline = build_reconstructable_pipeline(
-            "spine_engine.spine_engine_experimental", "make_pipeline", (self._json_data,)
-        )
-        for event in execute_pipeline_iterator(pipeline, run_config=run_config, instance=instance):
-            self._process_event(event)
-            if self.state() == SpineEngineState.USER_STOPPED:
-                break
-        if self._state == SpineEngineState.RUNNING:
-            self._state = SpineEngineState.COMPLETED
-
-    def _run_singleprocess(self):
         """Runs this engine.
         """
         self._state = SpineEngineState.RUNNING
         run_config = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}}
-        pipeline = make_pipeline(self._json_data)
-        for event in execute_pipeline_iterator(pipeline, run_config=run_config):
-            self._process_event(event)
-            if self.state() == SpineEngineState.USER_STOPPED:
-                break
+        for event in execute_pipeline_iterator(self._backward_pipeline, run_config=run_config):
+            self._process_event(event, ExecutionDirection.BACKWARD)
+        run_config.update({"execution": {"multithread": {}}})
+        for event in execute_pipeline_iterator(self._forward_pipeline, run_config=run_config):
+            self._process_event(event, ExecutionDirection.FORWARD)
         if self._state == SpineEngineState.RUNNING:
             self._state = SpineEngineState.COMPLETED
 
@@ -333,8 +139,86 @@ class SpineEngineExperimental:
         """Stops this engine.
         """
         self._state = SpineEngineState.USER_STOPPED
+        if self._running_item:
+            self._running_item.stop_execution()
 
-    def _process_event(self, event):
+    def _make_pipeline(self, executable_items, injectors, direction, execution_permits):
+        """
+        Returns a PipelineDefinition for executing the given items in the given direction,
+        generating dependencies from the given injectors.
+
+        Args:
+            executable_items (list(ExecutableItemBase)): List of project items for creating pipeline solids.
+            injectors (dict(str,list(str))): A mapping from item name to list of injector item names.
+            direction (ExecutionDirection): The direction of the pipeline.
+            execution_permits (dict): A mapping from item name to a boolean value, False indicating that
+                the item is not executed, only its resources are collected.
+
+        Returns:
+            PipelineDefinition
+        """
+        solid_defs = [
+            self._make_solid_def(item, injectors, direction, execution_permits[self._solid_names[item.name]])
+            for item in executable_items
+        ]
+        dependencies = self._make_dependencies(injectors)
+        mode_defs = [ModeDefinition(executor_defs=default_executors + [multithread_executor])]
+        return PipelineDefinition(
+            name=f"{direction}_pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs
+        )
+
+    def _make_solid_def(self, item, injectors, direction, execute):
+        """Returns a SolidDefinition for executing the given item in the given direction.
+
+        Args:
+            item (ExecutableItemBase): The project item that gets executed by the solid.
+            injectors (dict): Mapping from item name to list of injector item names.
+            direction (ExecutionDirection): The direction of execution.
+            execute (bool): If False, do not execute the item, just collect resources.
+
+        Returns:
+            SolidDefinition
+        """
+
+        def compute_fn(context, inputs):
+            if self.state() in (SpineEngineState.USER_STOPPED, SpineEngineState.FAILED):
+                context.log.error(
+                    "compute_fn() FAILURE with item: {0} is in state: {1}".format(item.name, self.state())
+                )
+                raise Failure()
+            inputs = [val for values in inputs.values() for val in values]
+            if execute:
+                if not item.execute(inputs, direction):
+                    context.log.error("compute_fn() FAILURE with item: {0} failed to execute".format(item.name))
+                    raise Failure()
+            else:
+                item.skip_execution(inputs, direction)
+            context.log.info("Item Name: {}".format(item.name))
+            yield Output(value=item.output_resources(direction), output_name="result")
+
+        input_defs = [InputDefinition(name=f"input_from_{n}") for n in injectors.get(self._solid_names[item.name], [])]
+        output_defs = [OutputDefinition(name="result")]
+        return SolidDefinition(
+            name=self._solid_names[item.name], input_defs=input_defs, compute_fn=compute_fn, output_defs=output_defs
+        )
+
+    @staticmethod
+    def _make_dependencies(injectors):
+        """
+        Returns a dictionary of dependencies according to the given dictionary of injectors.
+
+        Args:
+            injectors (dict): Mapping from item name to list of injector item names.
+
+        Returns:
+            dict: a dictionary to pass to the PipelineDefinition constructor as dependencies
+        """
+        return {
+            item_name: {f"input_from_{n}": DependencyDefinition(n, "result") for n in injector_names}
+            for item_name, injector_names in injectors.items()
+        }
+
+    def _process_event(self, event, direction):
         """
         Processes events from a pipeline.
 
@@ -342,13 +226,25 @@ class SpineEngineExperimental:
             event (DagsterEvent): an event
             direction (ExecutionDirection): execution direction
         """
-        if event.event_type == DagsterEventType.STEP_MATERIALIZATION:
-            event.event_specific_data.materialization.dispatch_event(self)
+        if event.event_type == DagsterEventType.STEP_START:
+            item = self._executable_items[event.solid_name]
+            self._running_item = item
+            self.publisher.dispatch('exec_started', {"item_name": item.name, "direction": direction})
         elif event.event_type == DagsterEventType.STEP_FAILURE:
+            item = self._executable_items[event.solid_name]
+            self._running_item = item
             if self._state != SpineEngineState.USER_STOPPED:
                 self._state = SpineEngineState.FAILED
+            self.publisher.dispatch(
+                'exec_finished', {"item_name": item.name, "direction": direction, "state": self._state}
+            )
             if self._debug:
                 error = event.event_specific_data.error
                 print("Traceback (most recent call last):")
                 print("".join(error.stack + [error.message]))
-                print("(reported by SpineEngineExperimental in debug mode)")
+                print("(reported by SpineEngine in debug mode)")
+        elif event.event_type == DagsterEventType.STEP_SUCCESS:
+            item = self._executable_items[event.solid_name]
+            self.publisher.dispatch(
+                'exec_finished', {"item_name": item.name, "direction": direction, "state": self._state}
+            )
