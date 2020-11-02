@@ -22,9 +22,11 @@ import urllib
 import re
 import datetime
 import time
+import logging
+import multiprocessing as mp
 from collections import ChainMap
 from .config import PYTHON_EXECUTABLE
-
+from .helpers import _Singleton
 
 CMDLINE_TAG_EDGE = "@@"
 
@@ -337,15 +339,7 @@ class _Signal:
             callback(msg)
 
 
-_JOB_DONE = "job_done"
-"""Sentinel for QueueLogger and QueueLoggerSignalHandler to signal that the job is done."""
-
-
-class QueueLogger:
-    """A :class:`LoggerInterface` compliant logger that uses a multiprocessing.Queue.
-
-    When this logger 'emits' messages, a tuple (msg_type, msg_content) is put into the queue.
-    """
+class _QueueLogger(metaclass=_Singleton):
 
     msg = _Signal()
     msg_success = _Signal()
@@ -353,72 +347,62 @@ class QueueLogger:
     msg_error = _Signal()
     msg_proc = _Signal()
     msg_proc_error = _Signal()
-    """Emitted whenever a message needs to be logged."""
-    job_done = _Signal()
-    """Emitted when the job is done."""
 
-    def __init__(self, queue):
-        """
-        Args:
-            queue (multiprocessing.Queue)
-        """
-        self._queue = queue
+    def __init__(self):
+        self._queue = None
         self.msg.connect(lambda x: self._put_msg(('msg', x)))
         self.msg_success.connect(lambda x: self._put_msg(('msg_success', x)))
         self.msg_warning.connect(lambda x: self._put_msg(('msg_warning', x)))
         self.msg_error.connect(lambda x: self._put_msg(('msg_error', x)))
         self.msg_proc.connect(lambda x: self._put_msg(('msg_proc', x)))
         self.msg_proc_error.connect(lambda x: self._put_msg(('msg_proc_error', x)))
-        self.job_done.connect(lambda x: self._put_msg((_JOB_DONE, x)))
+
+    def set_queue(self, queue):
+        self._queue = queue
 
     def _put_msg(self, msg):
         self._queue.put(msg)
 
 
-class QueueLoggerSignalHandler:
-    """A class for handling 'signals' emitted by a QueueLogger from a child process.
-    'msg_...' signals are forwarded to a LoggerInterface,
-    whereas the 'job_done' signal is used to know that the child process has finished.
+def get_logger():
+    return _QueueLogger()
 
-    Usage:
 
-        def f(queue):
-            logger = QueueLogger(queue)
-            # Log some messages
-            logger.msg.emit("starting child process...")
-            ...
-            # Job done
-            logger.job_done.emit(0)
+class LoggingProcess(mp.Process):
+    _JOB_DONE = "job_done"
 
-        queue = multiprocessing.Queue()
-        p = multiprocessing.Process(target=f,  args=(queue,))
-        handler = QueueLoggerSignalHandler(queue, main_logger)
-        p.start()
-        while not handler.is_the_job_done():
-            pass
-        p.join()
-        success = handler.process_exitcode == 0
-    """
-
-    def __init__(self, queue, logger):
-        """
-        Args:
-            queue (multiprocessing.Queue): The queue where the concerned QueueLogger is putting messages
-            logger (LoggerInterface): The logger where to forward messages to.
-        """
-        self._queue = queue
+    def __init__(self, logger, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._logger = logger
-        self._process_exitcode = None
-
-    def is_the_job_done(self):
-        msg_type, msg_content = self._queue.get()
-        if msg_type == _JOB_DONE:
-            self._queue.close()
-            self._process_exitcode = msg_content
-            return True
-        getattr(self._logger, msg_type).emit(msg_content)
-        return False
+        self._queue = mp.Queue()
+        self._success = None
 
     @property
-    def process_exitcode(self):
-        return self._process_exitcode
+    def success(self):
+        return self._success
+
+    def run_until_complete(self):
+        self.start()
+        while True:
+            msg_type, msg_content = self._queue.get()
+            if msg_type == self._JOB_DONE:
+                self._success = msg_content
+                break
+            getattr(self._logger, msg_type).emit(msg_content)
+        self.join()
+
+    def run(self):
+        self._initialize_logging()
+        if self._target:
+            success = self._target(*self._args, **self._kwargs)
+        else:
+            success = None
+        self._queue.put((self._JOB_DONE, success))
+
+    def terminate(self):
+        super().terminate()
+        self._queue.put((self._JOB_DONE, False))
+
+    def _initialize_logging(self):
+        logger = get_logger()
+        logger.set_queue(self._queue)
