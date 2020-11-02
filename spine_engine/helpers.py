@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Contains the SpineEngine class for running Spine Toolbox DAGs.
+Helpers functions and classes.
 
 :authors: M. Marin (KTH)
 :date:   20.11.2019
