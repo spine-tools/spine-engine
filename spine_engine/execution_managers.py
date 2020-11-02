@@ -42,6 +42,10 @@ class ExecutionManagerBase:
         """
         raise NotImplementedError()
 
+    def stop_execution(self):
+        """Stops execution gracefully."""
+        raise NotImplementedError()
+
 
 def _start_daemon_thread(target, *args):
     t = Thread(target=target, args=args)
@@ -59,29 +63,34 @@ class StandardExecutionManager(ExecutionManagerBase):
             args (list): List of argument for the program (e.g. path to script file)
         """
         super().__init__(logger)
+        self._process = None
         self._program = program
         self._args = args
         self._workdir = workdir
 
     def run_until_complete(self):
         try:
-            p = Popen([self._program, *self._args], stdout=PIPE, stderr=PIPE, bufsize=1, cwd=self._workdir)
+            self._process = Popen([self._program, *self._args], stdout=PIPE, stderr=PIPE, bufsize=1, cwd=self._workdir)
         except OSError as e:
             msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
             self._logger.msg_standard_execution.emit(msg)
             return
         msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
         self._logger.msg_standard_execution.emit(msg)
-        _start_daemon_thread(self.log_stdout, p.stdout)
-        _start_daemon_thread(self.log_stderr, p.stderr)
-        return p.wait()
+        _start_daemon_thread(self._log_stdout, self._process.stdout)
+        _start_daemon_thread(self._log_stderr, self._process.stderr)
+        return self._process.wait()
 
-    def log_stdout(self, stdout):
+    def stop_execution(self):
+        if self._process is not None:
+            self._process.terminate()
+
+    def _log_stdout(self, stdout):
         for line in iter(stdout.readline, b''):
             self._logger.msg_proc.emit(line.decode("UTF8").strip())
         stdout.close()
 
-    def log_stderr(self, stderr):
+    def _log_stderr(self, stderr):
         for line in iter(stderr.readline, b''):
             self._logger.msg_proc_error.emit(line.decode("UTF8").strip())
         stderr.close()
@@ -104,6 +113,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._commands = commands
         self._kernel_manager = provider.new_kernel_manager(kernel_name)
         self._startup_timeout = startup_timeout
+        self._kernel_client = None
 
     def run_until_complete(self):
         if not self._kernel_manager.is_alive():
@@ -116,20 +126,24 @@ class KernelExecutionManager(ExecutionManagerBase):
             self._kernel_manager.start_kernel(stdout=blackhole, stderr=blackhole)
         msg = dict(type="kernel_started", connection_file=self._kernel_manager.connection_file, **self._msg)
         self._logger.msg_kernel_execution.emit(msg)
-        kernel_client = self._kernel_manager.client()
-        kernel_client.start_channels()
+        self._kernel_client = self._kernel_manager.client()
+        self._kernel_client.start_channels()
         try:
-            kernel_client.wait_for_ready(timeout=self._startup_timeout)
+            self._kernel_client.wait_for_ready(timeout=self._startup_timeout)
         except RuntimeError as e:
-            kernel_client.stop_channels()
+            self._kernel_client.stop_channels()
             msg = dict(type="execution_failed_to_start", error=str(e), **self._msg)
             self._logger.msg_kernel_execution.emit(msg)
             return
         msg = dict(type="execution_started", code=" ".join(self._commands), **self._msg)
         self._logger.msg_kernel_execution.emit(msg)
         for cmd in self._commands:
-            reply = kernel_client.execute_interactive(cmd, output_hook=lambda msg: None)
+            reply = self._kernel_client.execute_interactive(cmd, output_hook=lambda msg: None)
             st = reply["content"]["status"]
             if st != "ok":
                 return -1
         return 0
+
+    def stop_execution(self):
+        if self._kernel_client is not None:
+            self._kernel_client.stop_channels()
