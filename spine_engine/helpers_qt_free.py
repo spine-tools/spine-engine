@@ -22,7 +22,6 @@ import urllib
 import re
 import datetime
 import time
-import logging
 import multiprocessing as mp
 from collections import ChainMap
 from .config import PYTHON_EXECUTABLE
@@ -339,7 +338,9 @@ class _Signal:
             callback(msg)
 
 
-class _QueueLogger(metaclass=_Singleton):
+class _QueueLogger:
+    """A Logger that puts the messages into a queue.
+    """
 
     msg = _Signal()
     msg_success = _Signal()
@@ -348,8 +349,12 @@ class _QueueLogger(metaclass=_Singleton):
     msg_proc = _Signal()
     msg_proc_error = _Signal()
 
-    def __init__(self):
-        self._queue = None
+    def __init__(self, queue):
+        """
+        Args:
+            queue (multiprocessing.Queue)
+        """
+        self._queue = queue
         self.msg.connect(lambda x: self._put_msg(('msg', x)))
         self.msg_success.connect(lambda x: self._put_msg(('msg_success', x)))
         self.msg_warning.connect(lambda x: self._put_msg(('msg_warning', x)))
@@ -357,21 +362,19 @@ class _QueueLogger(metaclass=_Singleton):
         self.msg_proc.connect(lambda x: self._put_msg(('msg_proc', x)))
         self.msg_proc_error.connect(lambda x: self._put_msg(('msg_proc_error', x)))
 
-    def set_queue(self, queue):
-        self._queue = queue
-
     def _put_msg(self, msg):
         self._queue.put(msg)
-
-
-def get_logger():
-    return _QueueLogger()
 
 
 class LoggingProcess(mp.Process):
     _JOB_DONE = "job_done"
 
     def __init__(self, logger, *args, **kwargs):
+        """
+
+        Args:
+            logger (LoggerInterface): A logger to forward messages to
+        """
         super().__init__(*args, **kwargs)
         self._logger = logger
         self._queue = mp.Queue()
@@ -382,6 +385,9 @@ class LoggingProcess(mp.Process):
         return self._success
 
     def run_until_complete(self):
+        """Starts the process, forwards all the messages to the logger,
+        and finally joins the process.
+        """
         self.start()
         while True:
             msg_type, msg_content = self._queue.get()
@@ -404,5 +410,13 @@ class LoggingProcess(mp.Process):
         self._queue.put((self._JOB_DONE, False))
 
     def _initialize_logging(self):
-        logger = get_logger()
-        logger.set_queue(self._queue)
+        _queue_loggers[self] = _QueueLogger(self._queue)
+
+
+_queue_loggers = {}
+
+
+def get_logger():
+    print(_queue_loggers)
+    p = mp.current_process()
+    return _queue_loggers[p]
