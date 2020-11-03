@@ -31,7 +31,8 @@ from dagster import (
     default_executors,
 )
 from spine_engine.event_publisher import EventPublisher
-from .helpers import AppSettings, inverted, PublisherLogger
+from .utils.helpers import AppSettings, inverted
+from .utils.publisher_logger import PublisherLogger
 from .load_project_items import ProjectItemLoader
 from .spine_engine import ExecutionDirection, SpineEngineState
 from .multithread_executor.executor import multithread_executor

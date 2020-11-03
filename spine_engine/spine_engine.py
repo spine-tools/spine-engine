@@ -16,7 +16,7 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 :date:   20.11.2019
 """
 
-from enum import Enum
+from enum import Enum, auto
 from dagster import (
     PipelineDefinition,
     SolidDefinition,
@@ -29,7 +29,15 @@ from dagster import (
     DagsterEventType,
 )
 from spine_engine.event_publisher import EventPublisher
-from spine_engine.helpers import inverted, ExecutionDirection
+from spine_engine.utils.helpers import inverted
+
+
+class ExecutionDirection(Enum):
+    FORWARD = auto()
+    BACKWARD = auto()
+
+    def __str__(self):
+        return {"FORWARD": "forward", "BACKWARD": "backward"}[self.name]
 
 
 class SpineEngineState(Enum):

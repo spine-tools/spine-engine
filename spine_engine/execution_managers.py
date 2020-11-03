@@ -20,7 +20,7 @@ import os
 from subprocess import Popen, PIPE
 from threading import Thread
 from jupyter_client.manager import KernelManager
-from .helpers import _Singleton
+from .utils.helpers import Singleton
 
 
 class ExecutionManagerBase:
@@ -96,7 +96,7 @@ class StandardExecutionManager(ExecutionManagerBase):
         stderr.close()
 
 
-class _KernelManagerProvider(metaclass=_Singleton):
+class _KernelManagerProvider(metaclass=Singleton):
     _kernel_managers = {}
 
     def new_kernel_manager(self, kernel_name):

@@ -15,7 +15,7 @@ Contains project item specification class.
 :authors: M. Marin (KTH)
 :date:    7.5.2020
 """
-from spine_engine.helpers_qt_free import shorten
+from spine_engine.utils.helpers import shorten
 
 
 class ProjectItemSpecification:

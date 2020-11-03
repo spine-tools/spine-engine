@@ -18,59 +18,10 @@ Functions to load project item modules.
 import pathlib
 import importlib
 import importlib.util
-import subprocess
-import sys
-from .helpers import _Singleton
-
-REQUIRED_SPINE_ITEMS_VERSION = "0.1.8"
+from .utils.helpers import Singleton
 
 
-def _spine_items_version_check():
-    """Check if spine_items is the correct version."""
-    try:
-        import spine_items
-    except ModuleNotFoundError:
-        # Module not installed yet
-        return False
-    try:
-        current_version = spine_items.__version__
-    except AttributeError:
-        # Version not reported (should never happen as spine_items has always reported its version)
-        return False
-    current_split = [int(x) for x in current_version.split(".")]
-    required_split = [int(x) for x in REQUIRED_SPINE_ITEMS_VERSION.split(".")]
-    return current_split >= required_split
-
-
-def upgrade_project_items():
-    if not _spine_items_version_check():
-        print(
-            """
-UPGRADING PROJECT ITEMS...
-
-(Depending on your internet connection, this may take a few moments.)
-            """
-        )
-        subprocess.check_call(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "--upgrade",
-                "git+https://github.com/Spine-project/spine-items.git@master",
-            ],
-            timeout=30,
-        )
-    try:
-        import spine_items
-    except ModuleNotFoundError:
-        # Failed to install module
-        return False
-    return True
-
-
-class ProjectItemLoader(metaclass=_Singleton):
+class ProjectItemLoader(metaclass=Singleton):
     _specification_factories = {}
     _executable_item_classes = {}
 
