@@ -417,6 +417,5 @@ _queue_loggers = {}
 
 
 def get_logger():
-    print(_queue_loggers)
     p = mp.current_process()
     return _queue_loggers[p]
