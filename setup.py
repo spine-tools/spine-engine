@@ -17,7 +17,8 @@ Setup script for Python's setuptools.
 """
 
 from setuptools import setup, find_packages
-from spine_engine.config import REQUIRED_SPINEDB_API_VERSION
+
+REQUIRED_SPINEDB_API_VERSION = "0.8.11"
 
 with open("README.md", encoding="utf8") as readme_file:
     readme = readme_file.read()
