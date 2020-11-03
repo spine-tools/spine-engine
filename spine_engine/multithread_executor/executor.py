@@ -47,7 +47,7 @@ def multithread_executor(init_context):
     and negative numbers can be used.
     """
     from dagster.core.executor.init import InitExecutorContext
-    from spine_engine.multithread import MultithreadExecutor
+    from spine_engine.multithread_executor.multithread import MultithreadExecutor
 
     check.inst_param(init_context, "init_context", InitExecutorContext)
 

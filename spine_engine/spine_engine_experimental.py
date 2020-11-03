@@ -34,7 +34,7 @@ from spine_engine.event_publisher import EventPublisher
 from .helpers import AppSettings, inverted, PublisherLogger
 from .load_project_items import ProjectItemLoader
 from .spine_engine import ExecutionDirection, SpineEngineState
-from .executor import multithread_executor
+from .multithread_executor.executor import multithread_executor
 
 
 def _make_executable_items(items, specifications, settings, project_dir, logger):
