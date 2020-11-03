@@ -17,6 +17,7 @@ Setup script for Python's setuptools.
 """
 
 from setuptools import setup, find_packages
+from spine_engine.config import REQUIRED_SPINEDB_API_VERSION
 
 with open("README.md", encoding="utf8") as readme_file:
     readme = readme_file.read()
@@ -27,6 +28,12 @@ with open("spine_engine/version.py") as fp:
 
 install_requires = [
     "dagster >= 0.9.0",
+    "sqlalchemy >= 1.3",
+    "numpy >= 1.15.1",
+    "openpyxl > 3.0",
+    "gdx2py >= 2.0.4",
+    "ijson >= 2.6.1",
+    "spinedb_api >= {}".format(REQUIRED_SPINEDB_API_VERSION),
 ]
 
 

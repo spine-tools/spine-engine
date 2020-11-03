@@ -18,6 +18,7 @@ Application constants.
 
 import sys
 
+REQUIRED_SPINEDB_API_VERSION = "0.8.11"
 
 _on_windows = sys.platform == "win32"
 

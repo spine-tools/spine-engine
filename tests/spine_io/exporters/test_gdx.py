@@ -20,27 +20,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from gdx2py import GdxFile
-from PySide2.QtWidgets import QApplication
 from spinedb_api import import_functions as dbmanip
-from spinedb_api import (
-    create_new_spine_database,
-    DiffDatabaseMapping,
-    from_database,
-    Map,
-    TimePattern,
-    TimeSeriesFixedResolution,
-)
+from spinedb_api import create_new_spine_database, DiffDatabaseMapping, TimeSeriesFixedResolution
 from spine_engine.spine_io import gdx_utils
 from spine_engine.spine_io.exporters import gdx
 
 
 class TestGdx(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        # Some @busy_effect decorators force the instantiation of QApplication.
-        if not QApplication.instance():
-            QApplication()
-
     def test_GdxExportException(self):
         exception = gdx.GdxExportException("message")
         self.assertEqual(exception.message, "message")
