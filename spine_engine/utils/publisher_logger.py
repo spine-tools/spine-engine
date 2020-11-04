@@ -17,13 +17,17 @@ The PublisherLogger class.
 """
 
 
-class _LogMessage:
-    def __init__(self, publisher, msg_type):
+class _Message:
+    def __init__(self, publisher, event_type, msg_type, author=""):
         self._publisher = publisher
+        self._event_type = event_type
         self._msg_type = msg_type
+        self._author = author
 
     def emit(self, msg_text):
-        self._publisher.dispatch("msg", {'msg_type': self._msg_type, 'msg_text': msg_text})
+        self._publisher.dispatch(
+            self._event_type, {"author": self._author, "msg_type": self._msg_type, "msg_text": msg_text}
+        )
 
 
 class _ExecutionMessage:
@@ -43,13 +47,13 @@ class PublisherLogger:
     This feels a bit like a hack into our own code, but it may just work.
     """
 
-    def __init__(self, publisher):
+    def __init__(self, publisher, author=""):
         self.publisher = publisher
-        self.msg = _LogMessage(publisher, 'msg')
-        self.msg_success = _LogMessage(publisher, 'msg_success')
-        self.msg_warning = _LogMessage(publisher, 'msg_warning')
-        self.msg_error = _LogMessage(publisher, 'msg_error')
-        self.msg_proc = _LogMessage(publisher, 'msg_proc')
-        self.msg_proc_error = _LogMessage(publisher, 'msg_proc_error')
-        self.msg_standard_execution = _ExecutionMessage(publisher, 'msg_standard_execution')
-        self.msg_kernel_execution = _ExecutionMessage(publisher, 'msg_kernel_execution')
+        self.msg = _Message(publisher, "log_msg", 'msg', author)
+        self.msg_success = _Message(publisher, "log_msg", 'msg_success', author)
+        self.msg_warning = _Message(publisher, "log_msg", 'msg_warning', author)
+        self.msg_error = _Message(publisher, "log_msg", 'msg_error', author)
+        self.msg_proc = _Message(publisher, "process_msg", "msg", author)
+        self.msg_proc_error = _Message(publisher, "process_msg", "msg_error", author)
+        self.msg_standard_execution = _ExecutionMessage(publisher, 'standard_execution_msg')
+        self.msg_kernel_execution = _ExecutionMessage(publisher, 'kernel_execution_msg')

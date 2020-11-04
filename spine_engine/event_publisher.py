@@ -33,10 +33,10 @@ class EventPublisher:
             events = (
                 'exec_started',
                 'exec_finished',
-                'log_event',
-                'msg',
-                'msg_kernel_execution',
-                'msg_standard_execution',
+                'log_msg',
+                'process_msg',
+                'kernel_execution_msg',
+                'standard_execution_msg',
             )
         self.events = {event: dict() for event in events}
 

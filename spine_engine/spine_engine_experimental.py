@@ -38,12 +38,13 @@ from .spine_engine import ExecutionDirection, SpineEngineState
 from .multithread_executor.executor import multithread_executor
 
 
-def _make_executable_items(items, specifications, settings, project_dir, logger):
+def _make_executable_items(items, specifications, settings, project_dir, publisher):
     project_item_loader = ProjectItemLoader()
     specification_factories = project_item_loader.load_item_specification_factories()
     executable_item_classes = project_item_loader.load_executable_item_classes()
     app_settings = AppSettings(settings)
     item_specifications = {}
+    logger = PublisherLogger(publisher)
     for item_type, spec_dicts in specifications.items():
         factory = specification_factories.get(item_type)
         if factory is None:
@@ -56,6 +57,7 @@ def _make_executable_items(items, specifications, settings, project_dir, logger)
     for item_name, item_dict in items.items():
         item_type = item_dict["type"]
         executable_item_class = executable_item_classes[item_type]
+        logger = PublisherLogger(publisher, author=item_name)
         item = executable_item_class.from_dict(
             item_dict, item_name, project_dir, app_settings, item_specifications, logger
         )
@@ -97,8 +99,7 @@ class SpineEngineExperimental:
         project_dir = data["project_dir"]
         execution_permits = data["execution_permits"]
         successors = data["node_successors"]
-        logger = PublisherLogger(self._publisher)
-        executable_items = _make_executable_items(items, specifications, settings, project_dir, logger)
+        executable_items = _make_executable_items(items, specifications, settings, project_dir, self._publisher)
         self._solid_names = {item.name: str(i) for i, item in enumerate(executable_items)}
         self._executable_items = {self._solid_names[item.name]: item for item in executable_items}
         back_injectors = {
@@ -115,6 +116,11 @@ class SpineEngineExperimental:
         self._state = SpineEngineState.SLEEPING
         self._running_item = None
         self._debug = debug
+
+    @property
+    def item_names(self):
+        for item in self._executable_items.values():
+            yield item.name
 
     @property
     def publisher(self):
@@ -237,7 +243,8 @@ class SpineEngineExperimental:
             if self._state != SpineEngineState.USER_STOPPED:
                 self._state = SpineEngineState.FAILED
             self.publisher.dispatch(
-                'exec_finished', {"item_name": item.name, "direction": direction, "state": self._state}
+                'exec_finished',
+                {"item_name": item.name, "direction": direction, "state": self._state, "success": False},
             )
             if self._debug:
                 error = event.event_specific_data.error
@@ -247,5 +254,5 @@ class SpineEngineExperimental:
         elif event.event_type == DagsterEventType.STEP_SUCCESS:
             item = self._executable_items[event.solid_name]
             self.publisher.dispatch(
-                'exec_finished', {"item_name": item.name, "direction": direction, "state": self._state}
+                'exec_finished', {"item_name": item.name, "direction": direction, "state": self._state, "success": True}
             )
