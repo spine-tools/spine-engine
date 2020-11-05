@@ -109,12 +109,16 @@ class LoggingProcess(mp.Process):
         self._queue.put((self._JOB_DONE, False))
 
     def _initialize_logging(self):
-        _queue_loggers[self] = _QueueLogger(self._queue)
+        """Initializes logging in this process.
+        (This must be called once inside ``run()`` to work as intended.)
+        After calling this, calls to ``get_logger()`` inside the target function
+        will return a dedicated ``_QueueLogger`` for this process.
+        """
+        _queue_logger.append(_QueueLogger(self._queue))
 
 
-_queue_loggers = {}
+_queue_logger = []
 
 
 def get_logger():
-    p = mp.current_process()
-    return _queue_loggers[p]
+    return _queue_logger[0]

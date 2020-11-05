@@ -114,8 +114,7 @@ class SpineEngineExperimental:
             executable_items, forth_injectors, ExecutionDirection.FORWARD, execution_permits
         )
         self._state = SpineEngineState.SLEEPING
-        self._running_item = None
-        self._debug = debug
+        self._running_items = []
 
     @property
     def item_names(self):
@@ -146,8 +145,8 @@ class SpineEngineExperimental:
         """Stops this engine.
         """
         self._state = SpineEngineState.USER_STOPPED
-        if self._running_item:
-            self._running_item.stop_execution()
+        for item in self._running_items:
+            item.stop_execution()
 
     def _make_pipeline(self, executable_items, injectors, direction, execution_permits):
         """
@@ -235,11 +234,11 @@ class SpineEngineExperimental:
         """
         if event.event_type == DagsterEventType.STEP_START:
             item = self._executable_items[event.solid_name]
-            self._running_item = item
+            self._running_items.append(item)
             self.publisher.dispatch('exec_started', {"item_name": item.name, "direction": direction})
         elif event.event_type == DagsterEventType.STEP_FAILURE:
             item = self._executable_items[event.solid_name]
-            self._running_item = item
+            self._running_items.remove(item)
             if self._state != SpineEngineState.USER_STOPPED:
                 self._state = SpineEngineState.FAILED
             self.publisher.dispatch(
@@ -253,6 +252,7 @@ class SpineEngineExperimental:
                 print("(reported by SpineEngine in debug mode)")
         elif event.event_type == DagsterEventType.STEP_SUCCESS:
             item = self._executable_items[event.solid_name]
+            self._running_items.remove(item)
             self.publisher.dispatch(
                 'exec_finished', {"item_name": item.name, "direction": direction, "state": self._state, "success": True}
             )
