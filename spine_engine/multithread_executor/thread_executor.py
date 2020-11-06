@@ -71,11 +71,11 @@ THREAD_DEAD_AND_QUEUE_EMPTY = "THREAD_DEAD_AND_QUEUE_EMPTY"
 """Sentinel value."""
 
 
-def _poll_for_event(process, event_queue):
+def _poll_for_event(thread, event_queue):
     try:
         return event_queue.get(block=True, timeout=TICK)
     except queue.Empty:
-        if not process.is_alive():
+        if not thread.is_alive():
             # There is a possibility that after the last queue.get the
             # thread created another event and then died. In that case
             # we want to continue draining the queue.
@@ -83,7 +83,7 @@ def _poll_for_event(process, event_queue):
                 return event_queue.get(block=False)
             except queue.Empty:
                 # If the queue empty we know that there are no more events
-                # and that the process has died.
+                # and that the thread has died.
                 return THREAD_DEAD_AND_QUEUE_EMPTY
 
     return None
