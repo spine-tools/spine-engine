@@ -16,6 +16,8 @@ Contains the SpineEngineExperimental class for running Spine Toolbox DAGs.
 :date:   20.11.2019
 """
 
+import threading
+import multiprocessing as mp
 import json
 from dagster import (
     PipelineDefinition,
@@ -30,21 +32,20 @@ from dagster import (
     DagsterEventType,
     default_executors,
 )
-from spine_engine.event_publisher import EventPublisher
 from .utils.helpers import AppSettings, inverted
-from .utils.publisher_logger import PublisherLogger
+from .utils.queue_logger import QueueLogger
 from .load_project_items import ProjectItemLoader
 from .spine_engine import ExecutionDirection, SpineEngineState
 from .multithread_executor.executor import multithread_executor
 
 
-def _make_executable_items(items, specifications, settings, project_dir, publisher):
+def _make_executable_items(items, specifications, settings, project_dir, master_queue):
     project_item_loader = ProjectItemLoader()
     specification_factories = project_item_loader.load_item_specification_factories()
     executable_item_classes = project_item_loader.load_executable_item_classes()
     app_settings = AppSettings(settings)
     item_specifications = {}
-    logger = PublisherLogger(publisher)
+    logger = QueueLogger(master_queue)
     for item_type, spec_dicts in specifications.items():
         factory = specification_factories.get(item_type)
         if factory is None:
@@ -57,7 +58,7 @@ def _make_executable_items(items, specifications, settings, project_dir, publish
     for item_name, item_dict in items.items():
         item_type = item_dict["type"]
         executable_item_class = executable_item_classes[item_type]
-        logger = PublisherLogger(publisher, author=item_name)
+        logger = QueueLogger(master_queue, author=item_name)
         item = executable_item_class.from_dict(
             item_dict, item_name, project_dir, app_settings, item_specifications, logger
         )
@@ -74,6 +75,8 @@ class SpineEngineExperimental:
     - One forward, where actual execution happens.
     """
 
+    _DONE = "DONE"
+
     def __init__(self, json_data, debug=True):
         """
         Inits class.
@@ -89,7 +92,7 @@ class SpineEngineExperimental:
             debug (bool): Whether debug mode is active or not.
         """
         super().__init__()
-        self._publisher = EventPublisher()
+        self._queue = mp.Queue()
         self._state = SpineEngineState.SLEEPING
         self._debug = debug
         data = json.loads(json_data)
@@ -99,7 +102,7 @@ class SpineEngineExperimental:
         project_dir = data["project_dir"]
         execution_permits = data["execution_permits"]
         successors = data["node_successors"]
-        executable_items = _make_executable_items(items, specifications, settings, project_dir, self._publisher)
+        executable_items = _make_executable_items(items, specifications, settings, project_dir, self._queue)
         self._solid_names = {item.name: str(i) for i, item in enumerate(executable_items)}
         self._executable_items = {self._solid_names[item.name]: item for item in executable_items}
         back_injectors = {
@@ -121,12 +124,16 @@ class SpineEngineExperimental:
         for item in self._executable_items.values():
             yield item.name
 
-    @property
-    def publisher(self):
-        return self._publisher
-
     def state(self):
         return self._state
+
+    def run_iterator(self):
+        threading.Thread(target=self.run).start()
+        while True:
+            msg = self._queue.get()
+            if msg == self._DONE:
+                break
+            yield msg
 
     def run(self):
         """Runs this engine.
@@ -140,6 +147,45 @@ class SpineEngineExperimental:
             self._process_event(event, ExecutionDirection.FORWARD)
         if self._state == SpineEngineState.RUNNING:
             self._state = SpineEngineState.COMPLETED
+        self._queue.put(self._DONE)
+
+    def _process_event(self, event, direction):
+        """
+        Processes events from a pipeline.
+
+        Args:
+            event (DagsterEvent): an event
+            direction (ExecutionDirection): execution direction
+        """
+        if event.event_type == DagsterEventType.STEP_START:
+            item = self._executable_items[event.solid_name]
+            self._running_items.append(item)
+            self._queue.put(('exec_started', {"item_name": item.name, "direction": direction}))
+        elif event.event_type == DagsterEventType.STEP_FAILURE:
+            item = self._executable_items[event.solid_name]
+            self._running_items.remove(item)
+            if self._state != SpineEngineState.USER_STOPPED:
+                self._state = SpineEngineState.FAILED
+            self._queue.put(
+                (
+                    'exec_finished',
+                    {"item_name": item.name, "direction": direction, "state": self._state, "success": False},
+                )
+            )
+            if self._debug:
+                error = event.event_specific_data.error
+                print("Traceback (most recent call last):")
+                print("".join(error.stack + [error.message]))
+                print("(reported by SpineEngine in debug mode)")
+        elif event.event_type == DagsterEventType.STEP_SUCCESS:
+            item = self._executable_items[event.solid_name]
+            self._running_items.remove(item)
+            self._queue.put(
+                (
+                    'exec_finished',
+                    {"item_name": item.name, "direction": direction, "state": self._state, "success": True},
+                )
+            )
 
     def stop(self):
         """Stops this engine.
@@ -223,36 +269,3 @@ class SpineEngineExperimental:
             item_name: {f"input_from_{n}": DependencyDefinition(n, "result") for n in injector_names}
             for item_name, injector_names in injectors.items()
         }
-
-    def _process_event(self, event, direction):
-        """
-        Processes events from a pipeline.
-
-        Args:
-            event (DagsterEvent): an event
-            direction (ExecutionDirection): execution direction
-        """
-        if event.event_type == DagsterEventType.STEP_START:
-            item = self._executable_items[event.solid_name]
-            self._running_items.append(item)
-            self.publisher.dispatch('exec_started', {"item_name": item.name, "direction": direction})
-        elif event.event_type == DagsterEventType.STEP_FAILURE:
-            item = self._executable_items[event.solid_name]
-            self._running_items.remove(item)
-            if self._state != SpineEngineState.USER_STOPPED:
-                self._state = SpineEngineState.FAILED
-            self.publisher.dispatch(
-                'exec_finished',
-                {"item_name": item.name, "direction": direction, "state": self._state, "success": False},
-            )
-            if self._debug:
-                error = event.event_specific_data.error
-                print("Traceback (most recent call last):")
-                print("".join(error.stack + [error.message]))
-                print("(reported by SpineEngine in debug mode)")
-        elif event.event_type == DagsterEventType.STEP_SUCCESS:
-            item = self._executable_items[event.solid_name]
-            self._running_items.remove(item)
-            self.publisher.dispatch(
-                'exec_finished', {"item_name": item.name, "direction": direction, "state": self._state, "success": True}
-            )
