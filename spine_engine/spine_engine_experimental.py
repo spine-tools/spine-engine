@@ -243,15 +243,13 @@ class SpineEngineExperimental:
         """
 
         def compute_fn(context, inputs):
-            if self.state() in (SpineEngineState.USER_STOPPED, SpineEngineState.FAILED):
-                context.log.error(
-                    "compute_fn() FAILURE with item: {0} is in state: {1}".format(item.name, self.state())
-                )
+            if self.state() == SpineEngineState.USER_STOPPED:
+                context.log.error(f"compute_fn() FAILURE with item: {item.name} stopped by the user")
                 raise Failure()
             inputs = [val for values in inputs.values() for val in values]
             if execute:
                 if not item.execute(inputs, direction):
-                    context.log.error("compute_fn() FAILURE with item: {0} failed to execute".format(item.name))
+                    context.log.error(f"compute_fn() FAILURE with item: {item.name} failed to execute")
                     raise Failure()
             else:
                 item.skip_execution(inputs, direction)
