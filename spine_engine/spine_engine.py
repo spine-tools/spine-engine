@@ -37,7 +37,7 @@ class ExecutionDirection(Enum):
     BACKWARD = auto()
 
     def __str__(self):
-        return {"FORWARD": "forward", "BACKWARD": "backward"}[self.name]
+        return str(self.name)
 
 
 class SpineEngineState(Enum):
@@ -46,6 +46,9 @@ class SpineEngineState(Enum):
     USER_STOPPED = 3
     FAILED = 4
     COMPLETED = 5
+
+    def __str__(self):
+        return str(self.name)
 
 
 class SpineEngine:

@@ -18,7 +18,6 @@ Contains the SpineEngineExperimental class for running Spine Toolbox DAGs.
 
 import threading
 import multiprocessing as mp
-import json
 from dagster import (
     PipelineDefinition,
     SolidDefinition,
@@ -75,9 +74,16 @@ class SpineEngineExperimental:
     - One forward, where actual execution happens.
     """
 
-    _DONE = "DONE"
-
-    def __init__(self, json_data, debug=True):
+    def __init__(
+        self,
+        items=None,
+        specifications=None,
+        settings=None,
+        project_dir=None,
+        execution_permits=None,
+        node_successors=None,
+        debug=True,
+    ):
         """
         Inits class.
 
@@ -88,25 +94,18 @@ class SpineEngineExperimental:
             project_dir (str): Path to project directory.
             execution_permits (dict(str,bool)): A mapping from item name to a boolean value, False indicating that
                 the item is not executed, only its resources are collected.
-            successors (dict(str,list(str))): A mapping from item name to list of successor item names, dictating the dependencies.
+            node_successors (dict(str,list(str))): A mapping from item name to list of successor item names, dictating the dependencies.
             debug (bool): Whether debug mode is active or not.
         """
         super().__init__()
         self._queue = mp.Queue()
         self._state = SpineEngineState.SLEEPING
         self._debug = debug
-        data = json.loads(json_data)
-        items = data["items"]
-        specifications = data["specifications"]
-        settings = data["settings"]
-        project_dir = data["project_dir"]
-        execution_permits = data["execution_permits"]
-        successors = data["node_successors"]
         executable_items = _make_executable_items(items, specifications, settings, project_dir, self._queue)
         self._solid_names = {item.name: str(i) for i, item in enumerate(executable_items)}
         self._executable_items = {self._solid_names[item.name]: item for item in executable_items}
         back_injectors = {
-            self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in successors.items()
+            self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
         forth_injectors = inverted(back_injectors)
         execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
@@ -118,6 +117,13 @@ class SpineEngineExperimental:
         )
         self._state = SpineEngineState.SLEEPING
         self._running_items = []
+        self._event_stream = self._get_event_stream()
+
+    def get_event(self):
+        """Returns the next event in the stream. Calling this after receiving the event of type "dag_exec_finished"
+        will raise StopIterationError.
+        """
+        return next(self._event_stream)
 
     @property
     def item_names(self):
@@ -127,13 +133,17 @@ class SpineEngineExperimental:
     def state(self):
         return self._state
 
-    def run_iterator(self):
+    def _get_event_stream(self):
+        """Returns an iterator of tuples (event_type, event_data).
+
+        TODO: Describe the events in depth.
+        """
         threading.Thread(target=self.run).start()
         while True:
             msg = self._queue.get()
-            if msg == self._DONE:
-                break
             yield msg
+            if msg[0] == "dag_exec_finished":
+                break
 
     def run(self):
         """Runs this engine.
@@ -147,7 +157,7 @@ class SpineEngineExperimental:
             self._process_event(event, ExecutionDirection.FORWARD)
         if self._state == SpineEngineState.RUNNING:
             self._state = SpineEngineState.COMPLETED
-        self._queue.put(self._DONE)
+        self._queue.put(("dag_exec_finished", str(self._state)))
 
     def _process_event(self, event, direction):
         """
@@ -160,7 +170,7 @@ class SpineEngineExperimental:
         if event.event_type == DagsterEventType.STEP_START:
             item = self._executable_items[event.solid_name]
             self._running_items.append(item)
-            self._queue.put(('exec_started', {"item_name": item.name, "direction": direction}))
+            self._queue.put(('exec_started', {"item_name": item.name, "direction": str(direction)}))
         elif event.event_type == DagsterEventType.STEP_FAILURE:
             item = self._executable_items[event.solid_name]
             self._running_items.remove(item)
@@ -169,7 +179,7 @@ class SpineEngineExperimental:
             self._queue.put(
                 (
                     'exec_finished',
-                    {"item_name": item.name, "direction": direction, "state": self._state, "success": False},
+                    {"item_name": item.name, "direction": str(direction), "state": str(self._state), "success": False},
                 )
             )
             if self._debug:
@@ -183,7 +193,7 @@ class SpineEngineExperimental:
             self._queue.put(
                 (
                     'exec_finished',
-                    {"item_name": item.name, "direction": direction, "state": self._state, "success": True},
+                    {"item_name": item.name, "direction": str(direction), "state": str(self._state), "success": True},
                 )
             )
 
