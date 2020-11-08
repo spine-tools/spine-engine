@@ -100,6 +100,7 @@ class SpineEngineExperimental:
         super().__init__()
         self._queue = mp.Queue()
         self._state = SpineEngineState.SLEEPING
+        self._direction = None
         self._debug = debug
         executable_items = _make_executable_items(items, specifications, settings, project_dir, self._queue)
         self._solid_names = {item.name: str(i) for i, item in enumerate(executable_items)}
@@ -150,36 +151,41 @@ class SpineEngineExperimental:
         """
         self._state = SpineEngineState.RUNNING
         run_config = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}}
+        self._direction = ExecutionDirection.BACKWARD
         for event in execute_pipeline_iterator(self._backward_pipeline, run_config=run_config):
-            self._process_event(event, ExecutionDirection.BACKWARD)
+            self._process_event(event)
         run_config.update({"execution": {"multithread": {}}})
+        self._direction = ExecutionDirection.FORWARD
         for event in execute_pipeline_iterator(self._forward_pipeline, run_config=run_config):
-            self._process_event(event, ExecutionDirection.FORWARD)
+            self._process_event(event)
         if self._state == SpineEngineState.RUNNING:
             self._state = SpineEngineState.COMPLETED
         self._queue.put(("dag_exec_finished", str(self._state)))
 
-    def _process_event(self, event, direction):
+    def _process_event(self, event):
         """
         Processes events from a pipeline.
 
         Args:
             event (DagsterEvent): an event
-            direction (ExecutionDirection): execution direction
         """
         if event.event_type == DagsterEventType.STEP_START:
             item = self._executable_items[event.solid_name]
             self._running_items.append(item)
-            self._queue.put(('exec_started', {"item_name": item.name, "direction": str(direction)}))
-        elif event.event_type == DagsterEventType.STEP_FAILURE:
+            self._queue.put(('exec_started', {"item_name": item.name, "direction": str(self._direction)}))
+        elif event.event_type == DagsterEventType.STEP_FAILURE and self._state != SpineEngineState.USER_STOPPED:
             item = self._executable_items[event.solid_name]
             self._running_items.remove(item)
-            if self._state != SpineEngineState.USER_STOPPED:
-                self._state = SpineEngineState.FAILED
+            self._state = SpineEngineState.FAILED
             self._queue.put(
                 (
                     'exec_finished',
-                    {"item_name": item.name, "direction": str(direction), "state": str(self._state), "success": False},
+                    {
+                        "item_name": item.name,
+                        "direction": str(self._direction),
+                        "state": str(self._state),
+                        "success": False,
+                    },
                 )
             )
             if self._debug:
@@ -193,7 +199,12 @@ class SpineEngineExperimental:
             self._queue.put(
                 (
                     'exec_finished',
-                    {"item_name": item.name, "direction": str(direction), "state": str(self._state), "success": True},
+                    {
+                        "item_name": item.name,
+                        "direction": str(self._direction),
+                        "state": str(self._state),
+                        "success": True,
+                    },
                 )
             )
 
@@ -203,6 +214,18 @@ class SpineEngineExperimental:
         self._state = SpineEngineState.USER_STOPPED
         for item in self._running_items:
             item.stop_execution()
+            self._queue.put(
+                (
+                    'exec_finished',
+                    {
+                        "item_name": item.name,
+                        "direction": str(self._direction),
+                        "state": str(self._state),
+                        "success": False,
+                    },
+                )
+            )
+        self._queue.put(("dag_exec_finished", str(self._state)))
 
     def _make_pipeline(self, executable_items, injectors, direction, execution_permits):
         """
