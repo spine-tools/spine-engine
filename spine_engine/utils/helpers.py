@@ -103,14 +103,3 @@ def inverted(input_):
         for value in value_list:
             output.setdefault(value, list()).append(key)
     return output
-
-
-def recvall(sock):
-    BUFF_SIZE = 4096  # 4 KiB
-    fragments = []
-    while True:
-        chunk = str(sock.recv(BUFF_SIZE), "ascii")
-        fragments.append(chunk)
-        if len(chunk) < BUFF_SIZE:
-            break
-    return "".join(fragments)

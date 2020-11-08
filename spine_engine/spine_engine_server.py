@@ -22,7 +22,6 @@ import json
 import uuid
 import atexit
 from .spine_engine_experimental import SpineEngineExperimental
-from .utils.helpers import recvall
 
 
 class EngineRequestHandler(socketserver.BaseRequestHandler):
@@ -31,26 +30,76 @@ class EngineRequestHandler(socketserver.BaseRequestHandler):
     """
 
     _engines = {}
+    _ENCODING = "ascii"
+
+    def _run_engine(self, data):
+        """
+        Creates and engine and runs it.
+
+        Args:
+            data (dict): data to be passed as keyword arguments to SpineEngineExperimental()
+
+        Returns:
+            str: engine id, for further calls
+        """
+        engine_id = uuid.uuid4().hex
+        self._engines[engine_id] = SpineEngineExperimental(**data, debug=False)
+        return engine_id
+
+    def _get_engine_event(self, engine_id):
+        """
+        Gets the next event in the engine's execution stream.
+
+        Args:
+            engine_id (str): the engine id, must have been returned by run.
+
+        Returns:
+            tuple(str,dict): two element tuple: event type identifier string, and event data dictionary
+        """
+        engine = self._engines[engine_id]
+        event = engine.get_event()
+        if event[0] == "dag_exec_finished":
+            del self._engines[engine_id]
+        return event
+
+    def _stop_engine(self, engine_id):
+        """
+        Stops the engine.
+
+        Args:
+            engine_id (str): the engine id, must have been returned by run.
+        """
+        self._engines[engine_id].stop()
 
     def handle(self):
-        data = recvall(self.request)
-        head, body = json.loads(data)
-        if head == "run":
-            engine_id = uuid.uuid4().hex
-            self._engines[engine_id] = SpineEngineExperimental(**body, debug=False)
-            self.request.sendall(bytes(engine_id, "ascii"))
-        elif head == "get_event":
-            engine_id = body
-            engine = self._engines[engine_id]
-            event = engine.get_event()
-            response = json.dumps(event)
-            self.request.sendall(bytes(response, "ascii"))
-            if event[0] == "dag_exec_finished":
-                del self._engines[engine_id]
-        elif head == "stop":
-            engine_id = body
-            engine = self._engines[engine_id]
-            engine.stop()
+        data = self._recvall()
+        request, args = json.loads(data)
+        handler = {
+            "run_engine": self._run_engine,
+            "get_engine_event": self._get_engine_event,
+            "stop_engine": self._stop_engine,
+        }.get(request)
+        if handler is None:
+            return
+        response = handler(*args)
+        if response:
+            self.request.sendall(bytes(json.dumps(response), self._ENCODING))
+
+    def _recvall(self):
+        """
+        Receives and returns all data in the request.
+
+        Returns:
+            str
+        """
+        BUFF_SIZE = 4096
+        fragments = []
+        while True:
+            chunk = str(self.request.recv(BUFF_SIZE), self._ENCODING)
+            fragments.append(chunk)
+            if len(chunk) < BUFF_SIZE:
+                break
+        return "".join(fragments)
 
 
 class SpineEngineServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
