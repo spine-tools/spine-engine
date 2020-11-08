@@ -44,14 +44,13 @@ def _make_executable_items(items, specifications, settings, project_dir, master_
     executable_item_classes = project_item_loader.load_executable_item_classes()
     app_settings = AppSettings(settings)
     item_specifications = {}
-    logger = QueueLogger(master_queue)
     for item_type, spec_dicts in specifications.items():
         factory = specification_factories.get(item_type)
         if factory is None:
             continue
         item_specifications[item_type] = dict()
         for spec_dict in spec_dicts:
-            spec = factory.make_specification(spec_dict, app_settings, logger)
+            spec = factory.make_specification(spec_dict, app_settings, None)
             item_specifications[item_type][spec.name] = spec
     executable_items = []
     for item_name, item_dict in items.items():
