@@ -22,8 +22,7 @@ from urllib.request import url2pathname
 class _ResourceProvider:
     """A picklable class to hold information about a resource's provider.
 
-    In multiprocess pipeline execution with dagster, ProjectItemResource needs to be pickled
-    (because Outputs of solids are saved to disk for some reason), 
+    In multiprocessing context, ProjectItemResource needs to be pickled sometimes
     which is *not possible* if one of the attributes is a ExecutableItemBase instance.
     Since all we ever use from the ProjectItemResource.provider is the name,
     this class works as an efficient replacement.
