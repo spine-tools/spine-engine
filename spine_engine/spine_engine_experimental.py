@@ -108,12 +108,12 @@ class SpineEngineExperimental:
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
         forth_injectors = inverted(back_injectors)
-        execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
+        self._execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
         self._backward_pipeline = self._make_pipeline(
-            executable_items, back_injectors, ExecutionDirection.BACKWARD, execution_permits
+            executable_items, back_injectors, ExecutionDirection.BACKWARD, self._execution_permits
         )
         self._forward_pipeline = self._make_pipeline(
-            executable_items, forth_injectors, ExecutionDirection.FORWARD, execution_permits
+            executable_items, forth_injectors, ExecutionDirection.FORWARD, self._execution_permits
         )
         self._state = SpineEngineState.SLEEPING
         self._running_items = []
@@ -203,6 +203,7 @@ class SpineEngineExperimental:
                         "direction": str(self._direction),
                         "state": str(self._state),
                         "success": True,
+                        "skipped": not self._execution_permits[event.solid_name],
                     },
                 )
             )
@@ -221,6 +222,7 @@ class SpineEngineExperimental:
                         "direction": str(self._direction),
                         "state": str(self._state),
                         "success": False,
+                        "skipped": not self._execution_permits[self._solid_names[item.name]],
                     },
                 )
             )
