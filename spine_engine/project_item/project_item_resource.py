@@ -97,3 +97,26 @@ class ProjectItemResource:
     def scheme(self):
         """Returns the resource scheme, as obtained from parsing the url."""
         return self.parsed_url.scheme
+
+    @property
+    def label(self):
+        label = self.metadata.get("label")
+        if label:
+            return label
+        if not self.url:
+            raise RuntimeError("ProjectItemResource is missing a url and metadata 'label'.")
+        if self.type_ == "file":
+            return self.path
+        return self.url
+
+    @property
+    def hasfilepath(self):
+        return (
+            self.type_ == "file"
+            or (self.type_ == "database" and self.scheme == "sqlite")
+            or (self.type_ == "transient_file" and self.url)
+        )
+
+    @property
+    def arg(self):
+        return self.url if self.type_ == "database" else self.path
