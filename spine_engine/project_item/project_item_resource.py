@@ -104,7 +104,7 @@ class ProjectItemResource:
         if label:
             return label
         if not self.url:
-            raise RuntimeError("ProjectItemResource is missing a url and metadata 'label'.")
+            raise RuntimeError("ProjectItemResource is missing both url and metadata label.")
         if self.type_ == "file":
             return self.path
         return self.url
