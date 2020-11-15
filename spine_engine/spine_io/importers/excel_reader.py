@@ -47,7 +47,7 @@ class ExcelConnector(SourceConnection):
         "read_until_row": {"type": bool, "label": "Read until empty row on first column", "default": False},
     }
 
-    FILE_EXTENSIONS = "*.xlsx;*.xlsm;*.xltx;*.xltm"
+    FILE_EXTENSIONS = "*.xlsx;;*.xlsm;;*.xltx;;*.xltm"
 
     def __init__(self, settings):
         super().__init__(settings)

@@ -184,6 +184,7 @@ class SpineEngineExperimental:
                         "direction": str(self._direction),
                         "state": str(self._state),
                         "success": False,
+                        "skipped": False,
                     },
                 )
             )
