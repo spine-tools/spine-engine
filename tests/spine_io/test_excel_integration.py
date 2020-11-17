@@ -16,7 +16,6 @@ Integration tests for Excel import and export.
 :date:   31.1.2020
 """
 
-import os
 from pathlib import PurePath
 from tempfile import TemporaryDirectory
 import unittest
@@ -33,26 +32,19 @@ from spine_engine.spine_io.exporters.excel import export_spine_database_to_xlsx
 from spine_engine.spine_io.importers.excel_reader import get_mapped_data_from_xlsx
 
 _TEMP_EXCEL_FILENAME = "excel.xlsx"
-_TEMP_SQLITE_FILENAME = "first.sqlite"
-_TEMP_SQLITE_TEST_FILENAME = "second.sqlite"
 
 
 class TestExcelIntegration(unittest.TestCase):
     @staticmethod
-    def _sqlite_url(file_name, directory):
-        return "sqlite:///" + os.path.abspath(os.path.join(directory, file_name))
-
-    @staticmethod
-    def _create_database(directory):
+    def _create_database():
         """Creates a database with objects, relationship, parameters and values."""
-        url = TestExcelIntegration._sqlite_url(_TEMP_SQLITE_FILENAME, directory)
-        create_new_spine_database(url)
-        db_map = DiffDatabaseMapping(url, username="IntegrationTest", upgrade=True)
+        url = "sqlite://"
+        engine = create_new_spine_database(url)
+        db_map = DiffDatabaseMapping(url, engine, username="IntegrationTest", upgrade=True)
 
         # create empty database for loading excel into
-        url = TestExcelIntegration._sqlite_url(_TEMP_SQLITE_TEST_FILENAME, directory)
-        create_new_spine_database(url)
-        db_map_test = DiffDatabaseMapping(url, username="IntegrationTest", upgrade=True)
+        engine = create_new_spine_database(url)
+        db_map_test = DiffDatabaseMapping(url, engine, username="IntegrationTest", upgrade=True)
 
         # delete all object_classes to empty database
         oc = set(oc.id for oc in db_map_test.object_class_list().all())
@@ -290,7 +282,7 @@ class TestExcelIntegration(unittest.TestCase):
     def test_export_import(self):
         """Integration test exporting an excel and then importing it to a new database."""
         with TemporaryDirectory() as directory:
-            db_map, empty_db_map = self._create_database(directory)
+            db_map, empty_db_map = self._create_database()
             try:
                 excel_file_name = str(PurePath(directory, _TEMP_EXCEL_FILENAME))
                 # export_spine_database_to_xlsx exports db_map to an Excel that has a
@@ -309,7 +301,7 @@ class TestExcelIntegration(unittest.TestCase):
     def test_import_to_existing_data(self):
         """Integration test importing data to a database with existing items"""
         with TemporaryDirectory() as directory:
-            db_map, empty_db_map = self._create_database(directory)
+            db_map, empty_db_map = self._create_database()
             try:
                 excel_file_name = str(PurePath(directory, _TEMP_EXCEL_FILENAME))
                 # export to excel
