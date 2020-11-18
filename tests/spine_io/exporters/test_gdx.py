@@ -165,8 +165,7 @@ class TestGdx(unittest.TestCase):
     @staticmethod
     def _make_database_map():
         """Creates a Spine sqlite database in dir_name/file_name."""
-        engine = create_new_spine_database("sqlite://")
-        return DiffDatabaseMapping("sqlite://", engine)
+        return DiffDatabaseMapping("sqlite://", create=True)
 
     def test_object_classes_to_domains(self):
         database_map = self._make_database_map()

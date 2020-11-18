@@ -39,8 +39,8 @@ class TestCSVConnector(unittest.TestCase):
             connector.connect_to_source(file_name)
             tables = connector.get_tables()
             self.assertEqual(len(tables), 1)
-            self.assertTrue("csv" in tables)
-            options = tables["csv"]["options"]
+            self.assertTrue("data" in tables)
+            options = tables["data"]["options"]
             self.assertEqual(options["encoding"], "ascii")
             self.assertEqual(options["delimiter"], ",")
             self.assertEqual(options["quotechar"], '"')
@@ -54,7 +54,7 @@ class TestCSVConnector(unittest.TestCase):
             connector = CSVConnector(None)
             connector.connect_to_source(file_name)
             tables = connector.get_tables()
-            options = tables["csv"]["options"]
+            options = tables["data"]["options"]
             _, header, num_cols = connector.get_data_iterator("", options)
             self.assertTrue(not header)
             self.assertEqual(num_cols, 3)
@@ -66,7 +66,7 @@ class TestCSVConnector(unittest.TestCase):
             connector = CSVConnector(None)
             connector.connect_to_source(file_name)
             tables = connector.get_tables()
-            options = tables["csv"]["options"]
+            options = tables["data"]["options"]
             data, header = connector.get_data("", options)
             self.assertTrue(not header)
             self.assertEqual(len(data), 2)

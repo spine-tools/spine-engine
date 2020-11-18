@@ -35,18 +35,6 @@ class TestToolSpecification(unittest.TestCase):
         splitted = split_cmdline_args("'quotation \"within\" a quotation'")
         self.assertEqual(splitted, ['quotation "within" a quotation'])
 
-    def test_split_cmdline_args_with_expandable_tags(self):
-        splitted = split_cmdline_args("@@optional_inputs@@")
-        self.assertEqual(splitted, ["@@optional_inputs@@"])
-        splitted = split_cmdline_args("@@url:database name with spaces@@")
-        self.assertEqual(splitted, ["@@url:database name with spaces@@"])
-        splitted = split_cmdline_args("@@url:spaced name@@ -a @@url:another spaced tag@@")
-        self.assertEqual(splitted, ["@@url:spaced name@@", "-a", "@@url:another spaced tag@@"])
-
-    def test_split_cmdline_args_with_consecutive_tags(self):
-        splitted = split_cmdline_args("@@optional_inputs@@@@optional_inputs@@")
-        self.assertEqual(splitted, ["@@optional_inputs@@@@optional_inputs@@"])
-
 
 if __name__ == "__main__":
     unittest.main()

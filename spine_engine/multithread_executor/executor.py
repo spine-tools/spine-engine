@@ -21,7 +21,7 @@ from dagster.core.definitions.executor import Int, Field, Retries, check, execut
 
 @executor(
     name="multithread",
-    config_schema={"max_concurrent": Field(Int, is_required=False, default_value=0), "retries": get_retries_config(),},
+    config_schema={"max_concurrent": Field(Int, is_required=False, default_value=0), "retries": get_retries_config()},
 )
 def multithread_executor(init_context):
     """A custom multithread executor.

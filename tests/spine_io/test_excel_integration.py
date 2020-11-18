@@ -20,14 +20,7 @@ from pathlib import PurePath
 from tempfile import TemporaryDirectory
 import unittest
 import numpy as np
-from spinedb_api import (
-    create_new_spine_database,
-    DiffDatabaseMapping,
-    import_data,
-    TimePattern,
-    TimeSeriesVariableResolution,
-    to_database,
-)
+from spinedb_api import DiffDatabaseMapping, import_data, TimePattern, TimeSeriesVariableResolution, to_database
 from spine_engine.spine_io.exporters.excel import export_spine_database_to_xlsx
 from spine_engine.spine_io.importers.excel_reader import get_mapped_data_from_xlsx
 
@@ -39,12 +32,10 @@ class TestExcelIntegration(unittest.TestCase):
     def _create_database():
         """Creates a database with objects, relationship, parameters and values."""
         url = "sqlite://"
-        engine = create_new_spine_database(url)
-        db_map = DiffDatabaseMapping(url, engine, username="IntegrationTest", upgrade=True)
+        db_map = DiffDatabaseMapping(url, username="IntegrationTest", create=True)
 
         # create empty database for loading excel into
-        engine = create_new_spine_database(url)
-        db_map_test = DiffDatabaseMapping(url, engine, username="IntegrationTest", upgrade=True)
+        db_map_test = DiffDatabaseMapping(url, username="IntegrationTest", create=True)
 
         # delete all object_classes to empty database
         oc = set(oc.id for oc in db_map_test.object_class_list().all())
@@ -270,10 +261,6 @@ class TestExcelIntegration(unittest.TestCase):
 
     def _import_xlsx_to_database(self, excel_file_name, db_map):
         data, _errors = get_mapped_data_from_xlsx(excel_file_name)
-        # table_mappings (Excel file) contains a sheet json_relationship_class which
-        # adds a duplicate 'relationship_class' to data. A duplicate is considered
-        # an error by spinedb_api import_data() function. Is this intentional?
-        # TODO: Check if db_map is supposed to have two relationship classes called relationship_class or not?
         import_num, import_errors = import_data(db_map, **data)
         self.assertEqual(import_errors, [])
         db_map.commit_session("Excel import")
@@ -285,14 +272,9 @@ class TestExcelIntegration(unittest.TestCase):
             db_map, empty_db_map = self._create_database()
             try:
                 excel_file_name = str(PurePath(directory, _TEMP_EXCEL_FILENAME))
-                # export_spine_database_to_xlsx exports db_map to an Excel that has a
-                # sheet called json_relationship_class. When this Excel is imported
-                # back to a database in _import_xlsx_to_database() function there
-                # is a duplicate relationship_class called relationship_class.
-                # Is this intentional?
                 export_spine_database_to_xlsx(db_map, excel_file_name)
                 import_num = self._import_xlsx_to_database(excel_file_name, empty_db_map)
-                self.assertEqual(import_num, 32)
+                self.assertEqual(import_num, 33)
                 self._compare_dbs(empty_db_map, db_map)
             finally:
                 db_map.connection.close()
@@ -309,7 +291,7 @@ class TestExcelIntegration(unittest.TestCase):
 
                 # import into empty database
                 import_num = self._import_xlsx_to_database(excel_file_name, empty_db_map)
-                self.assertEqual(import_num, 32)
+                self.assertEqual(import_num, 33)
 
                 # delete 1 object_class
                 db_map.cascade_remove_items(object_class={1})
@@ -317,7 +299,7 @@ class TestExcelIntegration(unittest.TestCase):
 
                 # reimport data
                 import_num = self._import_xlsx_to_database(excel_file_name, db_map)
-                self.assertEqual(import_num, 19)
+                self.assertEqual(import_num, 20)
 
                 # compare dbs
                 self._compare_dbs(empty_db_map, db_map)
