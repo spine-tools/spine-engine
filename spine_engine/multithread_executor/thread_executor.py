@@ -6,7 +6,6 @@ import sys
 from collections import namedtuple
 
 from dagster import check
-from dagster.utils import delay_interrupts, _kill_on_event
 from dagster.utils.error import serializable_error_info_from_exc_info
 from dagster.core.execution.plan.execute_plan import _dagster_event_sequence_for_step
 from dagster.core.events import DagsterEvent
@@ -32,36 +31,22 @@ class ThreadCrashException(Exception):
     """Thrown when the thread crashes."""
 
 
-def start_termination_thread(termination_event):
-    check.inst_param(termination_event, "termination_event", ttype=type(threading.Event()))
-
-    int_thread = threading.Thread(target=_kill_on_event, args=(termination_event,), name="kill-on-event")
-    int_thread.daemon = True
-    int_thread.start()
-
-
-def _execute_step_in_thread(event_queue, step_context, retries, term_event):
+def _execute_step_in_thread(event_queue, step_context, retries):
     """Wraps the execution of a step.
 
     Handles errors and communicates across a queue with the parent process."""
 
-    with delay_interrupts():
-        tid = threading.get_ident()
-        event_queue.put(ThreadStartEvent(tid=tid))
-        try:
-            for step_event in check.generator(_dagster_event_sequence_for_step(step_context, retries)):
-                start_termination_thread(term_event)
-                check.inst(step_event, DagsterEvent)
-                event_queue.put(step_event)
-            event_queue.put(ThreadDoneEvent(tid=tid))
-        except (Exception, KeyboardInterrupt):  # pylint: disable=broad-except
-            event_queue.put(
-                ThreadSystemErrorEvent(tid=tid, error_info=serializable_error_info_from_exc_info(sys.exc_info()))
-            )
-        finally:
-            pass
-            # FIXME
-            # event_queue.close()
+    tid = threading.get_ident()
+    event_queue.put(ThreadStartEvent(tid=tid))
+    try:
+        for step_event in check.generator(_dagster_event_sequence_for_step(step_context, retries)):
+            check.inst(step_event, DagsterEvent)
+            event_queue.put(step_event)
+        event_queue.put(ThreadDoneEvent(tid=tid))
+    except Exception:  # pylint: disable=broad-except
+        event_queue.put(
+            ThreadSystemErrorEvent(tid=tid, error_info=serializable_error_info_from_exc_info(sys.exc_info()))
+        )
 
 
 TICK = 20.0 * 1.0 / 1000.0
@@ -89,7 +74,7 @@ def _poll_for_event(thread, event_queue):
     return None
 
 
-def execute_thread_step(step_context, retries, term_event):
+def execute_thread_step(step_context, retries):
     """Execute a step in a new thread.
 
     This function starts a new thread whose execution target is the given step context wrapped by
@@ -119,7 +104,7 @@ def execute_thread_step(step_context, retries, term_event):
 
     event_queue = queue.Queue()
 
-    thread = threading.Thread(target=_execute_step_in_thread, args=(event_queue, step_context, retries, term_event))
+    thread = threading.Thread(target=_execute_step_in_thread, args=(event_queue, step_context, retries))
 
     thread.start()
 
@@ -127,7 +112,6 @@ def execute_thread_step(step_context, retries, term_event):
 
     while not completed_properly:
         event = _poll_for_event(thread, event_queue)
-        # print("step", thread.ident, command.step_key, type(event))
 
         if event == THREAD_DEAD_AND_QUEUE_EMPTY:
             break

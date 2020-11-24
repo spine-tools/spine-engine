@@ -76,23 +76,11 @@ class MultithreadExecutor(Executor):
             with execution_plan.start(retries=self.retries) as active_execution:
                 active_iters = {}
                 errors = {}
-                term_events = {}
-                stopping = False
 
-                while (not stopping and not active_execution.is_complete) or active_iters:
-                    if active_execution.check_for_interrupts():
-                        yield DagsterEvent.engine_event(
-                            pipeline_context,
-                            "Multithread executor: received termination signal - forwarding to active threads",
-                            EngineEventData.interrupted(list(term_events.keys())),
-                        )
-                        stopping = True
-                        for key, event in term_events.items():
-                            event.set()
-                            active_execution.mark_interrupted(key)
+                while not active_execution.is_complete or active_iters:
 
                     # start iterators
-                    while len(active_iters) < limit and not stopping:
+                    while len(active_iters) < limit:
                         steps = active_execution.get_steps_to_execute(limit=(limit - len(active_iters)))
 
                         if not steps:
@@ -100,10 +88,7 @@ class MultithreadExecutor(Executor):
 
                         for step in steps:
                             step_context = pipeline_context.for_step(step)
-                            term_events[step.key] = threading.Event()
-                            active_iters[step.key] = self.execute_step_in_thread(
-                                step.key, step_context, errors, term_events
-                            )
+                            active_iters[step.key] = self.execute_step_in_thread(step.key, step_context, errors)
 
                     # process active iterators
                     empty_iters = []
@@ -139,7 +124,6 @@ class MultithreadExecutor(Executor):
                     # clear and mark complete finished iterators
                     for key in empty_iters:
                         del active_iters[key]
-                        del term_events[key]
                         active_execution.verify_complete(pipeline_context, key)
 
                     # process skipped and abandoned steps
@@ -168,7 +152,7 @@ class MultithreadExecutor(Executor):
             event_specific_data=EngineEventData.multiprocess(os.getpid()),
         )
 
-    def execute_step_in_thread(self, step_key, step_context, errors, term_events):
+    def execute_step_in_thread(self, step_key, step_context, errors):
         yield DagsterEvent.engine_event(
             step_context,
             "Spawning thread for {}".format(step_key),
@@ -176,7 +160,7 @@ class MultithreadExecutor(Executor):
             step_key=step_key,
         )
 
-        for ret in execute_thread_step(step_context, self.retries, term_events[step_key]):
+        for ret in execute_thread_step(step_context, self.retries):
             if ret is None or isinstance(ret, DagsterEvent):
                 yield ret
             elif isinstance(ret, ThreadEvent):
