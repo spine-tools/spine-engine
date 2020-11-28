@@ -38,45 +38,37 @@ class ExecutableItemBase:
         """Project item's name."""
         return self._name
 
-    def execute(self, resources, direction):
+    def execute(self, forward_resources, backward_resources):
         """
-        Executes this item in the given direction using the given resources and returns a boolean
-        indicating the outcome.
+        Executes this item using the given resources and returns a boolean indicating the outcome.
 
-        Subclasses need to implement _execute_forward and _execute_backward to do the appropriate work
-        in each direction.
+        Subclasses can implement this method to do the appropriate work.
 
         Args:
-            resources (list): a list of ProjectItemResources available for execution
-            direction (ExecutionDirection): direction of execution
+            forward_resources (list): a list of ProjectItemResources from predecesors (forward)
+            backward_resources (list): a list of ProjectItemResources from successors (backward)
 
         Returns:
             bool: True if execution succeeded, False otherwise
         """
-        if direction == ExecutionDirection.FORWARD:
-            self._logger.msg.emit("")
-            self._logger.msg.emit(f"Executing {self.item_type()} <b>{self._name}</b>")
-            self._logger.msg.emit("***")
-            return self._execute_forward(resources)
-        return self._execute_backward(resources)
+        self._logger.msg.emit("")
+        self._logger.msg.emit(f"Executing {self.item_type()} <b>{self._name}</b>")
+        self._logger.msg.emit("***")
+        return True
 
-    def skip_execution(self, resources, direction):
+    def skip_execution(self, forward_resources, backward_resources):
         """
-        Skip executing the item.
+        Skips executing the item.
 
         This method is called when the item is not selected for execution. Only lightweight bookkeeping
         or processing should be done in this case, e.g. forward input resources.
 
-        Subclasses can implement :func:`ExecutableItemBase._skip_forward` and/or
-        :func:`ExecutableItemBase._skip_backward` to do the appropriate work in each direction.
+        Subclasses can implement this method to the appropriate work.
 
         Args:
-            resources (list of ProjectItemResource): available resources
-            direction (ExecutionDirection): direction of execution
+            forward_resources (list): a list of ProjectItemResources from predecesors (forward)
+            backward_resources (list): a list of ProjectItemResources from successors (backward)
         """
-        {ExecutionDirection.FORWARD: self._skip_forward, ExecutionDirection.BACKWARD: self._skip_backward}[direction](
-            resources
-        )
 
     @staticmethod
     def item_type():
@@ -104,58 +96,6 @@ class ExecutableItemBase:
     def stop_execution(self):
         """Stops executing this item."""
         self._logger.msg.emit(f"Stopping {self._name}")
-
-    # pylint: disable=no-self-use
-    def _execute_forward(self, resources):
-        """
-        Executes this item in the forward direction.
-
-        The default implementation just returns True.
-
-        Args:
-            resources (list of ProjectItemResource): resources available for execution
-
-        Returns:
-            bool: True if execution succeeded, False otherwise
-        """
-        return True
-
-    # pylint: disable=no-self-use
-    def _skip_forward(self, resources):
-        """
-        Skips this items execution in the forward direction.
-
-        The default implementation does nothing.
-
-        Args:
-            resources (list of ProjectItemResource): available resources
-        """
-
-    # pylint: disable=no-self-use
-    def _execute_backward(self, resources):
-        """
-        Executes this item in the backward direction.
-
-        The default implementation just returns True.
-
-        Args:
-            resources (list of ProjectItemResource): resources available for execution
-
-        Returns:
-            bool: True if execution succeeded, False otherwise
-        """
-        return True
-
-    # pylint: disable=no-self-use
-    def _skip_backward(self, resources):
-        """
-        Skips this items execution in the backward direction.
-
-        The default implementation does nothing.
-
-        Args:
-            resources (list of ProjectItemResource): available resources
-        """
 
     # pylint: disable=no-self-use
     def _output_resources_forward(self):
@@ -191,7 +131,7 @@ class ExecutableItemBase:
             name (str): item's name
             project_dir (str): absolute path to the project directory
             app_settings (QSettings): Toolbox settings
-            specifications (dict): mapping from item specification name to :class:`ProjectItemSpecification`
+            specifications (dict): mapping from item type to specification name to :class:`ProjectItemSpecification`
             logger (LoggingInterface): a logger
         Returns:
             ExecutableItemBase: deserialized executable item
@@ -209,5 +149,5 @@ class ExecutableItemBase:
             if missing == item_type:
                 logger.msg_error.emit(f"No specifications defined for item type '{item_type}'.")
                 return None
-            logger.msg_error.emit(f"Cannot find data specification '{missing}'.")
+            logger.msg_error.emit(f"Cannot find specification '{missing}'.")
             return None

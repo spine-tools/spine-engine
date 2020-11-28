@@ -26,26 +26,6 @@ class TestExecutableItem(unittest.TestCase):
         item = ExecutableItemBase("name", mock.MagicMock())
         self.assertEqual(item.name, "name")
 
-    def test_execute_backward(self):
-        resources = [3, 5, 7]
-        item = ExecutableItemBase("name", mock.MagicMock())
-        item.item_type = mock.MagicMock(return_value="Executable item")
-        item._execute_backward = mock.MagicMock(return_value="return value")
-        item._execute_forward = mock.MagicMock()
-        self.assertEqual(item.execute(resources, ExecutionDirection.BACKWARD), "return value")
-        item._execute_backward.assert_called_once_with(resources)
-        item._execute_forward.assert_not_called()
-
-    def test_execute_forward(self):
-        resources = [3, 5, 7]
-        item = ExecutableItemBase("name", mock.MagicMock())
-        item.item_type = mock.MagicMock(return_value="Executable item")
-        item._execute_backward = mock.MagicMock()
-        item._execute_forward = mock.MagicMock(return_value="return value")
-        self.assertEqual(item.execute(resources, ExecutionDirection.FORWARD), "return value")
-        item._execute_backward.assert_not_called()
-        item._execute_forward.assert_called_once_with(resources)
-
     def test_output_resources_backward(self):
         item = ExecutableItemBase("name", mock.MagicMock())
         item._output_resources_backward = mock.MagicMock(return_value=[3, 5, 7])

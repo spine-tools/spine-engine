@@ -18,6 +18,7 @@ Contains the SpineEngineExperimental class for running Spine Toolbox DAGs.
 
 import threading
 import multiprocessing as mp
+from itertools import product
 from dagster import (
     PipelineDefinition,
     SolidDefinition,
@@ -31,37 +32,12 @@ from dagster import (
     DagsterEventType,
     default_executors,
 )
+from spinedb_api import append_filter_config
 from .utils.helpers import AppSettings, inverted
 from .utils.queue_logger import QueueLogger
 from .load_project_items import ProjectItemLoader
-from .spine_engine import ExecutionDirection, SpineEngineState
+from .spine_engine import ExecutionDirection as ED, SpineEngineState
 from .multithread_executor.executor import multithread_executor
-
-
-def _make_executable_items(items, specifications, settings, project_dir, master_queue):
-    project_item_loader = ProjectItemLoader()
-    specification_factories = project_item_loader.load_item_specification_factories()
-    executable_item_classes = project_item_loader.load_executable_item_classes()
-    app_settings = AppSettings(settings)
-    item_specifications = {}
-    for item_type, spec_dicts in specifications.items():
-        factory = specification_factories.get(item_type)
-        if factory is None:
-            continue
-        item_specifications[item_type] = dict()
-        for spec_dict in spec_dicts:
-            spec = factory.make_specification(spec_dict, app_settings, None)
-            item_specifications[item_type][spec.name] = spec
-    executable_items = []
-    for item_name, item_dict in items.items():
-        item_type = item_dict["type"]
-        executable_item_class = executable_item_classes[item_type]
-        logger = QueueLogger(master_queue, author=item_name)
-        item = executable_item_class.from_dict(
-            item_dict, item_name, project_dir, app_settings, item_specifications, logger
-        )
-        executable_items.append(item)
-    return executable_items
 
 
 class SpineEngineExperimental:
@@ -77,6 +53,7 @@ class SpineEngineExperimental:
         self,
         items=None,
         specifications=None,
+        filter_stacks=None,
         settings=None,
         project_dir=None,
         execution_permits=None,
@@ -89,6 +66,7 @@ class SpineEngineExperimental:
         Args:
             items (list(dict)): List of executable item dicts.
             specifications (dict(str,list(dict))): A mapping from item type to list of specification dicts.
+            filter_stacks (dict): A mapping from tuple (resource label, receiving item name) to a list of applicable filters.
             settings (dict): Toolbox execution settings.
             project_dir (str): Path to project directory.
             execution_permits (dict(str,bool)): A mapping from item name to a boolean value, False indicating that
@@ -98,37 +76,53 @@ class SpineEngineExperimental:
         """
         super().__init__()
         self._queue = mp.Queue()
-        self._state = SpineEngineState.SLEEPING
-        self._direction = None
-        self._debug = debug
-        executable_items = _make_executable_items(items, specifications, settings, project_dir, self._queue)
-        self._solid_names = {item.name: str(i) for i, item in enumerate(executable_items)}
-        self._executable_items = {self._solid_names[item.name]: item for item in executable_items}
-        back_injectors = {
+        self._items = items
+        self._filter_stacks = filter_stacks
+        self._settings = AppSettings(settings)
+        self._project_dir = project_dir
+        project_item_loader = ProjectItemLoader()
+        self._executable_item_classes = project_item_loader.load_executable_item_classes()
+        self._item_specifications = self._make_item_specifications(specifications, project_item_loader)
+        self._solid_names = {item_name: str(i) for i, item_name in enumerate(items)}
+        self._item_names = {solid_name: item_name for item_name, solid_name in self._solid_names.items()}
+        self._execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
+        self._back_injectors = {
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
-        forth_injectors = inverted(back_injectors)
-        self._execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
-        self._backward_pipeline = self._make_pipeline(
-            executable_items, back_injectors, ExecutionDirection.BACKWARD, self._execution_permits
-        )
-        self._forward_pipeline = self._make_pipeline(
-            executable_items, forth_injectors, ExecutionDirection.FORWARD, self._execution_permits
-        )
+        self._forth_injectors = inverted(self._back_injectors)
+        self._pipeline = self._make_pipeline()
         self._state = SpineEngineState.SLEEPING
+        self._debug = debug
         self._running_items = []
         self._event_stream = self._get_event_stream()
+
+    def _make_item_specifications(self, specifications, project_item_loader):
+        specification_factories = project_item_loader.load_item_specification_factories()
+        item_specifications = {}
+        for item_type, spec_dicts in specifications.items():
+            factory = specification_factories.get(item_type)
+            if factory is None:
+                continue
+            item_specifications[item_type] = dict()
+            for spec_dict in spec_dicts:
+                spec = factory.make_specification(spec_dict, self._settings, None)
+                item_specifications[item_type][spec.name] = spec
+        return item_specifications
+
+    def _make_item(self, item_name):
+        item_dict = self._items[item_name]
+        item_type = item_dict["type"]
+        executable_item_class = self._executable_item_classes[item_type]
+        logger = QueueLogger(self._queue, author=item_name)
+        return executable_item_class.from_dict(
+            item_dict, item_name, self._project_dir, self._settings, self._item_specifications, logger
+        )
 
     def get_event(self):
         """Returns the next event in the stream. Calling this after receiving the event of type "dag_exec_finished"
         will raise StopIterationError.
         """
         return next(self._event_stream)
-
-    @property
-    def item_names(self):
-        for item in self._executable_items.values():
-            yield item.name
 
     def state(self):
         return self._state
@@ -146,16 +140,13 @@ class SpineEngineExperimental:
                 break
 
     def run(self):
-        """Runs this engine.
-        """
+        """Runs this engine."""
         self._state = SpineEngineState.RUNNING
-        run_config = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}}
-        self._direction = ExecutionDirection.BACKWARD
-        for event in execute_pipeline_iterator(self._backward_pipeline, run_config=run_config):
-            self._process_event(event)
-        run_config.update({"execution": {"multithread": {}}})
-        self._direction = ExecutionDirection.FORWARD
-        for event in execute_pipeline_iterator(self._forward_pipeline, run_config=run_config):
+        run_config = {
+            "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},
+            "execution": {"multithread": {}},
+        }
+        for event in execute_pipeline_iterator(self._pipeline, run_config=run_config):
             self._process_event(event)
         if self._state == SpineEngineState.RUNNING:
             self._state = SpineEngineState.COMPLETED
@@ -169,19 +160,19 @@ class SpineEngineExperimental:
             event (DagsterEvent): an event
         """
         if event.event_type == DagsterEventType.STEP_START:
-            item = self._executable_items[event.solid_name]
-            self._running_items.append(item)
-            self._queue.put(('exec_started', {"item_name": item.name, "direction": str(self._direction)}))
+            direction, _, solid_name = event.solid_name.partition("_")
+            item_name = self._item_names[solid_name]
+            self._queue.put(('exec_started', {"item_name": item_name, "direction": direction}))
         elif event.event_type == DagsterEventType.STEP_FAILURE and self._state != SpineEngineState.USER_STOPPED:
-            item = self._executable_items[event.solid_name]
-            self._running_items.remove(item)
+            direction, _, solid_name = event.solid_name.partition("_")
+            item_name = self._item_names[solid_name]
             self._state = SpineEngineState.FAILED
             self._queue.put(
                 (
                     'exec_finished',
                     {
-                        "item_name": item.name,
-                        "direction": str(self._direction),
+                        "item_name": item_name,
+                        "direction": direction,
                         "state": str(self._state),
                         "success": False,
                         "skipped": False,
@@ -194,17 +185,17 @@ class SpineEngineExperimental:
                 print("".join(error.stack + [error.message]))
                 print("(reported by SpineEngine in debug mode)")
         elif event.event_type == DagsterEventType.STEP_SUCCESS:
-            item = self._executable_items[event.solid_name]
-            self._running_items.remove(item)
+            direction, _, solid_name = event.solid_name.partition("_")
+            item_name = self._item_names[solid_name]
             self._queue.put(
                 (
                     'exec_finished',
                     {
-                        "item_name": item.name,
-                        "direction": str(self._direction),
+                        "item_name": item_name,
+                        "direction": direction,
                         "state": str(self._state),
                         "success": True,
-                        "skipped": not self._execution_permits[event.solid_name],
+                        "skipped": not self._execution_permits[solid_name],
                     },
                 )
             )
@@ -220,7 +211,7 @@ class SpineEngineExperimental:
                     'exec_finished',
                     {
                         "item_name": item.name,
-                        "direction": str(self._direction),
+                        "direction": str(ED.FORWARD),
                         "state": str(self._state),
                         "success": False,
                         "skipped": not self._execution_permits[self._solid_names[item.name]],
@@ -229,39 +220,51 @@ class SpineEngineExperimental:
             )
         self._queue.put(("dag_exec_finished", str(self._state)))
 
-    def _make_pipeline(self, executable_items, injectors, direction, execution_permits):
+    def _make_pipeline(self):
         """
-        Returns a PipelineDefinition for executing the given items in the given direction,
-        generating dependencies from the given injectors.
-
-        Args:
-            executable_items (list(ExecutableItemBase)): List of project items for creating pipeline solids.
-            injectors (dict(str,list(str))): A mapping from item name to list of injector item names.
-            direction (ExecutionDirection): The direction of the pipeline.
-            execution_permits (dict): A mapping from item name to a boolean value, False indicating that
-                the item is not executed, only its resources are collected.
+        Returns a PipelineDefinition for executing this engine.
 
         Returns:
             PipelineDefinition
         """
         solid_defs = [
-            self._make_solid_def(item, injectors, direction, execution_permits[self._solid_names[item.name]])
-            for item in executable_items
+            make_solid_def(item_name)
+            for item_name in self._items
+            for make_solid_def in (self._make_forward_solid_def, self._make_backward_solid_def)
         ]
-        dependencies = self._make_dependencies(injectors)
+        dependencies = self._make_dependencies()
         mode_defs = [ModeDefinition(executor_defs=default_executors + [multithread_executor])]
         return PipelineDefinition(
-            name=f"{direction}_pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs
+            name="pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs
         )
 
-    def _make_solid_def(self, item, injectors, direction, execute):
-        """Returns a SolidDefinition for executing the given item in the given direction.
+    def _make_backward_solid_def(self, item_name):
+        """Returns a SolidDefinition for executing the given item in the backward sweep.
 
         Args:
-            item (ExecutableItemBase): The project item that gets executed by the solid.
-            injectors (dict): Mapping from item name to list of injector item names.
-            direction (ExecutionDirection): The direction of execution.
-            execute (bool): If False, do not execute the item, just collect resources.
+            item_name (str): The project item that gets executed by the solid.
+        """
+
+        def compute_fn(context, inputs):
+            if self.state() == SpineEngineState.USER_STOPPED:
+                context.log.error(f"compute_fn() FAILURE with item: {item_name} stopped by the user")
+                raise Failure()
+            context.log.info(f"Item Name: {item_name}")
+            item = self._make_item(item_name)
+            resources = item.output_resources(ED.BACKWARD)
+            yield Output(value=resources, output_name=f"{ED.BACKWARD}_output")
+
+        input_defs = []
+        output_defs = [OutputDefinition(name=f"{ED.BACKWARD}_output")]
+        return SolidDefinition(
+            name=f"{ED.BACKWARD}_{self._solid_names[item_name]}",
+            input_defs=input_defs,
+            compute_fn=compute_fn,
+            output_defs=output_defs,
+        )
+
+    def _make_forward_solid_def(self, item_name):
+        """Returns a SolidDefinition for executing the given item in the forward sweep.
 
         Returns:
             SolidDefinition
@@ -269,36 +272,131 @@ class SpineEngineExperimental:
 
         def compute_fn(context, inputs):
             if self.state() == SpineEngineState.USER_STOPPED:
-                context.log.error(f"compute_fn() FAILURE with item: {item.name} stopped by the user")
+                context.log.error(f"compute_fn() FAILURE with item: {item_name} stopped by the user")
                 raise Failure()
-            inputs = [val for values in inputs.values() for val in values]
-            if execute:
-                if not item.execute(inputs, direction):
-                    context.log.error(f"compute_fn() FAILURE with item: {item.name} failed to execute")
-                    raise Failure()
-            else:
-                item.skip_execution(inputs, direction)
-            context.log.info("Item Name: {}".format(item.name))
-            yield Output(value=item.output_resources(direction), output_name="result")
+            context.log.info(f"Item Name: {item_name}")
+            forward_resources = []
+            backward_resources = []
+            for name, values in inputs.items():
+                if name.startswith(f"{ED.FORWARD}"):
+                    forward_resources += values
+                elif name.startswith(f"{ED.BACKWARD}"):
+                    backward_resources += values
+            if self._execution_permits[self._solid_names[item_name]]:
 
-        input_defs = [InputDefinition(name=f"input_from_{n}") for n in injectors.get(self._solid_names[item.name], [])]
-        output_defs = [OutputDefinition(name="result")]
+                def target(item, success, forward_resources, backward_resources, output_resources):
+                    self._running_items.append(item)
+                    success[0] &= item.execute(forward_resources, backward_resources)
+                    output_resources.update(item.output_resources(ED.FORWARD))
+                    self._running_items.remove(item)
+
+                threads = []
+                success = [True]
+                output_resources = set()
+                for forward_resources, backward_resources in self._filtered_resources_iterator(
+                    item_name, forward_resources, backward_resources
+                ):
+                    item = self._make_item(item_name)
+                    thread = threading.Thread(
+                        target=target, args=(item, success, forward_resources, backward_resources, output_resources)
+                    )
+                    threads.append(thread)
+                    thread.start()
+                for thread in threads:
+                    thread.join()
+                if not success[0]:
+                    context.log.error(f"compute_fn() FAILURE with item: {item_name} failed to execute")
+                    raise Failure()
+                yield Output(value=list(output_resources), output_name=f"{ED.FORWARD}_output")
+            else:
+                item = self._make_item(item_name)
+                item.skip_execution(forward_resources, backward_resources)
+                resources = item.output_resources(ED.FORWARD)
+                yield Output(value=resources, output_name=f"{ED.FORWARD}_output")
+
+        input_defs = [
+            InputDefinition(name=f"{ED.FORWARD}_input_from_{inj}")
+            for inj in self._forth_injectors.get(self._solid_names[item_name], [])
+        ] + [
+            InputDefinition(name=f"{ED.BACKWARD}_input_from_{inj}")
+            for inj in self._back_injectors.get(self._solid_names[item_name], [])
+        ]
+        output_defs = [OutputDefinition(name=f"{ED.FORWARD}_output")]
         return SolidDefinition(
-            name=self._solid_names[item.name], input_defs=input_defs, compute_fn=compute_fn, output_defs=output_defs
+            name=f"{ED.FORWARD}_{self._solid_names[item_name]}",
+            input_defs=input_defs,
+            compute_fn=compute_fn,
+            output_defs=output_defs,
         )
 
-    @staticmethod
-    def _make_dependencies(injectors):
-        """
-        Returns a dictionary of dependencies according to the given dictionary of injectors.
+    def _filtered_resources_iterator(self, item_name, forward_resources, backward_resources):
+        """Applies filter stacks defined for the given forward resources as they're being forwarded
+        to given item, and yields tuples of filtered (forward, backward) resources
+
+        For example, let's say we only have one forward resource. In this case,
+        we apply the filter stack defined for the forward to the forward and to *all* the backward.
+
+        Now let's say we have multiple forward resources. In this case, we first compute the cross product
+        of filter stacks defined for all forwards. For each element in this product, we apply the corresponding
+        stack to each forward, and the *union* of all stacks to each backward.
+
 
         Args:
-            injectors (dict): Mapping from item name to list of injector item names.
+            item_name (str)
+            forward_resources (list(ProjectItemResource))
+            backward_resources (list(ProjectItemResource))
+
+        Returns:
+            Iterator(tuple(list,list)): forward resources, backward resources
+        """
+
+        def filter_stacks_iterator():
+            """Yields filter stacks for each forward resource, as it's being forwarded to given item."""
+            for resource in forward_resources:
+                key = (resource.label, item_name)
+                yield self._filter_stacks.get(key, [{}])
+
+        for stacks in product(*filter_stacks_iterator()):
+            # Apply to each forward resource their own stack
+            forward_clones = []
+            for resource, stack in zip(forward_resources, stacks):
+                clone = resource.clone(additional_metadata={"label": resource.label})
+                for config in stack:
+                    clone.url = append_filter_config(clone.url, config)
+                forward_clones.append(clone)
+            # Apply all stacks combined to each backward resource
+            backward_clones = []
+            flatten_configs = (config for stack in stacks for config in stack)
+            for resource in backward_resources:
+                clone = resource.clone(additional_metadata={"label": resource.label})
+                for config in flatten_configs:
+                    clone.url = append_filter_config(clone.url, config)
+                backward_clones.append(clone)
+            yield forward_clones, backward_clones
+
+    def _make_dependencies(self):
+        """
+        Returns a dictionary of dependencies according to the given dictionaries of injectors.
 
         Returns:
             dict: a dictionary to pass to the PipelineDefinition constructor as dependencies
         """
-        return {
-            item_name: {f"input_from_{n}": DependencyDefinition(n, "result") for n in injector_names}
-            for item_name, injector_names in injectors.items()
+        forward_deps = {
+            f"{ED.FORWARD}_{n}": {
+                f"{ED.FORWARD}_input_from_{inj}": DependencyDefinition(f"{ED.FORWARD}_{inj}", f"{ED.FORWARD}_output")
+                for inj in injs
+            }
+            for n, injs in self._forth_injectors.items()
         }
+        backward_deps = {
+            f"{ED.FORWARD}_{n}": {
+                f"{ED.BACKWARD}_input_from_{inj}": DependencyDefinition(f"{ED.BACKWARD}_{inj}", f"{ED.BACKWARD}_output")
+                for inj in injs
+            }
+            for n, injs in self._back_injectors.items()
+        }
+        deps = {}
+        for n in forward_deps.keys() | backward_deps.keys():
+            deps[n] = forward_deps.get(n, {})
+            deps[n].update(backward_deps.get(n, {}))
+        return deps

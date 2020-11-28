@@ -17,6 +17,7 @@ Provides the ProjectItemResource class.
 """
 from urllib.parse import urlparse
 from urllib.request import url2pathname
+import copy
 
 
 class _ResourceProvider:
@@ -69,6 +70,17 @@ class ProjectItemResource:
         self.parsed_url = urlparse(url)
         self.metadata = metadata if metadata is not None else dict()
 
+    def clone(self, additional_metadata=None):
+        """
+        Args:
+            additional_metadata (dict)
+        """
+        if additional_metadata is None:
+            additional_metadata = {}
+        metadata = copy.deepcopy(self.metadata)
+        metadata.update(additional_metadata)
+        return ProjectItemResource(self.provider, self.type_, self.url, metadata=metadata)
+
     def __eq__(self, other):
         if not isinstance(other, ProjectItemResource):
             # don't attempt to compare against unrelated types
@@ -79,6 +91,9 @@ class ProjectItemResource:
             and self.url == other.url
             and self.metadata == other.metadata
         )
+
+    def __hash__(self):
+        return hash(repr(self))
 
     def __repr__(self):
         result = "ProjectItemResource("

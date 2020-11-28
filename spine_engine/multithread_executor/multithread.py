@@ -100,14 +100,11 @@ class MultithreadExecutor(Executor):
                             yield event_or_none
                             active_execution.handle_event(event_or_none)
 
-                        except ThreadCrashException as crash:
+                        except ThreadCrashException:
                             serializable_error = serializable_error_info_from_exc_info(sys.exc_info())
                             yield DagsterEvent.engine_event(
                                 pipeline_context,
-                                (
-                                    "Multithread executor: thread for step {step_key} "
-                                    "unexpectedly exited with code {exit_code}"
-                                ).format(step_key=key, exit_code=crash.exit_code),
+                                f"Multithread executor: thread for step {key} exited unexpectedly",
                                 EngineEventData.engine_error(serializable_error),
                                 step_key=key,
                             )

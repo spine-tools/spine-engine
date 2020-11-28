@@ -42,7 +42,7 @@ class CSVConnector(SourceConnection):
     }
     """dict with option specification for source."""
 
-    FILE_EXTENSIONS = "*.*"
+    FILE_EXTENSIONS = "*.csv"
     """Modal widget that returns source object and action (OK, CANCEL)"""
 
     def __init__(self, settings):
