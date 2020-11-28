@@ -202,7 +202,7 @@ class SpineEngine:
                 raise Failure()
             inputs = [val for values in inputs.values() for val in values]
             if execute:
-                if not item.execute(inputs, direction):
+                if not item.old_execute(inputs, direction):
                     context.log.error("compute_fn() FAILURE with item: {0} failed to execute".format(item.name))
                     raise Failure()
             else:
