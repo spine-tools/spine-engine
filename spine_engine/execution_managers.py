@@ -100,6 +100,9 @@ class _KernelManagerProvider(metaclass=Singleton):
     _kernel_managers = {}
 
     def new_kernel_manager(self, kernel_name, group_id):
+        if group_id is None:
+            # Execute in isolation
+            return KernelManager(kernel_name=kernel_name)
         if (kernel_name, group_id) not in self._kernel_managers:
             self._kernel_managers[kernel_name, group_id] = KernelManager(kernel_name=kernel_name)
         return self._kernel_managers[kernel_name, group_id]
@@ -111,6 +114,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         provider = _KernelManagerProvider()
         self._msg = dict(language=language, kernel_name=kernel_name)
         self._commands = commands
+        self._group_id = group_id
         self._kernel_manager = provider.new_kernel_manager(kernel_name, group_id)
         self._startup_timeout = startup_timeout
         self._kernel_client = None
@@ -130,6 +134,8 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._kernel_client.start_channels()
         returncode = self._do_run()
         self._kernel_client.stop_channels()
+        if self._group_id is None:
+            self._kernel_client.shutdown_kernel()
         return returncode
 
     def _do_run(self):
