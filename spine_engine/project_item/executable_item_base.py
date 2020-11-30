@@ -33,11 +33,25 @@ class ExecutableItemBase:
         self._name = name
         self._logger = logger
         self._backward_resources = []
+        self._group_id = name
 
     @property
     def name(self):
         """Project item's name."""
         return self._name
+
+    @property
+    def group_id(self):
+        """Returns the id for group-execution.
+        Items in the same group share a kernel, and also reuse the same kernel from past executions.
+        By default each item is its own group, so it executes in isolation.
+        NOTE: At the moment this is only used by Tool, but could be used by other items in the future?
+        """
+        return self._group_id
+
+    @group_id.setter
+    def group_id(self, group_id):
+        self._group_id = group_id
 
     def old_execute(self, resources, direction):
         # This is so SpineEngine still works, but we can remove it once we adopt SpineEngineExperimental

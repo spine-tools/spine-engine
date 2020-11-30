@@ -99,19 +99,19 @@ class StandardExecutionManager(ExecutionManagerBase):
 class _KernelManagerProvider(metaclass=Singleton):
     _kernel_managers = {}
 
-    def new_kernel_manager(self, kernel_name):
-        if kernel_name not in self._kernel_managers:
-            self._kernel_managers[kernel_name] = KernelManager(kernel_name=kernel_name)
-        return self._kernel_managers[kernel_name]
+    def new_kernel_manager(self, kernel_name, group_id):
+        if (kernel_name, group_id) not in self._kernel_managers:
+            self._kernel_managers[kernel_name, group_id] = KernelManager(kernel_name=kernel_name)
+        return self._kernel_managers[kernel_name, group_id]
 
 
 class KernelExecutionManager(ExecutionManagerBase):
-    def __init__(self, logger, language, kernel_name, *commands, startup_timeout=60):
+    def __init__(self, logger, language, kernel_name, *commands, group_id=None, startup_timeout=60):
         super().__init__(logger)
         provider = _KernelManagerProvider()
         self._msg = dict(language=language, kernel_name=kernel_name)
         self._commands = commands
-        self._kernel_manager = provider.new_kernel_manager(kernel_name)
+        self._kernel_manager = provider.new_kernel_manager(kernel_name, group_id)
         self._startup_timeout = startup_timeout
         self._kernel_client = None
 
@@ -128,10 +128,14 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._logger.msg_kernel_execution.emit(msg)
         self._kernel_client = self._kernel_manager.client()
         self._kernel_client.start_channels()
+        returncode = self._do_run()
+        self._kernel_client.stop_channels()
+        return returncode
+
+    def _do_run(self):
         try:
             self._kernel_client.wait_for_ready(timeout=self._startup_timeout)
         except RuntimeError as e:
-            self._kernel_client.stop_channels()
             msg = dict(type="execution_failed_to_start", error=str(e), **self._msg)
             self._logger.msg_kernel_execution.emit(msg)
             return

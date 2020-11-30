@@ -23,26 +23,21 @@ class ReturningProcess(mp.Process):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._queue = mp.Queue()
-        self._success = None
-
-    @property
-    def success(self):
-        return self._success
 
     def run_until_complete(self):
         """Starts the process, forwards all the messages to the logger,
         and finally joins the process.
         """
         self.start()
-        self._success = self._queue.get()
+        success = self._queue.get()
         self.join()
+        return success
 
     def run(self):
-        if self._target:
-            success = self._target(*self._args, **self._kwargs)
-        else:
-            success = None
-        self._queue.put(success)
+        if not self._target:
+            self._queue.put(False)
+        result = self._target(*self._args, **self._kwargs)
+        self._queue.put(result)
 
     def terminate(self):
         super().terminate()
