@@ -134,8 +134,6 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._kernel_client.start_channels()
         returncode = self._do_run()
         self._kernel_client.stop_channels()
-        if self._group_id is None:
-            self._kernel_client.shutdown_kernel()
         return returncode
 
     def _do_run(self):
