@@ -290,18 +290,14 @@ class SpineEngineExperimental:
                     output_resources.update(item.output_resources(ED.FORWARD))
                     self._running_items.remove(item)
 
-                item = self._make_item(item_name)
-                resources_iterator = self._filtered_resources_iterator(item_name, forward_resources, backward_resources)
-                # pylint: disable=stop-iteration-return
-                forward_resources, backward_resources = next(resources_iterator)
                 success = [True]
                 output_resources = set()
-                execute_item(item, success, forward_resources, backward_resources, output_resources)
-                # Additional filters are executed in threads
                 threads = []
+                resources_iterator = self._filtered_resources_iterator(item_name, forward_resources, backward_resources)
                 for forward_resources, backward_resources in resources_iterator:
                     item = self._make_item(item_name)
-                    item.group_id = None  # Execute in isolation
+                    if threads:
+                        item.group_id = None  # Execute in isolation
                     thread = threading.Thread(
                         target=execute_item,
                         args=(item, success, forward_resources, backward_resources, output_resources),
