@@ -75,9 +75,7 @@ class ExecutableItemBase:
         Returns:
             bool: True if execution succeeded, False otherwise
         """
-        self._logger.msg.emit("")
-        self._logger.msg.emit(f"Executing {self.item_type()} <b>{self._name}</b>")
-        self._logger.msg.emit("***")
+        self._logger.msg.emit(f"***Executing {self.item_type()} <b>{self._name}</b>***")
         return True
 
     def skip_execution(self, forward_resources, backward_resources):

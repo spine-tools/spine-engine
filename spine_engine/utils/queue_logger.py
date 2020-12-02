@@ -18,36 +18,48 @@ The QueueLogger class.
 
 
 class _Message:
-    def __init__(self, queue, event_type, msg_type, author):
+    def __init__(self, queue, event_type, msg_type, item_name, filter_id):
         self._queue = queue
         self._event_type = event_type
         self._msg_type = msg_type
-        self._author = author
+        self._item_name = item_name
+        self._filter_id = filter_id
 
     def emit(self, msg_text):
-        self._queue.put((self._event_type, {"author": self._author, "msg_type": self._msg_type, "msg_text": msg_text}))
+        self._queue.put(
+            (
+                self._event_type,
+                {
+                    "item_name": self._item_name,
+                    "filter_id": self._filter_id,
+                    "msg_type": self._msg_type,
+                    "msg_text": msg_text,
+                },
+            )
+        )
 
 
 class _ExecutionMessage:
-    def __init__(self, queue, event_type, author):
+    def __init__(self, queue, event_type, item_name, filter_id):
         self._queue = queue
         self._event_type = event_type
-        self._author = author
+        self._item_name = item_name
+        self._filter_id = filter_id
 
     def emit(self, msg):
-        self._queue.put((self._event_type, dict(author=self._author, **msg)))
+        self._queue.put((self._event_type, dict(item_name=self._item_name, filter_id=self._filter_id, **msg)))
 
 
 class QueueLogger:
     """A :class:`LoggerInterface` compliant logger that puts messages into a Queue.
     """
 
-    def __init__(self, queue, author):
-        self.msg = _Message(queue, "log_msg", "msg", author)
-        self.msg_success = _Message(queue, "log_msg", "msg_success", author)
-        self.msg_warning = _Message(queue, "log_msg", "msg_warning", author)
-        self.msg_error = _Message(queue, "log_msg", "msg_error", author)
-        self.msg_proc = _Message(queue, "process_msg", "msg", author)
-        self.msg_proc_error = _Message(queue, "process_msg", "msg_error", author)
-        self.msg_standard_execution = _ExecutionMessage(queue, "standard_execution_msg", author)
-        self.msg_kernel_execution = _ExecutionMessage(queue, "kernel_execution_msg", author)
+    def __init__(self, queue, item_name, filter_id):
+        self.msg = _Message(queue, "log_msg", "msg", item_name, filter_id)
+        self.msg_success = _Message(queue, "log_msg", "msg_success", item_name, filter_id)
+        self.msg_warning = _Message(queue, "log_msg", "msg_warning", item_name, filter_id)
+        self.msg_error = _Message(queue, "log_msg", "msg_error", item_name, filter_id)
+        self.msg_proc = _Message(queue, "process_msg", "msg", item_name, filter_id)
+        self.msg_proc_error = _Message(queue, "process_msg", "msg_error", item_name, filter_id)
+        self.msg_standard_execution = _ExecutionMessage(queue, "standard_execution_msg", item_name, filter_id)
+        self.msg_kernel_execution = _ExecutionMessage(queue, "kernel_execution_msg", item_name, filter_id)

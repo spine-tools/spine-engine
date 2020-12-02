@@ -47,12 +47,6 @@ class ExecutionManagerBase:
         raise NotImplementedError()
 
 
-def _start_daemon_thread(target, *args):
-    t = Thread(target=target, args=args)
-    t.daemon = True  # thread dies with the program
-    t.start()
-
-
 class StandardExecutionManager(ExecutionManagerBase):
     def __init__(self, logger, program, *args, workdir=None):
         """Class constructor.
@@ -77,8 +71,8 @@ class StandardExecutionManager(ExecutionManagerBase):
             return
         msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
         self._logger.msg_standard_execution.emit(msg)
-        _start_daemon_thread(self._log_stdout, self._process.stdout)
-        _start_daemon_thread(self._log_stderr, self._process.stderr)
+        Thread(target=self._log_stdout, args=(self._process.stdout,), daemon=True).start()
+        Thread(target=self._log_stderr, args=(self._process.stderr,), daemon=True).start()
         return self._process.wait()
 
     def stop_execution(self):
@@ -109,25 +103,25 @@ class _KernelManagerProvider(metaclass=Singleton):
 
 
 class KernelExecutionManager(ExecutionManagerBase):
-    def __init__(self, logger, language, kernel_name, *commands, group_id=None, startup_timeout=60):
+    def __init__(self, logger, language, kernel_name, *commands, group_id=None, workdir=None, startup_timeout=60):
         super().__init__(logger)
         provider = _KernelManagerProvider()
         self._msg = dict(language=language, kernel_name=kernel_name)
         self._commands = commands
         self._group_id = group_id
+        self._workdir = workdir
         self._kernel_manager = provider.new_kernel_manager(kernel_name, group_id)
         self._startup_timeout = startup_timeout
         self._kernel_client = None
 
     def run_until_complete(self):
         if not self._kernel_manager.is_alive():
-            # Start kernel and dispatch the event, so toolbox knows it needs to configure it's client
             if not self._kernel_manager.kernel_spec:
                 msg = dict(type="kernel_spec_not_found", **self._msg)
                 self._logger.msg_kernel_execution.emit(msg)
                 return
             blackhole = open(os.devnull, 'w')
-            self._kernel_manager.start_kernel(stdout=blackhole, stderr=blackhole)
+            self._kernel_manager.start_kernel(stdout=blackhole, stderr=blackhole, cwd=self._workdir)
         msg = dict(type="kernel_started", connection_file=self._kernel_manager.connection_file, **self._msg)
         self._logger.msg_kernel_execution.emit(msg)
         self._kernel_client = self._kernel_manager.client()
@@ -143,7 +137,7 @@ class KernelExecutionManager(ExecutionManagerBase):
             msg = dict(type="execution_failed_to_start", error=str(e), **self._msg)
             self._logger.msg_kernel_execution.emit(msg)
             return
-        msg = dict(type="execution_started", code=" ".join(self._commands), **self._msg)
+        msg = dict(type="execution_started", **self._msg)
         self._logger.msg_kernel_execution.emit(msg)
         for cmd in self._commands:
             reply = self._kernel_client.execute_interactive(cmd, output_hook=lambda msg: None)
