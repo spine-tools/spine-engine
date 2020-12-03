@@ -76,16 +76,24 @@ class SpineEngineExperimental:
         """
         super().__init__()
         self._queue = mp.Queue()
+        if items is None:
+            items = []
         self._items = items
         self._filter_stacks = filter_stacks
         self._settings = AppSettings(settings)
         self._project_dir = project_dir
         project_item_loader = ProjectItemLoader()
         self._executable_item_classes = project_item_loader.load_executable_item_classes()
+        if specifications is None:
+            specifications = {}
         self._item_specifications = self._make_item_specifications(specifications, project_item_loader)
         self._solid_names = {item_name: str(i) for i, item_name in enumerate(items)}
         self._item_names = {solid_name: item_name for item_name, solid_name in self._solid_names.items()}
+        if execution_permits is None:
+            execution_permits = {}
         self._execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
+        if node_successors is None:
+            node_successors = {}
         self._back_injectors = {
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
@@ -142,10 +150,7 @@ class SpineEngineExperimental:
     def run(self):
         """Runs this engine."""
         self._state = SpineEngineState.RUNNING
-        run_config = {
-            "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},
-            "execution": {"multithread": {}},
-        }
+        run_config = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}, "execution": {"multithread": {}}}
         for event in execute_pipeline_iterator(self._pipeline, run_config=run_config):
             self._process_event(event)
         if self._state == SpineEngineState.RUNNING:
