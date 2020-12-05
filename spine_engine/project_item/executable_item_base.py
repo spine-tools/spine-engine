@@ -92,6 +92,18 @@ class ExecutableItemBase:
             backward_resources (list): a list of ProjectItemResources from successors (backward)
         """
 
+    def finish_execution(self, success):
+        """
+        Does any work needed after execution given the execution success status.
+
+        Args:
+            success (bool)
+        """
+        if success:
+            self._logger.msg_success.emit(f"Executing {self.item_type()} {self.name} finished")
+        else:
+            self._logger.msg_error.emit(f"Executing {self.item_type()} {self.name} failed")
+
     @staticmethod
     def item_type():
         """Returns the item's type identifier string."""

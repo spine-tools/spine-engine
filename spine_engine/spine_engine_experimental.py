@@ -291,8 +291,10 @@ class SpineEngineExperimental:
 
                 def execute_item(item, success, forward_resources, backward_resources, output_resources):
                     self._running_items.append(item)
-                    success[0] &= item.execute(forward_resources, backward_resources)
+                    item_success = item.execute(forward_resources, backward_resources)
                     output_resources.update(item.output_resources(ED.FORWARD))
+                    item.finish_execution(item_success)
+                    success[0] &= item_success
                     self._running_items.remove(item)
 
                 success = [True]

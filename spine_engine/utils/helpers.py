@@ -54,7 +54,7 @@ def shorten(name):
 
 
 def create_log_file_timestamp():
-    """Creates a new timestamp string that is used as Combiner and Importer error log file.
+    """Creates a new timestamp string that is used as Data Store and Importer error log file.
 
     Returns:
         Timestamp string or empty string if failed.
