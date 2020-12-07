@@ -362,7 +362,7 @@ class SpineEngineExperimental:
             """Yields filter stacks for each forward resource, as it's being forwarded to given item."""
             for resource in forward_resources:
                 key = (resource.label, item_name)
-                yield self._filter_stacks.get(key, [])
+                yield self._filter_stacks.get(key, [{}])
 
         for stacks in product(*filter_stacks_iterator()):
             # Apply to each forward resource their own stack
