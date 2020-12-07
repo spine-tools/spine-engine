@@ -1132,7 +1132,9 @@ def sets_to_gams(gdx_file, sets, set_settings):
         try:
             gdx_file[current_set.name] = gams_set
         except NotImplementedError as error:
-            raise GdxExportException(f"Failed to write to .gdx file: {error}.")
+            raise GdxExportException(f"Failed to write set '{current_set.name}': {error}.")
+        except RuntimeError as error:
+            raise GdxExportException(f"Failed to write set '{current_set.name}': {error}")
 
 
 def parameters_to_gams(gdx_file, parameters, none_export):
