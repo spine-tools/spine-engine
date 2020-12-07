@@ -55,10 +55,10 @@ class QueueLogger:
     """
 
     def __init__(self, queue, item_name, filter_id):
-        self.msg = _Message(queue, "log_msg", "msg", item_name, filter_id)
-        self.msg_success = _Message(queue, "log_msg", "msg_success", item_name, filter_id)
-        self.msg_warning = _Message(queue, "log_msg", "msg_warning", item_name, filter_id)
-        self.msg_error = _Message(queue, "log_msg", "msg_error", item_name, filter_id)
+        self.msg = _Message(queue, "event_msg", "msg", item_name, filter_id)
+        self.msg_success = _Message(queue, "event_msg", "msg_success", item_name, filter_id)
+        self.msg_warning = _Message(queue, "event_msg", "msg_warning", item_name, filter_id)
+        self.msg_error = _Message(queue, "event_msg", "msg_error", item_name, filter_id)
         self.msg_proc = _Message(queue, "process_msg", "msg", item_name, filter_id)
         self.msg_proc_error = _Message(queue, "process_msg", "msg_error", item_name, filter_id)
         self.msg_standard_execution = _ExecutionMessage(queue, "standard_execution_msg", item_name, filter_id)
