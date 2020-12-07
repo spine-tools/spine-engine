@@ -370,14 +370,15 @@ class SpineEngineExperimental:
             for resource, stack in zip(forward_resources, stacks):
                 clone = resource.clone(additional_metadata={"label": resource.label})
                 for config in stack:
-                    clone.url = append_filter_config(clone.url, config)
+                    if config:
+                        clone.url = append_filter_config(clone.url, config)
                 forward_clones.append(clone)
             # Apply all stacks combined to each backward resource
             backward_clones = []
             flatten_configs = []
             for stack in stacks:
                 for config in stack:
-                    if config not in flatten_configs:
+                    if config and config not in flatten_configs:
                         flatten_configs.append(config)
             for resource in backward_resources:
                 clone = resource.clone(additional_metadata={"label": resource.label})
