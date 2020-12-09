@@ -32,7 +32,9 @@ from dagster import (
     DagsterEventType,
     default_executors,
 )
-from spinedb_api import append_filter_config
+from spinedb_api import append_filter_config, name_from_dict
+from spinedb_api.filters.scenario_filter import scenario_name_from_dict
+from spinedb_api.filters.execution_filter import execution_filter_config
 from .utils.helpers import AppSettings, inverted
 from .utils.queue_logger import QueueLogger
 from .load_project_items import ProjectItemLoader
@@ -367,25 +369,32 @@ class SpineEngineExperimental:
         for stacks in product(*filter_stacks_iterator()):
             # Apply to each forward resource their own stack
             forward_clones = []
+            scenarios = set()
+            resource_filters = []
             for resource, stack in zip(forward_resources, stacks):
                 clone = resource.clone(additional_metadata={"label": resource.label})
+                filters = set()
                 for config in stack:
                     if config:
                         clone.url = append_filter_config(clone.url, config)
+                        scenarios.add(scenario_name_from_dict(config))
+                        filters.add(name_from_dict(config))
                 forward_clones.append(clone)
-            # Apply all stacks combined to each backward resource
+                filters.discard(None)
+                resource_filter = resource.label
+                if filters:
+                    resource_filter += " with " + "&".join(filters)
+                resource_filters.append(resource_filter)
+            # Apply execution filter to each backward resource
+            scenarios.discard(None)
+            execution = {"execution_item": item_name, "scenarios": list(scenarios)}
+            config = execution_filter_config(execution)
             backward_clones = []
-            flatten_configs = []
-            for stack in stacks:
-                for config in stack:
-                    if config and config not in flatten_configs:
-                        flatten_configs.append(config)
             for resource in backward_resources:
                 clone = resource.clone(additional_metadata={"label": resource.label})
-                for config in flatten_configs:
-                    clone.url = append_filter_config(clone.url, config)
+                clone.url = append_filter_config(clone.url, config)
                 backward_clones.append(clone)
-            filter_id = ", ".join([f"{k}={v}" for config in flatten_configs for k, v in config.items() if k != "type"])
+            filter_id = ", ".join(resource_filters)
             yield forward_clones, backward_clones, filter_id
 
     def _make_dependencies(self):
