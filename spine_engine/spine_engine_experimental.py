@@ -370,7 +370,7 @@ class SpineEngineExperimental:
             # Apply to each forward resource their own stack
             forward_clones = []
             scenarios = set()
-            resource_filters = []
+            resource_filters = {}
             for resource, stack in zip(forward_resources, stacks):
                 clone = resource.clone(additional_metadata={"label": resource.label})
                 filters = set()
@@ -381,10 +381,7 @@ class SpineEngineExperimental:
                         filters.add(name_from_dict(config))
                 forward_clones.append(clone)
                 filters.discard(None)
-                resource_filter = resource.label
-                if filters:
-                    resource_filter += " with " + "&".join(filters)
-                resource_filters.append(resource_filter)
+                resource_filters[resource.label] = "&".join(filters)
             # Apply execution filter to each backward resource
             scenarios.discard(None)
             execution = {"execution_item": item_name, "scenarios": list(scenarios)}
@@ -394,7 +391,12 @@ class SpineEngineExperimental:
                 clone = resource.clone(additional_metadata={"label": resource.label})
                 clone.url = append_filter_config(clone.url, config)
                 backward_clones.append(clone)
-            filter_id = ", ".join(resource_filters)
+            if any(resource_filters.values()):
+                filter_id = ", ".join(
+                    [f"{label} with {filters}" if filters else label for label, filters in resource_filters.items()]
+                )
+            else:
+                filter_id = ""
             yield forward_clones, backward_clones, filter_id
 
     def _make_dependencies(self):
