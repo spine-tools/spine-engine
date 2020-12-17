@@ -20,13 +20,19 @@ and intended to supersede them.
 """
 
 import unittest
+from unittest import mock
 from unittest.mock import MagicMock, NonCallableMagicMock, call
 from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState
 
 
+class _MockProjectItemResource(MagicMock):
+    def clone(self, *args, **kwargs):
+        return self
+
+
 class TestSpineEngine(unittest.TestCase):
     @staticmethod
-    def _mock_item(name, resources_forward=None, resources_backward=None, execute_forward=True, execute_backward=True):
+    def _mock_item(name, resources_forward=None, resources_backward=None, execute_outcome=True):
         """Returns a mock project item.
 
         Args:
@@ -46,10 +52,7 @@ class TestSpineEngine(unittest.TestCase):
         item = NonCallableMagicMock()
         item.name = name
         item.short_name = name.lower().replace(' ', '_')
-        item.execute.side_effect = lambda _, direction: {
-            ExecutionDirection.FORWARD: execute_forward,
-            ExecutionDirection.BACKWARD: execute_backward,
-        }[direction]
+        item.execute.side_effect = lambda _, __: execute_outcome
         item.skip_execution = MagicMock()
         item.output_resources.side_effect = lambda direction: {
             ExecutionDirection.FORWARD: resources_forward,
@@ -57,21 +60,29 @@ class TestSpineEngine(unittest.TestCase):
         }[direction]
         return item
 
+    def setUp(self):
+        self.url_a_fw = _MockProjectItemResource()
+        self.url_b_fw = _MockProjectItemResource()
+        self.url_c_fw = _MockProjectItemResource()
+        self.url_a_bw = _MockProjectItemResource()
+        self.url_b_bw = _MockProjectItemResource()
+        self.url_c_bw = _MockProjectItemResource()
+
     def test_linear_execution_succeeds(self):
         """Tests execution with three items in a line."""
-        mock_item_a = self._mock_item("item_a", resources_forward=["url_a_fw"], resources_backward=["url_a_bw"])
-        mock_item_b = self._mock_item("item_b", resources_forward=["url_b_fw"], resources_backward=["url_b_bw"])
-        mock_item_c = self._mock_item("item_c", resources_forward=["url_c_fw"], resources_backward=["url_c_bw"])
+        mock_item_a = self._mock_item("item_a", resources_forward=[self.url_a_fw], resources_backward=[self.url_a_bw])
+        mock_item_b = self._mock_item("item_b", resources_forward=[self.url_b_fw], resources_backward=[self.url_b_bw])
+        mock_item_c = self._mock_item("item_c", resources_forward=[self.url_c_fw], resources_backward=[self.url_c_bw])
+        items = {"item_a": mock_item_a, "item_b": mock_item_b, "item_c": mock_item_c}
         successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
-        engine = SpineEngine([mock_item_a, mock_item_b, mock_item_c], successors, execution_permits)
-        engine.run()
-        item_a_execute_calls = [call(["url_b_bw"], ExecutionDirection.BACKWARD), call([], ExecutionDirection.FORWARD)]
-        item_b_execute_calls = [
-            call(["url_c_bw"], ExecutionDirection.BACKWARD),
-            call(["url_a_fw"], ExecutionDirection.FORWARD),
-        ]
-        item_c_execute_calls = [call([], ExecutionDirection.BACKWARD), call(["url_b_fw"], ExecutionDirection.FORWARD)]
+        engine = SpineEngine(items=items, node_successors=successors, execution_permits=execution_permits)
+        engine._make_item = lambda name, *args: engine._items[name]
+        with mock.patch("spine_engine.spine_engine.append_filter_config"):
+            engine.run()
+        item_a_execute_calls = [call([], [self.url_b_bw])]
+        item_b_execute_calls = [call([self.url_a_fw], [self.url_c_bw])]
+        item_c_execute_calls = [call([self.url_b_fw], [])]
         mock_item_a.execute.assert_has_calls(item_a_execute_calls)
         mock_item_a.skip_execution.assert_not_called()
         mock_item_b.execute.assert_has_calls(item_b_execute_calls)
@@ -82,19 +93,19 @@ class TestSpineEngine(unittest.TestCase):
 
     def test_fork_execution_succeeds(self):
         """Tests execution with three items in a fork."""
-        mock_item_a = self._mock_item("item_a", resources_forward=["url_a_fw"], resources_backward=["url_a_bw"])
-        mock_item_b = self._mock_item("item_b", resources_forward=["url_b_fw"], resources_backward=["url_b_bw"])
-        mock_item_c = self._mock_item("item_c", resources_forward=["url_c_fw"], resources_backward=["url_c_bw"])
+        mock_item_a = self._mock_item("item_a", resources_forward=[self.url_a_fw], resources_backward=[self.url_a_bw])
+        mock_item_b = self._mock_item("item_b", resources_forward=[self.url_b_fw], resources_backward=[self.url_b_bw])
+        mock_item_c = self._mock_item("item_c", resources_forward=[self.url_c_fw], resources_backward=[self.url_c_bw])
+        items = {"item_a": mock_item_a, "item_b": mock_item_b, "item_c": mock_item_c}
         successors = {"item_a": ["item_b", "item_c"]}
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
-        engine = SpineEngine([mock_item_a, mock_item_b, mock_item_c], successors, execution_permits)
-        engine.run()
-        item_a_execute_calls = [
-            call(["url_b_bw", "url_c_bw"], ExecutionDirection.BACKWARD),
-            call([], ExecutionDirection.FORWARD),
-        ]
-        item_b_execute_calls = [call([], ExecutionDirection.BACKWARD), call(["url_a_fw"], ExecutionDirection.FORWARD)]
-        item_c_execute_calls = [call([], ExecutionDirection.BACKWARD), call(["url_a_fw"], ExecutionDirection.FORWARD)]
+        engine = SpineEngine(items=items, node_successors=successors, execution_permits=execution_permits)
+        engine._make_item = lambda name, *args: engine._items[name]
+        with mock.patch("spine_engine.spine_engine.append_filter_config"):
+            engine.run()
+        item_a_execute_calls = [call([], [self.url_b_bw, self.url_c_bw])]
+        item_b_execute_calls = [call([self.url_a_fw], [])]
+        item_c_execute_calls = [call([self.url_a_fw], [])]
         mock_item_a.execute.assert_has_calls(item_a_execute_calls)
         mock_item_a.skip_execution.assert_not_called()
         mock_item_b.execute.assert_has_calls(item_b_execute_calls)
@@ -103,31 +114,21 @@ class TestSpineEngine(unittest.TestCase):
         mock_item_c.skip_execution.assert_not_called()
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
-    def test_backward_execution_fails(self):
-        """Tests that execution fails going backwards."""
-        mock_item_a = self._mock_item("item_a")
-        mock_item_b = self._mock_item("item_b", execute_backward=False)
-        successors = {"item_a": ["item_b"]}
-        execution_permits = {"item_a": True, "item_b": True}
-        engine = SpineEngine([mock_item_a, mock_item_b], successors, execution_permits)
-        engine.run()
-        self.assertEqual(engine.state(), SpineEngineState.FAILED)
-
     def test_execution_permits(self):
         """Tests that the middle item of an item triplet is not executed when its execution permit is False."""
-        mock_item_a = self._mock_item("item_a", resources_forward=["url_a_fw"], resources_backward=["url_a_bw"])
-        mock_item_b = self._mock_item("item_b", resources_forward=["url_b_fw"], resources_backward=["url_b_bw"])
-        mock_item_c = self._mock_item("item_c", resources_forward=["url_c_fw"], resources_backward=["url_c_bw"])
+        mock_item_a = self._mock_item("item_a", resources_forward=[self.url_a_fw], resources_backward=[self.url_a_bw])
+        mock_item_b = self._mock_item("item_b", resources_forward=[self.url_b_fw], resources_backward=[self.url_b_bw])
+        mock_item_c = self._mock_item("item_c", resources_forward=[self.url_c_fw], resources_backward=[self.url_c_bw])
+        items = {"item_a": mock_item_a, "item_b": mock_item_b, "item_c": mock_item_c}
         successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
         execution_permits = {"item_a": True, "item_b": False, "item_c": True}
-        engine = SpineEngine([mock_item_a, mock_item_b, mock_item_c], successors, execution_permits)
-        engine.run()
-        item_a_execute_calls = [call(["url_b_bw"], ExecutionDirection.BACKWARD), call([], ExecutionDirection.FORWARD)]
-        item_b_skip_execution_calls = [
-            call(["url_c_bw"], ExecutionDirection.BACKWARD),
-            call(["url_a_fw"], ExecutionDirection.FORWARD),
-        ]
-        item_c_execute_calls = [call([], ExecutionDirection.BACKWARD), call(["url_b_fw"], ExecutionDirection.FORWARD)]
+        engine = SpineEngine(items=items, node_successors=successors, execution_permits=execution_permits)
+        engine._make_item = lambda name, *args: engine._items[name]
+        with mock.patch("spine_engine.spine_engine.append_filter_config"):
+            engine.run()
+        item_a_execute_calls = [call([], [self.url_b_bw])]
+        item_b_skip_execution_calls = [call([self.url_a_fw], [self.url_c_bw])]
+        item_c_execute_calls = [call([self.url_b_fw], [])]
         mock_item_a.execute.assert_has_calls(item_a_execute_calls)
         mock_item_a.skip_execution.assert_not_called()
         mock_item_b.execute.assert_not_called()

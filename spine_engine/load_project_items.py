@@ -42,9 +42,7 @@ class ProjectItemLoader(metaclass=Singleton):
                 items_root = pathlib.Path(spine_items.__file__).parent
                 factories = dict()
                 for child in items_root.iterdir():
-                    if child.is_dir() and child.joinpath("specification_factory_qt_free.py").exists():
-                        spec = importlib.util.find_spec(f"spine_items.{child.stem}.specification_factory_qt_free")
-                    elif child.is_dir() and child.joinpath("specification_factory.py").exists():
+                    if child.is_dir() and child.joinpath("specification_factory.py").exists():
                         spec = importlib.util.find_spec(f"spine_items.{child.stem}.specification_factory")
                     else:
                         continue
@@ -70,9 +68,7 @@ class ProjectItemLoader(metaclass=Singleton):
                 items_root = pathlib.Path(spine_items.__file__).parent
                 executable_items = dict()
                 for child in items_root.iterdir():
-                    if child.is_dir() and child.joinpath("executable_item_qt_free.py").exists():
-                        spec = importlib.util.find_spec(f"spine_items.{child.stem}.executable_item_qt_free")
-                    elif child.is_dir() and child.joinpath("executable_item.py").exists():
+                    if child.is_dir() and child.joinpath("executable_item.py").exists():
                         spec = importlib.util.find_spec(f"spine_items.{child.stem}.executable_item")
                     else:
                         continue

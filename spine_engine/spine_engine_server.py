@@ -21,7 +21,7 @@ import threading
 import json
 import uuid
 import atexit
-from .spine_engine_experimental import SpineEngineExperimental
+from .spine_engine import SpineEngine
 
 
 class EngineRequestHandler(socketserver.BaseRequestHandler):
@@ -37,13 +37,13 @@ class EngineRequestHandler(socketserver.BaseRequestHandler):
         Creates and engine and runs it.
 
         Args:
-            data (dict): data to be passed as keyword arguments to SpineEngineExperimental()
+            data (dict): data to be passed as keyword arguments to SpineEngine()
 
         Returns:
             str: engine id, for further calls
         """
         engine_id = uuid.uuid4().hex
-        self._engines[engine_id] = SpineEngineExperimental(**data, debug=False)
+        self._engines[engine_id] = SpineEngine(**data, debug=False)
         return engine_id
 
     def _get_engine_event(self, engine_id):
