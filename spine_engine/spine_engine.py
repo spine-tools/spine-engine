@@ -291,7 +291,7 @@ class SpineEngine:
         )
 
     def _make_forward_solid_def(self, item_name):
-        """Returns a SolidDefinition for executing the given item in the forward sweep.
+        """Returns a SolidDefinition for executing the given item.
 
         Returns:
             SolidDefinition
@@ -302,6 +302,7 @@ class SpineEngine:
                 context.log.error(f"compute_fn() FAILURE with item: {item_name} stopped by the user")
                 raise Failure()
             context.log.info(f"Item Name: {item_name}")
+            # Split inputs into forward and backward resources based on prefix
             forward_resources = []
             backward_resources = []
             for name, values in inputs.items():
@@ -319,6 +320,7 @@ class SpineEngine:
                     success[0] &= item_success
                     self._running_items.remove(item)
 
+                # Iterate over filtered resources and execute each item in a thread
                 success = [True]
                 output_resources = set()
                 threads = []
@@ -361,15 +363,7 @@ class SpineEngine:
 
     def _filtered_resources_iterator(self, item_name, forward_resources, backward_resources):
         """Applies filter stacks defined for the given forward resources as they're being forwarded
-        to given item, and yields tuples of filtered (forward, backward) resources
-
-        For example, let's say we only have one forward resource. In this case,
-        we apply the filter stack defined for the forward to the forward and to *all* the backward.
-
-        Now let's say we have multiple forward resources. In this case, we first compute the cross product
-        of filter stacks defined for all forwards. For each element in this product, we apply the corresponding
-        stack to each forward, and the *union* of all stacks to each backward.
-
+        to given item, and yields tuples of filtered (forward, backward) resources.
 
         Args:
             item_name (str)
@@ -379,30 +373,20 @@ class SpineEngine:
         Returns:
             Iterator(tuple(list,list)): forward resources, backward resources
         """
-
-        def filter_stacks_iterator():
-            """Yields filter stacks for each forward resource, as it's being forwarded to given item."""
-            for resource in forward_resources:
-                key = (resource.label, item_name)
-                yield self._filter_stacks.get(key, [{}])
-
-        for stacks in product(*filter_stacks_iterator()):
+        filter_stacks_iterator = (
+            self._filter_stacks.get((resource.label, item_name), [{}]) for resource in forward_resources
+        )
+        for stacks in product(*filter_stacks_iterator):
             # Apply to each forward resource their own stack
             forward_clones = []
-            scenarios = set()
-            resource_filters = {}
             for resource, stack in zip(forward_resources, stacks):
                 clone = resource.clone(additional_metadata={"label": resource.label})
-                filters = set()
                 for config in stack:
                     if config:
                         clone.url = append_filter_config(clone.url, config)
-                        scenarios.add(scenario_name_from_dict(config))
-                        filters.add(name_from_dict(config))
                 forward_clones.append(clone)
-                filters.discard(None)
-                resource_filters[resource.label] = "&".join(filters)
             # Apply execution filter to each backward resource
+            scenarios = {scenario_name_from_dict(config) for stack in stacks for config in stack if config}
             scenarios.discard(None)
             execution = {"execution_item": item_name, "scenarios": list(scenarios)}
             config = execution_filter_config(execution)
@@ -411,13 +395,27 @@ class SpineEngine:
                 clone = resource.clone(additional_metadata={"label": resource.label})
                 clone.url = append_filter_config(clone.url, config)
                 backward_clones.append(clone)
-            if any(resource_filters.values()):
+            # Make filter id
+            resource_filter_names = {
+                resource.label: ", ".join(self._filter_names_from_stack(stack))
+                for resource, stack in zip(forward_resources, stacks)
+            }
+            if any(resource_filter_names.values()):
                 filter_id = ", ".join(
-                    [f"{label} with {filters}" if filters else label for label, filters in resource_filters.items()]
+                    [f"{label} with {names}" if names else label for label, names in resource_filter_names.items()]
                 )
             else:
                 filter_id = ""
             yield forward_clones, backward_clones, filter_id
+
+    @staticmethod
+    def _filter_names_from_stack(stack):
+        for config in stack:
+            if not config:
+                continue
+            filter_name = name_from_dict(config)
+            if filter_name is not None:
+                yield filter_name
 
     def _make_dependencies(self):
         """

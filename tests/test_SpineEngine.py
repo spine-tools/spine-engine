@@ -23,10 +23,20 @@ import unittest
 from unittest import mock
 from unittest.mock import MagicMock, NonCallableMagicMock, call
 from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState
+from spinedb_api.filters.scenario_filter import scenario_filter_config
+from spinedb_api.filters.execution_filter import execution_filter_config
+from spinedb_api.filters.tools import filter_configs
 
 
 class _MockProjectItemResource(MagicMock):
+
+    url = "sqlite:///"
+
     def clone(self, *args, **kwargs):
+        return self
+
+    @property
+    def label(self):
         return self
 
 
@@ -54,6 +64,8 @@ class TestSpineEngine(unittest.TestCase):
         item.short_name = name.lower().replace(' ', '_')
         item.execute.side_effect = lambda _, __: execute_outcome
         item.skip_execution = MagicMock()
+        for r in resources_forward + resources_backward:
+            r.provider = item
         item.output_resources.side_effect = lambda direction: {
             ExecutionDirection.FORWARD: resources_forward,
             ExecutionDirection.BACKWARD: resources_backward,
@@ -137,6 +149,43 @@ class TestSpineEngine(unittest.TestCase):
         mock_item_c.execute.assert_has_calls(item_c_execute_calls)
         mock_item_c.skip_execution.assert_not_called()
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
+
+    def test_filter_stacks(self):
+        """Tests filter stacks are properly applied."""
+        url_a_fw = _MockProjectItemResource()
+        url_b_fw = _MockProjectItemResource()
+        url_c_bw = _MockProjectItemResource()
+        mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
+        mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[])
+        mock_item_c = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
+        items = {"item_a": mock_item_a, "item_b": mock_item_b, "item_c": mock_item_c}
+        successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
+        execution_permits = {"item_a": True, "item_b": True, "item_c": True}
+        filter_stacks = {(url_a_fw, "item_b"): [(scenario_filter_config("scen1"),), (scenario_filter_config("scen2"),)]}
+        engine = SpineEngine(
+            items=items, node_successors=successors, execution_permits=execution_permits, filter_stacks=filter_stacks
+        )
+        engine._make_item = lambda name, *args: engine._items[name]
+        forward_stacks = []
+        backward_stacks = []
+
+        def item_b_execute(
+            forward_resources, backward_resources, forward_stacks=forward_stacks, backward_stacks=backward_stacks
+        ):
+            forward_stacks += [filter_configs(r.url) for r in forward_resources]
+            backward_stacks += [filter_configs(r.url) for r in backward_resources]
+            return True
+
+        url_a_fw.clone = lambda *args, **kwargs: _MockProjectItemResource()
+        url_c_bw.clone = lambda *args, **kwargs: _MockProjectItemResource()
+        mock_item_b.execute.side_effect = item_b_execute
+        engine.run()
+        self.assertEqual(len(forward_stacks), 2)
+        self.assertEqual(len(backward_stacks), 2)
+        self.assertIn([scenario_filter_config("scen1")], forward_stacks)
+        self.assertIn([scenario_filter_config("scen2")], forward_stacks)
+        self.assertIn([execution_filter_config({"execution_item": "item_b", "scenarios": ["scen1"]})], backward_stacks)
+        self.assertIn([execution_filter_config({"execution_item": "item_b", "scenarios": ["scen2"]})], backward_stacks)
 
 
 if __name__ == '__main__':

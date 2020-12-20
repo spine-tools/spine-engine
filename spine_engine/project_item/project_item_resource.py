@@ -47,7 +47,7 @@ class ProjectItemResource:
     def __init__(self, provider, type_, url="", metadata=None):
         """
         Args:
-            provider (ProjectItem or ExecutionItem): The item that provides the resource
+            provider (ProjectItem or ExecutableItem): The item that provides the resource
             type_ (str): The resource type, currently available types:
 
                 - "file": url points to the file's path

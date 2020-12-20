@@ -32,7 +32,6 @@ class ExecutableItemBase:
         """
         self._name = name
         self._logger = logger
-        self._backward_resources = []
         self._group_id = name
 
     @property
@@ -52,15 +51,6 @@ class ExecutableItemBase:
     @group_id.setter
     def group_id(self, group_id):
         self._group_id = group_id
-
-    def old_execute(self, resources, direction):
-        # This is so SpineEngine still works, but we can remove it once we adopt SpineEngineExperimental
-        if direction == ExecutionDirection.BACKWARD:
-            self._backward_resources = resources.copy()
-            return True
-        if direction == ExecutionDirection.FORWARD:
-            return self.execute(resources, self._backward_resources)
-        return False
 
     def execute(self, forward_resources, backward_resources):
         """
