@@ -31,6 +31,9 @@ jobs:
         pip install -r requirements.txt
         pip install coverage
         pip install codecov
+    - name: Install spine_items  # Some engine tests require spine_items
+      run: |
+        pip install git+https://github.com/Spine-project/spine-items.git#egg=spine_items
     - name: Run tests
       run:
         coverage run -m unittest discover --verbose
