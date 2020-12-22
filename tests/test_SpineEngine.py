@@ -20,10 +20,10 @@ and intended to supersede them.
 """
 
 import unittest
-from unittest import mock
 from unittest.mock import MagicMock, NonCallableMagicMock, call
 from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState
 from spinedb_api.filters.scenario_filter import scenario_filter_config
+from spinedb_api.filters.tool_filter import tool_filter_config
 from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.tools import filter_configs
 
@@ -62,7 +62,15 @@ class TestSpineEngine(unittest.TestCase):
         item = NonCallableMagicMock()
         item.name = name
         item.short_name = name.lower().replace(' ', '_')
-        item.execute.side_effect = lambda _, __: execute_outcome
+        item.fwd_flt_stacks = []
+        item.bwd_flt_stacks = []
+
+        def execute(forward_resources, backward_resources, item=item):
+            item.fwd_flt_stacks += [filter_configs(r.url) for r in forward_resources]
+            item.bwd_flt_stacks += [filter_configs(r.url) for r in backward_resources]
+            return execute_outcome
+
+        item.execute.side_effect = execute
         item.skip_execution = MagicMock()
         for r in resources_forward + resources_backward:
             r.provider = item
@@ -90,8 +98,7 @@ class TestSpineEngine(unittest.TestCase):
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
         engine = SpineEngine(items=items, node_successors=successors, execution_permits=execution_permits)
         engine._make_item = lambda name, *args: engine._items[name]
-        with mock.patch("spine_engine.spine_engine.append_filter_config"):
-            engine.run()
+        engine.run()
         item_a_execute_calls = [call([], [self.url_b_bw])]
         item_b_execute_calls = [call([self.url_a_fw], [self.url_c_bw])]
         item_c_execute_calls = [call([self.url_b_fw], [])]
@@ -113,8 +120,7 @@ class TestSpineEngine(unittest.TestCase):
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
         engine = SpineEngine(items=items, node_successors=successors, execution_permits=execution_permits)
         engine._make_item = lambda name, *args: engine._items[name]
-        with mock.patch("spine_engine.spine_engine.append_filter_config"):
-            engine.run()
+        engine.run()
         item_a_execute_calls = [call([], [self.url_b_bw, self.url_c_bw])]
         item_b_execute_calls = [call([self.url_a_fw], [])]
         item_c_execute_calls = [call([self.url_a_fw], [])]
@@ -136,8 +142,7 @@ class TestSpineEngine(unittest.TestCase):
         execution_permits = {"item_a": True, "item_b": False, "item_c": True}
         engine = SpineEngine(items=items, node_successors=successors, execution_permits=execution_permits)
         engine._make_item = lambda name, *args: engine._items[name]
-        with mock.patch("spine_engine.spine_engine.append_filter_config"):
-            engine.run()
+        engine.run()
         item_a_execute_calls = [call([], [self.url_b_bw])]
         item_b_skip_execution_calls = [call([self.url_a_fw], [self.url_c_bw])]
         item_c_execute_calls = [call([self.url_b_fw], [])]
@@ -155,37 +160,38 @@ class TestSpineEngine(unittest.TestCase):
         url_a_fw = _MockProjectItemResource()
         url_b_fw = _MockProjectItemResource()
         url_c_bw = _MockProjectItemResource()
+        url_a_fw.clone = lambda *args, **kwargs: _MockProjectItemResource()
+        url_c_bw.clone = lambda *args, **kwargs: _MockProjectItemResource()
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[])
         mock_item_c = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
         items = {"item_a": mock_item_a, "item_b": mock_item_b, "item_c": mock_item_c}
         successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
-        filter_stacks = {(url_a_fw, "item_b"): [(scenario_filter_config("scen1"),), (scenario_filter_config("scen2"),)]}
+        filter_stacks = {
+            (url_a_fw, "item_b"): [
+                (scenario_filter_config("scen1"),),
+                (scenario_filter_config("scen2"), tool_filter_config("toolA")),
+            ]
+        }
         engine = SpineEngine(
             items=items, node_successors=successors, execution_permits=execution_permits, filter_stacks=filter_stacks
         )
         engine._make_item = lambda name, *args: engine._items[name]
-        forward_stacks = []
-        backward_stacks = []
-
-        def item_b_execute(
-            forward_resources, backward_resources, forward_stacks=forward_stacks, backward_stacks=backward_stacks
-        ):
-            forward_stacks += [filter_configs(r.url) for r in forward_resources]
-            backward_stacks += [filter_configs(r.url) for r in backward_resources]
-            return True
-
-        url_a_fw.clone = lambda *args, **kwargs: _MockProjectItemResource()
-        url_c_bw.clone = lambda *args, **kwargs: _MockProjectItemResource()
-        mock_item_b.execute.side_effect = item_b_execute
         engine.run()
-        self.assertEqual(len(forward_stacks), 2)
-        self.assertEqual(len(backward_stacks), 2)
-        self.assertIn([scenario_filter_config("scen1")], forward_stacks)
-        self.assertIn([scenario_filter_config("scen2")], forward_stacks)
-        self.assertIn([execution_filter_config({"execution_item": "item_b", "scenarios": ["scen1"]})], backward_stacks)
-        self.assertIn([execution_filter_config({"execution_item": "item_b", "scenarios": ["scen2"]})], backward_stacks)
+        # Check that item_b has been executed two times, with the right filters
+        self.assertEqual(len(mock_item_b.fwd_flt_stacks), 2)
+        self.assertEqual(len(mock_item_b.bwd_flt_stacks), 2)
+        self.assertIn([scenario_filter_config("scen1")], mock_item_b.fwd_flt_stacks)
+        self.assertIn([scenario_filter_config("scen2"), tool_filter_config("toolA")], mock_item_b.fwd_flt_stacks)
+        self.assertIn(
+            [execution_filter_config({"execution_item": "item_b", "scenarios": ["scen1"]})], mock_item_b.bwd_flt_stacks
+        )
+        self.assertIn(
+            [execution_filter_config({"execution_item": "item_b", "scenarios": ["scen2"]})], mock_item_b.bwd_flt_stacks
+        )
+        # Check that item_c has also been executed two times
+        self.assertEqual(len(mock_item_c.fwd_flt_stacks), 2)
 
 
 if __name__ == '__main__':

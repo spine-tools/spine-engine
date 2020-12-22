@@ -36,6 +36,7 @@ from dagster import (
 from spinedb_api import append_filter_config, name_from_dict
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
+from spinedb_api.filters.tools import filter_configs
 from .utils.helpers import AppSettings, inverted
 from .utils.queue_logger import QueueLogger
 from .load_project_items import ProjectItemLoader
@@ -293,6 +294,9 @@ class SpineEngine:
     def _make_forward_solid_def(self, item_name):
         """Returns a SolidDefinition for executing the given item.
 
+        Args:
+            item_name (str)
+
         Returns:
             SolidDefinition
         """
@@ -303,48 +307,15 @@ class SpineEngine:
                 raise Failure()
             context.log.info(f"Item Name: {item_name}")
             # Split inputs into forward and backward resources based on prefix
-            forward_resources = []
+            forward_resource_stacks = []
             backward_resources = []
             for name, values in inputs.items():
                 if name.startswith(f"{ED.FORWARD}"):
-                    forward_resources += values
+                    forward_resource_stacks += values
                 elif name.startswith(f"{ED.BACKWARD}"):
                     backward_resources += values
-            if self._execution_permits[self._solid_names[item_name]]:
-
-                def execute_item(item, success, forward_resources, backward_resources, output_resources):
-                    self._running_items.append(item)
-                    item_success = item.execute(forward_resources, backward_resources)
-                    output_resources.update(item.output_resources(ED.FORWARD))
-                    item.finish_execution(item_success)
-                    success[0] &= item_success
-                    self._running_items.remove(item)
-
-                # Iterate over filtered resources and execute each item in a thread
-                success = [True]
-                output_resources = set()
-                threads = []
-                resources_iterator = self._filtered_resources_iterator(item_name, forward_resources, backward_resources)
-                for forward_resources, backward_resources, filter_id in resources_iterator:
-                    item = self._make_item(item_name, filter_id)
-                    item.group_id = item_name + filter_id
-                    thread = threading.Thread(
-                        target=execute_item,
-                        args=(item, success, forward_resources, backward_resources, output_resources),
-                    )
-                    threads.append(thread)
-                    thread.start()
-                for thread in threads:
-                    thread.join()
-                if not success[0]:
-                    context.log.error(f"compute_fn() FAILURE with item: {item_name} failed to execute")
-                    raise Failure()
-                yield Output(value=list(output_resources), output_name=f"{ED.FORWARD}_output")
-            else:
-                item = self._make_item(item_name)
-                item.skip_execution(forward_resources, backward_resources)
-                resources = item.output_resources(ED.FORWARD)
-                yield Output(value=resources, output_name=f"{ED.FORWARD}_output")
+            output_resource_stacks = self._execute_item(context, item_name, forward_resource_stacks, backward_resources)
+            yield Output(value=output_resource_stacks, output_name=f"{ED.FORWARD}_output")
 
         input_defs = [
             InputDefinition(name=f"{ED.FORWARD}_input_from_{inj}")
@@ -361,61 +332,144 @@ class SpineEngine:
             output_defs=output_defs,
         )
 
-    def _filtered_resources_iterator(self, item_name, forward_resources, backward_resources):
-        """Applies filter stacks defined for the given forward resources as they're being forwarded
-        to given item, and yields tuples of filtered (forward, backward) resources.
+    def _execute_item(self, context, item_name, forward_resource_stacks, backward_resources):
+        """Executes the given item using the given forward resource stacks and backward resources.
+        Returns list of output resource stacks.
+
+        Called by ``_make_forward_solid_def.compute_fn``.
+
+        For each element yielded by ``_filtered_resources_iterator``, spawns a thread that runs ``_execute_item_filtered``.
 
         Args:
+            context
             item_name (str)
-            forward_resources (list(ProjectItemResource))
+            forward_resource_stacks (list(tuple(ProjectItemResource)))
             backward_resources (list(ProjectItemResource))
 
         Returns:
-            Iterator(tuple(list,list)): forward resources, backward resources
+            list(tuple(ProjectItemResource))
         """
-        filter_stacks_iterator = (
-            self._filter_stacks.get((resource.label, item_name), [{}]) for resource in forward_resources
-        )
-        for stacks in product(*filter_stacks_iterator):
-            # Apply to each forward resource their own stack
-            forward_clones = []
-            for resource, stack in zip(forward_resources, stacks):
-                clone = resource.clone(additional_metadata={"label": resource.label})
-                for config in stack:
-                    if config:
-                        clone.url = append_filter_config(clone.url, config)
-                forward_clones.append(clone)
-            # Apply execution filter to each backward resource
-            scenarios = {scenario_name_from_dict(config) for stack in stacks for config in stack if config}
+        success = [True]
+        output_resources_list = []
+        threads = []
+        resources_iterator = self._filtered_resources_iterator(item_name, forward_resource_stacks, backward_resources)
+        for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
+            item = self._make_item(item_name, filter_id)
+            item.group_id = item_name + filter_id
+            thread = threading.Thread(
+                target=self._execute_item_filtered,
+                args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, success),
+            )
+            threads.append(thread)
+            thread.start()
+        for thread in threads:
+            thread.join()
+        if not success[0]:
+            context.log.error(f"compute_fn() FAILURE with item: {item_name} failed to execute")
+            raise Failure()
+        return list(zip(*output_resources_list))
+
+    def _execute_item_filtered(
+        self, item, filtered_forward_resources, filtered_backward_resources, output_resources_list, success
+    ):
+        """Executes the given item using the given filtered resources. Target for threads in ``_execute_item``.
+
+        Args:
+            item (ExecutableItemBase)
+            filtered_forward_resources (list(ProjectItemResource))
+            filtered_backward_resources (list(ProjectItemResource))
+            output_resources_list (list(list(ProjectItemResource))): A list of lists, to append the
+                output resources generated by the item.
+            success (list): A list of one element, to write the outcome of the execution.
+
+        """
+        self._running_items.append(item)
+        if self._execution_permits[self._solid_names[item.name]]:
+            item_success = item.execute(filtered_forward_resources, filtered_backward_resources)
+            item.finish_execution(item_success)
+        else:
+            item.skip_execution(filtered_forward_resources, filtered_backward_resources)
+            item_success = True
+        output_resources_list.append(item.output_resources(ED.FORWARD))
+        success[0] &= item_success  # FIXME: We need a Lock here
+        self._running_items.remove(item)
+
+    def _filtered_resources_iterator(self, item_name, forward_resource_stacks, backward_resources):
+        """Yields tuples of (filtered forward resources, filtered backward resources, filter id).
+
+        Each tuple corresponds to a unique filter combination. Combinations are obtained by applying the cross-product
+        over forward resource stacks as yielded by ``_forward_resource_stacks_iterator``.
+
+        Args:
+            item_name (str)
+            forward_resource_stacks (list(tuple(ProjectItemResource)))
+            backward_resources (list(ProjectItemResource))
+
+        Returns:
+            Iterator(tuple(list,list,str)): forward resources, backward resources, filter id
+        """
+        for filtered_forward_resources in product(
+            *self._forward_resource_stacks_iterator(item_name, forward_resource_stacks)
+        ):
+            resource_filter_stack = {r.label: filter_configs(r.url) for r in filtered_forward_resources}
+            scenarios = {scenario_name_from_dict(cfg) for stack in resource_filter_stack.values() for cfg in stack}
             scenarios.discard(None)
             execution = {"execution_item": item_name, "scenarios": list(scenarios)}
             config = execution_filter_config(execution)
-            backward_clones = []
+            filtered_backward_resources = []
             for resource in backward_resources:
                 clone = resource.clone(additional_metadata={"label": resource.label})
                 clone.url = append_filter_config(clone.url, config)
-                backward_clones.append(clone)
-            # Make filter id
-            resource_filter_names = {
-                resource.label: ", ".join(self._filter_names_from_stack(stack))
-                for resource, stack in zip(forward_resources, stacks)
-            }
-            if any(resource_filter_names.values()):
-                filter_id = ", ".join(
-                    [f"{label} with {names}" if names else label for label, names in resource_filter_names.items()]
-                )
-            else:
-                filter_id = ""
-            yield forward_clones, backward_clones, filter_id
+                filtered_backward_resources.append(clone)
+            filter_id = _make_filter_id(resource_filter_stack)
+            yield list(filtered_forward_resources), filtered_backward_resources, filter_id
 
-    @staticmethod
-    def _filter_names_from_stack(stack):
-        for config in stack:
-            if not config:
-                continue
-            filter_name = name_from_dict(config)
-            if filter_name is not None:
-                yield filter_name
+    def _forward_resource_stacks_iterator(self, item_name, forward_resource_stacks):
+        """Expands and yields forward resource stacks.
+
+        Args:
+            item_name (str)
+            forward_resource_stacks (list(tuple(ProjectItemResource)))
+
+        Returns:
+            Iterator(tuple(ProjectItemResource))
+        """
+        for resource_stack in forward_resource_stacks:
+            yield self._expand_resource_stack(item_name, resource_stack)
+
+    def _expand_resource_stack(self, item_name, resource_stack):
+        """Expands a resource stack if possible.
+
+        If the stack has more than one resource, returns the unaltered stack.
+
+        Otherwise, if the stack has only one resource but there are no filters defined for that resource,
+        again, returns the unaltered stack.
+
+        Otherwise, returns an expanded stack of as many resources as filter stacks defined for the only one resource.
+        Each resource in the expanded stack is a clone of the original, with one of the filter stacks
+        applied to the URL.
+
+        Args:
+            item_name (str)
+            resource_stack (tuple(ProjectItemResource))
+
+        Returns:
+            tuple(ProjectItemResource)
+        """
+        if len(resource_stack) > 1:
+            return resource_stack
+        resource = resource_stack[0]
+        filter_stacks = self._filter_stacks.get((resource.label, item_name))
+        if filter_stacks is None:
+            return resource_stack
+        expanded_stack = ()
+        for filter_stack in filter_stacks:
+            filtered_clone = resource.clone(additional_metadata={"label": resource.label})
+            for config in filter_stack:
+                if config:
+                    filtered_clone.url = append_filter_config(filtered_clone.url, config)
+            expanded_stack += (filtered_clone,)
+        return expanded_stack
 
     def _make_dependencies(self):
         """
@@ -443,3 +497,22 @@ class SpineEngine:
             deps[n] = forward_deps.get(n, {})
             deps[n].update(backward_deps.get(n, {}))
         return deps
+
+
+def _make_filter_id(resource_filter_stack):
+    resources = []
+    for resource, stack in resource_filter_stack.items():
+        if not stack:
+            continue
+        names = "&".join(_filter_names_from_stack(stack))
+        resources.append(f"{resource} with {names}")
+    return ", ".join(resources)
+
+
+def _filter_names_from_stack(stack):
+    for config in stack:
+        if not config:
+            continue
+        filter_name = name_from_dict(config)
+        if filter_name is not None:
+            yield filter_name
