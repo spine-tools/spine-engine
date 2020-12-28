@@ -36,7 +36,7 @@ from dagster import (
 from spinedb_api import append_filter_config, name_from_dict
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
-from spinedb_api.filters.tools import filter_configs
+from spinedb_api.filters.tools import filter_configs, load_filters
 from .utils.helpers import AppSettings, inverted
 from .utils.queue_logger import QueueLogger
 from .load_project_items import ProjectItemLoader
@@ -411,7 +411,7 @@ class SpineEngine:
         for filtered_forward_resources in product(
             *self._forward_resource_stacks_iterator(item_name, forward_resource_stacks)
         ):
-            resource_filter_stack = {r.label: filter_configs(r.url) for r in filtered_forward_resources}
+            resource_filter_stack = {r.label: load_filters(filter_configs(r.url)) for r in filtered_forward_resources}
             scenarios = {scenario_name_from_dict(cfg) for stack in resource_filter_stack.values() for cfg in stack}
             scenarios.discard(None)
             execution = {"execution_item": item_name, "scenarios": list(scenarios)}
