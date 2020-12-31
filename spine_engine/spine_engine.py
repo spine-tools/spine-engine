@@ -408,9 +408,10 @@ class SpineEngine:
         Returns:
             Iterator(tuple(list,list,str)): forward resources, backward resources, filter id
         """
-        for filtered_forward_resources in product(
-            *self._forward_resource_stacks_iterator(item_name, forward_resource_stacks)
-        ):
+        forward_resource_stacks_iterator = (
+            self._expand_resource_stack(item_name, resource_stack) for resource_stack in forward_resource_stacks
+        )
+        for filtered_forward_resources in product(*forward_resource_stacks_iterator):
             resource_filter_stack = {r.label: load_filters(filter_configs(r.url)) for r in filtered_forward_resources}
             scenarios = {scenario_name_from_dict(cfg) for stack in resource_filter_stack.values() for cfg in stack}
             scenarios.discard(None)
@@ -423,19 +424,6 @@ class SpineEngine:
                 filtered_backward_resources.append(clone)
             filter_id = _make_filter_id(resource_filter_stack)
             yield list(filtered_forward_resources), filtered_backward_resources, filter_id
-
-    def _forward_resource_stacks_iterator(self, item_name, forward_resource_stacks):
-        """Expands and yields forward resource stacks.
-
-        Args:
-            item_name (str)
-            forward_resource_stacks (list(tuple(ProjectItemResource)))
-
-        Returns:
-            Iterator(tuple(ProjectItemResource))
-        """
-        for resource_stack in forward_resource_stacks:
-            yield self._expand_resource_stack(item_name, resource_stack)
 
     def _expand_resource_stack(self, item_name, resource_stack):
         """Expands a resource stack if possible.
@@ -460,7 +448,7 @@ class SpineEngine:
             return resource_stack
         resource = resource_stack[0]
         filter_stacks = self._filter_stacks.get((resource.label, item_name))
-        if filter_stacks is None:
+        if not filter_stacks:
             return resource_stack
         expanded_stack = ()
         for filter_stack in filter_stacks:
@@ -502,10 +490,10 @@ class SpineEngine:
 def _make_filter_id(resource_filter_stack):
     resources = []
     for resource, stack in resource_filter_stack.items():
-        if not stack:
-            continue
         names = "&".join(_filter_names_from_stack(stack))
-        resources.append(f"{resource} with {names}")
+        if names:
+            resource += f" with {names}"
+        resources.append(resource)
     return ", ".join(resources)
 
 
