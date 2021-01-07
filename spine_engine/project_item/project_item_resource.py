@@ -39,6 +39,11 @@ class _ResourceProvider:
         """
         self.name = item.name
 
+    def __eq__(self, other):
+        if not isinstance(other, _ResourceProvider):
+            return NotImplemented
+        return self.name == other.name
+
 
 class ProjectItemResource:
     """Class to hold a resource made available by a project item
