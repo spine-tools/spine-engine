@@ -17,6 +17,7 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 """
 
 from enum import Enum, auto
+import datetime
 import threading
 import multiprocessing as mp
 from itertools import product
@@ -352,7 +353,10 @@ class SpineEngine:
         success = [True]
         output_resources_list = []
         threads = []
-        resources_iterator = self._filtered_resources_iterator(item_name, forward_resource_stacks, backward_resources)
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        resources_iterator = self._filtered_resources_iterator(
+            item_name, forward_resource_stacks, backward_resources, timestamp
+        )
         for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
             item = self._make_item(item_name, filter_id)
             item.group_id = item_name + filter_id
@@ -394,7 +398,7 @@ class SpineEngine:
         success[0] &= item_success  # FIXME: We need a Lock here
         self._running_items.remove(item)
 
-    def _filtered_resources_iterator(self, item_name, forward_resource_stacks, backward_resources):
+    def _filtered_resources_iterator(self, item_name, forward_resource_stacks, backward_resources, timestamp):
         """Yields tuples of (filtered forward resources, filtered backward resources, filter id).
 
         Each tuple corresponds to a unique filter combination. Combinations are obtained by applying the cross-product
@@ -404,6 +408,7 @@ class SpineEngine:
             item_name (str)
             forward_resource_stacks (list(tuple(ProjectItemResource)))
             backward_resources (list(ProjectItemResource))
+            timestamp (str): timestamp for the execution filter
 
         Returns:
             Iterator(tuple(list,list,str)): forward resources, backward resources, filter id
@@ -415,7 +420,7 @@ class SpineEngine:
             resource_filter_stack = {r.label: load_filters(filter_configs(r.url)) for r in filtered_forward_resources}
             scenarios = {scenario_name_from_dict(cfg) for stack in resource_filter_stack.values() for cfg in stack}
             scenarios.discard(None)
-            execution = {"execution_item": item_name, "scenarios": list(scenarios)}
+            execution = {"execution_item": item_name, "scenarios": list(scenarios), "timestamp": timestamp}
             config = execution_filter_config(execution)
             filtered_backward_resources = []
             for resource in backward_resources:
