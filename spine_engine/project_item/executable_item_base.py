@@ -32,7 +32,7 @@ class ExecutableItemBase:
         """
         self._name = name
         self._logger = logger
-        self._group_id = name
+        self._filter_id = ""
 
     @property
     def name(self):
@@ -46,11 +46,16 @@ class ExecutableItemBase:
         By default each item is its own group, so it executes in isolation.
         NOTE: At the moment this is only used by Tool, but could be used by other items in the future?
         """
-        return self._group_id
+        return self._name + self._filter_id
 
-    @group_id.setter
-    def group_id(self, group_id):
-        self._group_id = group_id
+    @property
+    def filter_id(self):
+        return self._filter_id
+
+    @filter_id.setter
+    def filter_id(self, filter_id):
+        self._filter_id = filter_id
+        self._logger.set_filter_id(filter_id)
 
     def execute(self, forward_resources, backward_resources):
         """

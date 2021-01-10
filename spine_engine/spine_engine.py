@@ -140,11 +140,11 @@ class SpineEngine:
                 item_specifications[item_type][spec.name] = spec
         return item_specifications
 
-    def _make_item(self, item_name, filter_id=""):
+    def _make_item(self, item_name):
         item_dict = self._items[item_name]
         item_type = item_dict["type"]
         executable_item_class = self._executable_item_classes[item_type]
-        logger = QueueLogger(self._queue, item_name, filter_id)
+        logger = QueueLogger(self._queue, item_name)
         return executable_item_class.from_dict(
             item_dict, item_name, self._project_dir, self._settings, self._item_specifications, logger
         )
@@ -357,8 +357,8 @@ class SpineEngine:
             item_name, forward_resource_stacks, backward_resources, timestamp
         )
         for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
-            item = self._make_item(item_name, filter_id)
-            item.group_id = item_name + filter_id
+            item = self._make_item(item_name)
+            item.filter_id = filter_id
             thread = threading.Thread(
                 target=self._execute_item_filtered,
                 args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, success),
@@ -397,6 +397,7 @@ class SpineEngine:
         output_resources = item.output_resources(ED.FORWARD)
         for resource in output_resources:
             resource.metadata["filter_stack"] = filter_stack
+            resource.metadata["filter_id"] = item.filter_id
         output_resources_list.append(output_resources)
         success[0] &= item_success  # FIXME: We need a Lock here
         self._running_items.remove(item)
@@ -416,10 +417,19 @@ class SpineEngine:
         Returns:
             Iterator(tuple(list,list,str)): forward resources, backward resources, filter id
         """
+
+        def check_resource_affinity(filtered_forward_resources):
+            filter_ids_by_provider = dict()
+            for r in filtered_forward_resources:
+                filter_ids_by_provider.setdefault(r.provider.name, set()).add(r.metadata.get("filter_id"))
+            return all(len(filter_ids) == 1 for filter_ids in filter_ids_by_provider.values())
+
         forward_resource_stacks_iterator = (
             self._expand_resource_stack(item_name, resource_stack) for resource_stack in forward_resource_stacks
         )
         for filtered_forward_resources in product(*forward_resource_stacks_iterator):
+            if not check_resource_affinity(filtered_forward_resources):
+                continue
             resource_filter_stack = {r.label: r.metadata.get("filter_stack", ()) for r in filtered_forward_resources}
             scenarios = {scenario_name_from_dict(cfg) for stack in resource_filter_stack.values() for cfg in stack}
             scenarios.discard(None)

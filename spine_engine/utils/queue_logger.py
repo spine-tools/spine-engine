@@ -18,11 +18,19 @@ The QueueLogger class.
 
 
 class _Message:
-    def __init__(self, queue, event_type, msg_type, item_name, filter_id):
+    def __init__(self, queue, event_type, msg_type, item_name):
         self._queue = queue
         self._event_type = event_type
         self._msg_type = msg_type
         self._item_name = item_name
+        self._filter_id = ""
+
+    @property
+    def filter_id(self):
+        return self._filter_id
+
+    @filter_id.setter
+    def filter_id(self, filter_id):
         self._filter_id = filter_id
 
     def emit(self, msg_text):
@@ -40,10 +48,18 @@ class _Message:
 
 
 class _ExecutionMessage:
-    def __init__(self, queue, event_type, item_name, filter_id):
+    def __init__(self, queue, event_type, item_name):
         self._queue = queue
         self._event_type = event_type
         self._item_name = item_name
+        self._filter_id = ""
+
+    @property
+    def filter_id(self):
+        return self._filter_id
+
+    @filter_id.setter
+    def filter_id(self, filter_id):
         self._filter_id = filter_id
 
     def emit(self, msg):
@@ -54,12 +70,22 @@ class QueueLogger:
     """A :class:`LoggerInterface` compliant logger that puts messages into a Queue.
     """
 
-    def __init__(self, queue, item_name, filter_id):
-        self.msg = _Message(queue, "event_msg", "msg", item_name, filter_id)
-        self.msg_success = _Message(queue, "event_msg", "msg_success", item_name, filter_id)
-        self.msg_warning = _Message(queue, "event_msg", "msg_warning", item_name, filter_id)
-        self.msg_error = _Message(queue, "event_msg", "msg_error", item_name, filter_id)
-        self.msg_proc = _Message(queue, "process_msg", "msg", item_name, filter_id)
-        self.msg_proc_error = _Message(queue, "process_msg", "msg_error", item_name, filter_id)
-        self.msg_standard_execution = _ExecutionMessage(queue, "standard_execution_msg", item_name, filter_id)
-        self.msg_kernel_execution = _ExecutionMessage(queue, "kernel_execution_msg", item_name, filter_id)
+    def __init__(self, queue, item_name):
+        self.msg = _Message(queue, "event_msg", "msg", item_name)
+        self.msg_success = _Message(queue, "event_msg", "msg_success", item_name)
+        self.msg_warning = _Message(queue, "event_msg", "msg_warning", item_name)
+        self.msg_error = _Message(queue, "event_msg", "msg_error", item_name)
+        self.msg_proc = _Message(queue, "process_msg", "msg", item_name)
+        self.msg_proc_error = _Message(queue, "process_msg", "msg_error", item_name)
+        self.msg_standard_execution = _ExecutionMessage(queue, "standard_execution_msg", item_name)
+        self.msg_kernel_execution = _ExecutionMessage(queue, "kernel_execution_msg", item_name)
+
+    def set_filter_id(self, filter_id):
+        self.msg.filter_id = filter_id
+        self.msg_success.filter_id = filter_id
+        self.msg_warning.filter_id = filter_id
+        self.msg_error.filter_id = filter_id
+        self.msg_proc.filter_id = filter_id
+        self.msg_proc_error.filter_id = filter_id
+        self.msg_standard_execution.filter_id = filter_id
+        self.msg_kernel_execution.filter_id = filter_id
