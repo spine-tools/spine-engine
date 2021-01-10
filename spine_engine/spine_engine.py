@@ -37,7 +37,6 @@ from dagster import (
 from spinedb_api import append_filter_config, name_from_dict
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
-from spinedb_api.filters.tools import filter_configs, load_filters
 from .utils.helpers import AppSettings, inverted
 from .utils.queue_logger import QueueLogger
 from .load_project_items import ProjectItemLoader
@@ -394,7 +393,11 @@ class SpineEngine:
         else:
             item.skip_execution(filtered_forward_resources, filtered_backward_resources)
             item_success = True
-        output_resources_list.append(item.output_resources(ED.FORWARD))
+        filter_stack = sum((r.metadata.get("filter_stack", ()) for r in filtered_forward_resources), ())
+        output_resources = item.output_resources(ED.FORWARD)
+        for resource in output_resources:
+            resource.metadata["filter_stack"] = filter_stack
+        output_resources_list.append(output_resources)
         success[0] &= item_success  # FIXME: We need a Lock here
         self._running_items.remove(item)
 
@@ -417,7 +420,7 @@ class SpineEngine:
             self._expand_resource_stack(item_name, resource_stack) for resource_stack in forward_resource_stacks
         )
         for filtered_forward_resources in product(*forward_resource_stacks_iterator):
-            resource_filter_stack = {r.label: load_filters(filter_configs(r.url)) for r in filtered_forward_resources}
+            resource_filter_stack = {r.label: r.metadata.get("filter_stack", ()) for r in filtered_forward_resources}
             scenarios = {scenario_name_from_dict(cfg) for stack in resource_filter_stack.values() for cfg in stack}
             scenarios.discard(None)
             execution = {"execution_item": item_name, "scenarios": list(scenarios), "timestamp": timestamp}
@@ -457,7 +460,7 @@ class SpineEngine:
             return resource_stack
         expanded_stack = ()
         for filter_stack in filter_stacks:
-            filtered_clone = resource.clone(additional_metadata={"label": resource.label})
+            filtered_clone = resource.clone(additional_metadata={"label": resource.label, "filter_stack": filter_stack})
             for config in filter_stack:
                 if config:
                     filtered_clone.url = append_filter_config(filtered_clone.url, config)
