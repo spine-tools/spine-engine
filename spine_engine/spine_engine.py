@@ -79,7 +79,7 @@ class SpineEngine:
         project_dir=None,
         execution_permits=None,
         node_successors=None,
-        debug=True,
+        debug=False,
     ):
         """
         Inits class.
