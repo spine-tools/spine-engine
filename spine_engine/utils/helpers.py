@@ -68,6 +68,10 @@ def create_log_file_timestamp():
     return extension
 
 
+def create_timestamp():
+    return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+
 def python_interpreter(app_settings):
     """Returns the full path to Python interpreter depending on
     user's settings and whether the app is frozen or not.

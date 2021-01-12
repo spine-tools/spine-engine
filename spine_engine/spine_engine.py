@@ -17,7 +17,6 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 """
 
 from enum import Enum, auto
-import datetime
 import threading
 import multiprocessing as mp
 from itertools import product
@@ -37,7 +36,7 @@ from dagster import (
 from spinedb_api import append_filter_config, name_from_dict
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
-from .utils.helpers import AppSettings, inverted
+from .utils.helpers import AppSettings, inverted, create_timestamp
 from .utils.queue_logger import QueueLogger
 from .load_project_items import ProjectItemLoader
 from .multithread_executor.executor import multithread_executor
@@ -352,9 +351,8 @@ class SpineEngine:
         success = [True]
         output_resources_list = []
         threads = []
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         resources_iterator = self._filtered_resources_iterator(
-            item_name, forward_resource_stacks, backward_resources, timestamp
+            item_name, forward_resource_stacks, backward_resources, create_timestamp()
         )
         for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
             item = self._make_item(item_name)
@@ -437,7 +435,7 @@ class SpineEngine:
             config = execution_filter_config(execution)
             filtered_backward_resources = []
             for resource in backward_resources:
-                clone = resource.clone(additional_metadata={"label": resource.label})
+                clone = resource.clone(additional_metadata={"label": resource.label, "filter_stack": (config,)})
                 clone.url = append_filter_config(clone.url, config)
                 filtered_backward_resources.append(clone)
             filter_id = _make_filter_id(resource_filter_stack)

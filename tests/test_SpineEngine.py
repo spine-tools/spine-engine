@@ -20,23 +20,25 @@ and intended to supersede them.
 """
 
 import unittest
-from unittest.mock import MagicMock, NonCallableMagicMock, call
+from unittest.mock import MagicMock, NonCallableMagicMock, call, patch
 from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState
+from spine_engine.project_item.project_item_resource import ProjectItemResource
 from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.filters.tool_filter import tool_filter_config
 from spinedb_api.filters.execution_filter import execution_filter_config
-from spinedb_api.filters.tools import filter_configs
 
 
-class _MockProjectItemResource(MagicMock):
+class _SimpleProjectItemResource(ProjectItemResource):
+    def __init__(self, url):
+        super().__init__(MagicMock(), "database", url=url)
 
-    url = "sqlite:///"
 
-    def clone(self, *args, **kwargs):
-        return self
-
-    @property
-    def label(self):
+class _EvenSimplerProjectItemResource(_SimpleProjectItemResource):
+    def clone(self, additional_metadata=None):
+        """Reimplemented to return the same instance modified (it helps in comparisons)."""
+        if additional_metadata is None:
+            additional_metadata = {}
+        self.metadata.update(additional_metadata)
         return self
 
 
@@ -66,8 +68,8 @@ class TestSpineEngine(unittest.TestCase):
         item.bwd_flt_stacks = []
 
         def execute(forward_resources, backward_resources, item=item):
-            item.fwd_flt_stacks += [filter_configs(r.url) for r in forward_resources]
-            item.bwd_flt_stacks += [filter_configs(r.url) for r in backward_resources]
+            item.fwd_flt_stacks += [r.metadata.get("filter_stack", ()) for r in forward_resources]
+            item.bwd_flt_stacks += [r.metadata.get("filter_stack", ()) for r in backward_resources]
             return execute_outcome
 
         item.execute.side_effect = execute
@@ -81,12 +83,12 @@ class TestSpineEngine(unittest.TestCase):
         return item
 
     def setUp(self):
-        self.url_a_fw = _MockProjectItemResource()
-        self.url_b_fw = _MockProjectItemResource()
-        self.url_c_fw = _MockProjectItemResource()
-        self.url_a_bw = _MockProjectItemResource()
-        self.url_b_bw = _MockProjectItemResource()
-        self.url_c_bw = _MockProjectItemResource()
+        self.url_a_fw = _EvenSimplerProjectItemResource("url_a_fw")
+        self.url_b_fw = _EvenSimplerProjectItemResource("url_b_fw")
+        self.url_c_fw = _EvenSimplerProjectItemResource("url_c_fw")
+        self.url_a_bw = _EvenSimplerProjectItemResource("url_a_bw")
+        self.url_b_bw = _EvenSimplerProjectItemResource("url_b_bw")
+        self.url_c_bw = _EvenSimplerProjectItemResource("url_c_bw")
 
     def test_linear_execution_succeeds(self):
         """Tests execution with three items in a line."""
@@ -97,8 +99,10 @@ class TestSpineEngine(unittest.TestCase):
         successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
         engine = SpineEngine(items=items, node_successors=successors, execution_permits=execution_permits)
-        engine._make_item = lambda name, *args: engine._items[name]
-        engine.run()
+        engine._make_item = lambda name: engine._items[name]
+        with patch("spine_engine.spine_engine.append_filter_config") as mock_append_filter_config:
+            mock_append_filter_config.side_effect = lambda url, cfg: url
+            engine.run()
         item_a_execute_calls = [call([], [self.url_b_bw])]
         item_b_execute_calls = [call([self.url_a_fw], [self.url_c_bw])]
         item_c_execute_calls = [call([self.url_b_fw], [])]
@@ -119,7 +123,7 @@ class TestSpineEngine(unittest.TestCase):
         successors = {"item_a": ["item_b", "item_c"]}
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
         engine = SpineEngine(items=items, node_successors=successors, execution_permits=execution_permits)
-        engine._make_item = lambda name, *args: engine._items[name]
+        engine._make_item = lambda name: engine._items[name]
         engine.run()
         item_a_execute_calls = [call([], [self.url_b_bw, self.url_c_bw])]
         item_b_execute_calls = [call([self.url_a_fw], [])]
@@ -141,7 +145,7 @@ class TestSpineEngine(unittest.TestCase):
         successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
         execution_permits = {"item_a": True, "item_b": False, "item_c": True}
         engine = SpineEngine(items=items, node_successors=successors, execution_permits=execution_permits)
-        engine._make_item = lambda name, *args: engine._items[name]
+        engine._make_item = lambda name: engine._items[name]
         engine.run()
         item_a_execute_calls = [call([], [self.url_b_bw])]
         item_b_skip_execution_calls = [call([self.url_a_fw], [self.url_c_bw])]
@@ -157,11 +161,9 @@ class TestSpineEngine(unittest.TestCase):
 
     def test_filter_stacks(self):
         """Tests filter stacks are properly applied."""
-        url_a_fw = _MockProjectItemResource()
-        url_b_fw = _MockProjectItemResource()
-        url_c_bw = _MockProjectItemResource()
-        url_a_fw.clone = lambda *args, **kwargs: _MockProjectItemResource()
-        url_c_bw.clone = lambda *args, **kwargs: _MockProjectItemResource()
+        url_a_fw = _SimpleProjectItemResource("url_a_fw")
+        url_b_fw = _SimpleProjectItemResource("url_b_fw")
+        url_c_bw = _SimpleProjectItemResource("url_c_bw")
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[])
         mock_item_c = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
@@ -169,7 +171,7 @@ class TestSpineEngine(unittest.TestCase):
         successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
         filter_stacks = {
-            (url_a_fw, "item_b"): [
+            (url_a_fw.label, "item_b"): [
                 (scenario_filter_config("scen1"),),
                 (scenario_filter_config("scen2"), tool_filter_config("toolA")),
             ]
@@ -177,18 +179,22 @@ class TestSpineEngine(unittest.TestCase):
         engine = SpineEngine(
             items=items, node_successors=successors, execution_permits=execution_permits, filter_stacks=filter_stacks
         )
-        engine._make_item = lambda name, *args: engine._items[name]
-        engine.run()
+        engine._make_item = lambda name: engine._items[name]
+        with patch("spine_engine.spine_engine.create_timestamp") as mock_create_timestamp:
+            mock_create_timestamp.return_value = "timestamp"
+            engine.run()
         # Check that item_b has been executed two times, with the right filters
         self.assertEqual(len(mock_item_b.fwd_flt_stacks), 2)
         self.assertEqual(len(mock_item_b.bwd_flt_stacks), 2)
-        self.assertIn([scenario_filter_config("scen1")], mock_item_b.fwd_flt_stacks)
-        self.assertIn([scenario_filter_config("scen2"), tool_filter_config("toolA")], mock_item_b.fwd_flt_stacks)
+        self.assertIn((scenario_filter_config("scen1"),), mock_item_b.fwd_flt_stacks)
+        self.assertIn((scenario_filter_config("scen2"), tool_filter_config("toolA")), mock_item_b.fwd_flt_stacks)
         self.assertIn(
-            [execution_filter_config({"execution_item": "item_b", "scenarios": ["scen1"]})], mock_item_b.bwd_flt_stacks
+            (execution_filter_config({"execution_item": "item_b", "scenarios": ["scen1"], "timestamp": "timestamp"}),),
+            mock_item_b.bwd_flt_stacks,
         )
         self.assertIn(
-            [execution_filter_config({"execution_item": "item_b", "scenarios": ["scen2"]})], mock_item_b.bwd_flt_stacks
+            (execution_filter_config({"execution_item": "item_b", "scenarios": ["scen2"], "timestamp": "timestamp"}),),
+            mock_item_b.bwd_flt_stacks,
         )
         # Check that item_c has also been executed two times
         self.assertEqual(len(mock_item_c.fwd_flt_stacks), 2)
