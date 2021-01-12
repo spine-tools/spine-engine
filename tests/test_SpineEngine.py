@@ -100,9 +100,7 @@ class TestSpineEngine(unittest.TestCase):
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
         engine = SpineEngine(items=items, node_successors=successors, execution_permits=execution_permits)
         engine._make_item = lambda name: engine._items[name]
-        with patch("spine_engine.spine_engine.append_filter_config") as mock_append_filter_config:
-            mock_append_filter_config.side_effect = lambda url, cfg: url
-            engine.run()
+        engine.run()
         item_a_execute_calls = [call([], [self.url_b_bw])]
         item_b_execute_calls = [call([self.url_a_fw], [self.url_c_bw])]
         item_c_execute_calls = [call([self.url_b_fw], [])]
