@@ -19,8 +19,8 @@ Integration tests for Excel import and export.
 from pathlib import PurePath
 from tempfile import TemporaryDirectory
 import unittest
-import numpy as np
-from spinedb_api import DiffDatabaseMapping, import_data, TimePattern, TimeSeriesVariableResolution, to_database
+import json
+from spinedb_api import DatabaseMapping, import_data, from_database
 from spine_engine.spine_io.exporters.excel import export_spine_database_to_xlsx
 from spine_engine.spine_io.importers.excel_reader import get_mapped_data_from_xlsx
 
@@ -28,284 +28,108 @@ _TEMP_EXCEL_FILENAME = "excel.xlsx"
 
 
 class TestExcelIntegration(unittest.TestCase):
-    @staticmethod
-    def _create_database():
-        """Creates a database with objects, relationship, parameters and values."""
-        url = "sqlite://"
-        db_map = DiffDatabaseMapping(url, username="IntegrationTest", create=True)
+    def test_array(self):
+        array = '{"type": "array", "data": [1, 2, 3]}'
+        array = from_database(array)
+        self._check_parameter_value(array)
 
-        # create empty database for loading excel into
-        db_map_test = DiffDatabaseMapping(url, username="IntegrationTest", create=True)
-
-        # delete all object_classes to empty database
-        oc = set(oc.id for oc in db_map_test.object_class_list().all())
-        if oc:
-            db_map_test.cascade_remove_items(object_class_ids=oc)
-            db_map_test.commit_session("empty database")
-
-        oc = set(oc.id for oc in db_map.object_class_list().all())
-        if oc:
-            db_map.cascade_remove_items(object_class_ids=oc)
-            db_map.commit_session("empty database")
-
-        # create object classes
-        oc_1 = db_map.add_object_class(**{"name": "object_class_1"})
-        oc_2 = db_map.add_object_class(**{"name": "object_class_2"})
-        oc_3 = db_map.add_object_class(**{"name": "object_class_3"})
-
-        # create relationship classes
-        relc1 = db_map.add_wide_relationship_class(
-            **{"name": "relationship_class", "object_class_id_list": [oc_1.id, oc_2.id]}
+    def test_time_series(self):
+        ts = (
+            '{"type": "time_series", "index": {"start": "1999-12-31 23:00:00", "resolution": "1h"}, "data": [0.1, 0.2]}'
         )
-        relc2 = db_map.add_wide_relationship_class(
-            **{"name": "relationship_class2", "object_class_id_list": [oc_1.id, oc_2.id]}
-        )
+        ts = from_database(ts)
+        self._check_parameter_value(ts)
 
-        # create objects
-        oc1_obj1 = db_map.add_object(**{"name": "oc1_obj1", "class_id": oc_1.id})
-        oc1_obj2 = db_map.add_object(**{"name": "oc1_obj2", "class_id": oc_1.id})
-        oc2_obj1 = db_map.add_object(**{"name": "oc2_obj1", "class_id": oc_2.id})
-        oc2_obj2 = db_map.add_object(**{"name": "oc2_obj2", "class_id": oc_2.id})
-        oc3_obj1 = db_map.add_object(**{"name": "oc3_obj1", "class_id": oc_3.id})
-
-        # add relationships
-        rel1 = db_map.add_wide_relationship(
-            **{"name": "rel1", "class_id": relc1.id, "object_id_list": [oc1_obj1.id, oc2_obj1.id]}
-        )
-        rel2 = db_map.add_wide_relationship(
-            **{"name": "rel2", "class_id": relc1.id, "object_id_list": [oc1_obj2.id, oc2_obj2.id]}
-        )
-
-        # create parameters
-        p1 = db_map.add_parameter_definition(**{"name": "parameter1", "object_class_id": oc_1.id})
-        p2 = db_map.add_parameter_definition(**{"name": "parameter2", "object_class_id": oc_1.id})
-        p3 = db_map.add_parameter_definition(**{"name": "parameter3", "object_class_id": oc_2.id})
-        p4 = db_map.add_parameter_definition(**{"name": "parameter4", "object_class_id": oc_2.id})
-        p5 = db_map.add_parameter_definition(**{"name": "parameter5", "object_class_id": oc_3.id})
-        p6 = db_map.add_parameter_definition(**{"name": "parameter6", "object_class_id": oc_3.id})
-        rel_p1 = db_map.add_parameter_definition(**{"name": "rel_parameter1", "relationship_class_id": relc1.id})
-        rel_p2 = db_map.add_parameter_definition(**{"name": "rel_parameter2", "relationship_class_id": relc1.id})
-        rel_p3 = db_map.add_parameter_definition(**{"name": "rel_parameter3", "relationship_class_id": relc1.id})
-        rel_p4 = db_map.add_parameter_definition(**{"name": "rel_parameter4", "relationship_class_id": relc1.id})
-
-        # add parameter values
-        db_map.add_parameter_value(
-            **{
-                "parameter_definition_id": p1.id,
-                "object_id": oc1_obj1.id,
-                "object_class_id": oc_1.id,
-                "value": "0",
-                "alternative_id": 1,
+    def test_map(self):
+        map_ = json.dumps(
+            {
+                "type": "map",
+                "index_type": "str",
+                "data": [
+                    [
+                        "realization",
+                        {
+                            "type": "map",
+                            "index_type": "date_time",
+                            "data": [
+                                [
+                                    "2000-01-01T00:00:00",
+                                    {
+                                        "type": "time_series",
+                                        "index": {"start": "2000-01-01 00:00:00", "resolution": "1h"},
+                                        "data": [0.732885319, 0.658604529],
+                                    },
+                                ]
+                            ],
+                        },
+                    ],
+                    [
+                        "forecast1",
+                        {
+                            "type": "map",
+                            "index_type": "date_time",
+                            "data": [
+                                [
+                                    "2000-01-01T00:00:00",
+                                    {
+                                        "type": "time_series",
+                                        "index": {"start": "2000-01-01 00:00:00", "resolution": "1h"},
+                                        "data": [0.65306041, 0.60853286],
+                                    },
+                                ]
+                            ],
+                        },
+                    ],
+                    [
+                        "forecast_tail",
+                        {
+                            "type": "map",
+                            "index_type": "date_time",
+                            "data": [
+                                [
+                                    "2000-01-01T00:00:00",
+                                    {
+                                        "type": "time_series",
+                                        "index": {"start": "2000-01-01 00:00:00", "resolution": "1h"},
+                                        "data": [0.680549132, 0.636555097],
+                                    },
+                                ]
+                            ],
+                        },
+                    ],
+                ],
             }
         )
-        db_map.add_parameter_value(
-            **{
-                "parameter_definition_id": p2.id,
-                "object_id": oc1_obj2.id,
-                "object_class_id": oc_1.id,
-                "value": "3.5",
-                "alternative_id": 1,
-            }
-        )
-        db_map.add_parameter_value(
-            **{
-                "parameter_definition_id": p3.id,
-                "object_id": oc2_obj1.id,
-                "object_class_id": oc_2.id,
-                "value": "[1, 2, 3, 4]",
-                "alternative_id": 1,
-            }
-        )
-        db_map.add_parameter_value(
-            **{
-                "parameter_definition_id": p4.id,
-                "object_id": oc2_obj2.id,
-                "object_class_id": oc_2.id,
-                "value": "[5, 6, 7]",
-                "alternative_id": 1,
-            }
-        )
-        db_map.add_parameter_value(
-            **{
-                "parameter_definition_id": rel_p1.id,
-                "relationship_id": rel1.id,
-                "relationship_class_id": relc1.id,
-                "value": "0",
-                "alternative_id": 1,
-            }
-        )
-        db_map.add_parameter_value(
-            **{
-                "parameter_definition_id": rel_p2.id,
-                "relationship_id": rel2.id,
-                "relationship_class_id": relc1.id,
-                "value": "4",
-                "alternative_id": 1,
-            }
-        )
-        db_map.add_parameter_value(
-            **{
-                "parameter_definition_id": rel_p3.id,
-                "relationship_id": rel1.id,
-                "relationship_class_id": relc1.id,
-                "value": "[5, 6, 7]",
-                "alternative_id": 1,
-            }
-        )
-        db_map.add_parameter_value(
-            **{
-                "parameter_definition_id": rel_p4.id,
-                "relationship_id": rel2.id,
-                "relationship_class_id": relc1.id,
-                "value": "[1, 2, 3, 4]",
-                "alternative_id": 1,
-            }
-        )
+        map_ = from_database(map_)
+        self._check_parameter_value(map_)
 
-        time = [np.datetime64("2005-02-25T00:00"), np.datetime64("2005-02-25T01:00"), np.datetime64("2005-02-25T02:00")]
-        value = [1, 2, 3]
-        ts_val = to_database(TimeSeriesVariableResolution(time, value, False, False))
-        db_map.add_parameter_value(
-            **{
-                "parameter_definition_id": p5.id,
-                "object_id": oc3_obj1.id,
-                "object_class_id": oc_3.id,
-                "value": ts_val,
-                "alternative_id": 1,
-            }
-        )
-
-        timepattern = ["m1", "m2", "m3"]
-        value = [1.1, 2.2, 3.3]
-        ts_val = to_database(TimePattern(timepattern, value))
-        db_map.add_parameter_value(
-            **{
-                "parameter_definition_id": p6.id,
-                "object_id": oc3_obj1.id,
-                "object_class_id": oc_3.id,
-                "value": ts_val,
-                "alternative_id": 1,
-            }
-        )
-
-        # commit
-        db_map.commit_session("test")
-
-        return db_map, db_map_test
-
-    def _compare_dbs(self, db1, db2):
-        # compare imported database with exported database
-        # don't check ids since they might be different
-        # object classes
-        oc = db1.object_class_list().all()
-        oc = {c.id: c.name for c in oc}
-        oc_org = db2.object_class_list().all()
-        oc_org = {c.id: c.name for c in oc_org}
-        self.assertEqual(set(oc.values()), set(oc_org.values()), msg="Difference in objects classes")
-        # objects
-        ol = db1.object_list().all()
-        ol_id = {o.id: o.name for o in ol}
-        ol = {o.name: oc[o.class_id] for o in ol}
-        ol_org = db2.object_list().all()
-        ol_id_org = {o.id: o.name for o in ol_org}
-        ol_org = {o.name: oc_org[o.class_id] for o in ol_org}
-        self.assertEqual(ol, ol_org, msg="Difference in objects")
-        # relationship classes
-        rc = db1.query(db1.relationship_class_sq).all()
-        rc = {c.id: (c.name, tuple(oc[o.object_class_id] for o in rc if o.name == c.name)) for c in rc}
-        rc_org = db2.query(db2.relationship_class_sq).all()
-        rc_org = {c.id: (c.name, tuple(oc_org[o.object_class_id] for o in rc_org if o.name == c.name)) for c in rc_org}
-        self.assertEqual(set(rc.values()), set(rc_org.values()), msg="Difference in relationship classes")
-        # relationships
-        rel = db1.query(db1.relationship_sq).all()
-        rel = {c.id: (rc[c.class_id][0], tuple(ol_id[o.object_id] for o in rel if o.id == c.id)) for c in rel}
-        rel_org = db2.query(db2.relationship_sq).all()
-        rel_org = {
-            c.id: (rc_org[c.class_id][0], tuple(ol_id_org[o.object_id] for o in rel_org if o.id == c.id))
-            for c in rel_org
+    def _check_parameter_value(self, val):
+        input_data = {
+            "object_classes": ["dog"],
+            "objects": [("dog", "pluto")],
+            "object_parameters": [("dog", "bone")],
+            "object_parameter_values": [("dog", "pluto", "bone", val)],
         }
-        self.assertEqual(set(rc.values()), set(rc_org.values()), msg="Difference in relationships")
-        # parameters
-        par = db1.parameter_definition_list().all()
-        par = {
-            p.id: (p.name, oc[p.object_class_id] if p.object_class_id else rc[p.relationship_class_id][0]) for p in par
-        }
-        par_org = db2.parameter_definition_list().all()
-        par_org = {
-            p.id: (p.name, oc_org[p.object_class_id] if p.object_class_id else rc_org[p.relationship_class_id][0])
-            for p in par_org
-        }
-        self.assertEqual(set(par.values()), set(par_org.values()), msg="Difference in parameters")
-        # parameters values
-        parv = db1.parameter_value_list().all()
-        parv = set(
-            (
-                par[p.parameter_definition_id][0],
-                p.value,
-                ol_id[p.object_id] if p.object_id else None,
-                rel[p.relationship_id][1] if p.relationship_id else None,
-            )
-            for p in parv
-        )
-        parv_org = db2.parameter_value_list().all()
-        parv_org = set(
-            (
-                par_org[p.parameter_definition_id][0],
-                p.value,
-                ol_id_org[p.object_id] if p.object_id else None,
-                rel_org[p.relationship_id][1] if p.relationship_id else None,
-            )
-            for p in parv_org
-        )
-        self.assertEqual(parv, parv_org, msg="Difference in parameter values")
-
-    def _import_xlsx_to_database(self, excel_file_name, db_map):
-        data, _errors = get_mapped_data_from_xlsx(excel_file_name)
-        import_num, import_errors = import_data(db_map, **data)
-        self.assertEqual(import_errors, [])
-        db_map.commit_session("Excel import")
-        return import_num
-
-    def test_export_import(self):
-        """Integration test exporting an excel and then importing it to a new database."""
+        db_map = DatabaseMapping("sqlite://", create=True)
+        import_data(db_map, **input_data)
+        db_map.commit_session("yeah")
         with TemporaryDirectory() as directory:
-            db_map, empty_db_map = self._create_database()
-            try:
-                excel_file_name = str(PurePath(directory, _TEMP_EXCEL_FILENAME))
-                export_spine_database_to_xlsx(db_map, excel_file_name)
-                import_num = self._import_xlsx_to_database(excel_file_name, empty_db_map)
-                self.assertEqual(import_num, 33)
-                self._compare_dbs(empty_db_map, db_map)
-            finally:
-                db_map.connection.close()
-                empty_db_map.connection.close()
-
-    def test_import_to_existing_data(self):
-        """Integration test importing data to a database with existing items"""
-        with TemporaryDirectory() as directory:
-            db_map, empty_db_map = self._create_database()
-            try:
-                excel_file_name = str(PurePath(directory, _TEMP_EXCEL_FILENAME))
-                # export to excel
-                export_spine_database_to_xlsx(db_map, excel_file_name)
-
-                # import into empty database
-                import_num = self._import_xlsx_to_database(excel_file_name, empty_db_map)
-                self.assertEqual(import_num, 33)
-
-                # delete 1 object_class
-                db_map.cascade_remove_items(object_class={1})
-                db_map.commit_session("Delete class")
-
-                # reimport data
-                import_num = self._import_xlsx_to_database(excel_file_name, db_map)
-                self.assertEqual(import_num, 20)
-
-                # compare dbs
-                self._compare_dbs(empty_db_map, db_map)
-            finally:
-                db_map.connection.close()
-                empty_db_map.connection.close()
+            path = str(PurePath(directory, _TEMP_EXCEL_FILENAME))
+            export_spine_database_to_xlsx(db_map, path)
+            output_data, errors = get_mapped_data_from_xlsx(path)
+        db_map.connection.close()
+        self.assertEqual([], errors)
+        input_obj_param_vals = input_data.pop("object_parameter_values")
+        output_obj_param_vals = output_data.pop("object_parameter_values")
+        self.assertEqual(1, len(output_obj_param_vals))
+        input_obj_param_val = input_obj_param_vals[0]
+        output_obj_param_val = output_obj_param_vals[0]
+        self.assertEqual(input_obj_param_val[:3], output_obj_param_val[:3])
+        input_val = input_obj_param_val[3]
+        output_val = output_obj_param_val[3]
+        self.assertEqual(sorted(input_val.indexed_values()), sorted(output_val.indexed_values()))
+        for key, value in input_data.items():
+            self.assertEqual(value, output_data[key])
 
 
 if __name__ == "__main__":
