@@ -209,7 +209,7 @@ def create_mappings_from_sheet(ws):
     mapping object for each sheet.
     """
     metadata = _get_metadata(ws)
-    if not metadata:
+    if not metadata or "sheet_type" not in metadata:
         return None, None
     header_row = len(metadata) + 2
     if metadata["sheet_type"] == "entity":
@@ -238,7 +238,7 @@ def create_mappings_from_sheet(ws):
 
 def _get_metadata(ws):
     metadata = {}
-    for key, value in ws.iter_rows(min_row=1, max_col=2, values_only=True):
+    for key, value in ws.iter_rows(min_row=1, max_row=10, max_col=2, values_only=True):
         if not key:
             break
         metadata[key] = value
