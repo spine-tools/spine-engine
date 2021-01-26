@@ -17,6 +17,7 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 """
 
 from enum import Enum, auto
+import os
 import threading
 import multiprocessing as mp
 from itertools import product
@@ -428,7 +429,7 @@ class SpineEngine:
         for filtered_forward_resources in product(*forward_resource_stacks_iterator):
             if not check_resource_affinity(filtered_forward_resources):
                 continue
-            resource_filter_stack = {r.label: r.metadata.get("filter_stack", ()) for r in filtered_forward_resources}
+            resource_filter_stack = {r: r.metadata.get("filter_stack", ()) for r in filtered_forward_resources}
             scenarios = {scenario_name_from_dict(cfg) for stack in resource_filter_stack.values() for cfg in stack}
             scenarios.discard(None)
             execution = {"execution_item": item_name, "scenarios": list(scenarios), "timestamp": timestamp}
@@ -503,14 +504,21 @@ class SpineEngine:
         return deps
 
 
+def _shorten(resource):
+    if resource.hasfilepath:
+        return os.path.basename(resource.path)
+    return resource.label
+
+
 def _make_filter_id(resource_filter_stack):
-    resources = []
+    resource_ids = []
     for resource, stack in resource_filter_stack.items():
-        names = "&".join(_filter_names_from_stack(stack))
-        if names:
-            resource += f" with {names}"
-        resources.append(resource)
-    return ", ".join(resources)
+        filter_names = "&".join(_filter_names_from_stack(stack))
+        if not filter_names:
+            continue
+        resource_id = _shorten(resource) + f" with {filter_names}"
+        resource_ids.append(resource_id)
+    return " + ".join(resource_ids)
 
 
 def _filter_names_from_stack(stack):
