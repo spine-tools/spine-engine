@@ -106,7 +106,6 @@ class MultithreadExecutor(Executor):
                                 pipeline_context,
                                 f"Multithread executor: thread for step {key} exited unexpectedly",
                                 EngineEventData.engine_error(serializable_error),
-                                step_key=key,
                             )
                             step_failure_event = DagsterEvent.step_failure_event(
                                 step_context=pipeline_context.for_step(active_execution.get_step_by_key(key)),
@@ -151,10 +150,7 @@ class MultithreadExecutor(Executor):
 
     def execute_step_in_thread(self, step_key, step_context, errors):
         yield DagsterEvent.engine_event(
-            step_context,
-            "Spawning thread for {}".format(step_key),
-            EngineEventData(marker_start=DELEGATE_MARKER),
-            step_key=step_key,
+            step_context, "Spawning thread for {}".format(step_key), EngineEventData(marker_start=DELEGATE_MARKER)
         )
 
         for ret in execute_thread_step(step_context, self.retries):
