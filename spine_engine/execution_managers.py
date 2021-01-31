@@ -90,41 +90,88 @@ class StandardExecutionManager(ExecutionManagerBase):
         stderr.close()
 
 
-class _KernelManagerProvider(metaclass=Singleton):
+class _KernelManagerFactory(metaclass=Singleton):
     _kernel_managers = {}
+    """Maps tuples (kernel name, group id) to associated KernelManager."""
+    _km_by_connection_file = {}
+    """Maps connection file string to associated KernelManager. Mostly for fast lookup in ``restart_kernel()``"""
 
-    def new_kernel_manager(self, kernel_name, group_id):
+    def _make_kernel_manager(self, kernel_name, group_id):
+        """Creates a new kernel manager for given kernel and group id if none exists, and returns it.
+
+        Args:
+            kernel_name (str): the kernel
+            group_id (str): item group that will execute using this kernel
+
+        Returns:
+            KernelManager
+        """
         if group_id is None:
             # Execute in isolation
             return KernelManager(kernel_name=kernel_name)
-        if (kernel_name, group_id) not in self._kernel_managers:
-            self._kernel_managers[kernel_name, group_id] = KernelManager(kernel_name=kernel_name)
-        return self._kernel_managers[kernel_name, group_id]
+        return self._kernel_managers.setdefault((kernel_name, group_id), KernelManager(kernel_name=kernel_name))
+
+    def new_kernel_client(self, language, kernel_name, group_id, logger, **kwargs):
+        """Creates a new kernel manager for given kernel and group id if none exists.
+        Starts the kernel if not started, creates a new client and returns it.
+
+        Args:
+            language (str): The underlying language, for logging purposes.
+            kernel_name (str): the kernel
+            group_id (str): item group that will execute using this kernel
+            logger (LoggerInterface): for logging
+            `**kwargs`: optional. Keyword arguments passed to ``KernelManager.start_kernel()``
+
+        Returns:
+            KernelClient
+        """
+        km = self._make_kernel_manager(kernel_name, group_id)
+        if not km.is_alive():
+            msg_head = dict(language=language, kernel_name=kernel_name)
+            if not km.kernel_spec:
+                msg = dict(type="kernel_spec_not_found", **msg_head)
+                logger.msg_kernel_execution.emit(msg)
+                return None
+            blackhole = open(os.devnull, 'w')
+            km.start_kernel(stdout=blackhole, stderr=blackhole, **kwargs)
+            msg = dict(type="kernel_started", connection_file=km.connection_file, **msg_head)
+            logger.msg_kernel_execution.emit(msg)
+            self._km_by_connection_file[km.connection_file] = km
+        return km.client()
+
+    def restart_kernel(self, connection_file):
+        """Restarts kernel.
+
+        Args:
+            connection_file (str): path of connection file
+        """
+        km = self._km_by_connection_file.get(connection_file)
+        if km is not None:
+            km.restart_kernel(now=True)
+
+
+_kernel_manager_factory = _KernelManagerFactory()
+
+
+def restart_kernel(connection_file):
+    _kernel_manager_factory.restart_kernel(connection_file)
 
 
 class KernelExecutionManager(ExecutionManagerBase):
     def __init__(self, logger, language, kernel_name, *commands, group_id=None, workdir=None, startup_timeout=60):
         super().__init__(logger)
-        provider = _KernelManagerProvider()
-        self._msg = dict(language=language, kernel_name=kernel_name)
+        self._msg_head = dict(language=language, kernel_name=kernel_name)
         self._commands = commands
         self._group_id = group_id
         self._workdir = workdir
-        self._kernel_manager = provider.new_kernel_manager(kernel_name, group_id)
+        self._kernel_client = _kernel_manager_factory.new_kernel_client(
+            language, kernel_name, group_id, logger, cwd=self._workdir
+        )
         self._startup_timeout = startup_timeout
-        self._kernel_client = None
 
     def run_until_complete(self):
-        if not self._kernel_manager.is_alive():
-            if not self._kernel_manager.kernel_spec:
-                msg = dict(type="kernel_spec_not_found", **self._msg)
-                self._logger.msg_kernel_execution.emit(msg)
-                return
-            blackhole = open(os.devnull, 'w')
-            self._kernel_manager.start_kernel(stdout=blackhole, stderr=blackhole, cwd=self._workdir)
-        msg = dict(type="kernel_started", connection_file=self._kernel_manager.connection_file, **self._msg)
-        self._logger.msg_kernel_execution.emit(msg)
-        self._kernel_client = self._kernel_manager.client()
+        if self._kernel_client is None:
+            return
         self._kernel_client.start_channels()
         returncode = self._do_run()
         self._kernel_client.stop_channels()
@@ -134,10 +181,10 @@ class KernelExecutionManager(ExecutionManagerBase):
         try:
             self._kernel_client.wait_for_ready(timeout=self._startup_timeout)
         except RuntimeError as e:
-            msg = dict(type="execution_failed_to_start", error=str(e), **self._msg)
+            msg = dict(type="execution_failed_to_start", error=str(e), **self._msg_head)
             self._logger.msg_kernel_execution.emit(msg)
             return
-        msg = dict(type="execution_started", **self._msg)
+        msg = dict(type="execution_started", **self._msg_head)
         self._logger.msg_kernel_execution.emit(msg)
         for cmd in self._commands:
             reply = self._kernel_client.execute_interactive(cmd, output_hook=lambda msg: None)

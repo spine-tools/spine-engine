@@ -22,6 +22,7 @@ import json
 import uuid
 import atexit
 from .spine_engine import SpineEngine
+from .execution_managers import restart_kernel
 
 
 class EngineRequestHandler(socketserver.BaseRequestHandler):
@@ -71,6 +72,15 @@ class EngineRequestHandler(socketserver.BaseRequestHandler):
         """
         self._engines[engine_id].stop()
 
+    def _restart_kernel(self, connection_file):
+        """
+        Restarts the jupyter kernel associated to given connection file.
+
+        Args:
+            connection_file (str): path of connection file
+        """
+        restart_kernel(connection_file)
+
     def handle(self):
         data = self._recvall()
         request, args = json.loads(data)
@@ -78,6 +88,7 @@ class EngineRequestHandler(socketserver.BaseRequestHandler):
             "run_engine": self._run_engine,
             "get_engine_event": self._get_engine_event,
             "stop_engine": self._stop_engine,
+            "restart_kernel": self._restart_kernel,
         }.get(request)
         if handler is None:
             return
