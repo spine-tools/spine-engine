@@ -22,7 +22,7 @@ import json
 import uuid
 import atexit
 from .spine_engine import SpineEngine
-from .execution_managers import restart_kernel
+from .execution_managers import get_kernel_manager
 
 
 class EngineRequestHandler(socketserver.BaseRequestHandler):
@@ -79,7 +79,20 @@ class EngineRequestHandler(socketserver.BaseRequestHandler):
         Args:
             connection_file (str): path of connection file
         """
-        restart_kernel(connection_file)
+        km = get_kernel_manager(connection_file)
+        if km is not None:
+            km.restart_kernel(now=True)
+
+    def _shutdown_kernel(self, connection_file):
+        """
+        Shuts down the jupyter kernel associated to given connection file.
+
+        Args:
+            connection_file (str): path of connection file
+        """
+        km = get_kernel_manager(connection_file)
+        if km is not None:
+            km.shutdown_kernel(now=True)
 
     def handle(self):
         data = self._recvall()
@@ -89,6 +102,7 @@ class EngineRequestHandler(socketserver.BaseRequestHandler):
             "get_engine_event": self._get_engine_event,
             "stop_engine": self._stop_engine,
             "restart_kernel": self._restart_kernel,
+            "shutdown_kernel": self._shutdown_kernel,
         }.get(request)
         if handler is None:
             return

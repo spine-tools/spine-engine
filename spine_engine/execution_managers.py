@@ -139,22 +139,23 @@ class _KernelManagerFactory(metaclass=Singleton):
             self._km_by_connection_file[km.connection_file] = km
         return km.client()
 
-    def restart_kernel(self, connection_file):
-        """Restarts kernel.
+    def get_kernel_manager(self, connection_file):
+        """Returns a kernel manager for given connection file if any.
 
         Args:
             connection_file (str): path of connection file
+
+        Returns:
+            KernelManager or None
         """
-        km = self._km_by_connection_file.get(connection_file)
-        if km is not None:
-            km.restart_kernel(now=True)
+        return self._km_by_connection_file.get(connection_file)
 
 
 _kernel_manager_factory = _KernelManagerFactory()
 
 
-def restart_kernel(connection_file):
-    _kernel_manager_factory.restart_kernel(connection_file)
+def get_kernel_manager(connection_file):
+    return _kernel_manager_factory.get_kernel_manager(connection_file)
 
 
 class KernelExecutionManager(ExecutionManagerBase):
