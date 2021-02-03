@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Contains SqlAlchemyConnector class and a help function.
+Contains SqlAlchemyConnector class.
 
 :author: P. Vennström (VTT)
 :date:   1.6.2019
@@ -25,14 +25,13 @@ from ..io_api import SourceConnection
 class SqlAlchemyConnector(SourceConnection):
     """Template class to read data from another QThread."""
 
-    # name of data source, ex: "Text/CSV"
     DISPLAY_NAME = "SqlAlchemy"
+    """name of data source"""
 
-    # dict with option specification for source.
     OPTIONS = {}
+    """dict with option specification for source."""
 
-    # Modal widget that returns source object and action (OK, CANCEL)
-    FILE_EXTENSIONS = "*.*"
+    FILE_EXTENSIONS = "*.sqlite"
 
     def __init__(self, settings):
         super().__init__(settings)
@@ -45,11 +44,11 @@ class SqlAlchemyConnector(SourceConnection):
     def connect_to_source(self, source):
         """saves filepath
 
-        Arguments:
-            source {str} -- filepath
+        Args:
+            source (str): filepath
         """
         self._connection_string = source
-        self._engine = create_engine(source)
+        self._engine = create_engine("sqlite:///" + source)
         self._connection = self._engine.connect()
         self._session = Session(self._engine)
         self._metadata.reflect(bind=self._engine)
@@ -68,7 +67,7 @@ class SqlAlchemyConnector(SourceConnection):
         """Method that should return a list of table names, list(str)
 
         Returns:
-            list(str): Table names in list
+            list of str: Table names in list
         """
         tables = list(self._engine.table_names())
         return tables
@@ -76,15 +75,13 @@ class SqlAlchemyConnector(SourceConnection):
     def get_data_iterator(self, table, options, max_rows=-1):
         """Creates a iterator for the file in self.filename
 
-        Arguments:
-            table {string} -- table name
-            options {dict} -- dict with options, not used
-
-        Keyword Arguments:
-            max_rows {int} -- how many rows of data to read, if -1 read all rows (default: {-1})
+        Args:
+            table (str): table name
+            options (dict): dict with options, not used
+            max_rows (int): how many rows of data to read, if -1 read all rows (default: {-1})
 
         Returns:
-            [type] -- [description]
+            tuple: iterator, header, column count
         """
         db_table = self._metadata.tables[table]
         header = [str(name) for name in db_table.columns.keys()]
