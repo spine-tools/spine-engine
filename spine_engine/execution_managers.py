@@ -111,9 +111,9 @@ class _KernelManagerFactory(metaclass=Singleton):
             return KernelManager(kernel_name=kernel_name)
         return self._kernel_managers.setdefault((kernel_name, group_id), KernelManager(kernel_name=kernel_name))
 
-    def new_kernel_client(self, language, kernel_name, group_id, logger, **kwargs):
+    def new_kernel_manager(self, language, kernel_name, group_id, logger, **kwargs):
         """Creates a new kernel manager for given kernel and group id if none exists.
-        Starts the kernel if not started, creates a new client and returns it.
+        Starts the kernel if not started, and returns it.
 
         Args:
             language (str): The underlying language, for logging purposes.
@@ -123,7 +123,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             `**kwargs`: optional. Keyword arguments passed to ``KernelManager.start_kernel()``
 
         Returns:
-            KernelClient
+            KernelManager
         """
         km = self._make_kernel_manager(kernel_name, group_id)
         if not km.is_alive():
@@ -137,7 +137,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             msg = dict(type="kernel_started", connection_file=km.connection_file, **msg_head)
             logger.msg_kernel_execution.emit(msg)
             self._km_by_connection_file[km.connection_file] = km
-        return km.client()
+        return km
 
     def get_kernel_manager(self, connection_file):
         """Returns a kernel manager for given connection file if any.
@@ -165,9 +165,10 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._commands = commands
         self._group_id = group_id
         self._workdir = workdir
-        self._kernel_client = _kernel_manager_factory.new_kernel_client(
+        self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
             language, kernel_name, group_id, logger, cwd=self._workdir
         )
+        self._kernel_client = self._kernel_manager.client() if self._kernel_manager is not None else None
         self._startup_timeout = startup_timeout
 
     def run_until_complete(self):
@@ -195,5 +196,5 @@ class KernelExecutionManager(ExecutionManagerBase):
         return 0
 
     def stop_execution(self):
-        if self._kernel_client is not None:
-            self._kernel_client.stop_channels()
+        if self._kernel_manager is not None:
+            self._kernel_manager.interrupt_kernel()
