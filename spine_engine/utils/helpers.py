@@ -15,10 +15,13 @@ Helpers functions and classes.
 :authors: M. Marin (KTH)
 :date:   20.11.2019
 """
+import os
 import sys
 import datetime
 import time
-from ..config import PYTHON_EXECUTABLE
+import json
+from jupyter_client.kernelspec import find_kernel_specs
+from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE
 
 
 class Singleton(type):
@@ -83,14 +86,59 @@ def python_interpreter(app_settings):
         str: Path to python executable
     """
     python_path = app_settings.value("appSettings/pythonPath", defaultValue="")
+    return resolve_python_interpreter(python_path)
+
+
+def resolve_python_interpreter(python_path):
+    """Solves the full path to Python interpreter and returns it."""
     if python_path != "":
         path = python_path
     else:
         if not getattr(sys, "frozen", False):
-            path = sys.executable  # If not frozen, return the one that is currently used.
+            path = sys.executable  # Use current Python
         else:
-            path = PYTHON_EXECUTABLE  # If frozen, return the one in path
+            # We are frozen
+            p = resolve_python_executable_from_path()
+            if p != "":
+                path = p  # Use Python from PATH
+            else:
+                path = PYTHON_EXECUTABLE  # Use embedded <app_install_dir>/Tools/python.exe
     return path
+
+
+def resolve_python_executable_from_path():
+    """[Windows only] Returns full path to Python executable in user's PATH env variable.
+    If not found, returns an empty string.
+
+    Note: This looks for python.exe so this is Windows only.
+    Update needed to PYTHON_EXECUTABLE to make this os independent.
+    """
+    executable_paths = os.get_exec_path()
+    for path in executable_paths:
+        if "python" in path.casefold():
+            python_candidate = os.path.join(path, "python.exe")
+            if os.path.isfile(python_candidate):
+                return python_candidate
+    return ""
+
+
+def resolve_julia_executable_from_path():
+    """Returns full path to Julia executable in user's PATH env variable.
+    If not found, returns an empty string.
+
+    Note: In the long run, we should decide whether this is something we want to do
+    because adding julia-x.x./bin/ dir to the PATH is not recommended because this
+    also exposes some .dlls to other programs on user's (windows) system. I.e. it
+    may break other programs, and this is why the Julia installer does not
+    add (and does not even offer the chance to add) Julia to PATH.
+    """
+    executable_paths = os.get_exec_path()
+    for path in executable_paths:
+        if "julia" in path.casefold():
+            julia_candidate = os.path.join(path, JULIA_EXECUTABLE)
+            if os.path.isfile(julia_candidate):
+                return julia_candidate
+    return ""
 
 
 def inverted(input_):
@@ -107,3 +155,36 @@ def inverted(input_):
         for value in value_list:
             output.setdefault(value, list()).append(key)
     return output
+
+
+def get_julia_command(settings):
+    """
+    Args:
+        settings (QSettings, AppSettings)
+
+    Returns:
+        list
+    """
+    use_embedded_julia = settings.value("appSettings/useEmbeddedJulia", defaultValue="2") == "2"
+    if use_embedded_julia:
+        kernel_name = settings.value("appSettings/juliaKernel", defaultValue="")
+        resource_dir = find_kernel_specs().get(kernel_name)
+        if resource_dir is None:
+            return None
+        filepath = os.path.join(resource_dir, "kernel.json")
+        with open(filepath, "r") as fh:
+            try:
+                kernel_spec = json.load(fh)
+            except json.decoder.JSONDecodeError:
+                return None
+            cmd = [kernel_spec["argv"].pop(0)]
+            project_arg = next((arg for arg in kernel_spec["argv"] if arg.startswith("--project=")), "--project=")
+            cmd.append(project_arg)
+    else:
+        julia = settings.value("appSettings/juliaPath", defaultValue="")
+        if julia == "":
+            julia = resolve_julia_executable_from_path()
+        cmd = [julia]
+        project = settings.value("appSettings/juliaProjectPath", defaultValue="")
+        cmd.append(f"--project={project}")
+    return cmd
