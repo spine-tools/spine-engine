@@ -23,7 +23,7 @@ class ProjectItemInfo:
         Returns the item category string, e.g., "Tools".
 
         Returns:
-            str
+            str: item's category
         """
         raise NotImplementedError()
 
@@ -33,6 +33,6 @@ class ProjectItemInfo:
         Returns the item type string, e.g., "Gimlet".
 
         Returns:
-            str
+            str: item's type
         """
         raise NotImplementedError()

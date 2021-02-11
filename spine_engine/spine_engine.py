@@ -39,7 +39,7 @@ from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
 from .utils.helpers import AppSettings, inverted, create_timestamp
 from .utils.queue_logger import QueueLogger
-from .load_project_items import ProjectItemLoader
+from .project_item_loader import ProjectItemLoader
 from .multithread_executor.executor import multithread_executor
 
 
