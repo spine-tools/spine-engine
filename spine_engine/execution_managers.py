@@ -81,7 +81,7 @@ class StandardExecutionManager(ExecutionManagerBase):
 
     def _log_stdout(self, stdout):
         for line in iter(stdout.readline, b''):
-            self._logger.msg_proc.emit(line.decode("UTF8").strip())
+            self._logger.msg_proc.emit(line.decode("UTF8", "replace").strip())
         stdout.close()
 
     def _log_stderr(self, stderr):

@@ -13,7 +13,7 @@
 The ReturningProcess class.
 
 :authors: M. Marin (KTH)
-:date:   3.11.2020
+:date:    3.11.2020
 """
 
 import multiprocessing as mp
@@ -25,20 +25,22 @@ class ReturningProcess(mp.Process):
         self._queue = mp.Queue()
 
     def run_until_complete(self):
-        """Starts the process, forwards all the messages to the logger,
-        and finally joins the process.
+        """Starts the process and joins it after it has finished.
+
+        Returns:
+            tuple: Returnn value of the process where the first element is a status flag
         """
         self.start()
-        success = self._queue.get()
+        return_value = self._queue.get()
         self.join()
-        return success
+        return return_value
 
     def run(self):
         if not self._target:
-            self._queue.put(False)
+            self._queue.put((False,))
         result = self._target(*self._args, **self._kwargs)
         self._queue.put(result)
 
     def terminate(self):
         super().terminate()
-        self._queue.put(False)
+        self._queue.put((False,))
