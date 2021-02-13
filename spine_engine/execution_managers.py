@@ -109,9 +109,12 @@ class _KernelManagerFactory(metaclass=Singleton):
         if group_id is None:
             # Execute in isolation
             return KernelManager(kernel_name=kernel_name)
-        return self._kernel_managers.setdefault((kernel_name, group_id), KernelManager(kernel_name=kernel_name))
+        key = (kernel_name, group_id)
+        if key not in self._kernel_managers:
+            self._kernel_managers[key] = KernelManager(kernel_name=kernel_name)
+        return self._kernel_managers[key]
 
-    def new_kernel_manager(self, language, kernel_name, group_id, logger, **kwargs):
+    def new_kernel_manager(self, language, kernel_name, group_id, logger, extra_switches=None, **kwargs):
         """Creates a new kernel manager for given kernel and group id if none exists.
         Starts the kernel if not started, and returns it.
 
@@ -120,6 +123,8 @@ class _KernelManagerFactory(metaclass=Singleton):
             kernel_name (str): the kernel
             group_id (str): item group that will execute using this kernel
             logger (LoggerInterface): for logging
+            extra_switches (list, optional): List of additional switches to launch julia.
+                These come before the 'programfile'.
             `**kwargs`: optional. Keyword arguments passed to ``KernelManager.start_kernel()``
 
         Returns:
@@ -132,6 +137,9 @@ class _KernelManagerFactory(metaclass=Singleton):
                 msg = dict(type="kernel_spec_not_found", **msg_head)
                 logger.msg_kernel_execution.emit(msg)
                 return None
+            if extra_switches:
+                # Insert switches right after the julia program
+                km.kernel_spec.argv[1:1] = extra_switches
             blackhole = open(os.devnull, 'w')
             km.start_kernel(stdout=blackhole, stderr=blackhole, **kwargs)
             msg = dict(type="kernel_started", connection_file=km.connection_file, **msg_head)
@@ -159,14 +167,38 @@ def get_kernel_manager(connection_file):
 
 
 class KernelExecutionManager(ExecutionManagerBase):
-    def __init__(self, logger, language, kernel_name, *commands, group_id=None, workdir=None, startup_timeout=60):
+    def __init__(
+        self,
+        logger,
+        language,
+        kernel_name,
+        *commands,
+        group_id=None,
+        workdir=None,
+        startup_timeout=60,
+        extra_switches=None,
+        **kwargs
+    ):
+        """
+        Args:
+            logger (LoggerInterface)
+            language (str): The underlying language, mainly for logging purposes.
+            kernel_name (str): the kernel
+            *commands: Commands to execute in the kernel
+            group_id (str, optional): item group that will execute using this kernel
+            workdir (str, optional): item group that will execute using this kernel
+            startup_timeout (int, optional): How much to wait for the kernel, used in ``KernelClient.wait_for_ready()``
+            extra_switches (list, optional): List of additional switches to launch julia.
+                These come before the 'programfile'.
+            **kwargs (optional): Keyword arguments passed to ``KernelManager.start_kernel()``
+        """
         super().__init__(logger)
         self._msg_head = dict(language=language, kernel_name=kernel_name)
         self._commands = commands
         self._group_id = group_id
         self._workdir = workdir
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
-            language, kernel_name, group_id, logger, cwd=self._workdir
+            language, kernel_name, group_id, logger, cwd=self._workdir, extra_switches=extra_switches, **kwargs
         )
         self._kernel_client = self._kernel_manager.client() if self._kernel_manager is not None else None
         self._startup_timeout = startup_timeout
