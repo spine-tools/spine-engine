@@ -18,7 +18,7 @@ Setup script for Python's setuptools.
 
 from setuptools import setup, find_packages
 
-REQUIRED_SPINEDB_API_VERSION = "0.10.2"
+REQUIRED_SPINEDB_API_VERSION = "0.10.10"
 
 with open("README.md", encoding="utf8") as readme_file:
     readme = readme_file.read()
