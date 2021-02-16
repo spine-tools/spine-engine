@@ -31,9 +31,6 @@ install_requires = [
     "dagster >= 0.9.15, <= 0.10.1",
     "sqlalchemy >= 1.3",
     "numpy >= 1.15.1",
-    "openpyxl > 3.0",
-    "gdx2py >= 2.0.4",
-    "ijson >= 2.6.1",
     "spinedb_api >= {}".format(REQUIRED_SPINEDB_API_VERSION),
 ]
 
