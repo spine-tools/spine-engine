@@ -35,12 +35,14 @@ from dagster import (
     default_executors,
 )
 from spinedb_api import append_filter_config, name_from_dict
+from spinedb_api.filters.tools import filter_config
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
 from .utils.helpers import AppSettings, inverted, create_timestamp
 from .utils.queue_logger import QueueLogger
 from .project_item_loader import ProjectItemLoader
 from .multithread_executor.executor import multithread_executor
+from .project_item.connection import Connection
 
 
 class ExecutionDirection(Enum):
@@ -74,7 +76,7 @@ class SpineEngine:
         self,
         items=None,
         specifications=None,
-        filter_stacks=None,
+        connections=None,
         settings=None,
         project_dir=None,
         execution_permits=None,
@@ -82,12 +84,10 @@ class SpineEngine:
         debug=False,
     ):
         """
-        Inits class.
-
         Args:
             items (list(dict)): List of executable item dicts.
             specifications (dict(str,list(dict))): A mapping from item type to list of specification dicts.
-            filter_stacks (dict): A mapping from tuple (resource label, receiving item name) to a list of applicable filters.
+            connections (list of dict): List of connection dicts
             settings (dict): Toolbox execution settings.
             project_dir (str): Path to project directory.
             execution_permits (dict(str,bool)): A mapping from item name to a boolean value, False indicating that
@@ -100,9 +100,14 @@ class SpineEngine:
         if items is None:
             items = []
         self._items = items
-        if filter_stacks is None:
-            filter_stacks = {}
-        self._filter_stacks = filter_stacks
+        if connections is None:
+            connections = []
+        self._connections = list(map(Connection.from_dict, connections))
+        self._connections_by_source = dict()
+        self._connections_by_destination = dict()
+        for connection in self._connections:
+            self._connections_by_source.setdefault(connection.source, list()).append(connection)
+            self._connections_by_destination.setdefault(connection.destination, list()).append(connection)
         self._settings = AppSettings(settings)
         self._project_dir = project_dir
         project_item_loader = ProjectItemLoader()
@@ -369,6 +374,11 @@ class SpineEngine:
         if not success[0]:
             context.log.error(f"compute_fn() FAILURE with item: {item_name} failed to execute")
             raise Failure()
+        for resources in output_resources_list:
+            for connection in self._connections_by_source.get(item_name, []):
+                connection.receive_resources_from_source(resources)
+                if connection.has_filters():
+                    connection.fetch_database_items()
         return list(zip(*output_resources_list))
 
     def _execute_item_filtered(
@@ -455,7 +465,7 @@ class SpineEngine:
         applied to the URL.
 
         Args:
-            item_name (str)
+            item_name (str): resource receiving item's name
             resource_stack (tuple(ProjectItemResource))
 
         Returns:
@@ -464,17 +474,46 @@ class SpineEngine:
         if len(resource_stack) > 1:
             return resource_stack
         resource = resource_stack[0]
-        filter_stacks = self._filter_stacks.get((resource.label, item_name))
+        filter_stacks = self._filter_stacks(item_name, resource.label)
         if not filter_stacks:
             return resource_stack
         expanded_stack = ()
         for filter_stack in filter_stacks:
             filtered_clone = resource.clone(additional_metadata={"label": resource.label, "filter_stack": filter_stack})
             for config in filter_stack:
-                if config:
-                    filtered_clone.url = append_filter_config(filtered_clone.url, config)
+                filtered_clone.url = append_filter_config(filtered_clone.url, config)
             expanded_stack += (filtered_clone,)
         return expanded_stack
+
+    def _filter_stacks(self, item_name, resource_label):
+        """Computes filter stacks.
+
+        Stacks are computed as the cross-product of all individual filters defined for a resource.
+
+        Args:
+            item_name (str): item's name
+            resource_label (str): resource's label
+
+        Returns:
+            list of list: filter stacks
+        """
+        filter_stacks = list()
+        for connection in self._connections_by_destination[item_name]:
+            filters = connection.resource_filters.get(resource_label)
+            if filters is None:
+                continue
+            filter_configs_list = []
+            for filter_type, ids in filters.items():
+                filter_configs = [
+                    filter_config(filter_type, connection.id_to_name(id_, filter_type))
+                    for id_, is_on in ids.items()
+                    if is_on
+                ]
+                if not filter_configs:
+                    continue
+                filter_configs_list.append(filter_configs)
+            filter_stacks += list(product(*filter_configs_list))
+        return filter_stacks
 
     def _make_dependencies(self):
         """
