@@ -64,7 +64,7 @@ class StandardExecutionManager(ExecutionManagerBase):
 
     def run_until_complete(self):
         try:
-            self._process = Popen([self._program, *self._args], stdout=PIPE, stderr=PIPE, bufsize=1, cwd=self._workdir)
+            self._process = Popen([self._program, *self._args], stdout=PIPE, stderr=PIPE, cwd=self._workdir)
         except OSError as e:
             msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
             self._logger.msg_standard_execution.emit(msg)
