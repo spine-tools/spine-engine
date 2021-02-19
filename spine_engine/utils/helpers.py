@@ -184,6 +184,8 @@ def get_julia_command(settings):
         julia = settings.value("appSettings/juliaPath", defaultValue="")
         if julia == "":
             julia = resolve_julia_executable_from_path()
+            if julia == "":
+                return None
         cmd = [julia]
         project = settings.value("appSettings/juliaProjectPath", defaultValue="")
         cmd.append(f"--project={project}")
