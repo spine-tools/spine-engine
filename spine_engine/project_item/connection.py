@@ -32,28 +32,29 @@ class Connection:
             resource_filters (dict, optional): mapping from resource labels and filter types to
                 database ids and activity flags
         """
-        self._source = source_name
+        self.source = source_name
         self._source_position = source_position
-        self._destination = destination_name
+        self.destination = destination_name
         self._destination_position = destination_position
         self._resource_filters = resource_filters if resource_filters is not None else dict()
         self._resources = set()
         self._id_to_name_cache = dict()
 
-    @property
-    def destination(self):
-        """Destination project item's name"""
-        return self._destination
+    def __eq__(self, other):
+        if not isinstance(other, Connection):
+            return NotImplemented
+        return (
+            self.source == other.source
+            and self._source_position == other._source_position
+            and self.destination == other.destination
+            and self._destination_position == other._destination_position
+            and self._resource_filters == other._resource_filters
+        )
 
     @property
     def destination_position(self):
         """Anchor's position on destination item."""
         return self._destination_position
-
-    @property
-    def source(self):
-        """Source project item's name"""
-        return self._source
 
     @property
     def source_position(self):
@@ -143,7 +144,7 @@ class Connection:
         Returns:
             dict: serialized Connection
         """
-        d = {"from": [self._source, self._source_position], "to": [self._destination, self._destination_position]}
+        d = {"from": [self.source, self._source_position], "to": [self.destination, self._destination_position]}
         if self.has_filters():
             online_ids_only = dict()
             for label, by_type in self._resource_filters.items():
