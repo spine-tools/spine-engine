@@ -80,3 +80,15 @@ class ProjectItemSpecification:
             dict: specification dict
         """
         raise NotImplementedError()
+
+    def is_equivalent(self, other):
+        """
+        Returns True if two specifications are essentially the same.
+
+        Args:
+            other (DataTransformerSpecification): specification to compare to
+
+        Returns:
+            bool: True if the specifications are equivalent, False otherwise
+        """
+        raise NotImplementedError()
