@@ -19,6 +19,7 @@ Functions to (de)serialize stuff.
 import os
 import sys
 import urllib
+from urllib.parse import urljoin
 
 
 def path_in_dir(path, directory):
@@ -116,8 +117,24 @@ def deserialize_path(serialized, project_dir):
         if path_type == "url":
             return serialized["path"]
     except KeyError as error:
-        raise RuntimeError("Key missing from serialized path: {}".format(error))
-    raise RuntimeError("Cannot deserialize: unknown path type '{}'.".format(path_type))
+        raise RuntimeError(f"Key '{error}' missing from serialized path")
+    raise RuntimeError(f"Cannot deserialize: unknown path type '{path_type}'")
+
+
+def deserialize_remote_path(serialized, base_path):
+    if not isinstance(serialized, dict):
+        return serialized
+    try:
+        path_type = serialized["type"]
+        if path_type != "path":
+            raise RuntimeError(f"Cannot deserialize remote path type '{path_type}'")
+        relative = serialized["relative"]
+        if not relative:
+            raise RuntimeError("Cannot deserialize non-relative remote path")
+        path = serialized["path"]
+        return urljoin(base_path, path)
+    except KeyError as error:
+        raise RuntimeError(f"Key '{error}' missing from serialized url")
 
 
 def serialize_checked_states(files, project_path):

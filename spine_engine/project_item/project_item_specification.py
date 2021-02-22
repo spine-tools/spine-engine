@@ -41,6 +41,7 @@ class ProjectItemSpecification:
         self.item_type = item_type
         self.item_category = item_category
         self.definition_file_path = ""
+        self.plugin = None
 
     # TODO: Needed?
     def set_name(self, name):
