@@ -15,6 +15,7 @@ Unit tests for ExecutableItem.
 :author: A. Soininen (VTT)
 :date:   6.4.2020
 """
+from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
 from spine_engine import ExecutionDirection
@@ -22,12 +23,18 @@ from spine_engine.project_item.executable_item_base import ExecutableItemBase
 
 
 class TestExecutableItem(unittest.TestCase):
+    def setUp(self):
+        self._temp_dir = TemporaryDirectory()
+
+    def tearDown(self):
+        self._temp_dir.cleanup()
+
     def test_name(self):
-        item = ExecutableItemBase("name", mock.MagicMock())
+        item = ExecutableItemBase("name", self._temp_dir.name, mock.MagicMock())
         self.assertEqual(item.name, "name")
 
     def test_output_resources_backward(self):
-        item = ExecutableItemBase("name", mock.MagicMock())
+        item = ExecutableItemBase("name", self._temp_dir.name, mock.MagicMock())
         item._output_resources_backward = mock.MagicMock(return_value=[3, 5, 7])
         item._output_resources_forward = mock.MagicMock()
         self.assertEqual(item.output_resources(ExecutionDirection.BACKWARD), [3, 5, 7])
@@ -35,7 +42,7 @@ class TestExecutableItem(unittest.TestCase):
         item._output_resources_forward.assert_not_called()
 
     def test_output_resources_forward(self):
-        item = ExecutableItemBase("name", mock.MagicMock())
+        item = ExecutableItemBase("name", self._temp_dir.name, mock.MagicMock())
         item._output_resources_backward = mock.MagicMock()
         item._output_resources_forward = mock.MagicMock(return_value=[3, 5, 7])
         self.assertEqual(item.output_resources(ExecutionDirection.FORWARD), [3, 5, 7])

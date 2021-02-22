@@ -13,10 +13,11 @@
 Contains ExecutableItem, a project item's counterpart in execution as well as support utilities.
 
 :authors: A. Soininen (VTT)
-:date:   30.3.2020
+:date:    30.3.2020
 """
-
-from spine_engine import ExecutionDirection
+from pathlib import Path
+from ..spine_engine import ExecutionDirection
+from ..utils.helpers import shorten
 
 
 class ExecutableItemBase:
@@ -24,13 +25,20 @@ class ExecutableItemBase:
     The part of a project item that is executed by the Spine Engine.
     """
 
-    def __init__(self, name, logger):
+    def __init__(self, name, project_dir, logger):
         """
         Args:
             name (str): item's name
+            project_dir (str): absolute path to project directory
             logger (LoggerInterface): a logger
         """
         self._name = name
+        data_dir = Path(project_dir, ".spinetoolbox", "items", shorten(name))
+        data_dir.mkdir(parents=True, exist_ok=True)
+        self._data_dir = str(data_dir)
+        log_dir = Path(self._data_dir, "logs")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        self._logs_dir = str(log_dir)
         self._logger = logger
         self._filter_id = ""
 
