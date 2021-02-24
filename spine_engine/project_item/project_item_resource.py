@@ -20,39 +20,14 @@ from urllib.request import url2pathname
 import copy
 
 
-class _ResourceProvider:
-    """A picklable class to hold information about a resource's provider.
-
-    In multiprocessing context, ProjectItemResource needs to be pickled sometimes
-    which is *not possible* if one of the attributes is a ExecutableItemBase instance.
-    Since all we ever use from the ProjectItemResource.provider is the name,
-    this class works as an efficient replacement.
-
-    More attributes can be added as needed (in case we need to know more about a resource's provider)
-    making sure that this class remains picklable.
-    """
-
-    def __init__(self, item):
-        """
-        Args:
-            item (ExecutableItemBase)
-        """
-        self.name = item.name
-
-    def __eq__(self, other):
-        if not isinstance(other, _ResourceProvider):
-            return NotImplemented
-        return self.name == other.name
-
-
 class ProjectItemResource:
     """Class to hold a resource made available by a project item
     and that may be consumed by another project item."""
 
-    def __init__(self, provider, type_, url="", metadata=None):
+    def __init__(self, provider_name, type_, url="", metadata=None):
         """
         Args:
-            provider (ProjectItem or ExecutableItem): The item that provides the resource
+            provider_name (str): The name of the item that provides the resource
             type_ (str): The resource type, currently available types:
 
                 - "file": url points to the file's path
@@ -69,7 +44,7 @@ class ProjectItemResource:
                 - label (str): a textual label
                 - pattern (str): a file pattern if the file is part of that pattern
         """
-        self.provider = _ResourceProvider(provider)
+        self.provider_name = provider_name
         self.type_ = type_
         self.url = url
         self.parsed_url = urlparse(url)
@@ -84,17 +59,17 @@ class ProjectItemResource:
             additional_metadata = {}
         metadata = copy.deepcopy(self.metadata)
         metadata.update(additional_metadata)
-        return ProjectItemResource(self.provider, self.type_, self.url, metadata=metadata)
+        return ProjectItemResource(self.provider_name, self.type_, self.url, metadata=metadata)
 
     def __eq__(self, other):
         if not isinstance(other, ProjectItemResource):
             # don't attempt to compare against unrelated types
             return NotImplemented
         return (
-            self.provider == other.provider
-            and self.type_ == other.type_
-            and self.url == other.url
-            and self.metadata == other.metadata
+                self.provider_name == other.provider_name
+                and self.type_ == other.type_
+                and self.url == other.url
+                and self.metadata == other.metadata
         )
 
     def __hash__(self):
@@ -102,7 +77,7 @@ class ProjectItemResource:
 
     def __repr__(self):
         result = "ProjectItemResource("
-        result += f"provider={self.provider.name}, "
+        result += f"provider={self.provider_name}, "
         result += f"type_={self.type_}, "
         result += f"url={self.url}, "
         result += f"metadata={self.metadata})"

@@ -430,7 +430,7 @@ class SpineEngine:
         def check_resource_affinity(filtered_forward_resources):
             filter_ids_by_provider = dict()
             for r in filtered_forward_resources:
-                filter_ids_by_provider.setdefault(r.provider.name, set()).add(r.metadata.get("filter_id"))
+                filter_ids_by_provider.setdefault(r.provider_name, set()).add(r.metadata.get("filter_id"))
             return all(len(filter_ids) == 1 for filter_ids in filter_ids_by_provider.values())
 
         forward_resource_stacks_iterator = (

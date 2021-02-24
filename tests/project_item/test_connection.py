@@ -66,7 +66,7 @@ class TestConnectionWithDatabase(unittest.TestCase):
         import_scenarios(db_map, ("scenario",))
         db_map.commit_session("Add test data.")
         db_map.connection.close()
-        resources = [ProjectItemResource(_NamedObject("source"), "database", url)]
+        resources = [ProjectItemResource("source", "database", url)]
         connection.receive_resources_from_source(resources)
         self.assertFalse(connection.has_filters())
         connection.fetch_database_items()
@@ -80,17 +80,12 @@ class TestConnectionWithDatabase(unittest.TestCase):
         import_tools(db_map, ("tool",))
         db_map.commit_session("Add test data.")
         db_map.connection.close()
-        resources = [ProjectItemResource(_NamedObject("source"), "database", url)]
+        resources = [ProjectItemResource("source", "database", url)]
         connection.receive_resources_from_source(resources)
         self.assertFalse(connection.has_filters())
         connection.fetch_database_items()
         self.assertTrue(connection.has_filters())
         self.assertEqual(connection.resource_filters, {url: {"tool_filter": {1: False}}})
-
-
-class _NamedObject:
-    def __init__(self, name):
-        self.name = name
 
 
 if __name__ == "__main__":

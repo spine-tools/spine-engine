@@ -32,7 +32,7 @@ from spinedb_api.filters.execution_filter import execution_filter_config
 
 class _SimpleProjectItemResource(ProjectItemResource):
     def __init__(self, url):
-        super().__init__(MagicMock(), "database", url=url)
+        super().__init__("name", "database", url=url)
 
 
 class _EvenSimplerProjectItemResource(_SimpleProjectItemResource):
@@ -77,7 +77,7 @@ class TestSpineEngine(unittest.TestCase):
         item.execute.side_effect = execute
         item.skip_execution = MagicMock()
         for r in resources_forward + resources_backward:
-            r.provider = item
+            r.provider_name = item.name
         item.output_resources.side_effect = lambda direction: {
             ExecutionDirection.FORWARD: resources_forward,
             ExecutionDirection.BACKWARD: resources_backward,

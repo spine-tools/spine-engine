@@ -53,6 +53,9 @@ class ExecutableItemBase:
         Items in the same group share a kernel, and also reuse the same kernel from past executions.
         By default each item is its own group, so it executes in isolation.
         NOTE: At the moment this is only used by Tool, but could be used by other items in the future?
+
+        Returns:
+            str: item's id within an execution group
         """
         return self._name + self._filter_id
 
