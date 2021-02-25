@@ -93,8 +93,8 @@ class StandardExecutionManager(ExecutionManagerBase):
 class _KernelManagerFactory(metaclass=Singleton):
     _kernel_managers = {}
     """Maps tuples (kernel name, group id) to associated KernelManager."""
-    _km_by_connection_file = {}
-    """Maps connection file string to associated KernelManager. Mostly for fast lookup in ``restart_kernel()``"""
+    _key_by_connection_file = {}
+    """Maps connection file string to tuple (kernel_name, group_id). Mostly for fast lookup in ``restart_kernel()``"""
 
     def _make_kernel_manager(self, kernel_name, group_id):
         """Creates a new kernel manager for given kernel and group id if none exists, and returns it.
@@ -144,7 +144,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             km.start_kernel(stdout=blackhole, stderr=blackhole, **kwargs)
             msg = dict(type="kernel_started", connection_file=km.connection_file, **msg_head)
             logger.msg_kernel_execution.emit(msg)
-            self._km_by_connection_file[km.connection_file] = km
+            self._key_by_connection_file[km.connection_file] = (kernel_name, group_id)
         return km
 
     def get_kernel_manager(self, connection_file):
@@ -156,7 +156,21 @@ class _KernelManagerFactory(metaclass=Singleton):
         Returns:
             KernelManager or None
         """
-        return self._km_by_connection_file.get(connection_file)
+        key = self._key_by_connection_file.get(connection_file)
+        return self._kernel_managers.get(key)
+
+    def pop_kernel_manager(self, connection_file):
+        """Returns a kernel manager for given connection file if any.
+        It also removes it from cache.
+
+        Args:
+            connection_file (str): path of connection file
+
+        Returns:
+            KernelManager or None
+        """
+        key = self._key_by_connection_file.pop(connection_file, None)
+        return self._kernel_managers.pop(key, None)
 
 
 _kernel_manager_factory = _KernelManagerFactory()
@@ -164,6 +178,10 @@ _kernel_manager_factory = _KernelManagerFactory()
 
 def get_kernel_manager(connection_file):
     return _kernel_manager_factory.get_kernel_manager(connection_file)
+
+
+def pop_kernel_manager(connection_file):
+    return _kernel_manager_factory.pop_kernel_manager(connection_file)
 
 
 class KernelExecutionManager(ExecutionManagerBase):

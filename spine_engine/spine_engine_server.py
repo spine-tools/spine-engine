@@ -22,7 +22,7 @@ import json
 import uuid
 import atexit
 from .spine_engine import SpineEngine
-from .execution_managers import get_kernel_manager
+from .execution_managers import get_kernel_manager, pop_kernel_manager
 
 
 class EngineRequestHandler(socketserver.BaseRequestHandler):
@@ -90,7 +90,7 @@ class EngineRequestHandler(socketserver.BaseRequestHandler):
         Args:
             connection_file (str): path of connection file
         """
-        km = get_kernel_manager(connection_file)
+        km = pop_kernel_manager(connection_file)
         if km is not None:
             km.shutdown_kernel(now=True)
 
