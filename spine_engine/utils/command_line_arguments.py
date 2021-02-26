@@ -19,7 +19,7 @@ Split command line arguments.
 
 def split_cmdline_args(arg_string):
     """
-    Splits a string of command line into a list of tokens.
+    Splits a string of command line arguments into a list of tokens.
 
     Things in single ('') and double ("") quotes are kept as single tokens
     while the quotes themselves are stripped away.

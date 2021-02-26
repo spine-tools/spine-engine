@@ -19,7 +19,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from spinedb_api import DiffDatabaseMapping, import_scenarios, import_tools
 from spine_engine.project_item.connection import Connection
-from spine_engine.project_item.project_item_resource import ProjectItemResource
+from spine_engine.project_item.project_item_resource import database_resource
 
 
 class TestConnection(unittest.TestCase):
@@ -66,12 +66,12 @@ class TestConnectionWithDatabase(unittest.TestCase):
         import_scenarios(db_map, ("scenario",))
         db_map.commit_session("Add test data.")
         db_map.connection.close()
-        resources = [ProjectItemResource("source", "database", url)]
+        resources = [database_resource("source", url)]
         connection.receive_resources_from_source(resources)
         self.assertFalse(connection.has_filters())
         connection.fetch_database_items()
         self.assertTrue(connection.has_filters())
-        self.assertEqual(connection.resource_filters, {url: {"scenario_filter": {1: False}}})
+        self.assertEqual(connection.resource_filters, {resources[0].label: {"scenario_filter": {1: False}}})
 
     def test_fetch_tools(self):
         connection = Connection("source", "bottom", "destination", "top")
@@ -80,12 +80,12 @@ class TestConnectionWithDatabase(unittest.TestCase):
         import_tools(db_map, ("tool",))
         db_map.commit_session("Add test data.")
         db_map.connection.close()
-        resources = [ProjectItemResource("source", "database", url)]
+        resources = [database_resource("source", url)]
         connection.receive_resources_from_source(resources)
         self.assertFalse(connection.has_filters())
         connection.fetch_database_items()
         self.assertTrue(connection.has_filters())
-        self.assertEqual(connection.resource_filters, {url: {"tool_filter": {1: False}}})
+        self.assertEqual(connection.resource_filters, {resources[0].label: {"tool_filter": {1: False}}})
 
 
 if __name__ == "__main__":

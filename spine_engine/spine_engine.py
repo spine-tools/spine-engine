@@ -446,7 +446,7 @@ class SpineEngine:
             config = execution_filter_config(execution)
             filtered_backward_resources = []
             for resource in backward_resources:
-                clone = resource.clone(additional_metadata={"label": resource.label, "filter_stack": (config,)})
+                clone = resource.clone(additional_metadata={"filter_stack": (config,)})
                 clone.url = append_filter_config(clone.url, config)
                 filtered_backward_resources.append(clone)
             filter_id = _make_filter_id(resource_filter_stack)
@@ -479,7 +479,7 @@ class SpineEngine:
             return resource_stack
         expanded_stack = ()
         for filter_stack in filter_stacks:
-            filtered_clone = resource.clone(additional_metadata={"label": resource.label, "filter_stack": filter_stack})
+            filtered_clone = resource.clone(additional_metadata={"filter_stack": filter_stack})
             for config in filter_stack:
                 filtered_clone.url = append_filter_config(filtered_clone.url, config)
             expanded_stack += (filtered_clone,)

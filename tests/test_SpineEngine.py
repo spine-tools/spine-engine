@@ -22,26 +22,17 @@ import os.path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock, NonCallableMagicMock, call, patch
-from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState
-from spine_engine.project_item.project_item_resource import ProjectItemResource
 from spinedb_api import DiffDatabaseMapping, import_scenarios, import_tools
 from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.filters.tool_filter import tool_filter_config
 from spinedb_api.filters.execution_filter import execution_filter_config
+from spinedb_api.filters.tools import clear_filter_configs
+from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState
+from spine_engine.project_item.project_item_resource import ProjectItemResource
 
 
-class _SimpleProjectItemResource(ProjectItemResource):
-    def __init__(self, url):
-        super().__init__("name", "database", url=url)
-
-
-class _EvenSimplerProjectItemResource(_SimpleProjectItemResource):
-    def clone(self, additional_metadata=None):
-        """Reimplemented to return the same instance modified (it helps in comparisons)."""
-        if additional_metadata is None:
-            additional_metadata = {}
-        self.metadata.update(additional_metadata)
-        return self
+def _make_resource(url):
+    return ProjectItemResource("name", "database", "label", url)
 
 
 class TestSpineEngine(unittest.TestCase):
@@ -53,8 +44,7 @@ class TestSpineEngine(unittest.TestCase):
             name (str)
             resources_forward (list): Forward output_resources return value.
             resources_backward (list): Backward output_resources return value.
-            execute_forward (bool): Forward execute return value.
-            execute_backward (bool): Backward execute return value.
+            execute_outcome (bool): Execution return value.
 
         Returns:
             NonCallableMagicMock
@@ -85,12 +75,12 @@ class TestSpineEngine(unittest.TestCase):
         return item
 
     def setUp(self):
-        self.url_a_fw = _EvenSimplerProjectItemResource("url_a_fw")
-        self.url_b_fw = _EvenSimplerProjectItemResource("url_b_fw")
-        self.url_c_fw = _EvenSimplerProjectItemResource("url_c_fw")
-        self.url_a_bw = _EvenSimplerProjectItemResource("url_a_bw")
-        self.url_b_bw = _EvenSimplerProjectItemResource("url_b_bw")
-        self.url_c_bw = _EvenSimplerProjectItemResource("url_c_bw")
+        self.url_a_fw = _make_resource("db:///url_a_fw")
+        self.url_b_fw = _make_resource("db:///url_b_fw")
+        self.url_c_fw = _make_resource("db:///url_c_fw")
+        self.url_a_bw = _make_resource("db:///url_a_bw")
+        self.url_b_bw = _make_resource("db:///url_b_bw")
+        self.url_c_bw = _make_resource("db:///url_c_bw")
 
     def test_linear_execution_succeeds(self):
         """Tests execution with three items in a line."""
@@ -109,12 +99,12 @@ class TestSpineEngine(unittest.TestCase):
         )
         engine._make_item = lambda name: engine._items[name]
         engine.run()
-        item_a_execute_calls = [call([], [self.url_b_bw])]
-        item_b_execute_calls = [call([self.url_a_fw], [self.url_c_bw])]
+        item_a_execute_args = [[], [self.url_b_bw]]
+        item_b_execute_args = [[self.url_a_fw], [self.url_c_bw]]
         item_c_execute_calls = [call([self.url_b_fw], [])]
-        mock_item_a.execute.assert_has_calls(item_a_execute_calls)
+        self.assert_execute_call(mock_item_a.execute, item_a_execute_args)
         mock_item_a.skip_execution.assert_not_called()
-        mock_item_b.execute.assert_has_calls(item_b_execute_calls)
+        self.assert_execute_call(mock_item_b.execute, item_b_execute_args)
         mock_item_b.skip_execution.assert_not_called()
         mock_item_c.execute.assert_has_calls(item_c_execute_calls)
         mock_item_c.skip_execution.assert_not_called()
@@ -137,10 +127,10 @@ class TestSpineEngine(unittest.TestCase):
         )
         engine._make_item = lambda name: engine._items[name]
         engine.run()
-        item_a_execute_calls = [call([], [self.url_b_bw, self.url_c_bw])]
+        item_a_execute_args = [[], [self.url_b_bw, self.url_c_bw]]
         item_b_execute_calls = [call([self.url_a_fw], [])]
         item_c_execute_calls = [call([self.url_a_fw], [])]
-        mock_item_a.execute.assert_has_calls(item_a_execute_calls)
+        self.assert_execute_call(mock_item_a.execute, item_a_execute_args)
         mock_item_a.skip_execution.assert_not_called()
         mock_item_b.execute.assert_has_calls(item_b_execute_calls)
         mock_item_b.skip_execution.assert_not_called()
@@ -165,13 +155,13 @@ class TestSpineEngine(unittest.TestCase):
         )
         engine._make_item = lambda name: engine._items[name]
         engine.run()
-        item_a_execute_calls = [call([], [self.url_b_bw])]
-        item_b_skip_execution_calls = [call([self.url_a_fw], [self.url_c_bw])]
+        item_a_execute_args = [[], [self.url_b_bw]]
+        item_b_skip_execution_args = [[self.url_a_fw], [self.url_c_bw]]
         item_c_execute_calls = [call([self.url_b_fw], [])]
-        mock_item_a.execute.assert_has_calls(item_a_execute_calls)
+        self.assert_execute_call(mock_item_a.execute, item_a_execute_args)
         mock_item_a.skip_execution.assert_not_called()
         mock_item_b.execute.assert_not_called()
-        mock_item_b.skip_execution.assert_has_calls(item_b_skip_execution_calls)
+        self.assert_execute_call(mock_item_b.skip_execution, item_b_skip_execution_args)
         mock_item_b.output_resources.assert_called()
         mock_item_c.execute.assert_has_calls(item_c_execute_calls)
         mock_item_c.skip_execution.assert_not_called()
@@ -186,9 +176,9 @@ class TestSpineEngine(unittest.TestCase):
             import_tools(db_map, ("toolA",))
             db_map.commit_session("Add test data.")
             db_map.connection.close()
-            url_a_fw = _SimpleProjectItemResource(url)
-            url_b_fw = _SimpleProjectItemResource("url_b_fw")
-            url_c_bw = _SimpleProjectItemResource("url_c_bw")
+            url_a_fw = _make_resource(url)
+            url_b_fw = _make_resource("db:///url_b_fw")
+            url_c_bw = _make_resource("db:///url_c_bw")
             mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
             mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[])
             mock_item_c = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
@@ -239,6 +229,17 @@ class TestSpineEngine(unittest.TestCase):
             )
             # Check that item_c has also been executed two times
             self.assertEqual(len(mock_item_c.fwd_flt_stacks), 2)
+
+    def assert_execute_call(self, method, expected_call_args):
+        method.assert_called_once()
+        self.assertEqual(method.call_args[1], {})
+        args = method.call_args[0]
+        for arg, expected_arg in zip(args, expected_call_args):
+            for resource, expected_resource in zip(arg, expected_arg):
+                self.assertEqual(resource.provider_name, expected_resource.provider_name)
+                self.assertEqual(resource.label, expected_resource.label)
+                self.assertEqual(clear_filter_configs(resource.url), expected_resource.url)
+                self.assertIn("filter_stack", resource.metadata)
 
 
 if __name__ == '__main__':

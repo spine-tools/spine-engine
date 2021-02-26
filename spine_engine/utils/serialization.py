@@ -135,39 +135,3 @@ def deserialize_remote_path(serialized, base_path):
         return urljoin(base_path, path)
     except KeyError as error:
         raise RuntimeError(f"Key '{error}' missing from serialized url")
-
-
-def serialize_checked_states(files, project_path):
-    """Serializes file paths and adds a boolean value
-    for each, which indicates whether the path is
-    selected or not. Used in saving checked file states to
-    project.json.
-
-    Args:
-        files (list): List of absolute file paths
-        project_path (str): Absolute project directory path
-
-    Returns:
-        list: List of serialized paths with a boolean value
-    """
-    return [[serialize_path(item.label, project_path), item.selected] for item in files]
-
-
-def deserialize_checked_states(serialized, project_path):
-    """Reverse operation for serialize_checked_states above.
-    Returns absolute file paths with their check state as boolean.
-
-    Args:
-        serialized (list): List of serialized paths with a boolean value
-        project_path (str): Absolute project directory path
-
-    Returns:
-        dict: Dictionary with paths as keys and boolean check states as value
-    """
-    if not serialized:
-        return dict()
-    deserialized = dict()
-    for serialized_label, checked in serialized:
-        label = deserialize_path(serialized_label, project_path)
-        deserialized[label] = checked
-    return deserialized
