@@ -163,7 +163,22 @@ def get_julia_command(settings):
         settings (QSettings, AppSettings)
 
     Returns:
-        list
+        list: e.g. ["path/to/julia", "--project=path/to/project/"]
+    """
+    env = get_julia_env(settings)
+    if env is None:
+        return None
+    julia, project = env
+    return [julia, f"--project={project}"]
+
+
+def get_julia_env(settings):
+    """
+    Args:
+        settings (QSettings, AppSettings)
+
+    Returns:
+        tuple, NoneType: (julia_exe, julia_project), or None if none found
     """
     use_embedded_julia = settings.value("appSettings/useEmbeddedJulia", defaultValue="2") == "2"
     if use_embedded_julia:
@@ -177,16 +192,14 @@ def get_julia_command(settings):
                 kernel_spec = json.load(fh)
             except json.decoder.JSONDecodeError:
                 return None
-            cmd = [kernel_spec["argv"].pop(0)]
-            project_arg = next((arg for arg in kernel_spec["argv"] if arg.startswith("--project=")), "--project=")
-            cmd.append(project_arg)
-    else:
-        julia = settings.value("appSettings/juliaPath", defaultValue="")
+        julia = kernel_spec["argv"].pop(0)
+        project_arg = next((arg for arg in kernel_spec["argv"] if arg.startswith("--project=")), None)
+        project = "" if project_arg is None else project_arg.split("--project=")[1]
+        return julia, project
+    julia = settings.value("appSettings/juliaPath", defaultValue="")
+    if julia == "":
+        julia = resolve_julia_executable_from_path()
         if julia == "":
-            julia = resolve_julia_executable_from_path()
-            if julia == "":
-                return None
-        cmd = [julia]
-        project = settings.value("appSettings/juliaProjectPath", defaultValue="")
-        cmd.append(f"--project={project}")
-    return cmd
+            return None
+    project = settings.value("appSettings/juliaProjectPath", defaultValue="")
+    return julia, project
