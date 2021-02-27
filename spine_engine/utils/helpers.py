@@ -92,18 +92,14 @@ def python_interpreter(app_settings):
 def resolve_python_interpreter(python_path):
     """Solves the full path to Python interpreter and returns it."""
     if python_path != "":
-        path = python_path
-    else:
-        if not getattr(sys, "frozen", False):
-            path = sys.executable  # Use current Python
-        else:
-            # We are frozen
-            p = resolve_python_executable_from_path()
-            if p != "":
-                path = p  # Use Python from PATH
-            else:
-                path = PYTHON_EXECUTABLE  # Use embedded <app_install_dir>/Tools/python.exe
-    return path
+        return python_path
+    if not getattr(sys, "frozen", False):
+        return sys.executable  # Use current Python
+    # We are frozen
+    path = resolve_python_executable_from_path()
+    if path != "":
+        return path  # Use Python from PATH
+    return PYTHON_EXECUTABLE  # Use embedded <app_install_dir>/Tools/python.exe
 
 
 def resolve_python_executable_from_path():
