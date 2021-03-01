@@ -14,7 +14,7 @@ Provides the :class:`Connection` class.
 :authors: A. Soininen (VTT)
 :date:    12.2.2021
 """
-from spinedb_api import DatabaseMapping
+from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
 
@@ -112,11 +112,12 @@ class Connection:
         for resource in self._resources:
             url = resource.url
             if not url:
-                return
-            db_map = DatabaseMapping(url)
+                continue
             try:
-                if db_map is None:
-                    continue
+                db_map = DatabaseMapping(url)
+            except (SpineDBAPIError, SpineDBVersionError):
+                continue
+            try:
                 for scenario_row in db_map.query(db_map.scenario_sq):
                     update_filters(resource.label, SCENARIO_FILTER_TYPE, scenario_row)
                 for tool_row in db_map.query(db_map.tool_sq):
