@@ -33,7 +33,8 @@ class ExecutableItemBase:
             logger (LoggerInterface): a logger
         """
         self._name = name
-        data_dir = Path(project_dir, ".spinetoolbox", "items", shorten(name))
+        self._project_dir = project_dir
+        data_dir = Path(self._project_dir, ".spinetoolbox", "items", shorten(name))
         data_dir.mkdir(parents=True, exist_ok=True)
         self._data_dir = str(data_dir)
         log_dir = Path(self._data_dir, "logs")
