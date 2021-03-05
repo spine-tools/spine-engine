@@ -28,7 +28,7 @@ class ReturningProcess(mp.Process):
         """Starts the process and joins it after it has finished.
 
         Returns:
-            tuple: Returnn value of the process where the first element is a status flag
+            tuple: Return value of the process where the first element is a status flag
         """
         self.start()
         return_value = self._queue.get()
