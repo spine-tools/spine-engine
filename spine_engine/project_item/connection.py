@@ -190,7 +190,7 @@ class Connection:
                 continue
         package_path = os.path.join(base_path, "datapackage.json")
         package.save(package_path)
-        package_resource = file_resource(self.source, package_path)
+        package_resource = file_resource(self.source, package_path, label=f"datapackage@{self.source}")
         final_resources.append(package_resource)
         return final_resources
 
