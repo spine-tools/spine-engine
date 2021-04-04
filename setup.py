@@ -31,6 +31,7 @@ install_requires = [
     "dagster >= 0.9.15, <= 0.10.1",
     "sqlalchemy >= 1.3",
     "numpy >= 1.15.1",
+    "datapackage >= 1.15",
     "spinedb_api >= {}".format(REQUIRED_SPINEDB_API_VERSION),
 ]
 

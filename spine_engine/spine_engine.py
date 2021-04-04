@@ -439,6 +439,7 @@ class SpineEngine:
         for filtered_forward_resources in product(*forward_resource_stacks_iterator):
             if not check_resource_affinity(filtered_forward_resources):
                 continue
+            filtered_forward_resources = self._convert_forward_resources(item_name, filtered_forward_resources)
             resource_filter_stack = {r: r.metadata.get("filter_stack", ()) for r in filtered_forward_resources}
             scenarios = {scenario_name_from_dict(cfg) for stack in resource_filter_stack.values() for cfg in stack}
             scenarios.discard(None)
@@ -497,23 +498,45 @@ class SpineEngine:
         Returns:
             list of list: filter stacks
         """
-        filter_stacks = list()
-        for connection in self._connections_by_destination[item_name]:
-            filters = connection.resource_filters.get(resource_label)
-            if filters is None:
+        connections = self._connections_by_destination.get(item_name, [])
+        connection_filters_iterator = ((c, c.resource_filters.get(resource_label)) for c in connections)
+        connection_filters = next(((c, f) for c, f in connection_filters_iterator if f is not None), None)
+        if connection_filters is None:
+            return []
+        connection, filters = connection_filters
+        filter_configs_list = []
+        for filter_type, ids in filters.items():
+            filter_configs = [
+                filter_config(filter_type, connection.id_to_name(id_, filter_type))
+                for id_, is_on in ids.items()
+                if is_on
+            ]
+            if not filter_configs:
                 continue
-            filter_configs_list = []
-            for filter_type, ids in filters.items():
-                filter_configs = [
-                    filter_config(filter_type, connection.id_to_name(id_, filter_type))
-                    for id_, is_on in ids.items()
-                    if is_on
-                ]
-                if not filter_configs:
-                    continue
-                filter_configs_list.append(filter_configs)
-            filter_stacks += list(product(*filter_configs_list))
-        return filter_stacks
+            filter_configs_list.append(filter_configs)
+        return list(product(*filter_configs_list))
+
+    def _convert_forward_resources(self, item_name, resources):
+        """Converts resources as they're being forwarded to given item.
+        The conversion is dictated by the connection the resources traverse in order to reach the item.
+
+        Args:
+            item_name (str): receiving item's name
+            resources (list of ProjectItemResource): resources to convert
+
+        Returns:
+            list of ProjectItemResource: converted resources
+        """
+        connections = self._connections_by_destination.get(item_name, [])
+        resources_by_provider = {}
+        for r in resources:
+            resources_by_provider.setdefault(r.provider_name, list()).append(r)
+        for c in connections:
+            resources_from_source = resources_by_provider.get(c.source)
+            if resources_from_source is None:
+                continue
+            resources_by_provider[c.source] = c.convert_resources(resources_from_source)
+        return [r for resources in resources_by_provider.values() for r in resources]
 
     def _make_dependencies(self):
         """

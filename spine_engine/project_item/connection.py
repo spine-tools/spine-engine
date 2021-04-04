@@ -14,15 +14,21 @@ Provides the :class:`Connection` class.
 :authors: A. Soininen (VTT)
 :date:    12.2.2021
 """
+import os
+from datapackage import Package
+from tabulator.exceptions import EncodingError
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
+from spine_engine.project_item.project_item_resource import file_resource
 
 
 class Connection:
     """Represents a connection between two project items."""
 
-    def __init__(self, source_name, source_position, destination_name, destination_position, resource_filters=None):
+    def __init__(
+        self, source_name, source_position, destination_name, destination_position, resource_filters=None, options=None
+    ):
         """
         Args:
             source_name (str): source project item's name
@@ -31,12 +37,14 @@ class Connection:
             destination_position (str): destination anchor's position
             resource_filters (dict, optional): mapping from resource labels and filter types to
                 database ids and activity flags
+            options (dict, optional): any options, at the moment only has "use_datapackage"
         """
         self.source = source_name
         self._source_position = source_position
         self.destination = destination_name
         self._destination_position = destination_position
         self._resource_filters = resource_filters if resource_filters is not None else dict()
+        self.options = options if options is not None else dict()
         self._resources = set()
         self._id_to_name_cache = dict()
 
@@ -50,6 +58,10 @@ class Connection:
             and self._destination_position == other._destination_position
             and self._resource_filters == other._resource_filters
         )
+
+    @property
+    def name(self):
+        return f"from {self.source} to {self.destination}"
 
     @property
     def destination_position(self):
@@ -78,6 +90,10 @@ class Connection:
     def resource_filters(self):
         """Connection's resource filters."""
         return self._resource_filters
+
+    @property
+    def use_datapackage(self):
+        return self.options.get("use_datapackage", False)
 
     def id_to_name(self, id_, filter_type):
         """Map from scenario/tool database id to name"""
@@ -136,8 +152,47 @@ class Connection:
             online (dict): mapping from scenario/tool id to online flag
         """
         current_ids = self._resource_filters[resource][filter_type]
-        for id_, online in online.items():
-            current_ids[id_] = online
+        for id_, online_ in online.items():
+            current_ids[id_] = online_
+
+    def convert_resources(self, resources):
+        """Called when advertising resources through this connection *in the FORWARD direction*.
+        Takes the initial list of resources advertised by the source item and returns a new list,
+        which is the one finally advertised.
+
+        At the moment it only packs CSVs into datapackage (and again, it's only used in the FORWARD direction).
+
+        Args:
+            resources (list of ProjectItemResource): Resources to convert
+
+        Returns:
+            list of ProjectItemResource
+        """
+        if not self.use_datapackage:
+            return resources
+        # Split CSVs from the rest of resources
+        final_resources = []
+        csv_filepaths = []
+        for r in resources:
+            if r.hasfilepath and os.path.splitext(r.path)[1].lower() == ".csv":
+                csv_filepaths.append(r.path)
+                continue
+            final_resources.append(r)
+        if not csv_filepaths:
+            return final_resources
+        # Build Package from CSVs and add it to the resources
+        base_path = os.path.dirname(os.path.commonpath(csv_filepaths))
+        package = Package(base_path=base_path)
+        for path in csv_filepaths:
+            try:
+                package.infer(path)
+            except EncodingError:
+                continue
+        package_path = os.path.join(base_path, "datapackage.json")
+        package.save(package_path)
+        package_resource = file_resource(self.source, package_path)
+        final_resources.append(package_resource)
+        return final_resources
 
     def to_dict(self):
         """Returns a dictionary representation of this Connection.
@@ -154,6 +209,8 @@ class Connection:
                     if online:
                         online_ids_only.setdefault(label, {})[type_] = online
             d["resource_filters"] = online_ids_only
+        if self.options:
+            d["options"] = self.options.copy()
         return d
 
     @staticmethod
@@ -175,4 +232,5 @@ class Connection:
                 for type_, ids in filters_by_type.items():
                     for id_ in ids:
                         resource_filters.setdefault(label, {}).setdefault(type_, {})[id_] = True
-        return Connection(source_name, source_anchor, destination_name, destination_anchor, resource_filters)
+        options = connection_dict.get("options")
+        return Connection(source_name, source_anchor, destination_name, destination_anchor, resource_filters, options)
