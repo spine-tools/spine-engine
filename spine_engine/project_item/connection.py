@@ -184,10 +184,7 @@ class Connection:
         base_path = os.path.dirname(os.path.commonpath(csv_filepaths))
         package = Package(base_path=base_path)
         for path in csv_filepaths:
-            try:
-                package.infer(path)
-            except EncodingError:
-                continue
+            package.add_resource({"path": os.path.relpath(path, base_path)})
         package_path = os.path.join(base_path, "datapackage.json")
         package.save(package_path)
         package_resource = file_resource(self.source, package_path, label=f"datapackage@{self.source}")
