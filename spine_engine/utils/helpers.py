@@ -105,17 +105,19 @@ def resolve_python_interpreter(python_path):
 def resolve_python_executable_from_path():
     """[Windows only] Returns full path to Python executable in user's PATH env variable.
     If not found, returns an empty string.
-
-    Note: This looks for python.exe so this is Windows only.
-    Update needed to PYTHON_EXECUTABLE to make this os independent.
     """
     executable_paths = os.get_exec_path()
     for path in executable_paths:
-        if "python" in path.casefold():
-            python_candidate = os.path.join(path, "python.exe")
-            if os.path.isfile(python_candidate):
-                return python_candidate
+        python_candidate = os.path.join(path, PYTHON_EXECUTABLE)
+        if os.path.isfile(python_candidate):
+            return python_candidate
     return ""
+
+
+def resolve_julia_executable(julia_path):
+    if julia_path != "":
+        return julia_path
+    return resolve_julia_executable_from_path()
 
 
 def resolve_julia_executable_from_path():
@@ -130,10 +132,9 @@ def resolve_julia_executable_from_path():
     """
     executable_paths = os.get_exec_path()
     for path in executable_paths:
-        if "julia" in path.casefold():
-            julia_candidate = os.path.join(path, JULIA_EXECUTABLE)
-            if os.path.isfile(julia_candidate):
-                return julia_candidate
+        julia_candidate = os.path.join(path, JULIA_EXECUTABLE)
+        if os.path.isfile(julia_candidate):
+            return julia_candidate
     return ""
 
 
