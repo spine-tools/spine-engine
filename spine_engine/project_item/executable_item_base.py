@@ -17,13 +17,12 @@ Contains ExecutableItem, a project item's counterpart in execution as well as su
 """
 from pathlib import Path
 from ..spine_engine import ExecutionDirection
+from ..spine_engine import ItemExecutionFinishState
 from ..utils.helpers import shorten
 
 
 class ExecutableItemBase:
-    """
-    The part of a project item that is executed by the Spine Engine.
-    """
+    """The part of a project item that is executed by the Spine Engine."""
 
     def __init__(self, name, project_dir, logger):
         """
@@ -69,47 +68,61 @@ class ExecutableItemBase:
         self._filter_id = filter_id
         self._logger.set_filter_id(filter_id)
 
-    def execute(self, forward_resources, backward_resources):
+    def ready_to_execute(self):
+        """Validates the internal state of this project item before execution.
+
+        Subclasses can implement this method to do the appropriate work.
+
+        Returns:
+            bool: True if project item is ready for execution, False otherwise
         """
-        Executes this item using the given resources and returns a boolean indicating the outcome.
+        return True
+
+    def execute(self, forward_resources, backward_resources):
+        """Executes this item using the given resources and returns a boolean indicating the outcome.
 
         Subclasses can implement this method to do the appropriate work.
 
         Args:
-            forward_resources (list): a list of ProjectItemResources from predecesors (forward)
+            forward_resources (list): a list of ProjectItemResources from predecessors (forward)
             backward_resources (list): a list of ProjectItemResources from successors (backward)
 
         Returns:
-            bool: True if execution succeeded, False otherwise
+            ItemExecutionFinishState: State depending on operation success
         """
         self._logger.msg.emit(f"***Executing {self.item_type()} <b>{self._name}</b>***")
-        return True
+        return ItemExecutionFinishState.SUCCESS
 
     def skip_execution(self, forward_resources, backward_resources):
-        """
-        Skips executing the item.
+        """Skips executing the item.
 
-        This method is called when the item is not selected for execution. Only lightweight bookkeeping
-        or processing should be done in this case, e.g. forward input resources.
+        This method is called when the item is not selected (i.e EXCLUDED) for execution.
+        Only lightweight bookkeeping or processing should be done in this case, e.g.
+        forward input resources.
 
         Subclasses can implement this method to the appropriate work.
 
         Args:
-            forward_resources (list): a list of ProjectItemResources from predecesors (forward)
+            forward_resources (list): a list of ProjectItemResources from predecessors (forward)
             backward_resources (list): a list of ProjectItemResources from successors (backward)
         """
 
-    def finish_execution(self, success):
-        """
-        Does any work needed after execution given the execution success status.
+    def finish_execution(self, state):
+        """Does any work needed after execution given the execution success status.
 
         Args:
-            success (bool)
+            state (ItemExecutionFinishState): Item execution finish state
         """
-        if success:
+        if state == ItemExecutionFinishState.SUCCESS:
             self._logger.msg_success.emit(f"Executing {self.item_type()} {self.name} finished")
-        else:
+        elif state == ItemExecutionFinishState.FAILURE:
             self._logger.msg_error.emit(f"Executing {self.item_type()} {self.name} failed")
+        elif state == ItemExecutionFinishState.SKIPPED:
+            self._logger.msg_warning.emit(f"Executing {self.name} skipped")
+        elif state == ItemExecutionFinishState.STOPPED:
+            self._logger.msg_error.emit(f"Executing {self.name} stopped")
+        else:
+            self._logger.msg_error.emit(f"<b>{self.name}</b> finished execution in an unknown state")
 
     @staticmethod
     def item_type():
@@ -117,8 +130,7 @@ class ExecutableItemBase:
         raise NotImplementedError()
 
     def output_resources(self, direction):
-        """
-        Returns output resources in the given direction.
+        """Returns output resources in the given direction.
 
         Subclasses need to implement _output_resources_backward and/or _output_resources_forward
         if they want to provide resources in any direction.
@@ -127,7 +139,7 @@ class ExecutableItemBase:
             direction (ExecutionDirection): Direction where output resources are passed
 
         Returns:
-            a list of ProjectItemResources
+            list: a list of ProjectItemResources
         """
         return {
             ExecutionDirection.BACKWARD: self._output_resources_backward,
@@ -140,32 +152,29 @@ class ExecutableItemBase:
 
     # pylint: disable=no-self-use
     def _output_resources_forward(self):
-        """
-        Returns output resources for forward execution.
+        """Returns output resources for forward execution.
 
         The default implementation returns an empty list.
 
         Returns:
-            a list of ProjectItemResources
+            list: a list of ProjectItemResources
         """
         return list()
 
     # pylint: disable=no-self-use
     def _output_resources_backward(self):
-        """
-        Returns output resources for backward execution.
+        """Returns output resources for backward execution.
 
         The default implementation returns an empty list.
 
         Returns:
-            a list of ProjectItemResources
+            list: a list of ProjectItemResources
         """
         return list()
 
     @classmethod
     def from_dict(cls, item_dict, name, project_dir, app_settings, specifications, logger):
-        """
-        Deserializes an executable item from item dictionary.
+        """Deserializes an executable item from item dictionary.
 
         Args:
             item_dict (dict): serialized project item
@@ -174,6 +183,7 @@ class ExecutableItemBase:
             app_settings (QSettings): Toolbox settings
             specifications (dict): mapping from item type to specification name to :class:`ProjectItemSpecification`
             logger (LoggingInterface): a logger
+
         Returns:
             ExecutableItemBase: deserialized executable item
         """
@@ -182,7 +192,6 @@ class ExecutableItemBase:
     @staticmethod
     def _get_specification(name, item_type, specification_name, specifications, logger):
         if not specification_name:
-            logger.msg_error.emit(f"<b>{name}<b>: No specification defined. Unable to execute.")
             return None
         try:
             return specifications[item_type][specification_name]

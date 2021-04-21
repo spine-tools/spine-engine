@@ -27,7 +27,7 @@ from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.filters.tool_filter import tool_filter_config
 from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.tools import clear_filter_configs
-from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState
+from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState, ItemExecutionFinishState
 from spine_engine.project_item.project_item_resource import ProjectItemResource
 
 
@@ -37,14 +37,19 @@ def _make_resource(url):
 
 class TestSpineEngine(unittest.TestCase):
     @staticmethod
-    def _mock_item(name, resources_forward=None, resources_backward=None, execute_outcome=True):
+    def _mock_item(
+            name,
+            resources_forward=None,
+            resources_backward=None,
+            execute_outcome=ItemExecutionFinishState.SUCCESS
+    ):
         """Returns a mock project item.
 
         Args:
             name (str)
             resources_forward (list): Forward output_resources return value.
             resources_backward (list): Backward output_resources return value.
-            execute_outcome (bool): Execution return value.
+            execute_outcome (ItemExecutionFinishState): Execution return state.
 
         Returns:
             NonCallableMagicMock
@@ -97,7 +102,7 @@ class TestSpineEngine(unittest.TestCase):
         engine = SpineEngine(
             items=items, connections=connections, node_successors=successors, execution_permits=execution_permits
         )
-        engine._make_item = lambda name: engine._items[name]
+        engine._make_item = lambda name, direction: engine._items[name]
         engine.run()
         item_a_execute_args = [[], [self.url_b_bw]]
         item_b_execute_args = [[self.url_a_fw], [self.url_c_bw]]
@@ -125,7 +130,7 @@ class TestSpineEngine(unittest.TestCase):
         engine = SpineEngine(
             items=items, connections=connections, node_successors=successors, execution_permits=execution_permits
         )
-        engine._make_item = lambda name: engine._items[name]
+        engine._make_item = lambda name, direction: engine._items[name]
         engine.run()
         item_a_execute_args = [[], [self.url_b_bw, self.url_c_bw]]
         item_b_execute_calls = [call([self.url_a_fw], [])]
@@ -153,7 +158,7 @@ class TestSpineEngine(unittest.TestCase):
         engine = SpineEngine(
             items=items, connections=connections, node_successors=successors, execution_permits=execution_permits
         )
-        engine._make_item = lambda name: engine._items[name]
+        engine._make_item = lambda name, direction: engine._items[name]
         engine.run()
         item_a_execute_args = [[], [self.url_b_bw]]
         item_b_skip_execution_args = [[self.url_a_fw], [self.url_c_bw]]
@@ -202,7 +207,7 @@ class TestSpineEngine(unittest.TestCase):
             engine = SpineEngine(
                 items=items, connections=connections, node_successors=successors, execution_permits=execution_permits
             )
-            engine._make_item = lambda name: engine._items[name]
+            engine._make_item = lambda name, direction: engine._items[name]
             with patch("spine_engine.spine_engine.create_timestamp") as mock_create_timestamp:
                 mock_create_timestamp.return_value = "timestamp"
                 engine.run()
