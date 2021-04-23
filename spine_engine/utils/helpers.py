@@ -21,7 +21,7 @@ import datetime
 import time
 import json
 from jupyter_client.kernelspec import find_kernel_specs
-from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, EMBEDDED_PYTHON
+from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON
 
 
 class Singleton(type):
@@ -75,54 +75,26 @@ def create_timestamp():
     return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def python_interpreter(app_settings):
-    """Returns the full path to Python interpreter depending on
-    user's settings and whether the app is frozen or not.
-
-    Args:
-        app_settings (QSettings): Application preferences
-
-    Returns:
-        str: Path to python executable
-    """
-    python_path = app_settings.value("appSettings/pythonPath", defaultValue="")
-    return resolve_python_interpreter(python_path)
-
-
 def resolve_python_interpreter(python_path):
-    """Solves the full path to Python interpreter and returns it."""
+    """If given python_path is not empty, returns the
+    full path to Python interpreter depending on user's
+    settings and whether the app is frozen or not.
+    """
     if python_path != "":
         return python_path
     if not getattr(sys, "frozen", False):
         return sys.executable  # Use current Python
     # We are frozen
-    path = resolve_python_executable_from_path()
+    path = resolve_executable_from_path(PYTHON_EXECUTABLE)
     if path != "":
         return path  # Use Python from PATH
     return EMBEDDED_PYTHON  # Use embedded <app_install_dir>/Tools/python.exe
 
 
-def resolve_python_executable_from_path():
-    """Returns full path to Python executable in user's PATH env variable.
-    If not found, returns an empty string.
-    """
-    executable_paths = os.get_exec_path()
-    for path in executable_paths:
-        python_candidate = os.path.join(path, PYTHON_EXECUTABLE)
-        if os.path.isfile(python_candidate):
-            return python_candidate
-    return ""
-
-
 def resolve_julia_executable(julia_path):
-    if julia_path != "":
-        return julia_path
-    return resolve_julia_executable_from_path()
-
-
-def resolve_julia_executable_from_path():
-    """Returns full path to Julia executable in user's PATH env variable.
-    If not found, returns an empty string.
+    """if given julia_path is empty, tries to find the path to Julia
+    in user's PATH env variable. If Julia is not found in PATH,
+    returns an empty string.
 
     Note: In the long run, we should decide whether this is something we want to do
     because adding julia-x.x./bin/ dir to the PATH is not recommended because this
@@ -130,11 +102,39 @@ def resolve_julia_executable_from_path():
     may break other programs, and this is why the Julia installer does not
     add (and does not even offer the chance to add) Julia to PATH.
     """
+    if julia_path != "":
+        return julia_path
+    return resolve_executable_from_path(JULIA_EXECUTABLE)
+
+
+def resolve_gams_executable(gams_path):
+    """if given gams_path is empty, tries to find the path to Gams
+    in user's PATH env variable. If Gams is not found in PATH,
+    returns an empty string.
+    """
+    if gams_path != "":
+        return gams_path
+    return resolve_executable_from_path(GAMS_EXECUTABLE)
+
+
+def resolve_executable_from_path(executable_name):
+    """Returns full path to executable name in user's
+    PATH env variable. If not found, returns an empty string.
+
+    Basically equivalent to 'where' and 'which' commands in
+    cmd.exe and bash respectively.
+
+    Args:
+        executable_name (str): Executable filename to find (e.g. python.exe, julia.exe)
+
+    Returns:
+        str: Full path or empty string
+    """
     executable_paths = os.get_exec_path()
     for path in executable_paths:
-        julia_candidate = os.path.join(path, JULIA_EXECUTABLE)
-        if os.path.isfile(julia_candidate):
-            return julia_candidate
+        candidate = os.path.join(path, executable_name)
+        if os.path.isfile(candidate):
+            return candidate
     return ""
 
 
@@ -195,7 +195,7 @@ def get_julia_env(settings):
         return julia, project
     julia = settings.value("appSettings/juliaPath", defaultValue="")
     if julia == "":
-        julia = resolve_julia_executable_from_path()
+        julia = resolve_executable_from_path(JULIA_EXECUTABLE)
         if julia == "":
             return None
     project = settings.value("appSettings/juliaProjectPath", defaultValue="")
