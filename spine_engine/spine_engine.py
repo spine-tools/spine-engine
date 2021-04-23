@@ -404,7 +404,7 @@ class SpineEngine:
         )
         for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
             item = self._make_item(item_name, "forward")
-            if not item.ready_to_execute():
+            if not item.ready_to_execute(self._settings):
                 if not self._execution_permits[self._solid_names[item_name]]:  # Exclude if not selected
                     success[0] = ItemExecutionFinishState.EXCLUDED
                 else:  # Fail if selected

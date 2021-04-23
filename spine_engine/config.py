@@ -16,6 +16,7 @@ Application constants.
 :date:   2.1.2018
 """
 
+import os
 import sys
 
 _on_windows = sys.platform == "win32"
@@ -37,6 +38,11 @@ JULIA_EXECUTABLE = _executable("julia")
 
 # Python
 PYTHON_EXECUTABLE = _executable("python" if _on_windows else "python3")
+_frozen = getattr(sys, "frozen", False)
+_path_to_executable = os.path.dirname(sys.executable if _frozen else __file__)
+APPLICATION_PATH = os.path.realpath(_path_to_executable)
+# Experimental Python interpreter shipped with Spine Toolbox installation bundle
+EMBEDDED_PYTHON = os.path.join(APPLICATION_PATH, "tools", "python.exe")
 
 # Tool output directory name
 TOOL_OUTPUT_DIR = "output"

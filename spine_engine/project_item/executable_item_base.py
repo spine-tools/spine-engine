@@ -68,10 +68,13 @@ class ExecutableItemBase:
         self._filter_id = filter_id
         self._logger.set_filter_id(filter_id)
 
-    def ready_to_execute(self):
+    def ready_to_execute(self, settings):
         """Validates the internal state of this project item before execution.
 
         Subclasses can implement this method to do the appropriate work.
+
+        Args:
+            settings (AppSettings): Application settings
 
         Returns:
             bool: True if project item is ready for execution, False otherwise

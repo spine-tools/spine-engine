@@ -21,7 +21,7 @@ import datetime
 import time
 import json
 from jupyter_client.kernelspec import find_kernel_specs
-from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE
+from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, EMBEDDED_PYTHON
 
 
 class Singleton(type):
@@ -99,11 +99,11 @@ def resolve_python_interpreter(python_path):
     path = resolve_python_executable_from_path()
     if path != "":
         return path  # Use Python from PATH
-    return PYTHON_EXECUTABLE  # Use embedded <app_install_dir>/Tools/python.exe
+    return EMBEDDED_PYTHON  # Use embedded <app_install_dir>/Tools/python.exe
 
 
 def resolve_python_executable_from_path():
-    """[Windows only] Returns full path to Python executable in user's PATH env variable.
+    """Returns full path to Python executable in user's PATH env variable.
     If not found, returns an empty string.
     """
     executable_paths = os.get_exec_path()
