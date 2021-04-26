@@ -67,7 +67,7 @@ class TestSpineEngine(unittest.TestCase):
             return execute_outcome
 
         item.execute.side_effect = execute
-        item.skip_execution = MagicMock()
+        item.exclude_execution = MagicMock()
         for r in resources_forward + resources_backward:
             r.provider_name = item.name
         item.output_resources.side_effect = lambda direction: {
@@ -105,11 +105,11 @@ class TestSpineEngine(unittest.TestCase):
         item_b_execute_args = [[self.url_a_fw], [self.url_c_bw]]
         item_c_execute_calls = [call([self.url_b_fw], [])]
         self.assert_execute_call(mock_item_a.execute, item_a_execute_args)
-        mock_item_a.skip_execution.assert_not_called()
+        mock_item_a.exclude_execution.assert_not_called()
         self.assert_execute_call(mock_item_b.execute, item_b_execute_args)
-        mock_item_b.skip_execution.assert_not_called()
+        mock_item_b.exclude_execution.assert_not_called()
         mock_item_c.execute.assert_has_calls(item_c_execute_calls)
-        mock_item_c.skip_execution.assert_not_called()
+        mock_item_c.exclude_execution.assert_not_called()
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     def test_fork_execution_succeeds(self):
@@ -133,11 +133,11 @@ class TestSpineEngine(unittest.TestCase):
         item_b_execute_calls = [call([self.url_a_fw], [])]
         item_c_execute_calls = [call([self.url_a_fw], [])]
         self.assert_execute_call(mock_item_a.execute, item_a_execute_args)
-        mock_item_a.skip_execution.assert_not_called()
+        mock_item_a.exclude_execution.assert_not_called()
         mock_item_b.execute.assert_has_calls(item_b_execute_calls)
-        mock_item_b.skip_execution.assert_not_called()
+        mock_item_b.exclude_execution.assert_not_called()
         mock_item_c.execute.assert_has_calls(item_c_execute_calls)
-        mock_item_c.skip_execution.assert_not_called()
+        mock_item_c.exclude_execution.assert_not_called()
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     def test_execution_permits(self):
@@ -161,12 +161,12 @@ class TestSpineEngine(unittest.TestCase):
         item_b_skip_execution_args = [[self.url_a_fw], [self.url_c_bw]]
         item_c_execute_calls = [call([self.url_b_fw], [])]
         self.assert_execute_call(mock_item_a.execute, item_a_execute_args)
-        mock_item_a.skip_execution.assert_not_called()
+        mock_item_a.exclude_execution.assert_not_called()
         mock_item_b.execute.assert_not_called()
-        self.assert_execute_call(mock_item_b.skip_execution, item_b_skip_execution_args)
+        self.assert_execute_call(mock_item_b.exclude_execution, item_b_skip_execution_args)
         mock_item_b.output_resources.assert_called()
         mock_item_c.execute.assert_has_calls(item_c_execute_calls)
-        mock_item_c.skip_execution.assert_not_called()
+        mock_item_c.exclude_execution.assert_not_called()
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     def test_filter_stacks(self):
@@ -195,12 +195,6 @@ class TestSpineEngine(unittest.TestCase):
             ]
             successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
             execution_permits = {"item_a": True, "item_b": True, "item_c": True}
-            filter_stacks = {
-                (url_a_fw.label, "item_b"): [
-                    (scenario_filter_config("scen1"),),
-                    (scenario_filter_config("scen2"), tool_filter_config("toolA")),
-                ]
-            }
             engine = SpineEngine(
                 items=items, connections=connections, node_successors=successors, execution_permits=execution_permits
             )
