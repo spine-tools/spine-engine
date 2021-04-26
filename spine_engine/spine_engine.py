@@ -418,8 +418,8 @@ class SpineEngine:
                 )
                 threads.append(thread)
                 thread.start()
-            for thread in threads:
-                thread.join()
+        for thread in threads:
+            thread.join()
         if success[0] == ItemExecutionFinishState.FAILURE:
             context.log.error(f"compute_fn() FAILURE with item: {item_name} failed to execute")
             raise Failure()
