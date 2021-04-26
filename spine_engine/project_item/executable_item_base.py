@@ -96,8 +96,8 @@ class ExecutableItemBase:
         self._logger.msg.emit(f"***Executing {self.item_type()} <b>{self._name}</b>***")
         return ItemExecutionFinishState.SUCCESS
 
-    def skip_execution(self, forward_resources, backward_resources):
-        """Skips executing the item.
+    def exclude_execution(self, forward_resources, backward_resources):
+        """Excludes execution of this item.
 
         This method is called when the item is not selected (i.e EXCLUDED) for execution.
         Only lightweight bookkeeping or processing should be done in this case, e.g.

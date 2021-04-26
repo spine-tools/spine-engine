@@ -163,7 +163,7 @@ class SpineEngine:
         item_dict = self._items[item_name]
         item_type = item_dict["type"]
         executable_item_class = self._executable_item_classes[item_type]
-        if direction == "forward":
+        if direction == ED.FORWARD:
             logger = QueueLogger(self._queue, item_name)
         else:
             logger = None  # Prevent backward solid from logging
@@ -236,7 +236,7 @@ class SpineEngine:
         elif event.event_type == DagsterEventType.STEP_SUCCESS:
             # Notify Toolbox here when BACKWARD execution has finished
             direction, _, solid_name = event.solid_name.partition("_")
-            if not direction == "BACKWARD":
+            if direction != "BACKWARD":
                 return
             item_name = self._item_names[solid_name]
             if not self._execution_permits[solid_name]:
@@ -257,11 +257,11 @@ class SpineEngine:
         elif event.event_type == DagsterEventType.STEP_MATERIALIZATION:
             # Notify Toolbox here when FORWARD execution has finished
             direction, _, solid_name = event.solid_name.partition("_")
-            if not direction == "FORWARD":
+            if direction != "FORWARD":
                 return
             item_name = self._item_names[solid_name]
-            asset_key = event.asset_key.path[0]
-            item_finish_state = ItemExecutionFinishState[asset_key]
+            state_value = event.asset_key.path[0]
+            item_finish_state = ItemExecutionFinishState[state_value]
             self._queue.put(
                 (
                     'exec_finished',
@@ -322,7 +322,7 @@ class SpineEngine:
                 context.log.error(f"compute_fn() FAILURE with item: {item_name} stopped by the user")
                 raise Failure()
             context.log.info(f"Item Name: {item_name}")
-            item = self._make_item(item_name, "backward")
+            item = self._make_item(item_name, ED.BACKWARD)
             resources = item.output_resources(ED.BACKWARD)
             yield Output(value=resources, output_name=f"{ED.BACKWARD}_output")
 
@@ -403,7 +403,7 @@ class SpineEngine:
             item_name, forward_resource_stacks, backward_resources, create_timestamp()
         )
         for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
-            item = self._make_item(item_name, "forward")
+            item = self._make_item(item_name, ED.FORWARD)
             if not item.ready_to_execute(self._settings):
                 if not self._execution_permits[self._solid_names[item_name]]:  # Exclude if not selected
                     success[0] = ItemExecutionFinishState.EXCLUDED
@@ -448,7 +448,7 @@ class SpineEngine:
             item_finish_state = item.execute(filtered_forward_resources, filtered_backward_resources)
             item.finish_execution(item_finish_state)
         else:
-            item.skip_execution(filtered_forward_resources, filtered_backward_resources)
+            item.exclude_execution(filtered_forward_resources, filtered_backward_resources)
             item_finish_state = ItemExecutionFinishState.EXCLUDED
         filter_stack = sum((r.metadata.get("filter_stack", ()) for r in filtered_forward_resources), ())
         output_resources = item.output_resources(ED.FORWARD)
