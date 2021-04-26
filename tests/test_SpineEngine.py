@@ -38,10 +38,7 @@ def _make_resource(url):
 class TestSpineEngine(unittest.TestCase):
     @staticmethod
     def _mock_item(
-            name,
-            resources_forward=None,
-            resources_backward=None,
-            execute_outcome=ItemExecutionFinishState.SUCCESS
+        name, resources_forward=None, resources_backward=None, execute_outcome=ItemExecutionFinishState.SUCCESS
     ):
         """Returns a mock project item.
 

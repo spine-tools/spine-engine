@@ -51,6 +51,17 @@ class TestConnection(unittest.TestCase):
         connection.set_online("label", "scenario_filter", {13: True})
         self.assertEqual(connection.resource_filters, {"label": {"scenario_filter": {13: True}}})
 
+    def test_replace_resource_from_source(self):
+        filters = {"database": {"scenario_filter": {13: False}}}
+        connection = Connection("source", "bottom", "destination", "top", filters)
+        original = database_resource("source", "sqlite:///db.sqlite", label="database")
+        connection.receive_resources_from_source([original])
+        self.assertEqual(connection.database_resources, {original})
+        modified = database_resource("source", "sqlite:///db2.sqlite", label="new database")
+        connection.replace_resource_from_source(original, modified)
+        self.assertEqual(connection.database_resources, {modified})
+        self.assertEqual(connection.resource_filters, {"new database": {"scenario_filter": {13: False}}})
+
 
 class TestConnectionWithDatabase(unittest.TestCase):
     def setUp(self):

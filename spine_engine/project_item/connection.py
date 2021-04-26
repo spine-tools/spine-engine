@@ -108,6 +108,20 @@ class Connection:
         """
         self._resources = {r for r in resources if r.type_ == "database"}
 
+    def replace_resource_from_source(self, old, new):
+        """Replaces an existing resource.
+
+        Args:
+            old (ProjectItemResource): old resource
+            new (ProjectItemResource): new resource
+        """
+        self._resources.discard(old)
+        old_filters = self._resource_filters.pop(old.label, None)
+        if new.type_ == "database":
+            self._resources.add(new)
+            if old_filters is not None:
+                self._resource_filters[new.label] = old_filters
+
     def fetch_database_items(self):
         """Reads filter information from database."""
         resource_filters = dict()
