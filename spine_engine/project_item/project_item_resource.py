@@ -46,8 +46,6 @@ class ProjectItemResource:
             metadata (dict): Additional metadata providing extra information about the resource.
                 Currently available keys:
 
-                - updated_from (str): previous resource label if the resource corresponds to an old one e.g. after
-                    a sqlite database or file rename
                 - filter_stack (str): resource's filter stack
                 - filter_id (str): filter id
         """
