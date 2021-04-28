@@ -32,7 +32,8 @@ def load_item_specification_factories():
     items_root = pathlib.Path(spine_items.__file__).parent
     factories = dict()
     for child in items_root.iterdir():
-        if child.is_dir() and child.joinpath("specification_factory.py").exists():
+        if child.is_dir() and child.joinpath("specification_factory.py").exists() or \
+                (child.is_dir() and child.joinpath("specification_factory.pyc").exists()):
             spec = importlib.util.find_spec(f"spine_items.{child.stem}.specification_factory")
             m = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(m)
@@ -54,7 +55,8 @@ def load_executable_item_classes():
     items_root = pathlib.Path(spine_items.__file__).parent
     classes = dict()
     for child in items_root.iterdir():
-        if child.is_dir() and child.joinpath("executable_item.py").exists():
+        if child.is_dir() and child.joinpath("executable_item.py").exists() or \
+                (child.is_dir() and child.joinpath("executable_item.pyc").exists()):
             spec = importlib.util.find_spec(f"spine_items.{child.stem}.executable_item")
             m = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(m)
