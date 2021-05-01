@@ -114,12 +114,11 @@ class _KernelManagerFactory(metaclass=Singleton):
             self._kernel_managers[key] = KernelManager(kernel_name=kernel_name)
         return self._kernel_managers[key]
 
-    def new_kernel_manager(self, language, kernel_name, group_id, logger, extra_switches=None, **kwargs):
+    def new_kernel_manager(self, kernel_name, group_id, logger, extra_switches=None, **kwargs):
         """Creates a new kernel manager for given kernel and group id if none exists.
         Starts the kernel if not started, and returns it.
 
         Args:
-            language (str): The underlying language, for logging purposes.
             kernel_name (str): the kernel
             group_id (str): item group that will execute using this kernel
             logger (LoggerInterface): for logging
@@ -132,7 +131,7 @@ class _KernelManagerFactory(metaclass=Singleton):
         """
         km = self._make_kernel_manager(kernel_name, group_id)
         if not km.is_alive():
-            msg_head = dict(language=language, kernel_name=kernel_name)
+            msg_head = dict(kernel_name=kernel_name)
             if not km.kernel_spec:
                 msg = dict(type="kernel_spec_not_found", **msg_head)
                 logger.msg_kernel_execution.emit(msg)
@@ -188,7 +187,6 @@ class KernelExecutionManager(ExecutionManagerBase):
     def __init__(
         self,
         logger,
-        language,
         kernel_name,
         *commands,
         group_id=None,
@@ -200,7 +198,6 @@ class KernelExecutionManager(ExecutionManagerBase):
         """
         Args:
             logger (LoggerInterface)
-            language (str): The underlying language, mainly for logging purposes.
             kernel_name (str): the kernel
             *commands: Commands to execute in the kernel
             group_id (str, optional): item group that will execute using this kernel
@@ -211,12 +208,12 @@ class KernelExecutionManager(ExecutionManagerBase):
             **kwargs (optional): Keyword arguments passed to ``KernelManager.start_kernel()``
         """
         super().__init__(logger)
-        self._msg_head = dict(language=language, kernel_name=kernel_name)
+        self._msg_head = dict(kernel_name=kernel_name)
         self._commands = commands
         self._group_id = group_id
         self._workdir = workdir
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
-            language, kernel_name, group_id, logger, cwd=self._workdir, extra_switches=extra_switches, **kwargs
+            kernel_name, group_id, logger, cwd=self._workdir, extra_switches=extra_switches, **kwargs
         )
         self._kernel_client = self._kernel_manager.client() if self._kernel_manager is not None else None
         self._startup_timeout = startup_timeout
