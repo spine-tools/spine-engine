@@ -17,77 +17,9 @@ Contains the ExeuctionManagerBase class and main subclasses.
 """
 
 import os
-from subprocess import Popen, PIPE
-from threading import Thread
 from jupyter_client.manager import KernelManager
-from .utils.helpers import Singleton
-
-
-class ExecutionManagerBase:
-    """Base class for all tool instance execution managers."""
-
-    def __init__(self, logger):
-        """Class constructor.
-
-        Args:
-            logger (LoggerInterface): a logger instance
-        """
-        self._logger = logger
-
-    def run_until_complete(self):
-        """Runs until completion.
-
-        Returns:
-            int: return code
-        """
-        raise NotImplementedError()
-
-    def stop_execution(self):
-        """Stops execution gracefully."""
-        raise NotImplementedError()
-
-
-class StandardExecutionManager(ExecutionManagerBase):
-    def __init__(self, logger, program, *args, workdir=None):
-        """Class constructor.
-
-        Args:
-            logger (LoggerInterface): a logger instance
-            program (str): Path to program to run in the subprocess (e.g. julia.exe)
-            args (list): List of argument for the program (e.g. path to script file)
-        """
-        super().__init__(logger)
-        self._process = None
-        self._program = program
-        self._args = args
-        self._workdir = workdir
-
-    def run_until_complete(self):
-        try:
-            self._process = Popen([self._program, *self._args], stdout=PIPE, stderr=PIPE, cwd=self._workdir)
-        except OSError as e:
-            msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
-            self._logger.msg_standard_execution.emit(msg)
-            return
-        msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
-        self._logger.msg_standard_execution.emit(msg)
-        Thread(target=self._log_stdout, args=(self._process.stdout,), daemon=True).start()
-        Thread(target=self._log_stderr, args=(self._process.stderr,), daemon=True).start()
-        return self._process.wait()
-
-    def stop_execution(self):
-        if self._process is not None:
-            self._process.terminate()
-
-    def _log_stdout(self, stdout):
-        for line in iter(stdout.readline, b''):
-            self._logger.msg_proc.emit(line.decode("UTF8", "replace").strip())
-        stdout.close()
-
-    def _log_stderr(self, stderr):
-        for line in iter(stderr.readline, b''):
-            self._logger.msg_proc_error.emit(line.decode("UTF8").strip())
-        stderr.close()
+from ..utils.helpers import Singleton
+from .execution_manager_base import ExecutionManagerBase
 
 
 class _KernelManagerFactory(metaclass=Singleton):
@@ -123,7 +55,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             kernel_name (str): the kernel
             group_id (str): item group that will execute using this kernel
             logger (LoggerInterface): for logging
-            extra_switches (list, optional): List of additional switches to launch julia.
+            extra_switches (list, optional): List of additional switches to julia or python.
                 These come before the 'programfile'.
             `**kwargs`: optional. Keyword arguments passed to ``KernelManager.start_kernel()``
 
@@ -195,7 +127,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         workdir=None,
         startup_timeout=60,
         extra_switches=None,
-        **kwargs
+        **kwargs,
     ):
         """
         Args:
