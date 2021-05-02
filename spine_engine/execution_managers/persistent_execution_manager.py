@@ -24,6 +24,7 @@ import socketserver
 import signal
 import uuid
 import time
+import textwrap
 from subprocess import Popen, PIPE
 from threading import Thread
 from queue import Queue
@@ -114,7 +115,7 @@ class PersistentManagerBase:
 
     def _issue_command(self, cmd):
         """Issues command."""
-        self._persistent.stdin.write(f"{cmd.strip()}{os.linesep}".encode("UTF8"))
+        self._persistent.stdin.write(f"{cmd.strip()}{os.linesep}{os.linesep}".encode("UTF8"))
         try:
             self._persistent.stdin.flush()
             return True
@@ -211,6 +212,27 @@ class JuliaPersistentManager(PersistentManagerBase):
         return '<br><span style="color:green; font-weight: bold">julia></span> '
 
 
+class PythonPersistentManager(PersistentManagerBase):
+    @staticmethod
+    def _make_sentinel(host, port, secret):
+        return textwrap.dedent(
+            f"""\
+            import socket
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect(("{host}", {port}))
+                s.sendall(b"{secret}")
+            """
+        )
+
+    @property
+    def lexer_name(self):
+        return "python"
+
+    @property
+    def prompt(self):
+        return '>>> '
+
+
 class _PersistentManagerFactory(metaclass=Singleton):
     _persistent_managers = {}
     """Maps tuples (*process args) to associated PersistentManagerBase."""
@@ -234,14 +256,15 @@ class _PersistentManagerFactory(metaclass=Singleton):
         key = tuple(args + [group_id])
         if key not in self._persistent_managers or not self._persistent_managers[key].is_persistent_alive():
             try:
-                pm = self._persistent_managers[key] = constructor(args, cwd=cwd)
-                msg = dict(type="persistent_started", key=key, lexer_name=pm.lexer_name, prompt=pm.prompt)
-                logger.msg_persistent_execution.emit(msg)
+                self._persistent_managers[key] = constructor(args, cwd=cwd)
             except OSError as err:
                 msg = dict(type="persistent_failed_to_start", args=args, error=str(err))
                 logger.msg_persistent_execution.emit(msg)
                 return None
-        return self._persistent_managers[key]
+        pm = self._persistent_managers[key]
+        msg = dict(type="persistent_started", key=key, lexer_name=pm.lexer_name, prompt=pm.prompt)
+        logger.msg_persistent_execution.emit(msg)
+        return pm
 
     def restart_persistent(self, key):
         """Restart a persistent process.
@@ -345,3 +368,9 @@ class JuliaPersistentExecutionManager(PersistentExecutionManagerBase):
     @staticmethod
     def persistent_manager_factory():
         return JuliaPersistentManager
+
+
+class PythonPersistentExecutionManager(PersistentExecutionManagerBase):
+    @staticmethod
+    def persistent_manager_factory():
+        return PythonPersistentManager
