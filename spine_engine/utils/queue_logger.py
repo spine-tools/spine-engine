@@ -78,7 +78,7 @@ class QueueLogger:
         self.msg_proc = _Message(queue, "process_msg", "msg", item_name)
         self.msg_proc_error = _Message(queue, "process_msg", "msg_error", item_name)
         self.msg_standard_execution = _ExecutionMessage(queue, "standard_execution_msg", item_name)
-        self.msg_terminal_execution = _ExecutionMessage(queue, "terminal_execution_msg", item_name)
+        self.msg_persistent_execution = _ExecutionMessage(queue, "persistent_execution_msg", item_name)
         self.msg_kernel_execution = _ExecutionMessage(queue, "kernel_execution_msg", item_name)
 
     def set_filter_id(self, filter_id):
@@ -89,5 +89,5 @@ class QueueLogger:
         self.msg_proc.filter_id = filter_id
         self.msg_proc_error.filter_id = filter_id
         self.msg_standard_execution.filter_id = filter_id
-        self.msg_terminal_execution.filter_id = filter_id
+        self.msg_persistent_execution.filter_id = filter_id
         self.msg_kernel_execution.filter_id = filter_id
