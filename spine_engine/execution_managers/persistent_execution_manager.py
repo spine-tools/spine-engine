@@ -127,6 +127,8 @@ class PersistentManagerBase:
         self._persistent.kill()
         self._persistent.wait()
         self._persistent = Popen(self._args, **self._kwargs)
+        Thread(target=self._log_stdout, daemon=True).start()
+        Thread(target=self._log_stderr, daemon=True).start()
 
     def interrupt_persistent(self):
         if self._persistent is None:
@@ -188,6 +190,18 @@ class _PersistentManagerFactory(metaclass=Singleton):
                 return None
         return self._persistent_managers[key]
 
+    def restart_persistent(self, key):
+        pm = self._persistent_managers.get(key)
+        if pm is None:
+            return
+        pm.restart_persistent()
+
+    def interrupt_persistent(self, key):
+        pm = self._persistent_managers.get(key)
+        if pm is None:
+            return
+        pm.interrupt_persistent()
+
     def issue_persistent_command(self, key, cmd):
         pm = self._persistent_managers.get(key)
         if pm is None:
@@ -201,6 +215,14 @@ _persistent_manager_factory = _PersistentManagerFactory()
 
 def issue_persistent_command(key, cmd):
     yield from _persistent_manager_factory.issue_persistent_command(key, cmd)
+
+
+def restart_persistent(key):
+    _persistent_manager_factory.restart_persistent(key)
+
+
+def interrupt_persistent(key):
+    _persistent_manager_factory.interrupt_persistent(key)
 
 
 class PersistentExecutionManagerBase(ExecutionManagerBase):
