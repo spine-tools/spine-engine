@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Contains the ExeuctionManagerBase class and main subclasses.
+Contains the ProcessExecutionManager class.
 
 :authors: M. Marin (KTH)
 :date:   12.10.2020

@@ -10,7 +10,8 @@
 ######################################################################################################################
 
 """
-Contains the ExeuctionManagerBase class and main subclasses.
+Contains PersistentManagerBase, PersistentExecutionManagerBase classes and subclasses,
+as well as some convenience functions.
 
 :authors: M. Marin (KTH)
 :date:   12.10.2020
@@ -35,6 +36,11 @@ if sys.platform == "win32":
 
 class PersistentManagerBase:
     def __init__(self, args, cwd=None):
+        """
+        Args:
+            args (list): the arguments to launch the persistent process
+            cwd (str, optional): the directory where to start the process
+        """
         self._args = args
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
         if sys.platform == "win32":
@@ -47,17 +53,48 @@ class PersistentManagerBase:
 
     @staticmethod
     def _make_sentinel(host, port, secret):
+        """Returns a command to pass to the persistent process, that sends a secret to a socket server listening in
+        host/port. Used to wait for commands to finish (see _wait_for_command_to_finish())
+        Must be reimplemented in subclasses.
+
+        Args:
+            host (str)
+            port (int)
+            secret (str)
+
+        Returns:
+            str
+        """
         raise NotImplementedError()
 
     @property
     def lexer_name(self):
+        """Returns a lexer name for syntax highlighting.
+
+        Returns:
+            str
+        """
         raise NotImplementedError()
 
     @property
     def prompt(self):
+        """Returns a prompt for console applications.
+
+        Returns:
+            str
+        """
         raise NotImplementedError()
 
     def issue_command(self, cmd):
+        """Issues cmd to the persistent process and returns an iterator of stdout and stderr messages.
+        Each message is a dictionary with keys: "type" (either "stdout", "stderr"), and "data" (the actual message string).
+
+        Args:
+            cmd (str)
+
+        Returns:
+            generator
+        """
         t = Thread(target=self._issue_command_and_wait_for_finish, args=(cmd,))
         t.start()
         self._idle = False
@@ -70,11 +107,13 @@ class PersistentManagerBase:
         t.join()
 
     def _issue_command_and_wait_for_finish(self, cmd):
+        """Issues command and wait for finish."""
         success = self._issue_command(cmd) and self._wait_for_command_to_finish()
         msg = dict(type="persistent_command_finished", success=success)
         self._queue.put(msg)
 
     def _issue_command(self, cmd):
+        """Issues command."""
         self._persistent.stdin.write(f"{cmd.strip()}{os.linesep}".encode("UTF8"))
         try:
             self._persistent.stdin.flush()
@@ -83,6 +122,9 @@ class PersistentManagerBase:
             return False
 
     def _wait_for_command_to_finish(self):
+        """Waits for command to finish. This is implemented by sending the sentinel command to the process
+        (see _make_sentinel()) and listening on a socket server until the secret is received.
+        """
         host = "127.0.0.1"
         with socketserver.TCPServer((host, 0), None) as s:
             port = s.server_address[1]
@@ -102,6 +144,7 @@ class PersistentManagerBase:
 
     @staticmethod
     def _listen_and_enqueue(host, port, queue):
+        """Listens on the server and enqueues all data received."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((host, port))
             s.listen()
@@ -114,16 +157,19 @@ class PersistentManagerBase:
                     queue.put(data.decode("UTF8", "replace"))
 
     def _log_stdout(self):
+        """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
         for line in iter(self._persistent.stdout.readline, b''):
             data = line.decode("UTF8", "replace").strip()
             self._queue.put(dict(type="stdout", data=data))
 
     def _log_stderr(self):
+        """Puts stderr from the process into the queue (it will be consumed by issue_command())."""
         for line in iter(self._persistent.stderr.readline, b''):
             data = line.decode("UTF8", "replace").strip()
             self._queue.put(dict(type="stderr", data=data))
 
     def restart_persistent(self):
+        """Restarts the persistent process."""
         self._persistent.kill()
         self._persistent.wait()
         self._persistent = Popen(self._args, **self._kwargs)
@@ -131,6 +177,7 @@ class PersistentManagerBase:
         Thread(target=self._log_stderr, daemon=True).start()
 
     def interrupt_persistent(self):
+        """Interrupts the persistent process."""
         if self._persistent is None:
             return
         Thread(target=self._do_interrupt_persistent, args=(), daemon=True).start()
@@ -142,6 +189,11 @@ class PersistentManagerBase:
             time.sleep(1)
 
     def is_persistent_alive(self):
+        """Whether or not the persistent is still alive and ready to receive commands.
+
+        Returns:
+            bool
+        """
         return self._persistent.returncode is None
 
 
@@ -168,9 +220,10 @@ class _PersistentManagerFactory(metaclass=Singleton):
 
         Args:
             constructor (function): the persistent manager constructor
-            args (list): the persistent arguments
-            group_id (str): item group that will execute using this persistent
             logger (LoggerInterface)
+            args (list): the arguments to launch the persistent process
+            group_id (str): item group that will execute using this persistent
+            cwd (str, optional): directory where to start the persistent
 
         Returns:
             Popen
@@ -191,18 +244,37 @@ class _PersistentManagerFactory(metaclass=Singleton):
         return self._persistent_managers[key]
 
     def restart_persistent(self, key):
+        """Restart a persistent process.
+
+        Args:
+            key (tuple): persistent identifier
+        """
         pm = self._persistent_managers.get(key)
         if pm is None:
             return
         pm.restart_persistent()
 
     def interrupt_persistent(self, key):
+        """Interrupts a persistent process.
+
+        Args:
+            key (tuple): persistent identifier
+        """
         pm = self._persistent_managers.get(key)
         if pm is None:
             return
         pm.interrupt_persistent()
 
     def issue_persistent_command(self, key, cmd):
+        """Issues a command to a persistent process.
+
+        Args:
+            key (tuple): persistent identifier
+            command (str): command to issue
+
+        Returns:
+            generator: stdio and stderr messages (dictionaries with two keys: type, and data)
+        """
         pm = self._persistent_managers.get(key)
         if pm is None:
             return
@@ -213,16 +285,16 @@ class _PersistentManagerFactory(metaclass=Singleton):
 _persistent_manager_factory = _PersistentManagerFactory()
 
 
-def issue_persistent_command(key, cmd):
-    yield from _persistent_manager_factory.issue_persistent_command(key, cmd)
-
-
 def restart_persistent(key):
     _persistent_manager_factory.restart_persistent(key)
 
 
 def interrupt_persistent(key):
     _persistent_manager_factory.interrupt_persistent(key)
+
+
+def issue_persistent_command(key, cmd):
+    yield from _persistent_manager_factory.issue_persistent_command(key, cmd)
 
 
 class PersistentExecutionManagerBase(ExecutionManagerBase):
@@ -233,18 +305,27 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             logger (LoggerInterface): a logger instance
             args (list): List of args to start the persistent process
             commands (list): List of commands to execute in the persistent process
+            group_id (str, optional): item group that will execute using this kernel
+            workdir (str, optional): item group that will execute using this kernel
         """
         super().__init__(logger)
         self._commands = commands
         self._persistent_manager = _persistent_manager_factory.new_persistent_manager(
-            self.persistent_constructor(), logger, args, group_id, cwd=workdir
+            self.persistent_manager_factory(), logger, args, group_id, cwd=workdir
         )
 
     @staticmethod
-    def persistent_constructor():
+    def persistent_manager_factory():
+        """Returns a function to create a persistent manager for this execution
+        (a subclass of PersistentManagerBase)
+
+        Returns:
+            function
+        """
         raise NotImplementedError()
 
     def run_until_complete(self):
+        """See base class."""
         for cmd in self._commands:
             self._logger.msg_persistent_execution.emit(dict(type="stdin", data=cmd.strip()))
             for msg in self._persistent_manager.issue_command(cmd):
@@ -256,10 +337,11 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         return 0
 
     def stop_execution(self):
+        """See base class."""
         self._persistent_manager.interrupt_persistent()
 
 
 class JuliaPersistentExecutionManager(PersistentExecutionManagerBase):
     @staticmethod
-    def persistent_constructor():
+    def persistent_manager_factory():
         return JuliaPersistentManager
