@@ -36,6 +36,8 @@ if sys.platform == "win32":
 
 
 class PersistentManagerBase:
+    _COMMAND_FINISHED = object()
+
     def __init__(self, args, cwd=None):
         """
         Args:
@@ -49,12 +51,13 @@ class PersistentManagerBase:
         self._persistent = Popen(self._args, **self._kwargs)
         self._idle = True
         self._queue = Queue()
+        self.command_successful = False
         Thread(target=self._log_stdout, daemon=True).start()
         Thread(target=self._log_stderr, daemon=True).start()
 
     @staticmethod
     def _make_sentinel(host, port, secret):
-        """Returns a command to pass to the persistent process, that sends a secret to a socket server listening in
+        """Returns a command to pass to the persistent process, that sends a secret to a socket server listening at
         host/port. Used to wait for commands to finish (see _wait_for_command_to_finish())
         Must be reimplemented in subclasses.
 
@@ -88,7 +91,9 @@ class PersistentManagerBase:
 
     def issue_command(self, cmd):
         """Issues cmd to the persistent process and returns an iterator of stdout and stderr messages.
-        Each message is a dictionary with keys: "type" (either "stdout", "stderr"), and "data" (the actual message string).
+        Each message is a dictionary with two keys:
+            "type": either "stdout" or "stderr"
+            "data": the actual message string.
 
         Args:
             cmd (str)
@@ -101,17 +106,16 @@ class PersistentManagerBase:
         self._idle = False
         while True:
             msg = self._queue.get()
-            yield msg
-            if msg["type"] == "persistent_command_finished":
+            if msg == self._COMMAND_FINISHED:
                 break
+            yield msg
         self._idle = True
         t.join()
 
     def _issue_command_and_wait_for_finish(self, cmd):
         """Issues command and wait for finish."""
-        success = self._issue_command(cmd) and self._wait_for_command_to_finish()
-        msg = dict(type="persistent_command_finished", success=success)
-        self._queue.put(msg)
+        self.command_successful = self._issue_command(cmd) and self._wait_for_command_to_finish()
+        self._queue.put(self._COMMAND_FINISHED)
 
     def _issue_command(self, cmd):
         """Issues command."""
@@ -309,18 +313,39 @@ _persistent_manager_factory = _PersistentManagerFactory()
 
 
 def restart_persistent(key):
+    """Restart a persistent process.
+
+    Args:
+        key (tuple): persistent identifier
+    """
     _persistent_manager_factory.restart_persistent(key)
 
 
 def interrupt_persistent(key):
+    """Interrupts a persistent process.
+
+    Args:
+        key (tuple): persistent identifier
+    """
     _persistent_manager_factory.interrupt_persistent(key)
 
 
 def issue_persistent_command(key, cmd):
+    """Issues a command to a persistent process.
+
+    Args:
+        key (tuple): persistent identifier
+        command (str): command to issue
+
+    Returns:
+        generator: stdio and stderr messages (dictionaries with two keys: type, and data)
+    """
     yield from _persistent_manager_factory.issue_persistent_command(key, cmd)
 
 
 class PersistentExecutionManagerBase(ExecutionManagerBase):
+    """Base class for managing execution of commands on a persistent process."""
+
     def __init__(self, logger, args, commands, group_id=None, workdir=None):
         """Class constructor.
 
@@ -352,11 +377,10 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         for cmd in self._commands:
             self._logger.msg_persistent_execution.emit(dict(type="stdin", data=cmd.strip()))
             for msg in self._persistent_manager.issue_command(cmd):
-                if msg["type"] == "persistent_command_finished" and not msg["success"]:
-                    self._logger.msg_proc_error.emit(f"Error executing {cmd}. Restarting...")
-                    self._persistent_manager.restart_persistent()
-                    return self.run_until_complete()
                 self._logger.msg_persistent_execution.emit(msg)
+            if not self._persistent_manager.command_successful:
+                self._logger.msg_proc_error.emit(f"Error executing {cmd}")
+                return -1
         return 0
 
     def stop_execution(self):
@@ -365,12 +389,18 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
 
 
 class JuliaPersistentExecutionManager(PersistentExecutionManagerBase):
+    """Manages execution of commands on a Julia persistent process."""
+
     @staticmethod
     def persistent_manager_factory():
+        """See base class."""
         return JuliaPersistentManager
 
 
 class PythonPersistentExecutionManager(PersistentExecutionManagerBase):
+    """Manages execution of commands on a Python persistent process."""
+
     @staticmethod
     def persistent_manager_factory():
+        """See base class."""
         return PythonPersistentManager
