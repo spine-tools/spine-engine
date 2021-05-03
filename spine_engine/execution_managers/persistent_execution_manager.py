@@ -72,17 +72,8 @@ class PersistentManagerBase:
         raise NotImplementedError()
 
     @property
-    def lexer_name(self):
-        """Returns a lexer name for syntax highlighting.
-
-        Returns:
-            str
-        """
-        raise NotImplementedError()
-
-    @property
-    def prompt(self):
-        """Returns a prompt for console applications.
+    def language(self):
+        """Returns the underlying language for UI customization in toolbox.
 
         Returns:
             str
@@ -203,22 +194,26 @@ class PersistentManagerBase:
 
 
 class JuliaPersistentManager(PersistentManagerBase):
-    @staticmethod
-    def _make_sentinel(host, port, secret):
-        return f'using Sockets; let s = connect("{host}", {port}); write(s, "{secret}"); close(s) end;'
-
     @property
-    def lexer_name(self):
+    def language(self):
+        """See base class."""
         return "julia"
 
-    @property
-    def prompt(self):
-        return '<br><span style="color:green; font-weight: bold">julia></span> '
+    @staticmethod
+    def _make_sentinel(host, port, secret):
+        """See base class."""
+        return f'using Sockets; let s = connect("{host}", {port}); write(s, "{secret}"); close(s) end;'
 
 
 class PythonPersistentManager(PersistentManagerBase):
+    @property
+    def language(self):
+        """See base class."""
+        return "python"
+
     @staticmethod
     def _make_sentinel(host, port, secret):
+        """See base class."""
         return textwrap.dedent(
             f"""\
             import socket
@@ -227,14 +222,6 @@ class PythonPersistentManager(PersistentManagerBase):
                 s.sendall(b"{secret}")
             """
         )
-
-    @property
-    def lexer_name(self):
-        return "python"
-
-    @property
-    def prompt(self):
-        return '>>> '
 
 
 class _PersistentManagerFactory(metaclass=Singleton):
@@ -262,11 +249,11 @@ class _PersistentManagerFactory(metaclass=Singleton):
             try:
                 self._persistent_managers[key] = constructor(args, cwd=cwd)
             except OSError as err:
-                msg = dict(type="persistent_failed_to_start", args=args, error=str(err))
+                msg = dict(type="persistent_failed_to_start", args=" ".join(args), error=str(err))
                 logger.msg_persistent_execution.emit(msg)
                 return None
         pm = self._persistent_managers[key]
-        msg = dict(type="persistent_started", key=key, lexer_name=pm.lexer_name, prompt=pm.prompt)
+        msg = dict(type="persistent_started", key=key, language=pm.language)
         logger.msg_persistent_execution.emit(msg)
         return pm
 
@@ -357,6 +344,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             workdir (str, optional): item group that will execute using this kernel
         """
         super().__init__(logger)
+        self._args = args
         self._commands = commands
         self._persistent_manager = _persistent_manager_factory.new_persistent_manager(
             self.persistent_manager_factory(), logger, args, group_id, cwd=workdir
@@ -374,12 +362,13 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
 
     def run_until_complete(self):
         """See base class."""
+        msg = dict(type="execution_started", args=" ".join(self._args))
+        self._logger.msg_persistent_execution.emit(msg)
         for cmd in self._commands:
             self._logger.msg_persistent_execution.emit(dict(type="stdin", data=cmd.strip()))
             for msg in self._persistent_manager.issue_command(cmd):
                 self._logger.msg_persistent_execution.emit(msg)
             if not self._persistent_manager.command_successful:
-                self._logger.msg_proc_error.emit(f"Error executing {cmd}")
                 return -1
         return 0
 
