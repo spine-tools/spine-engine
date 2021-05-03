@@ -62,8 +62,8 @@ class _KernelManagerFactory(metaclass=Singleton):
             KernelManager
         """
         km = self._make_kernel_manager(kernel_name, group_id)
+        msg_head = dict(kernel_name=kernel_name)
         if not km.is_alive():
-            msg_head = dict(kernel_name=kernel_name)
             if not km.kernel_spec:
                 msg = dict(type="kernel_spec_not_found", **msg_head)
                 logger.msg_kernel_execution.emit(msg)
@@ -73,9 +73,9 @@ class _KernelManagerFactory(metaclass=Singleton):
                 km.kernel_spec.argv[1:1] = extra_switches
             blackhole = open(os.devnull, 'w')
             km.start_kernel(stdout=blackhole, stderr=blackhole, **kwargs)
-            msg = dict(type="kernel_started", connection_file=km.connection_file, **msg_head)
-            logger.msg_kernel_execution.emit(msg)
             self._key_by_connection_file[km.connection_file] = (kernel_name, group_id)
+        msg = dict(type="kernel_started", connection_file=km.connection_file, **msg_head)
+        logger.msg_kernel_execution.emit(msg)
         return km
 
     def get_kernel_manager(self, connection_file):
