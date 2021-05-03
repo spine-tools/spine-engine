@@ -45,7 +45,7 @@ class PersistentManagerBase:
             cwd (str, optional): the directory where to start the process
         """
         self._args = args
-        self._queue = Queue()
+        self._msg_queue = Queue()
         self.command_successful = False
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
         if sys.platform == "win32":
@@ -96,7 +96,7 @@ class PersistentManagerBase:
         t.start()
         self._idle = False
         while True:
-            msg = self._queue.get()
+            msg = self._msg_queue.get()
             if msg == self._COMMAND_FINISHED:
                 break
             yield msg
@@ -106,7 +106,7 @@ class PersistentManagerBase:
     def _issue_command_and_wait_for_finish(self, cmd):
         """Issues command and wait for finish."""
         self.command_successful = self._issue_command(cmd) and self._wait_for_command_to_finish()
-        self._queue.put(self._COMMAND_FINISHED)
+        self._msg_queue.put(self._COMMAND_FINISHED)
 
     def _issue_command(self, cmd):
         """Issues command."""
@@ -127,6 +127,7 @@ class PersistentManagerBase:
         queue = Queue()
         thread = Thread(target=self._listen_and_enqueue, args=(host, port, queue))
         thread.start()
+        queue.get()
         secret = str(uuid.uuid4())
         sentinel = self._make_sentinel(host, port, secret)
         if not self._issue_command(sentinel):
@@ -144,6 +145,7 @@ class PersistentManagerBase:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((host, port))
             s.listen()
+            queue.put(None)
             conn, _ = s.accept()
             with conn:
                 while True:
@@ -156,13 +158,13 @@ class PersistentManagerBase:
         """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
         for line in iter(self._persistent.stdout.readline, b''):
             data = line.decode("UTF8", "replace").strip()
-            self._queue.put(dict(type="stdout", data=data))
+            self._msg_queue.put(dict(type="stdout", data=data))
 
     def _log_stderr(self):
         """Puts stderr from the process into the queue (it will be consumed by issue_command())."""
         for line in iter(self._persistent.stderr.readline, b''):
             data = line.decode("UTF8", "replace").strip()
-            self._queue.put(dict(type="stderr", data=data))
+            self._msg_queue.put(dict(type="stderr", data=data))
 
     def restart_persistent(self):
         """Restarts the persistent process."""
