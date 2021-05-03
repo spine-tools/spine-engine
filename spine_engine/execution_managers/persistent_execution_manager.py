@@ -45,13 +45,13 @@ class PersistentManagerBase:
             cwd (str, optional): the directory where to start the process
         """
         self._args = args
+        self._queue = Queue()
+        self.command_successful = False
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
         if sys.platform == "win32":
             self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP
         self._persistent = Popen(self._args, **self._kwargs)
         self._idle = True
-        self._queue = Queue()
-        self.command_successful = False
         Thread(target=self._log_stdout, daemon=True).start()
         Thread(target=self._log_stderr, daemon=True).start()
 
@@ -171,6 +171,7 @@ class PersistentManagerBase:
         self._persistent = Popen(self._args, **self._kwargs)
         Thread(target=self._log_stdout, daemon=True).start()
         Thread(target=self._log_stderr, daemon=True).start()
+        self._idle = True
 
     def interrupt_persistent(self):
         """Interrupts the persistent process."""
