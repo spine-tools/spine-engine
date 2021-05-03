@@ -177,8 +177,8 @@ def get_julia_env(settings):
     Returns:
         tuple, NoneType: (julia_exe, julia_project), or None if none found
     """
-    use_embedded_julia = settings.value("appSettings/useEmbeddedJulia", defaultValue="2") == "2"
-    if use_embedded_julia:
+    use_julia_kernel = settings.value("appSettings/useJuliaKernel", defaultValue="2") == "2"
+    if use_julia_kernel:
         kernel_name = settings.value("appSettings/juliaKernel", defaultValue="")
         resource_dir = find_kernel_specs().get(kernel_name)
         if resource_dir is None:
