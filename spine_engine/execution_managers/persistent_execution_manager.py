@@ -50,10 +50,13 @@ class PersistentManagerBase:
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
         if sys.platform == "win32":
             self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP
-        self._persistent = Popen(self._args, **self._kwargs)
+        self._persistent = Popen(self._args + self._extra_args(), **self._kwargs)
         self._idle = True
         Thread(target=self._log_stdout, daemon=True).start()
         Thread(target=self._log_stderr, daemon=True).start()
+
+    def _extra_args(self):
+        return []
 
     @staticmethod
     def _make_sentinel(host, port, secret):
@@ -205,7 +208,10 @@ class JuliaPersistentManager(PersistentManagerBase):
     @staticmethod
     def _make_sentinel(host, port, secret):
         """See base class."""
-        return f'using Sockets; let s = connect("{host}", {port}); write(s, "{secret}"); close(s) end;'
+        return f'let s = connect("{host}", {port}); write(s, "{secret}"); close(s) end;'
+
+    def _extra_args(self):
+        return ["-e", "using Sockets"]
 
 
 class PythonPersistentManager(PersistentManagerBase):
@@ -217,14 +223,11 @@ class PythonPersistentManager(PersistentManagerBase):
     @staticmethod
     def _make_sentinel(host, port, secret):
         """See base class."""
-        return textwrap.dedent(
-            f"""\
-            import socket
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.connect(("{host}", {port}))
-                s.sendall(b"{secret}")
-            """
-        )
+        body = f's.connect(("{host}", {port})) or s.sendall(b"{secret}") or s.close()'
+        return f'(lambda s=socket.socket(socket.AF_INET, socket.SOCK_STREAM): {body})()'  # Avoid creating any variables
+
+    def _extra_args(self):
+        return ["-c", "import socket, sys; sys.ps1 = sys.ps2 = ''"]  # Remove prompts
 
 
 class _PersistentManagerFactory(metaclass=Singleton):
