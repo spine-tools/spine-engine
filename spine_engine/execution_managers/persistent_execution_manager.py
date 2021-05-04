@@ -354,6 +354,10 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             self.persistent_manager_factory(), logger, args, group_id, cwd=workdir
         )
 
+    @property
+    def alias(self):
+        return self._alias
+
     @staticmethod
     def persistent_manager_factory():
         """Returns a function to create a persistent manager for this execution
