@@ -109,7 +109,7 @@ class PersistentManagerBase:
         self._msg_queue.put(self._COMMAND_FINISHED)
 
     def _issue_command(self, cmd):
-        """Issues command."""
+        """Writes command to the process's stdin and flushes."""
         self._persistent.stdin.write(f"{cmd.strip()}{os.linesep}{os.linesep}".encode("UTF8"))
         try:
             self._persistent.stdin.flush()
@@ -127,7 +127,7 @@ class PersistentManagerBase:
         queue = Queue()
         thread = Thread(target=self._listen_and_enqueue, args=(host, port, queue))
         thread.start()
-        queue.get()
+        queue.get()  # This blocks until the server is listening
         secret = str(uuid.uuid4())
         sentinel = self._make_sentinel(host, port, secret)
         if not self._issue_command(sentinel):
@@ -183,7 +183,7 @@ class PersistentManagerBase:
 
     def _do_interrupt_persistent(self):
         sig = signal.CTRL_C_EVENT if sys.platform == "win32" else signal.SIGINT
-        while not self._idle:
+        for _ in range(3):
             self._persistent.send_signal(sig)
             time.sleep(1)
 
@@ -336,7 +336,7 @@ def issue_persistent_command(key, cmd):
 class PersistentExecutionManagerBase(ExecutionManagerBase):
     """Base class for managing execution of commands on a persistent process."""
 
-    def __init__(self, logger, args, commands, group_id=None, workdir=None):
+    def __init__(self, logger, args, commands, alias, group_id=None, workdir=None):
         """Class constructor.
 
         Args:
@@ -349,6 +349,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         super().__init__(logger)
         self._args = args
         self._commands = commands
+        self._alias = alias
         self._persistent_manager = _persistent_manager_factory.new_persistent_manager(
             self.persistent_manager_factory(), logger, args, group_id, cwd=workdir
         )
@@ -367,8 +368,8 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         """See base class."""
         msg = dict(type="execution_started", args=" ".join(self._args))
         self._logger.msg_persistent_execution.emit(msg)
+        self._logger.msg_persistent_execution.emit(dict(type="stdin", data=self._alias.strip()))
         for cmd in self._commands:
-            self._logger.msg_persistent_execution.emit(dict(type="stdin", data=cmd.strip()))
             for msg in self._persistent_manager.issue_command(cmd):
                 self._logger.msg_persistent_execution.emit(msg)
             if not self._persistent_manager.command_successful:
