@@ -56,7 +56,13 @@ class PersistentManagerBase:
         Thread(target=self._log_stderr, daemon=True).start()
 
     def _extra_args(self):
-        return []
+        """Returns extra args for Popen. Subclasses should reimplement to include appropriate switches to ensure the
+        process is interactive, or to load modules for the sentinel command.
+
+        Returns:
+            list
+        """
+        raise NotImplementedError()
 
     @staticmethod
     def _make_sentinel(host, port, secret):
@@ -211,7 +217,7 @@ class JuliaPersistentManager(PersistentManagerBase):
         return f'let s = connect("{host}", {port}); write(s, "{secret}"); close(s) end;'
 
     def _extra_args(self):
-        return ["-e", "using Sockets"]
+        return ["-i", "-e", "using Sockets"]
 
 
 class PythonPersistentManager(PersistentManagerBase):
@@ -227,7 +233,7 @@ class PythonPersistentManager(PersistentManagerBase):
         return f'(lambda s=socket.socket(socket.AF_INET, socket.SOCK_STREAM): {body})()'  # Avoid creating any variables
 
     def _extra_args(self):
-        return ["-c", "import socket, sys; sys.ps1 = sys.ps2 = ''"]  # Remove prompts
+        return ["-q", "-i", "-c", "import socket, sys; sys.ps1 = sys.ps2 = ''"]  # Remove prompts
 
 
 class _PersistentManagerFactory(metaclass=Singleton):
