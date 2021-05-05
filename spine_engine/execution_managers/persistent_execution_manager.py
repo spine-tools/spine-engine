@@ -22,9 +22,7 @@ import os
 import socket
 import socketserver
 import signal
-import uuid
 import time
-import textwrap
 from subprocess import Popen, PIPE
 from threading import Thread
 from queue import Queue
@@ -65,15 +63,15 @@ class PersistentManagerBase:
         raise NotImplementedError()
 
     @staticmethod
-    def _make_sentinel(host, port, secret):
-        """Returns a command to pass to the persistent process, that sends a secret to a socket server listening at
+    def _make_sentinel(host, port, msg):
+        """Returns a command to pass to the persistent process, that sends a message to a socket server listening at
         host/port. Used to wait for commands to finish (see _wait_for_command_to_finish())
         Must be reimplemented in subclasses.
 
         Args:
             host (str)
             port (int)
-            secret (str)
+            msg (str)
 
         Returns:
             str
@@ -127,8 +125,8 @@ class PersistentManagerBase:
             return False
 
     def _wait_for_command_to_finish(self):
-        """Waits for command to finish. This is implemented by sending the sentinel command to the process
-        (see _make_sentinel()) and listening on a socket server until the secret is received.
+        """Waits for command to finish. This is implemented by sending a sentinel command to the process
+        (see _make_sentinel()) and listening on a socket server until the message is received.
         """
         host = "127.0.0.1"
         with socketserver.TCPServer((host, 0), None) as s:
@@ -137,14 +135,10 @@ class PersistentManagerBase:
         thread = Thread(target=self._listen_and_enqueue, args=(host, port, queue))
         thread.start()
         queue.get()  # This blocks until the server is listening
-        secret = str(uuid.uuid4())
-        sentinel = self._make_sentinel(host, port, secret)
+        sentinel = self._make_sentinel(host, port, "idle")
         if not self._issue_command(sentinel):
             return False
-        while True:
-            msg = queue.get()
-            if msg == secret:
-                break
+        queue.get()
         thread.join()
         return True
 
@@ -212,9 +206,9 @@ class JuliaPersistentManager(PersistentManagerBase):
         return "julia"
 
     @staticmethod
-    def _make_sentinel(host, port, secret):
+    def _make_sentinel(host, port, msg):
         """See base class."""
-        return f'let s = connect("{host}", {port}); write(s, "{secret}"); close(s) end;'
+        return f'let s = connect("{host}", {port}); write(s, "{msg}"); close(s) end;'
 
     def _extra_args(self):
         return ["-i", "-e", "using Sockets"]
@@ -227,10 +221,11 @@ class PythonPersistentManager(PersistentManagerBase):
         return "python"
 
     @staticmethod
-    def _make_sentinel(host, port, secret):
+    def _make_sentinel(host, port, msg):
         """See base class."""
-        body = f's.connect(("{host}", {port})) or s.sendall(b"{secret}") or s.close()'
-        return f'(lambda s=socket.socket(socket.AF_INET, socket.SOCK_STREAM): {body})()'  # Avoid creating any variables
+        body = f's.connect(("{host}", {port})) or s.sendall(b"{msg}") or s.close()'
+        s = "socket.socket(socket.AF_INET, socket.SOCK_STREAM)"
+        return f'(lambda s={s}: {body})()'  # Avoid creating any variables
 
     def _extra_args(self):
         return ["-q", "-i", "-c", "import socket, sys; sys.ps1 = sys.ps2 = ''"]  # Remove prompts
