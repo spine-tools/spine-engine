@@ -47,6 +47,26 @@ class _Message:
         )
 
 
+class _Prompt:
+    def __init__(self, queue, item_name, prompt_queue):
+        self._queue = queue
+        self._item_name = item_name
+        self._prompt_queue = prompt_queue
+        self._filter_id = ""
+
+    @property
+    def filter_id(self):
+        return self._filter_id
+
+    @filter_id.setter
+    def filter_id(self, filter_id):
+        self._filter_id = filter_id
+
+    def emit(self, prompt_text):
+        self._queue.put(("prompt", {"item_name": self._item_name, "prompt_text": prompt_text}))
+        return self._prompt_queue.get()
+
+
 class _ExecutionMessage:
     def __init__(self, queue, event_type, item_name):
         self._queue = queue
@@ -70,7 +90,7 @@ class QueueLogger:
     """A :class:`LoggerInterface` compliant logger that puts messages into a Queue.
     """
 
-    def __init__(self, queue, item_name):
+    def __init__(self, queue, item_name, prompt_queue):
         self.msg = _Message(queue, "event_msg", "msg", item_name)
         self.msg_success = _Message(queue, "event_msg", "msg_success", item_name)
         self.msg_warning = _Message(queue, "event_msg", "msg_warning", item_name)
@@ -80,6 +100,7 @@ class QueueLogger:
         self.msg_standard_execution = _ExecutionMessage(queue, "standard_execution_msg", item_name)
         self.msg_persistent_execution = _ExecutionMessage(queue, "persistent_execution_msg", item_name)
         self.msg_kernel_execution = _ExecutionMessage(queue, "kernel_execution_msg", item_name)
+        self.prompt = _Prompt(queue, item_name, prompt_queue)
 
     def set_filter_id(self, filter_id):
         self.msg.filter_id = filter_id
@@ -91,3 +112,4 @@ class QueueLogger:
         self.msg_standard_execution.filter_id = filter_id
         self.msg_persistent_execution.filter_id = filter_id
         self.msg_kernel_execution.filter_id = filter_id
+        self.prompt.filter_id = filter_id

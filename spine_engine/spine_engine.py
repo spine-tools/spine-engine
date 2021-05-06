@@ -142,6 +142,7 @@ class SpineEngine:
         self._state = SpineEngineState.SLEEPING
         self._debug = debug
         self._running_items = []
+        self._prompt_queues = {}
         self._event_stream = self._get_event_stream()
 
     def _make_item_specifications(self, specifications, project_item_loader):
@@ -164,7 +165,8 @@ class SpineEngine:
         item_type = item_dict["type"]
         executable_item_class = self._executable_item_classes[item_type]
         if direction == ED.FORWARD:
-            logger = QueueLogger(self._queue, item_name)
+            prompt_queue = self._prompt_queues[item_name] = mp.Queue()
+            logger = QueueLogger(self._queue, item_name, prompt_queue)
         else:
             logger = None  # Prevent backward solid from logging
         return executable_item_class.from_dict(
@@ -191,6 +193,9 @@ class SpineEngine:
             yield msg
             if msg[0] == "dag_exec_finished":
                 break
+
+    def answer_prompt(self, item_name, accepted):
+        self._prompt_queues[item_name].put(accepted)
 
     def run(self):
         """Runs this engine."""
@@ -278,19 +283,22 @@ class SpineEngine:
         """Stops the engine."""
         self._state = SpineEngineState.USER_STOPPED
         for item in self._running_items:
-            item.stop_execution()
-            self._queue.put(
-                (
-                    'exec_finished',
-                    {
-                        "item_name": item.name,
-                        "direction": str(ED.FORWARD),
-                        "state": str(self._state),
-                        "item_state": ItemExecutionFinishState.STOPPED,
-                    },
-                )
-            )
+            self._stop_item(item)
         self._queue.put(("dag_exec_finished", str(self._state)))
+
+    def _stop_item(self, item):
+        item.stop_execution()
+        self._queue.put(
+            (
+                'exec_finished',
+                {
+                    "item_name": item.name,
+                    "direction": str(ED.FORWARD),
+                    "state": str(self._state),
+                    "item_state": ItemExecutionFinishState.STOPPED,
+                },
+            )
+        )
 
     def _make_pipeline(self):
         """

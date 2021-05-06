@@ -57,7 +57,7 @@ class ProjectItemResource:
         self.metadata = metadata if metadata is not None else dict()
 
     def clone(self, additional_metadata=None):
-        """ Clones a resource and optionally updates the clone's metadata.
+        """Clones a resource and optionally updates the clone's metadata.
 
         Args:
             additional_metadata (dict): metadata to add to the clone
