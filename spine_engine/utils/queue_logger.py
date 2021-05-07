@@ -62,8 +62,9 @@ class _Prompt:
     def filter_id(self, filter_id):
         self._filter_id = filter_id
 
-    def emit(self, prompt_text):
-        self._queue.put(("prompt", {"item_name": self._item_name, "prompt_text": prompt_text}))
+    def emit(self, prompt):
+        prompt = {"item_name": self._item_name, **prompt}
+        self._queue.put(("prompt", prompt))
         return self._prompt_queue.get()
 
 
