@@ -44,3 +44,8 @@ class ReturningProcess(mp.Process):
     def terminate(self):
         super().terminate()
         self._queue.put((False,))
+
+
+if __name__ == "__main__":
+    # https://docs.python.org/3.7/library/multiprocessing.html?highlight=freeze_support#multiprocessing.freeze_support
+    mp.freeze_support()
