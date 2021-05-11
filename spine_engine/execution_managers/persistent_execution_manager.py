@@ -25,6 +25,7 @@ import signal
 import time
 from subprocess import Popen, PIPE
 from threading import Thread
+from multiprocessing import Lock
 from queue import Queue
 from ..utils.helpers import Singleton
 from .execution_manager_base import ExecutionManagerBase
@@ -48,35 +49,8 @@ class PersistentManagerBase:
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
         if sys.platform == "win32":
             self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP
-        self._persistent = Popen(self._args + self._extra_args(), **self._kwargs)
-        self._idle = True
-        Thread(target=self._log_stdout, daemon=True).start()
-        Thread(target=self._log_stderr, daemon=True).start()
-
-    def _extra_args(self):
-        """Returns extra args for Popen. Subclasses should reimplement to include appropriate switches to ensure the
-        process is interactive, or to load modules for the sentinel command.
-
-        Returns:
-            list
-        """
-        raise NotImplementedError()
-
-    @staticmethod
-    def _make_sentinel(host, port, msg):
-        """Returns a command to pass to the persistent process, that sends a message to a socket server listening at
-        host/port. Used to wait for commands to finish (see _wait_for_command_to_finish())
-        Must be reimplemented in subclasses.
-
-        Args:
-            host (str)
-            port (int)
-            msg (str)
-
-        Returns:
-            str
-        """
-        raise NotImplementedError()
+        self._lock = Lock()
+        self._start_persistent()
 
     @property
     def language(self):
@@ -86,6 +60,63 @@ class PersistentManagerBase:
             str
         """
         raise NotImplementedError()
+
+    @staticmethod
+    def _init_args():
+        """Returns init args for Popen. Subclasses must reimplement to include appropriate switches to ensure the
+        process is interactive, or to load modules for the sentinel command.
+
+        Returns:
+            list
+        """
+        raise NotImplementedError()
+
+    @staticmethod
+    def _message_command(host, port, msg):
+        """Returns a command that sends a message to a socket server listening at host/port.
+        Used to communicate with the persistent process (see _communicate()).
+        Must be reimplemented in subclasses.
+
+        Args:
+            host (str)
+            port (int)
+            msg (str): Code in the underlying language, that returns a str to send through the socket
+
+        Returns:
+            str
+        """
+        raise NotImplementedError()
+
+    @staticmethod
+    def _completions_command(text):
+        """Returns a command that returns a space separated list of completion options.
+
+        Args:
+            text (str): text to complete
+
+        Returns:
+            str: command
+        """
+        raise NotImplementedError()
+
+    def _start_persistent(self):
+        """Starts the persistent process."""
+        self.command_successful = False
+        self._persistent = Popen(self._args + self._init_args(), **self._kwargs)
+        Thread(target=self._log_stdout, daemon=True).start()
+        Thread(target=self._log_stderr, daemon=True).start()
+
+    def _log_stdout(self):
+        """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
+        for line in iter(self._persistent.stdout.readline, b''):
+            data = line.decode("UTF8", "replace").strip()
+            self._msg_queue.put(dict(type="stdout", data=data))
+
+    def _log_stderr(self):
+        """Puts stderr from the process into the queue (it will be consumed by issue_command())."""
+        for line in iter(self._persistent.stderr.readline, b''):
+            data = line.decode("UTF8", "replace").strip()
+            self._msg_queue.put(dict(type="stderr", data=data))
 
     def issue_command(self, cmd):
         """Issues cmd to the persistent process and returns an iterator of stdout and stderr messages.
@@ -101,18 +132,17 @@ class PersistentManagerBase:
         """
         t = Thread(target=self._issue_command_and_wait_for_finish, args=(cmd,))
         t.start()
-        self._idle = False
         while True:
             msg = self._msg_queue.get()
             if msg == self._COMMAND_FINISHED:
                 break
             yield msg
-        self._idle = True
         t.join()
 
     def _issue_command_and_wait_for_finish(self, cmd):
         """Issues command and wait for finish."""
-        self.command_successful = self._issue_command(cmd) and self._wait_for_command_to_finish()
+        with self._lock:
+            self.command_successful = self._issue_command(cmd) and self._communicate('"idle"') == "idle"
         self._msg_queue.put(self._COMMAND_FINISHED)
 
     def _issue_command(self, cmd):
@@ -124,9 +154,26 @@ class PersistentManagerBase:
         except BrokenPipeError:
             return False
 
-    def _wait_for_command_to_finish(self):
-        """Waits for command to finish. This is implemented by sending a sentinel command to the process
-        (see _make_sentinel()) and listening on a socket server until the message is received.
+    def get_completions(self, text):
+        """Returns a list of autocompletion options for given text.
+
+        Args:
+            text (str): Text to complete
+
+        Returns:
+            list(str): List of options
+        """
+        cmd = self._completions_command(text)
+        return self._communicate(cmd).strip().split(" ")
+
+    def _communicate(self, msg):
+        """Communicates with persistent process. Sends a message through a socket and returns the response.
+
+        Args:
+            msg (str)
+
+        Returns:
+            str
         """
         host = "127.0.0.1"
         with socketserver.TCPServer((host, 0), None) as s:
@@ -135,12 +182,13 @@ class PersistentManagerBase:
         thread = Thread(target=self._listen_and_enqueue, args=(host, port, queue))
         thread.start()
         queue.get()  # This blocks until the server is listening
-        sentinel = self._make_sentinel(host, port, "idle")
-        if not self._issue_command(sentinel):
-            return False
-        queue.get()
+        msg_cmd = self._message_command(host, port, msg)
+        if not self._issue_command(msg_cmd):
+            thread.join()
+            return None
+        response = queue.get()
         thread.join()
-        return True
+        return response
 
     @staticmethod
     def _listen_and_enqueue(host, port, queue):
@@ -153,36 +201,23 @@ class PersistentManagerBase:
             with conn:
                 while True:
                     data = conn.recv(1024)
+                    queue.put(data.decode("UTF8", "replace"))
                     if not data:
                         break
-                    queue.put(data.decode("UTF8", "replace"))
-
-    def _log_stdout(self):
-        """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
-        for line in iter(self._persistent.stdout.readline, b''):
-            data = line.decode("UTF8", "replace").strip()
-            self._msg_queue.put(dict(type="stdout", data=data))
-
-    def _log_stderr(self):
-        """Puts stderr from the process into the queue (it will be consumed by issue_command())."""
-        for line in iter(self._persistent.stderr.readline, b''):
-            data = line.decode("UTF8", "replace").strip()
-            self._msg_queue.put(dict(type="stderr", data=data))
 
     def restart_persistent(self):
         """Restarts the persistent process."""
         self._persistent.kill()
         self._persistent.wait()
-        self._persistent = Popen(self._args, **self._kwargs)
-        Thread(target=self._log_stdout, daemon=True).start()
-        Thread(target=self._log_stderr, daemon=True).start()
-        self._idle = True
+        self._persistent.stdout = os.devnull
+        self._persistent.stderr = os.devnull
+        self._start_persistent()
 
     def interrupt_persistent(self):
         """Interrupts the persistent process."""
         if self._persistent is None:
             return
-        Thread(target=self._do_interrupt_persistent, args=(), daemon=True).start()
+        Thread(target=self._do_interrupt_persistent).start()
 
     def _do_interrupt_persistent(self):
         sig = signal.CTRL_C_EVENT if sys.platform == "win32" else signal.SIGINT
@@ -206,12 +241,19 @@ class JuliaPersistentManager(PersistentManagerBase):
         return "julia"
 
     @staticmethod
-    def _make_sentinel(host, port, msg):
+    def _init_args():
         """See base class."""
-        return f'let s = connect("{host}", {port}); write(s, "{msg}"); close(s) end;'
+        return ["-i", "-e", "using Sockets, REPL.REPLCompletions"]
 
-    def _extra_args(self):
-        return ["-i", "-e", "using Sockets"]
+    @staticmethod
+    def _message_command(host, port, msg):
+        """See base class."""
+        return f'let s = connect("{host}", {port}); write(s, {msg}); close(s) end;'
+
+    @staticmethod
+    def _completions_command(text):
+        """See base class."""
+        return f'join(completion_text.(completions("{text}", {len(text)})[1]), " ")'
 
 
 class PythonPersistentManager(PersistentManagerBase):
@@ -221,14 +263,21 @@ class PythonPersistentManager(PersistentManagerBase):
         return "python"
 
     @staticmethod
-    def _make_sentinel(host, port, msg):
+    def _init_args():
         """See base class."""
-        body = f's.connect(("{host}", {port})) or s.sendall(b"{msg}") or s.close()'
+        return ["-q", "-i", "-c", "import socket, sys, readline, itertools; sys.ps1 = sys.ps2 = ''"]
+
+    @staticmethod
+    def _message_command(host, port, msg):
+        """See base class."""
+        body = f's.connect(("{host}", {port})) or s.sendall({msg}.encode("UTF8")) or s.close()'
         s = "socket.socket(socket.AF_INET, socket.SOCK_STREAM)"
         return f'(lambda s={s}: {body})()'  # Avoid creating any variables
 
-    def _extra_args(self):
-        return ["-q", "-i", "-c", "import socket, sys; sys.ps1 = sys.ps2 = ''"]  # Remove prompts
+    @staticmethod
+    def _completions_command(text):
+        """See base class."""
+        return f'" ".join(itertools.takewhile(bool, (readline.get_completer()("{text}", k) for k in range(100))))'
 
 
 class _PersistentManagerFactory(metaclass=Singleton):
@@ -302,39 +351,34 @@ class _PersistentManagerFactory(metaclass=Singleton):
         for msg in pm.issue_command(cmd):
             yield msg
 
+    def get_persistent_completions(self, key, text):
+        pm = self._persistent_managers.get(key)
+        if pm is None:
+            return
+        return pm.get_completions(text)
+
 
 _persistent_manager_factory = _PersistentManagerFactory()
 
 
 def restart_persistent(key):
-    """Restart a persistent process.
-
-    Args:
-        key (tuple): persistent identifier
-    """
+    """See _PersistentManagerFactory."""
     _persistent_manager_factory.restart_persistent(key)
 
 
 def interrupt_persistent(key):
-    """Interrupts a persistent process.
-
-    Args:
-        key (tuple): persistent identifier
-    """
+    """See _PersistentManagerFactory."""
     _persistent_manager_factory.interrupt_persistent(key)
 
 
 def issue_persistent_command(key, cmd):
-    """Issues a command to a persistent process.
-
-    Args:
-        key (tuple): persistent identifier
-        command (str): command to issue
-
-    Returns:
-        generator: stdio and stderr messages (dictionaries with two keys: type, and data)
-    """
+    """See _PersistentManagerFactory."""
     yield from _persistent_manager_factory.issue_persistent_command(key, cmd)
+
+
+def get_persistent_completions(key, text):
+    """See _PersistentManagerFactory."""
+    return _persistent_manager_factory.get_persistent_completions(key, text)
 
 
 class PersistentExecutionManagerBase(ExecutionManagerBase):
