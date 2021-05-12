@@ -232,6 +232,11 @@ class PersistentManagerBase:
         """
         return self._persistent.returncode is None
 
+    def kill_process(self):
+
+        self._persistent.kill()
+        self._persistent.wait()
+
 
 class JuliaPersistentManager(PersistentManagerBase):
     @property
@@ -314,7 +319,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
             cwd (str, optional): directory where to start the persistent
 
         Returns:
-            Popen
+            PersistentManagerBase: persistent manager
         """
         if group_id is None:
             # Execute in isolation
@@ -359,7 +364,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
 
         Args:
             key (tuple): persistent identifier
-            command (str): command to issue
+            cmd (str): command to issue
 
         Returns:
             generator: stdio and stderr messages (dictionaries with two keys: type, and data)
@@ -400,6 +405,11 @@ class _PersistentManagerFactory(metaclass=Singleton):
             return
         return pm.get_history_item(index)
 
+    def kill_manager_processes(self):
+        """Kills persistent managers' Popen instances."""
+        for manager in self._persistent_managers.values():
+            manager.kill_process()
+
 
 _persistent_manager_factory = _PersistentManagerFactory()
 
@@ -412,6 +422,15 @@ def restart_persistent(key):
 def interrupt_persistent(key):
     """See _PersistentManagerFactory."""
     _persistent_manager_factory.interrupt_persistent(key)
+
+
+def kill_persistent_processes():
+    """Kills all persistent processes.
+
+    On Windows systems the work directories are reserved by the ``Popen`` objects owned by the persistent managers.
+    They need to be killed to before the directories can be modified, e.g. deleted or renamed.
+    """
+    _persistent_manager_factory.kill_manager_processes()
 
 
 def issue_persistent_command(key, cmd):
