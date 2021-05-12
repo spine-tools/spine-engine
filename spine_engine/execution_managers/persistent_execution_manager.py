@@ -156,7 +156,7 @@ class PersistentManagerBase:
         try:
             self._persistent.stdin.flush()
             if add_history:
-                return self._issue_command(self._add_history_command(cmd))
+                self._communicate(self._add_history_command(cmd))
             return True
         except BrokenPipeError:
             return False
@@ -272,11 +272,16 @@ class PythonPersistentManager(PersistentManagerBase):
     @staticmethod
     def _init_args():
         """See base class."""
-        return ["-q", "-i", "-c", "import readline, itertools, sys; sys.ps1 = sys.ps2 = ''"]  # Remove prompts
+        return [
+            "-q",
+            "-i",
+            "-c",
+            "import itertools, sys; sys.ps1 = sys.ps2 = '';\ntry:\n\timport readline\nexcept:\n\tpass; ",
+        ]  # Remove prompts
 
     def _encode_command(self, cmd):
         """See base class."""
-        return f'print("{self._SENTINEL}" + {cmd})'
+        return f'try:\n\tprint("{self._SENTINEL}" + {cmd})\nexcept:\n\tprint("{self._SENTINEL}")'
 
     @staticmethod
     def _completions_command(text):
