@@ -10,8 +10,8 @@
 ######################################################################################################################
 
 import socketserver
+import socket
 import threading
-import json
 
 try:
     import readline
@@ -25,10 +25,6 @@ class SpineDBServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 
 class _RequestHandler(socketserver.BaseRequestHandler):
-    """
-    The request handler class for our server.
-    """
-
     def handle(self):
         data = self.request.recv(1024).decode("UTF8")
         request, _, arg = data.partition(";;")
@@ -36,26 +32,29 @@ class _RequestHandler(socketserver.BaseRequestHandler):
         if handler is None:
             return
         response = handler(arg)
-        self.request.sendall(bytes(response, "UTF8"))
+        try:
+            self.request.sendall(bytes(response, "UTF8"))
+        except:
+            pass
 
 
 def completions(text):
-    if not readline:
-        return ""
-    return " ".join(itertools.takewhile(bool, (readline.get_completer()(text, k) for k in range(100))))
+    if readline:
+        return " ".join(itertools.takewhile(bool, (readline.get_completer()(text, k) for k in range(100))))
+    return ""
 
 
 def add_history(line):
-    if not readline:
-        return ""
-    readline.add_history(line)
+    if readline:
+        readline.add_history(line)
+    return ""
 
 
 def history_item(index):
-    index = int(index)
-    if not readline:
-        return ""
-    return readline.get_history_item(readline.get_current_history_length() + 1 - index)
+    if readline:
+        index = int(index)
+        return readline.get_history_item(readline.get_current_history_length() + 1 - index)
+    return ""
 
 
 def start_server(address):
@@ -67,3 +66,9 @@ def start_server(address):
     server_thread = threading.Thread(target=server.serve_forever)
     server_thread.daemon = True
     server_thread.start()
+
+
+def send_sentinel(host, port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect((host, port))
+        s.sendall(b"sentinel")

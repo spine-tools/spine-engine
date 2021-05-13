@@ -60,11 +60,17 @@ function start_server(host, port)
 			if !isopen(sock)
 				continue
 			end
-			write(sock, response)
+			write(sock, response * "\n")
 			flush(sock)
 		end
 	end
 end
+
+function send_sentinel(host, port)
+	s = connect(host, port)
+    write(s, "sentinel")
+    close(s)
+end	
 
 end  # module
 

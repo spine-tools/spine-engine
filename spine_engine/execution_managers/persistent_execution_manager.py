@@ -37,12 +37,6 @@ if sys.platform == "win32":
 class PersistentManagerBase:
     _COMMAND_FINISHED = object()
 
-    _SENTINEL = '\uf056'
-    """Random character in unicode private space, printed to stdout to check that the process is idle.
-    It is assumed that users *never* print this character themselves.
-    (I guess the chances of that happening are low, but never zero?)
-    """
-
     def __init__(self, args, cwd=None):
         """
         Args:
@@ -54,7 +48,6 @@ class PersistentManagerBase:
         with socketserver.TCPServer((host, 0), None) as s:
             self._server_address = s.server_address
         self._msg_queue = Queue()
-        self._synch_queue = Queue()
         self.command_successful = False
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
         if sys.platform == "win32":
@@ -80,12 +73,15 @@ class PersistentManagerBase:
         """
         raise NotImplementedError()
 
-    def _sentinel_command(self):
-        """Returns a command in the underlying language, that prints the sentinel to stdout.
+    @staticmethod
+    def _sentinel_command(host, port):
+        """Returns a command in the underlying language, that sends a sentinel to a socket listening on given
+        host/port.
         Used to synchronize with the persistent process.
 
         Args:
-            cmd (str)
+            host (str)
+            port (int)
 
         Returns:
             str
@@ -103,9 +99,6 @@ class PersistentManagerBase:
         """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
         for line in iter(self._persistent.stdout.readline, b''):
             data = line.decode("UTF8", "replace").strip()
-            if data == self._SENTINEL:
-                self._synch_queue.put(None)
-                continue
             self._msg_queue.put(dict(type="stdout", data=data))
 
     def _log_stderr(self):
@@ -159,11 +152,35 @@ class PersistentManagerBase:
         Returns:
             bool
         """
-        cmd = self._sentinel_command()
-        if not self._issue_command(cmd):
-            return False
-        self._synch_queue.get()
-        return True
+        host = "127.0.0.1"
+        with socketserver.TCPServer((host, 0), None) as s:
+            port = s.server_address[1]
+        queue = Queue()
+        thread = Thread(target=self._listen_and_enqueue, args=(host, port, queue))
+        thread.start()
+        queue.get()  # This blocks until the server is listening
+        sentinel = self._sentinel_command(host, port)
+        if not self._issue_command(sentinel):
+            thread.join()
+            return None
+        response = queue.get()
+        thread.join()
+        return response
+
+    @staticmethod
+    def _listen_and_enqueue(host, port, queue):
+        """Listens on the server and enqueues all data received."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((host, port))
+            s.listen()
+            queue.put(None)
+            conn, _ = s.accept()
+            with conn:
+                while True:
+                    data = conn.recv(1024)
+                    queue.put(data.decode("UTF8", "replace"))
+                    if not data:
+                        break
 
     def _communicate(self, request, arg, receive=True):
         """
@@ -257,8 +274,9 @@ class JuliaPersistentManager(PersistentManagerBase):
         host, port = self._server_address
         return ["-i", "-e", f'include("{path}"); SpineREPL.start_server("{host}", {port})']
 
-    def _sentinel_command(self):
-        return f"println('{self._SENTINEL}')"
+    @staticmethod
+    def _sentinel_command(host, port):
+        return f'SpineREPL.send_sentinel("{host}", {port})'
 
 
 class PythonPersistentManager(PersistentManagerBase):
@@ -278,8 +296,9 @@ class PythonPersistentManager(PersistentManagerBase):
             f"import spine_repl; spine_repl.start_server({self._server_address})",
         ]
 
-    def _sentinel_command(self):
-        return f"print('{self._SENTINEL}')"
+    @staticmethod
+    def _sentinel_command(host, port):
+        return f'spine_repl.send_sentinel("{host}", {port})'
 
 
 class _PersistentManagerFactory(metaclass=Singleton):
