@@ -17,6 +17,8 @@ as well as some convenience functions.
 :date:   12.10.2020
 """
 
+import socket
+import socketserver
 import sys
 import os
 import signal
@@ -35,14 +37,6 @@ if sys.platform == "win32":
 class PersistentManagerBase:
     _COMMAND_FINISHED = object()
 
-    _SENTINEL = '\uf056'
-    """Random character in unicode private space.
-    Used to 'mark' stdout lines for internal communication with the process.
-    (E.g., to check that the process is 'idle', or to retrieve autocompletion options.)
-    It is assumed that user commands *never* produce stdout lines that start with this character.
-    (I guess the chances of that happening are low, but never zero?)
-    """
-
     def __init__(self, args, cwd=None):
         """
         Args:
@@ -51,7 +45,6 @@ class PersistentManagerBase:
         """
         self._args = args
         self._msg_queue = Queue()
-        self._cmd_queue = Queue()
         self.command_successful = False
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
         if sys.platform == "win32":
@@ -89,8 +82,9 @@ class PersistentManagerBase:
             str: command
         """
 
-    def _encode_command(self, cmd):
-        """Returns a command that prints the output of given command prepended by the sentinel character.
+    @staticmethod
+    def _send_msg_command(host, port, cmd):
+        """Returns a command that sends the output of given command to a socket listening in host port.
         Used to communicate internally with the process.
 
         Args:
@@ -112,9 +106,6 @@ class PersistentManagerBase:
         """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
         for line in iter(self._persistent.stdout.readline, b''):
             data = line.decode("UTF8", "replace").strip()
-            if data.startswith(self._SENTINEL):
-                self._cmd_queue.put(data[1:])
-                continue
             self._msg_queue.put(dict(type="stdout", data=data))
 
     def _log_stderr(self):
@@ -170,10 +161,35 @@ class PersistentManagerBase:
         Returns:
             str
         """
-        cmd = self._encode_command(cmd)
-        if not self._issue_command(cmd):
+        host = "127.0.0.1"
+        with socketserver.TCPServer((host, 0), None) as s:
+            port = s.server_address[1]
+        queue = Queue()
+        thread = Thread(target=self._listen_and_enqueue, args=(host, port, queue))
+        thread.start()
+        queue.get()  # This blocks until the server is listening
+        msg_cmd = self._send_msg_command(host, port, cmd)
+        if not self._issue_command(msg_cmd):
+            thread.join()
             return None
-        return self._cmd_queue.get()
+        response = queue.get()
+        thread.join()
+        return response
+
+    @staticmethod
+    def _listen_and_enqueue(host, port, queue):
+        """Listens on the server and enqueues all data received."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((host, port))
+            s.listen()
+            queue.put(None)
+            conn, _ = s.accept()
+            with conn:
+                while True:
+                    data = conn.recv(1024)
+                    queue.put(data.decode("UTF8", "replace"))
+                    if not data:
+                        break
 
     def get_completions(self, text):
         """Returns a list of autocompletion options for given text.
@@ -247,25 +263,27 @@ class JuliaPersistentManager(PersistentManagerBase):
     @staticmethod
     def _init_args():
         """See base class."""
-        return ["-i", "-e", "using REPL.REPLCompletions"]
+        path = os.path.join(os.path.dirname(__file__), "spine_repl.jl")
+        return ["-i", "-e", f'include("{path}")']
 
-    def _encode_command(self, cmd):
-        """See base class."""
-        return f'println("{self._SENTINEL}", {cmd})'
+    @staticmethod
+    def _send_msg_command(host, port, cmd):
+        return f'SpineREPL.send_msg("{host}", {port}, {cmd})'
 
     @staticmethod
     def _completions_command(text):
         """See base class."""
-        return f'join(completion_text.(completions("{text}", {len(text)})[1]), " ")'
+        return f'SpineREPL.completions("{text}")'
 
     @staticmethod
     def _history_item_command(index):
         """See base class."""
-        return f"Base.active_repl.mistate.current_mode.hist.history[end - {index}]"
+        return f'SpineREPL.history_item({index})'
 
     @staticmethod
     def _add_history_command(line):
-        return ""
+        line = line.replace('"', '\\"')
+        return f'SpineREPL.add_history("{line}")'
 
 
 class PythonPersistentManager(PersistentManagerBase):
@@ -277,31 +295,27 @@ class PythonPersistentManager(PersistentManagerBase):
     @staticmethod
     def _init_args():
         """See base class."""
-        return [
-            "-q",
-            "-i",
-            "-c",
-            "import itertools, sys; sys.ps1 = sys.ps2 = '';\ntry:\n\timport readline\nexcept:\n\tpass; ",
-        ]  # Remove prompts
+        path = os.path.dirname(__file__)
+        return ["-q", "-i", "-c", f"import sys; sys.path.append('{path}'); import spine_repl; sys.ps1 = sys.ps2 = ''"]
 
-    def _encode_command(self, cmd):
-        """See base class."""
-        return f'try:\n\tprint("{self._SENTINEL}" + {cmd})\nexcept:\n\tprint("{self._SENTINEL}")'
+    @staticmethod
+    def _send_msg_command(host, port, cmd):
+        return f'spine_repl.send_msg("{host}", {port}, {cmd})'
 
     @staticmethod
     def _completions_command(text):
         """See base class."""
-        return f'" ".join(itertools.takewhile(bool, (readline.get_completer()("{text}", k) for k in range(100))))'
-
-    @staticmethod
-    def _add_history_command(line):
-        line = line.replace('"', '\\"')
-        return f'readline.add_history("{line}")'
+        return f'spine_repl.completions("{text}")'
 
     @staticmethod
     def _history_item_command(index):
         """See base class."""
-        return f"readline.get_history_item(readline.get_current_history_length() + 1 - {index})"
+        return f"spine_repl.history_item({index})"
+
+    @staticmethod
+    def _add_history_command(line):
+        line = line.replace('"', '\\"')
+        return f'spine_repl.add_history("{line}")'
 
 
 class _PersistentManagerFactory(metaclass=Singleton):
