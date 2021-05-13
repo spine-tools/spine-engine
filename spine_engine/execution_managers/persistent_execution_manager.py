@@ -263,7 +263,7 @@ class JuliaPersistentManager(PersistentManagerBase):
     @staticmethod
     def _init_args():
         """See base class."""
-        path = os.path.join(os.path.dirname(__file__), "spine_repl.jl")
+        path = os.path.join(os.path.dirname(__file__), "spine_repl.jl").replace(os.sep, "/")
         return ["-i", "-e", f'include("{path}")']
 
     @staticmethod
@@ -295,7 +295,7 @@ class PythonPersistentManager(PersistentManagerBase):
     @staticmethod
     def _init_args():
         """See base class."""
-        path = os.path.dirname(__file__)
+        path = os.path.dirname(__file__).replace(os.sep, "/")
         return ["-q", "-i", "-c", f"import sys; sys.path.append('{path}'); import spine_repl; sys.ps1 = sys.ps2 = ''"]
 
     @staticmethod
