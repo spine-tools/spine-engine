@@ -26,7 +26,7 @@ function send_msg(host, port, msg)
 end
 
 function completions(text)
-    join(completion_text.(completions(text, length(text))[1]), " ")
+    join(completion_text.(REPLCompletions.completions(text, length(text))[1]), " ")
 end
 
 # Create MIState to work with history. This works with julia 1.0 to 1.6
