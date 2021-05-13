@@ -17,15 +17,8 @@ using REPL.REPLCompletions
 using REPL.Terminals
 using REPL.LineEdit
 
-send_msg(host, port) = send_msg(host, port, "")
-send_msg(host, port, msg::Nothing) = send_msg(host, port, "")
-function send_msg(host, port, msg)
-    s = connect(host, port)
-    write(s, msg)
-    close(s)
-end
-
 function completions(text)
+	text = string(text)
     join(completion_text.(REPLCompletions.completions(text, length(text))[1]), " ")
 end
 
@@ -35,17 +28,44 @@ repl = LineEditREPL(term, false)
 repl.history_file = true
 interface = REPL.setup_interface(repl)
 mistate = LineEdit.init_state(term, interface)
+prompt_state = LineEdit.state(mistate)
+hist = LineEdit.mode(mistate).hist
 
-history_item(index) = LineEdit.mode(mistate).hist.history[end + 1 - index]
+function history_item(index)
+	index = parse(Int, index)
+	hist.history[end + 1 - index]
+end
 
 function add_history(line)
-    prompt_state = LineEdit.state(mistate)
-    hist = LineEdit.mode(mistate).hist
+	line = string(line)
     take!(prompt_state.input_buffer)
     write(prompt_state.input_buffer, line)
     REPL.add_history(hist, prompt_state)
 end
 
+function start_server(host, port)
+	@async begin
+		server = listen(getaddrinfo(host), port)
+		while true
+			sock = accept(server)
+			data = String(readavailable(sock))
+			request, arg = split(data, ";;"; limit=2)			
+			handlers = Dict("completions" => completions, "add_history" => add_history, "history_item" => history_item)
+			handler = get(handlers, request, nothing)
+			if handler === nothing
+				close(sock)
+				continue
+			end
+			response = handler(arg)
+			if !isopen(sock)
+				continue
+			end
+			write(sock, response)
+			flush(sock)
+		end
+	end
 end
+
+end  # module
 
 

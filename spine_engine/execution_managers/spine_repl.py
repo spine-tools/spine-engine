@@ -9,7 +9,9 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-import socket
+import socketserver
+import threading
+import json
 
 try:
     import readline
@@ -18,27 +20,50 @@ except ModuleNotFoundError:
     readline = None
 
 
+class SpineDBServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    allow_reuse_address = True
+
+
+class _RequestHandler(socketserver.BaseRequestHandler):
+    """
+    The request handler class for our server.
+    """
+
+    def handle(self):
+        data = self.request.recv(1024).decode("UTF8")
+        request, _, arg = data.partition(";;")
+        handler = {"completions": completions, "add_history": add_history, "history_item": history_item}.get(request)
+        if handler is None:
+            return
+        response = handler(arg)
+        self.request.sendall(bytes(response, "UTF8"))
+
+
 def completions(text):
     if not readline:
-        return None
+        return ""
     return " ".join(itertools.takewhile(bool, (readline.get_completer()(text, k) for k in range(100))))
 
 
 def add_history(line):
     if not readline:
-        return None
+        return ""
     readline.add_history(line)
 
 
 def history_item(index):
+    index = int(index)
     if not readline:
-        return None
+        return ""
     return readline.get_history_item(readline.get_current_history_length() + 1 - index)
 
 
-def send_msg(host, port, msg):
-    if msg is None:
-        msg = ""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.connect((host, port))
-        s.sendall(msg.encode("UTF8"))
+def start_server(address):
+    """
+    Args:
+        address (tuple(str,int)): Server address
+    """
+    server = SpineDBServer(address, _RequestHandler)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()

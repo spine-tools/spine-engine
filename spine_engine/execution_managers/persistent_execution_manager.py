@@ -37,6 +37,12 @@ if sys.platform == "win32":
 class PersistentManagerBase:
     _COMMAND_FINISHED = object()
 
+    _SENTINEL = '\uf056'
+    """Random character in unicode private space, printed to stdout to check that the process is idle.
+    It is assumed that users *never* print this character themselves.
+    (I guess the chances of that happening are low, but never zero?)
+    """
+
     def __init__(self, args, cwd=None):
         """
         Args:
@@ -44,7 +50,11 @@ class PersistentManagerBase:
             cwd (str, optional): the directory where to start the process
         """
         self._args = args
+        host = "127.0.0.1"
+        with socketserver.TCPServer((host, 0), None) as s:
+            self._server_address = s.server_address
         self._msg_queue = Queue()
+        self._synch_queue = Queue()
         self.command_successful = False
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
         if sys.platform == "win32":
@@ -61,8 +71,7 @@ class PersistentManagerBase:
         """
         raise NotImplementedError()
 
-    @staticmethod
-    def _init_args():
+    def _init_args(self):
         """Returns init args for Popen. Subclasses must reimplement to include appropriate switches to ensure the
         process is interactive, or to load modules for internal communication.
 
@@ -71,21 +80,9 @@ class PersistentManagerBase:
         """
         raise NotImplementedError()
 
-    @staticmethod
-    def _completions_command(text):
-        """Returns a command for getting a space separated list of completion options.
-
-        Args:
-            text (str): text to complete
-
-        Returns:
-            str: command
-        """
-
-    @staticmethod
-    def _send_msg_command(host, port, cmd):
-        """Returns a command that sends the output of given command to a socket listening in host port.
-        Used to communicate internally with the process.
+    def _sentinel_command(self):
+        """Returns a command in the underlying language, that prints the sentinel to stdout.
+        Used to synchronize with the persistent process.
 
         Args:
             cmd (str)
@@ -106,6 +103,9 @@ class PersistentManagerBase:
         """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
         for line in iter(self._persistent.stdout.readline, b''):
             data = line.decode("UTF8", "replace").strip()
+            if data == self._SENTINEL:
+                self._synch_queue.put(None)
+                continue
             self._msg_queue.put(dict(type="stdout", data=data))
 
     def _log_stderr(self):
@@ -138,7 +138,7 @@ class PersistentManagerBase:
     def _issue_command_and_wait_for_idle(self, cmd, add_history):
         """Issues command and wait for idle."""
         with self._lock:
-            self.command_successful = self._issue_command(cmd, add_history) and self._communicate('"done"') == "done"
+            self.command_successful = self._issue_command(cmd, add_history) and self._wait()
         self._msg_queue.put(self._COMMAND_FINISHED)
 
     def _issue_command(self, cmd, add_history=False):
@@ -147,49 +147,43 @@ class PersistentManagerBase:
         try:
             self._persistent.stdin.flush()
             if add_history:
-                self._communicate(self._add_history_command(cmd))
+                self._communicate("add_history", cmd, receive=False)
             return True
         except BrokenPipeError:
             return False
 
-    def _communicate(self, cmd):
-        """Communicates with the persistent process internally. Sends given command and returns output.
-
-        Args:
-            cmd (str)
+    def _wait(self):
+        """Waits for the persistent process to become idle.
+        This is implemented by writing the sentinel to stdin and waiting for the _SENTINEL to come out of stdout.
 
         Returns:
-            str
+            bool
         """
-        host = "127.0.0.1"
-        with socketserver.TCPServer((host, 0), None) as s:
-            port = s.server_address[1]
-        queue = Queue()
-        thread = Thread(target=self._listen_and_enqueue, args=(host, port, queue))
-        thread.start()
-        queue.get()  # This blocks until the server is listening
-        msg_cmd = self._send_msg_command(host, port, cmd)
-        if not self._issue_command(msg_cmd):
-            thread.join()
-            return None
-        response = queue.get()
-        thread.join()
-        return response
+        cmd = self._sentinel_command()
+        if not self._issue_command(cmd):
+            return False
+        self._synch_queue.get()
+        return True
 
-    @staticmethod
-    def _listen_and_enqueue(host, port, queue):
-        """Listens on the server and enqueues all data received."""
+    def _communicate(self, request, arg, receive=True):
+        """
+        Sends a request to the server with the given argument.
+
+        Args:
+            request (str): One of the supported engine server requests
+            arg: Request argument
+            receive (bool, optional): If True (the default) also receives the response and returns it.
+
+        Returns:
+            str or NoneType: response, or None if the ``receive`` argument is False
+        """
+        msg = f"{request};;{arg}"
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind((host, port))
-            s.listen()
-            queue.put(None)
-            conn, _ = s.accept()
-            with conn:
-                while True:
-                    data = conn.recv(1024)
-                    queue.put(data.decode("UTF8", "replace"))
-                    if not data:
-                        break
+            s.connect(self._server_address)
+            s.sendall(bytes(msg, "UTF8"))
+            if receive:
+                response = s.recv(1000000)
+                return str(response, "UTF8")
 
     def get_completions(self, text):
         """Returns a list of autocompletion options for given text.
@@ -200,8 +194,7 @@ class PersistentManagerBase:
         Returns:
             list(str): List of options
         """
-        cmd = self._completions_command(text)
-        result = self._communicate(cmd)
+        result = self._communicate("completions", text)
         if result is None:
             return []
         return result.strip().split(" ")
@@ -217,8 +210,7 @@ class PersistentManagerBase:
         """
         if index < 1:
             return ""
-        cmd = self._history_item_command(index)
-        return self._communicate(cmd).strip()
+        return self._communicate("history_item", index).strip()
 
     def restart_persistent(self):
         """Restarts the persistent process."""
@@ -249,7 +241,6 @@ class PersistentManagerBase:
         return self._persistent.returncode is None
 
     def kill_process(self):
-
         self._persistent.kill()
         self._persistent.wait()
 
@@ -260,30 +251,14 @@ class JuliaPersistentManager(PersistentManagerBase):
         """See base class."""
         return "julia"
 
-    @staticmethod
-    def _init_args():
+    def _init_args(self):
         """See base class."""
         path = os.path.join(os.path.dirname(__file__), "spine_repl.jl").replace(os.sep, "/")
-        return ["-i", "-e", f'include("{path}")']
+        host, port = self._server_address
+        return ["-i", "-e", f'include("{path}"); SpineREPL.start_server("{host}", {port})']
 
-    @staticmethod
-    def _send_msg_command(host, port, cmd):
-        return f'SpineREPL.send_msg("{host}", {port}, {cmd})'
-
-    @staticmethod
-    def _completions_command(text):
-        """See base class."""
-        return f'SpineREPL.completions("{text}")'
-
-    @staticmethod
-    def _history_item_command(index):
-        """See base class."""
-        return f'SpineREPL.history_item({index})'
-
-    @staticmethod
-    def _add_history_command(line):
-        line = line.replace('"', '\\"')
-        return f'SpineREPL.add_history("{line}")'
+    def _sentinel_command(self):
+        return f"println('{self._SENTINEL}')"
 
 
 class PythonPersistentManager(PersistentManagerBase):
@@ -292,30 +267,19 @@ class PythonPersistentManager(PersistentManagerBase):
         """See base class."""
         return "python"
 
-    @staticmethod
-    def _init_args():
+    def _init_args(self):
         """See base class."""
         path = os.path.dirname(__file__).replace(os.sep, "/")
-        return ["-q", "-i", "-c", f"import sys; sys.path.append('{path}'); import spine_repl; sys.ps1 = sys.ps2 = ''"]
+        return [
+            "-q",
+            "-i",
+            "-c",
+            f"import sys; sys.ps1 = sys.ps2 = ''; sys.path.append('{path}'); "
+            f"import spine_repl; spine_repl.start_server({self._server_address})",
+        ]
 
-    @staticmethod
-    def _send_msg_command(host, port, cmd):
-        return f'spine_repl.send_msg("{host}", {port}, {cmd})'
-
-    @staticmethod
-    def _completions_command(text):
-        """See base class."""
-        return f'spine_repl.completions("{text}")'
-
-    @staticmethod
-    def _history_item_command(index):
-        """See base class."""
-        return f"spine_repl.history_item({index})"
-
-    @staticmethod
-    def _add_history_command(line):
-        line = line.replace('"', '\\"')
-        return f'spine_repl.add_history("{line}")'
+    def _sentinel_command(self):
+        return f"print('{self._SENTINEL}')"
 
 
 class _PersistentManagerFactory(metaclass=Singleton):
