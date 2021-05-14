@@ -45,22 +45,22 @@ class _RequestHandler(socketserver.BaseRequestHandler):
 
 
 def completions(text):
-    if readline:
-        return " ".join(itertools.takewhile(bool, (readline.get_completer()(text, k) for k in range(100))))
-    return ""
+    if not readline:
+        return ""
+    return " ".join(itertools.takewhile(bool, (readline.get_completer()(text, k) for k in range(100))))
 
 
 def add_history(line):
-    if readline:
-        readline.add_history(line)
-    return ""
+    if not readline:
+        return
+    readline.add_history(line)
 
 
 def history_item(index):
     if readline:
-        index = int(index)
-        return readline.get_history_item(readline.get_current_history_length() + 1 - index)
-    return ""
+        return ""
+    index = int(index)
+    return readline.get_history_item(readline.get_current_history_length() + 1 - index)
 
 
 def is_complete(cmd):

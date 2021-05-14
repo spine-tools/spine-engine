@@ -141,7 +141,10 @@ class PersistentManagerBase:
         """
         with self._lock:
             self._command_buffer.append(cmd)
-            is_complete = self._is_complete(os.linesep.join(self._command_buffer) + os.linesep)
+            check_cmd = os.linesep.join(self._command_buffer)
+            if len(self._command_buffer) == 1:
+                check_cmd += os.linesep
+            is_complete = self._is_complete(check_cmd)
             self.command_successful = self._issue_command(cmd, is_complete, add_history)
             if self.command_successful and is_complete:
                 self.command_successful &= self._wait()

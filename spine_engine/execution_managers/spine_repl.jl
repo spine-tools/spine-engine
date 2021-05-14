@@ -43,35 +43,42 @@ function add_history(line)
     REPL.add_history(hist, prompt_state)
 end
 
-is_complete(cmd) = _is_complete(string(cmd))
+function is_complete(cmd)
+	cmd = string(cmd)
+	try
+		_is_complete(Meta.parse(cmd))
+	catch
+		"true"
+	end
+end
 
 _is_complete(expr::Expr) = (expr.head === :incomplete) ? "false" : "true"
-_is_complete(expr) = "true"
+_is_complete(other) = "true"
 
 function start_server(host, port)
+	handlers = Dict(
+		"completions" => completions,
+		"add_history" => add_history,
+		"history_item" => history_item,
+		"is_complete" => is_complete
+	)
 	@async begin
 		server = listen(getaddrinfo(host), port)
 		while true
 			sock = accept(server)
 			data = String(readavailable(sock))
 			request, arg = split(data, ";;"; limit=2)			
-			handlers = Dict(
-				"completions" => completions,
-				"add_history" => add_history,
-				"history_item" => history_item,
-				"is_complete" => is_complete
-			)
 			handler = get(handlers, request, nothing)
 			if handler === nothing
 				close(sock)
 				continue
 			end
 			response = handler(arg)
-			if !isopen(sock)
-				continue
+			try
+				write(sock, response * "\n")
+				flush(sock)
+			catch
 			end
-			write(sock, response * "\n")
-			flush(sock)
 		end
 	end
 end
