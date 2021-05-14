@@ -259,7 +259,7 @@ class PersistentManagerBase:
 
     def kill_process(self):
         self._persistent.kill()
-        self._persistent.wait()
+        self._persistent.communicate(timeout=5)
 
 
 class JuliaPersistentManager(PersistentManagerBase):
