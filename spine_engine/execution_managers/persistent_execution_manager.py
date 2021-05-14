@@ -35,8 +35,6 @@ if sys.platform == "win32":
 
 
 class PersistentManagerBase:
-    _COMMAND_FINISHED = object()
-
     def __init__(self, args, cwd=None):
         """
         Args:
@@ -44,9 +42,8 @@ class PersistentManagerBase:
             cwd (str, optional): the directory where to start the process
         """
         self._args = args
-        host = "127.0.0.1"
-        with socketserver.TCPServer((host, 0), None) as s:
-            self._server_address = s.server_address
+        self._command_buffer = []
+        self._server_address = None
         self._msg_queue = Queue()
         self.command_successful = False
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
@@ -90,6 +87,9 @@ class PersistentManagerBase:
 
     def _start_persistent(self):
         """Starts the persistent process."""
+        host = "127.0.0.1"
+        with socketserver.TCPServer((host, 0), None) as s:
+            self._server_address = s.server_address
         self.command_successful = False
         self._persistent = Popen(self._args + self._init_args(), **self._kwargs)
         Thread(target=self._log_stdout, daemon=True).start()
@@ -107,6 +107,10 @@ class PersistentManagerBase:
             data = line.decode("UTF8", "replace").strip()
             self._msg_queue.put(dict(type="stderr", data=data))
 
+    def _is_complete(self, cmd):
+        result = self._communicate("is_complete", cmd)
+        return result.strip() == "true"
+
     def issue_command(self, cmd, add_history=False):
         """Issues cmd to the persistent process and returns an iterator of stdout and stderr messages.
         Each message is a dictionary with two keys:
@@ -123,20 +127,39 @@ class PersistentManagerBase:
         t.start()
         while True:
             msg = self._msg_queue.get()
-            if msg == self._COMMAND_FINISHED:
-                break
             yield msg
+            if msg["type"] == "command_finished":
+                break
         t.join()
 
     def _issue_command_and_wait_for_idle(self, cmd, add_history):
-        """Issues command and wait for idle."""
-        with self._lock:
-            self.command_successful = self._issue_command(cmd, add_history) and self._wait()
-        self._msg_queue.put(self._COMMAND_FINISHED)
+        """Issues command and wait for idle.
 
-    def _issue_command(self, cmd, add_history=False):
-        """Writes command to the process's stdin and flushes."""
-        self._persistent.stdin.write(f"{cmd.strip()}{os.linesep}{os.linesep}".encode("UTF8"))
+        Args:
+            cmd (str): Command to pass to the persistent process
+            add_history (bool): Whether or not to add the command to history
+        """
+        with self._lock:
+            self._command_buffer.append(cmd)
+            is_complete = self._is_complete(os.linesep.join(self._command_buffer) + os.linesep)
+            self.command_successful = self._issue_command(cmd, is_complete, add_history)
+            if self.command_successful and is_complete:
+                self.command_successful &= self._wait()
+                self._command_buffer.clear()
+        self._msg_queue.put({"type": "command_finished", "is_complete": is_complete})
+
+    def _issue_command(self, cmd, is_complete=True, add_history=False):
+        """Writes command to the process's stdin and flushes.
+
+        Args:
+            cmd (str): Command to pass to the persistent process
+            is_complete (bool): Whether or not the command is complete
+            add_history (bool): Whether or not to add the command to history
+        """
+        cmd += os.linesep
+        if is_complete:
+            cmd += os.linesep
+        self._persistent.stdin.write(cmd.encode("UTF8"))
         try:
             self._persistent.stdin.flush()
             if add_history:
@@ -162,10 +185,10 @@ class PersistentManagerBase:
         sentinel = self._sentinel_command(host, port)
         if not self._issue_command(sentinel):
             thread.join()
-            return None
-        response = queue.get()
+            return False
+        queue.get()
         thread.join()
-        return response
+        return True
 
     @staticmethod
     def _listen_and_enqueue(host, port, queue):
@@ -482,6 +505,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
 
     def run_until_complete(self):
         """See base class."""
+        time.sleep(1)
         msg = dict(type="execution_started", args=" ".join(self._args))
         self._logger.msg_persistent_execution.emit(msg)
         self._logger.msg_persistent_execution.emit(dict(type="stdin", data=self._alias.strip()))

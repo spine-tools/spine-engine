@@ -43,6 +43,11 @@ function add_history(line)
     REPL.add_history(hist, prompt_state)
 end
 
+function is_complete(cmd)
+	cmd = string(cmd)
+	(Meta.parse(cmd).head === :incomplete) ? "false" : "true"
+end
+
 function start_server(host, port)
 	@async begin
 		server = listen(getaddrinfo(host), port)
@@ -50,7 +55,12 @@ function start_server(host, port)
 			sock = accept(server)
 			data = String(readavailable(sock))
 			request, arg = split(data, ";;"; limit=2)			
-			handlers = Dict("completions" => completions, "add_history" => add_history, "history_item" => history_item)
+			handlers = Dict(
+				"completions" => completions,
+				"add_history" => add_history,
+				"history_item" => history_item,
+				"is_complete" => is_complete
+			)
 			handler = get(handlers, request, nothing)
 			if handler === nothing
 				close(sock)

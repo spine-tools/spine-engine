@@ -12,6 +12,7 @@
 import socketserver
 import socket
 import threading
+import code
 
 try:
     import readline
@@ -28,7 +29,12 @@ class _RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         data = self.request.recv(1024).decode("UTF8")
         request, _, arg = data.partition(";;")
-        handler = {"completions": completions, "add_history": add_history, "history_item": history_item}.get(request)
+        handler = {
+            "completions": completions,
+            "add_history": add_history,
+            "history_item": history_item,
+            "is_complete": is_complete,
+        }.get(request)
         if handler is None:
             return
         response = handler(arg)
@@ -55,6 +61,15 @@ def history_item(index):
         index = int(index)
         return readline.get_history_item(readline.get_current_history_length() + 1 - index)
     return ""
+
+
+def is_complete(cmd):
+    try:
+        if code.compile_command(cmd) is None:
+            return "false"
+    except (SyntaxError, OverflowError, ValueError):
+        pass
+    return "true"
 
 
 def start_server(address):
