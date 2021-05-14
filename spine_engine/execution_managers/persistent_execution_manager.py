@@ -219,7 +219,12 @@ class PersistentManagerBase:
         """
         msg = f"{request};;{arg}"
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect(self._server_address)
+            while True:
+                try:
+                    s.connect(self._server_address)
+                    break
+                except ConnectionRefusedError:
+                    time.sleep(0.02)
             s.sendall(bytes(msg, "UTF8"))
             if receive:
                 response = s.recv(1000000)
@@ -505,7 +510,6 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
 
     def run_until_complete(self):
         """See base class."""
-        time.sleep(1)
         msg = dict(type="execution_started", args=" ".join(self._args))
         self._logger.msg_persistent_execution.emit(msg)
         self._logger.msg_persistent_execution.emit(dict(type="stdin", data=self._alias.strip()))

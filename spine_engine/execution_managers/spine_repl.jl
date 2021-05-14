@@ -43,10 +43,10 @@ function add_history(line)
     REPL.add_history(hist, prompt_state)
 end
 
-function is_complete(cmd)
-	cmd = string(cmd)
-	(Meta.parse(cmd).head === :incomplete) ? "false" : "true"
-end
+is_complete(cmd) = _is_complete(string(cmd))
+
+_is_complete(expr::Expr) = (expr.head === :incomplete) ? "false" : "true"
+_is_complete(expr) = "true"
 
 function start_server(host, port)
 	@async begin
