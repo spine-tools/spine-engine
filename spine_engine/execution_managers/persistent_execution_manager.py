@@ -132,6 +132,12 @@ class PersistentManagerBase:
                 break
         t.join()
 
+    def _make_complete_command(self):
+        complete_cmd = os.linesep.join(self._command_buffer)
+        if len(self._command_buffer) == 1:
+            complete_cmd += os.linesep
+        return complete_cmd
+
     def _issue_command_and_wait_for_idle(self, cmd, add_history):
         """Issues command and wait for idle.
 
@@ -141,10 +147,8 @@ class PersistentManagerBase:
         """
         with self._lock:
             self._command_buffer.append(cmd)
-            check_cmd = os.linesep.join(self._command_buffer)
-            if len(self._command_buffer) == 1:
-                check_cmd += os.linesep
-            is_complete = self._is_complete(check_cmd)
+            complete_cmd = self._make_complete_command()
+            is_complete = self._is_complete(complete_cmd)
             self.command_successful = self._issue_command(cmd, is_complete, add_history)
             if self.command_successful and is_complete:
                 self.command_successful &= self._wait()
@@ -165,8 +169,9 @@ class PersistentManagerBase:
         self._persistent.stdin.write(cmd.encode("UTF8"))
         try:
             self._persistent.stdin.flush()
-            if add_history:
-                self._communicate("add_history", cmd, receive=False)
+            if is_complete and add_history:
+                complete_cmd = self._make_complete_command()
+                self._communicate("add_history", complete_cmd, receive=False)
             return True
         except BrokenPipeError:
             return False
@@ -210,10 +215,10 @@ class PersistentManagerBase:
 
     def _communicate(self, request, arg, receive=True):
         """
-        Sends a request to the server with the given argument.
+        Sends a request to the persistent process with the given argument.
 
         Args:
-            request (str): One of the supported engine server requests
+            request (str): One of the supported requests
             arg: Request argument
             receive (bool, optional): If True (the default) also receives the response and returns it.
 

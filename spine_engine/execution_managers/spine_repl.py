@@ -57,7 +57,7 @@ def add_history(line):
 
 
 def history_item(index):
-    if readline:
+    if not readline:
         return ""
     index = int(index)
     return readline.get_history_item(readline.get_current_history_length() + 1 - index)
