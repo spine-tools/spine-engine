@@ -146,6 +146,7 @@ class PersistentManagerBase:
             add_history (bool): Whether or not to add the command to history
         """
         with self._lock:
+            self._msg_queue.put({"type": "stdin", "data": cmd})
             self._command_buffer.append(cmd)
             complete_cmd = self._make_complete_command()
             is_complete = self._is_complete(complete_cmd)
@@ -523,7 +524,8 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         self._logger.msg_persistent_execution.emit(dict(type="stdin", data=self._alias.strip()))
         for cmd in self._commands:
             for msg in self._persistent_manager.issue_command(cmd):
-                self._logger.msg_persistent_execution.emit(msg)
+                if msg["type"] != "stdin":
+                    self._logger.msg_persistent_execution.emit(msg)
             if not self._persistent_manager.command_successful:
                 return -1
         return 0
