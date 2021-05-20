@@ -404,7 +404,7 @@ class SpineEngine:
         Returns:
             list(tuple(ProjectItemResource))
         """
-        success = [True]
+        success = ["UNDEFINED"]
         output_resources_list = []
         threads = []
         resources_iterator = self._filtered_resources_iterator(
