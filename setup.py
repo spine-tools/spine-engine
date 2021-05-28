@@ -37,7 +37,7 @@ setup(
     author_email="spine_info@vtt.fi",
     url="https://github.com/Spine-project/spine-engine",
     packages=find_packages(exclude=("tests",)),
-    package_data={'spine_engine/execution_managers': ['spine_repl.jl']},
+    package_data={'spine_engine': ['execution_managers/spine_repl.jl']},
     license="LGPL-3.0-or-later",
     zip_safe=False,
     keywords="",
