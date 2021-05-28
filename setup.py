@@ -25,13 +25,7 @@ version = {}
 with open("spine_engine/version.py") as fp:
     exec(fp.read(), version)
 
-install_requires = [
-    "dagster==0.10.1",
-    "sqlalchemy==1.3.24",
-    "numpy==1.20.2",
-    "datapackage==1.15.2",
-    "spinedb_api",
-]
+install_requires = ["dagster==0.10.1", "sqlalchemy==1.3.24", "numpy==1.20.2", "datapackage==1.15.2", "spinedb_api"]
 
 
 setup(
@@ -43,7 +37,7 @@ setup(
     author_email="spine_info@vtt.fi",
     url="https://github.com/Spine-project/spine-engine",
     packages=find_packages(exclude=("tests",)),
-    include_package_data=True,
+    package_data={'spine_engine/execution_managers': ['spine_repl.jl']},
     license="LGPL-3.0-or-later",
     zip_safe=False,
     keywords="",
