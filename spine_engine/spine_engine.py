@@ -16,7 +16,7 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 :date:   20.11.2019
 """
 
-from enum import Enum, auto
+from enum import Enum, auto, unique
 import os
 import threading
 import multiprocessing as mp
@@ -46,6 +46,7 @@ from .multithread_executor.executor import multithread_executor
 from .project_item.connection import Connection
 
 
+@unique
 class ExecutionDirection(Enum):
     FORWARD = auto()
     BACKWARD = auto()
@@ -57,6 +58,7 @@ class ExecutionDirection(Enum):
 ED = ExecutionDirection
 
 
+@unique
 class SpineEngineState(Enum):
     SLEEPING = 1
     RUNNING = 2
@@ -68,12 +70,14 @@ class SpineEngineState(Enum):
         return str(self.name)
 
 
+@unique
 class ItemExecutionFinishState(Enum):
     SUCCESS = 1
     FAILURE = 2
     SKIPPED = 3
     EXCLUDED = 4
     STOPPED = 5
+    NEVER_FINISHED = 6
 
     def __str__(self):
         return str(self.name)
@@ -404,7 +408,7 @@ class SpineEngine:
         Returns:
             list(tuple(ProjectItemResource))
         """
-        success = ["UNDEFINED"]
+        success = [ItemExecutionFinishState.NEVER_FINISHED]
         output_resources_list = []
         threads = []
         resources_iterator = self._filtered_resources_iterator(
