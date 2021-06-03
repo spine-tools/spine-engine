@@ -18,7 +18,7 @@ Contains the ExeuctionManagerBase class and main subclasses.
 
 import os
 import sys
-from subprocess import Popen, PIPE, CREATE_NO_WINDOW
+import subprocess
 from threading import Thread
 from jupyter_client.manager import KernelManager
 from .utils.helpers import Singleton
@@ -64,7 +64,7 @@ class StandardExecutionManager(ExecutionManagerBase):
         self._workdir = workdir
 
     def run_until_complete(self):
-        cf = CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         # Setup POpen to not show console in frozen app using the creationflags argument.
         # Another option is to do the same thing using the startupinfo argument and
         # STARTUPINFO() class. These both approaches prevent the consoles from appearing
@@ -72,8 +72,12 @@ class StandardExecutionManager(ExecutionManagerBase):
         # shows a console 'flash' for some reason. Note that running Julia scripts with
         # a Gimlet does NOT show the console flash.
         try:
-            self._process = Popen(
-                [self._program, *self._args], stdout=PIPE, stderr=PIPE, cwd=self._workdir, creationflags=cf
+            self._process = subprocess.Popen(
+                [self._program, *self._args],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=self._workdir,
+                creationflags=cf
             )
         except OSError as e:
             msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
@@ -225,7 +229,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._commands = commands
         self._group_id = group_id
         self._workdir = workdir
-        cf = CREATE_NO_WINDOW if sys.platform == "win32" else 0  # Don't show console when frozen
+        cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0  # Don't show console when frozen
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
             language, kernel_name, group_id, logger, cwd=self._workdir,
             extra_switches=extra_switches, creationflags=cf, **kwargs
