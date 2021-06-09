@@ -43,7 +43,7 @@ setup(
     author="Spine Project consortium",
     author_email="spine_info@vtt.fi",
     url="https://github.com/Spine-project/spine-engine",
-    packages=find_packages(exclude=("tests",)),
+    packages=find_packages(exclude=("tests", "tests.*")),
     include_package_data=True,
     license="LGPL-3.0-or-later",
     zip_safe=False,
