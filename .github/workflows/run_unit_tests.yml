@@ -33,7 +33,7 @@ jobs:
         pip install codecov
     - name: Install spine_items  # Some engine tests require spine_items
       run: |
-        pip install git+https://github.com/Spine-project/spine-items.git@release-0.7#egg=spine_items
+        pip install git+https://github.com/Spine-project/spine-items.git#egg=spine_items
 
     - name: Install spine_items dependencies
       run: |
@@ -72,7 +72,7 @@ jobs:
         pip install codecov
     - name: Install spine_items  # Some engine tests require spine_items
       run: |
-        pip install git+https://github.com/Spine-project/spine-items.git@release-0.7#egg=spine_items
+        pip install git+https://github.com/Spine-project/spine-items.git#egg=spine_items
     - name: Install spine_items dependencies
       run: |
         pip install jupyter-client
