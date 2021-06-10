@@ -16,7 +16,8 @@ Contains the ProcessExecutionManager class.
 :date:   12.10.2020
 """
 
-from subprocess import Popen, PIPE
+import sys
+import subprocess
 from threading import Thread
 from .execution_manager_base import ExecutionManagerBase
 
@@ -37,8 +38,15 @@ class ProcessExecutionManager(ExecutionManagerBase):
         self._workdir = workdir
 
     def run_until_complete(self):
+        cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0  # Don't show console when frozen
         try:
-            self._process = Popen([self._program, *self._args], stdout=PIPE, stderr=PIPE, cwd=self._workdir)
+            self._process = subprocess.Popen(
+                [self._program, *self._args],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=self._workdir,
+                creationflags=cf
+            )
         except OSError as e:
             msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
             self._logger.msg_standard_execution.emit(msg)

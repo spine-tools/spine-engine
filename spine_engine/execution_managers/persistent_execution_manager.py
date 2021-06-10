@@ -31,7 +31,7 @@ from ..utils.helpers import Singleton
 from .execution_manager_base import ExecutionManagerBase
 
 if sys.platform == "win32":
-    from subprocess import CREATE_NEW_PROCESS_GROUP
+    from subprocess import CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW
 
 
 class PersistentManagerBase:
@@ -48,7 +48,9 @@ class PersistentManagerBase:
         self.command_successful = False
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
         if sys.platform == "win32":
-            self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP
+            self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+            # Setup Popen to not show console in frozen app. Another option is to use
+            # startupinfo argument and STARTUPINFO() class.
         self._lock = Lock()
         self._start_persistent()
 

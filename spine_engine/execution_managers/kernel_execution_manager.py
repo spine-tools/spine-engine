@@ -17,6 +17,8 @@ Contains the KernelExecutionManager class and subclasses, and some convenience f
 """
 
 import os
+import sys
+import subprocess
 from jupyter_client.manager import KernelManager
 from ..utils.helpers import Singleton
 from .execution_manager_base import ExecutionManagerBase
@@ -71,8 +73,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             if extra_switches:
                 # Insert switches right after the julia program
                 km.kernel_spec.argv[1:1] = extra_switches
-            blackhole = open(os.devnull, 'w')
-            km.start_kernel(stdout=blackhole, stderr=blackhole, **kwargs)
+            km.start_kernel(**kwargs)
             self._key_by_connection_file[km.connection_file] = (kernel_name, group_id)
         msg = dict(type="kernel_started", connection_file=km.connection_file, **msg_head)
         logger.msg_kernel_execution.emit(msg)
@@ -144,6 +145,10 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._commands = commands
         self._group_id = group_id
         self._workdir = workdir
+        kwargs["stdout"] = open(os.devnull, 'w')
+        kwargs["stderr"] = open(os.devnull, 'w')
+        # Don't show console when frozen
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
             kernel_name, group_id, logger, cwd=self._workdir, extra_switches=extra_switches, **kwargs
         )
