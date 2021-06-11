@@ -22,6 +22,7 @@ import subprocess
 from jupyter_client.manager import KernelManager
 from ..utils.helpers import Singleton
 from .execution_manager_base import ExecutionManagerBase
+from spinetoolbox.cksm import CondaKernelSpecManager
 
 
 class _KernelManagerFactory(metaclass=Singleton):
@@ -48,7 +49,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             self._kernel_managers[key] = KernelManager(kernel_name=kernel_name)
         return self._kernel_managers[key]
 
-    def new_kernel_manager(self, kernel_name, group_id, logger, extra_switches=None, **kwargs):
+    def new_kernel_manager(self, kernel_name, group_id, logger, extra_switches=None, activate_env=False, **kwargs):
         """Creates a new kernel manager for given kernel and group id if none exists.
         Starts the kernel if not started, and returns it.
 
@@ -58,12 +59,15 @@ class _KernelManagerFactory(metaclass=Singleton):
             logger (LoggerInterface): for logging
             extra_switches (list, optional): List of additional switches to julia or python.
                 These come before the 'programfile'.
+            activate_env (bool):
             `**kwargs`: optional. Keyword arguments passed to ``KernelManager.start_kernel()``
 
         Returns:
             KernelManager
         """
         km = self._make_kernel_manager(kernel_name, group_id)
+        if activate_env:
+            km.kernel_spec_manager = CondaKernelSpecManager()
         msg_head = dict(kernel_name=kernel_name)
         if not km.is_alive():
             if not km.kernel_spec:
@@ -72,7 +76,7 @@ class _KernelManagerFactory(metaclass=Singleton):
                 raise RuntimeError
             # Check that kernel spec executable is referring to a file that actually exists
             exe_path = km.kernel_spec.argv[0]
-            if not os.path.exists(exe_path):
+            if not os.path.exists(exe_path) and os.path.isabs(exe_path):
                 msg_head["kernel_exe_path"] = exe_path
                 msg = dict(type="kernel_spec_exe_not_found", **msg_head)
                 logger.msg_kernel_execution.emit(msg)
@@ -133,6 +137,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         workdir=None,
         startup_timeout=60,
         extra_switches=None,
+        activate_env=False,
         **kwargs,
     ):
         """
@@ -145,6 +150,7 @@ class KernelExecutionManager(ExecutionManagerBase):
             startup_timeout (int, optional): How much to wait for the kernel, used in ``KernelClient.wait_for_ready()``
             extra_switches (list, optional): List of additional switches to launch julia.
                 These come before the 'programfile'.
+            activate_env (bool):
             **kwargs (optional): Keyword arguments passed to ``KernelManager.start_kernel()``
         """
         super().__init__(logger)
@@ -157,7 +163,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         # Don't show console when frozen
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
-            kernel_name, group_id, logger, cwd=self._workdir, extra_switches=extra_switches, **kwargs
+            kernel_name, group_id, logger, cwd=self._workdir, extra_switches=extra_switches, activate_env=activate_env, **kwargs
         )
         self._kernel_client = self._kernel_manager.client() if self._kernel_manager is not None else None
         self._startup_timeout = startup_timeout
