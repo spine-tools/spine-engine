@@ -72,7 +72,7 @@ class _KernelManagerFactory(metaclass=Singleton):
                 raise RuntimeError
             # Check that kernel spec executable is referring to a file that actually exists
             exe_path = km.kernel_spec.argv[0]
-            if not os.path.exists(exe_path):
+            if not os.path.exists(exe_path) and os.path.isabs(exe_path):
                 msg_head["kernel_exe_path"] = exe_path
                 msg = dict(type="kernel_spec_exe_not_found", **msg_head)
                 logger.msg_kernel_execution.emit(msg)
