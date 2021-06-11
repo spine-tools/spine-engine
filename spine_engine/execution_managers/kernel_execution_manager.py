@@ -73,6 +73,13 @@ class _KernelManagerFactory(metaclass=Singleton):
             if extra_switches:
                 # Insert switches right after the julia program
                 km.kernel_spec.argv[1:1] = extra_switches
+            # Check that kernel spec executable is referring to a file that actually exists
+            exe_path = km.kernel_spec.argv[0]
+            if not os.path.exists(exe_path):
+                msg_head["kernel_exe_path"] = exe_path
+                msg = dict(type="kernel_spec_exe_not_found", **msg_head)
+                logger.msg_kernel_execution.emit(msg)
+                return None
             km.start_kernel(**kwargs)
             self._key_by_connection_file[km.connection_file] = (kernel_name, group_id)
         msg = dict(type="kernel_started", connection_file=km.connection_file, **msg_head)
