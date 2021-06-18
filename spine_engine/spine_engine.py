@@ -21,6 +21,7 @@ import os
 import threading
 import multiprocessing as mp
 from itertools import product
+import networkx as nx
 from dagster import (
     PipelineDefinition,
     SolidDefinition,
@@ -30,20 +31,25 @@ from dagster import (
     ModeDefinition,
     Output,
     Failure,
-    execute_pipeline_iterator,
     DagsterEventType,
     default_executors,
     AssetMaterialization,
+    reexecute_pipeline_iterator,
+    DagsterInstance,
+    execute_pipeline_iterator,
 )
 from spinedb_api import append_filter_config, name_from_dict
 from spinedb_api.filters.tools import filter_config
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
-from .utils.helpers import AppSettings, inverted, create_timestamp
+from .exception import EngineInitFailed
+from .utils.chunk import chunkify
+from .utils.helpers import AppSettings, inverted, create_timestamp, make_dag
 from .utils.queue_logger import QueueLogger
 from .project_item_loader import ProjectItemLoader
 from .multithread_executor.executor import multithread_executor
-from .project_item.connection import Connection
+from .project_item.connection import Connection, Jump
+from .shared_memory_io_manager import shared_memory_io_manager
 
 
 @unique
@@ -61,6 +67,7 @@ ED = ExecutionDirection
 @unique
 class SpineEngineState(Enum):
     SLEEPING = 1
+    """Dare to wake it?"""
     RUNNING = 2
     USER_STOPPED = 3
     FAILED = 4
@@ -93,6 +100,7 @@ class SpineEngine:
         items=None,
         specifications=None,
         connections=None,
+        jumps=None,
         settings=None,
         project_dir=None,
         execution_permits=None,
@@ -104,12 +112,16 @@ class SpineEngine:
             items (list(dict)): List of executable item dicts.
             specifications (dict(str,list(dict))): A mapping from item type to list of specification dicts.
             connections (list of dict): List of connection dicts
+            jumps (list of dict, optional): List of jump dicts
             settings (dict): Toolbox execution settings.
             project_dir (str): Path to project directory.
             execution_permits (dict(str,bool)): A mapping from item name to a boolean value, False indicating that
                 the item is not executed, only its resources are collected.
             node_successors (dict(str,list(str))): A mapping from item name to list of successor item names, dictating the dependencies.
             debug (bool): Whether debug mode is active or not.
+
+        Raises:
+            EngineInitFailed: raised if initialization failed
         """
         super().__init__()
         self._queue = mp.Queue()
@@ -138,6 +150,16 @@ class SpineEngine:
         self._execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
         if node_successors is None:
             node_successors = {}
+        dag = make_dag(node_successors)
+        _validate_dag(dag)
+        if jumps is None:
+            jumps = []
+        if not jumps:
+            self._chunks = None
+        else:
+            jumps = list(map(Jump.from_dict, jumps))
+            _validate_jumps(jumps, dag)
+            self._chunks = chunkify(dag, jumps)
         self._back_injectors = {
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
@@ -187,9 +209,12 @@ class SpineEngine:
         return self._state
 
     def _get_event_stream(self):
-        """Returns an iterator of tuples (event_type, event_data).
+        """Yields events (event_type, event_data).
 
         TODO: Describe the events in depth.
+
+        Yields:
+            tuple: event type and data
         """
         threading.Thread(target=self.run).start()
         while True:
@@ -203,6 +228,14 @@ class SpineEngine:
 
     def run(self):
         """Runs this engine."""
+        if self._chunks is None:
+            self._linear_run()
+        else:
+            self._chunked_run()
+
+    def _linear_run(self):
+        """Runs the engine without jumps and chunking."""
+
         self._state = SpineEngineState.RUNNING
         run_config = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}, "execution": {"multithread": {}}}
         for event in execute_pipeline_iterator(self._pipeline, run_config=run_config):
@@ -210,6 +243,75 @@ class SpineEngine:
         if self._state == SpineEngineState.RUNNING:
             self._state = SpineEngineState.COMPLETED
         self._queue.put(("dag_exec_finished", str(self._state)))
+
+    def _chunked_run(self):
+        """Runs the engine with jumps and chunking."""
+
+        self._state = SpineEngineState.RUNNING
+        run_id = "root run"
+        dagster_instance = DagsterInstance.ephemeral()
+        try:
+            dagster_instance.create_run_for_pipeline(self._pipeline, run_id=run_id)
+            run_config = {
+                "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},
+                "execution": {"multithread": {}},
+            }
+            self._run_chunks_backward(dagster_instance, run_id, run_config)
+            self._run_chunks_forward(dagster_instance, run_config)
+            if self._state == SpineEngineState.RUNNING:
+                self._state = SpineEngineState.COMPLETED
+            self._queue.put(("dag_exec_finished", str(self._state)))
+        finally:
+            dagster_instance.dispose()
+
+    def _run_chunks_backward(self, dagster_instance, run_id, run_config):
+        """Executes all backward solids.
+
+        Args:
+            dagster_instance (DagsterInstance): dagster instance
+            run_id (str): root run id
+            run_config (dict): dagster's run config
+        """
+        backward_solids = [f"{ED.BACKWARD}_{name}" for name in self._solid_names.values()]
+        for event in reexecute_pipeline_iterator(
+            self._pipeline, run_id, step_selection=backward_solids, run_config=run_config, instance=dagster_instance
+        ):
+            self._process_event(event)
+
+    def _run_chunks_forward(self, dagster_instance, run_config):
+        """Executes forward solids in chunks.
+
+        Args:
+            dagster_instance (DagsterInstance): dagster instance
+            run_config (dict): dagster's run config
+        """
+        for chunk in self._chunks:
+            run_id = dagster_instance.get_runs()[0].run_id
+            forward_solids = [f"{ED.FORWARD}_{self._solid_names[name]}" for name in chunk.item_names]
+            if chunk.jump is None:
+                for event in reexecute_pipeline_iterator(
+                    self._pipeline,
+                    run_id,
+                    step_selection=forward_solids,
+                    run_config=run_config,
+                    instance=dagster_instance,
+                ):
+                    self._process_event(event)
+            else:
+                loop_counter = 1  # We've already executed the loop once.
+                while chunk.jump.is_condition_true(loop_counter):
+                    for event in reexecute_pipeline_iterator(
+                        self._pipeline,
+                        run_id,
+                        step_selection=forward_solids,
+                        run_config=run_config,
+                        instance=dagster_instance,
+                    ):
+                        self._process_event(event)
+                    if self._state != SpineEngineState.RUNNING:
+                        break
+                    loop_counter += 1
+                    run_id = dagster_instance.get_runs()[0].run_id
 
     def _process_event(self, event):
         """
@@ -263,7 +365,7 @@ class SpineEngine:
                     },
                 )
             )
-        elif event.event_type == DagsterEventType.STEP_MATERIALIZATION:
+        elif event.event_type == DagsterEventType.ASSET_MATERIALIZATION:
             # Notify Toolbox here when FORWARD execution has finished
             direction, _, solid_name = event.solid_name.partition("_")
             if direction != "FORWARD":
@@ -317,7 +419,12 @@ class SpineEngine:
             for make_solid_def in (self._make_forward_solid_def, self._make_backward_solid_def)
         ]
         dependencies = self._make_dependencies()
-        mode_defs = [ModeDefinition(executor_defs=default_executors + [multithread_executor])]
+        mode_defs = [
+            ModeDefinition(
+                executor_defs=default_executors + [multithread_executor],
+                resource_defs={"io_manager": shared_memory_io_manager},
+            )
+        ]
         return PipelineDefinition(
             name="pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs
         )
@@ -483,8 +590,8 @@ class SpineEngine:
             backward_resources (list(ProjectItemResource))
             timestamp (str): timestamp for the execution filter
 
-        Returns:
-            Iterator(tuple(list,list,str)): forward resources, backward resources, filter id
+        Yields:
+            tuple(list,list,str): forward resources, backward resources, filter id
         """
 
         def check_resource_affinity(filtered_forward_resources):
@@ -582,7 +689,7 @@ class SpineEngine:
 
         Args:
             item_name (str): receiving item's name
-            resources (list of ProjectItemResource): resources to convert
+            resources (Iterable of ProjectItemResource): resources to convert
 
         Returns:
             list of ProjectItemResource: converted resources
@@ -650,3 +757,46 @@ def _filter_names_from_stack(stack):
         filter_name = name_from_dict(config)
         if filter_name is not None:
             yield filter_name
+
+
+def _validate_dag(dag):
+    """Raises an exception in case DAG is not valid.
+
+    Args:
+        dag (networkx.DiGraph): mapping from node name to list of direct successor nodes
+    """
+    if not nx.is_directed_acyclic_graph(dag):
+        raise EngineInitFailed("Invalid DAG")
+    if len(list(nx.weakly_connected_components(dag))) > 1:
+        raise EngineInitFailed("DAG contains unconnected items.")
+
+
+def _validate_jumps(jumps, dag):
+    """Raises an exception in case jumps are not valid.
+
+    Args:
+        jumps (list of Jump): jumps
+        dag (DiGraph): jumps' DAG
+    """
+    jump_paths = dict()
+    for jump in jumps:
+        if not jump.source in dag.nodes:
+            raise EngineInitFailed(f"Jump source '{jump.source}' not found in DAG")
+        if jump.source == jump.destination:
+            continue
+        if nx.has_path(dag, jump.source, jump.destination):
+            raise EngineInitFailed("Cannot jump in forward direction.")
+        if not nx.has_path(nx.reverse_view(dag), jump.source, jump.destination):
+            raise EngineInitFailed("Cannot jump between DAG branches.")
+        source_overlapping_jumps = set()
+        destination_overlapping_jumps = set()
+        for id_, path in jump_paths.items():
+            if jump.source in path:
+                source_overlapping_jumps.add(id_)
+            if jump.destination in path:
+                destination_overlapping_jumps.add(id_)
+        if source_overlapping_jumps != destination_overlapping_jumps:
+            raise EngineInitFailed("Partially overlapping jumps not supported.")
+        jump_paths[len(jump_paths)] = {
+            item for path in nx.all_simple_paths(dag, jump.destination, jump.source) for item in path
+        }

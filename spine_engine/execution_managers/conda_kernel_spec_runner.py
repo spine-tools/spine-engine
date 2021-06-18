@@ -7,6 +7,7 @@ import os
 import sys
 import subprocess
 import locale
+
 try:
     from shlex import quote
 except ImportError:
@@ -22,9 +23,25 @@ def exec_in_env(conda_prefix, env_path, *command):
             subprocess.Popen(list(command)).wait()
         else:
             activate = os.path.join(conda_prefix, 'Scripts', 'activate.bat')
-            ecomm = [os.environ['COMSPEC'], '/S', '/U', '/C', '@echo', 'off', '&&',
-                    'chcp', '65001', '&&', 'call', activate, env_path, '&&',
-                    '@echo', 'CONDA_PREFIX=%CONDA_PREFIX%', '&&',] + list(command)
+            ecomm = [
+                os.environ['COMSPEC'],
+                '/S',
+                '/U',
+                '/C',
+                '@echo',
+                'off',
+                '&&',
+                'chcp',
+                '65001',
+                '&&',
+                'call',
+                activate,
+                env_path,
+                '&&',
+                '@echo',
+                'CONDA_PREFIX=%CONDA_PREFIX%',
+                '&&',
+            ] + list(command)
             subprocess.Popen(ecomm).wait()
     else:
         quoted_command = [quote(c) for c in command]
@@ -32,7 +49,9 @@ def exec_in_env(conda_prefix, env_path, *command):
             os.execvp(quoted_command[0], quoted_command)
         else:
             activate = os.path.join(conda_prefix, 'bin', 'activate')
-            ecomm = ". '{}' '{}' && echo CONDA_PREFIX=$CONDA_PREFIX && exec {}".format(activate, env_path, ' '.join(quoted_command))
+            ecomm = ". '{}' '{}' && echo CONDA_PREFIX=$CONDA_PREFIX && exec {}".format(
+                activate, env_path, ' '.join(quoted_command)
+            )
             ecomm = ['sh' if 'bsd' in sys.platform else 'bash', '-c', ecomm]
             os.execvp(ecomm[0], ecomm)
 

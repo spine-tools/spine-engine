@@ -45,7 +45,7 @@ class ProcessExecutionManager(ExecutionManagerBase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=self._workdir,
-                creationflags=cf
+                creationflags=cf,
             )
         except OSError as e:
             msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)

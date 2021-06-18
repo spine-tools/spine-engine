@@ -170,7 +170,13 @@ class KernelExecutionManager(ExecutionManagerBase):
         # Don't show console when frozen
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
-            kernel_name, group_id, logger, cwd=self._workdir, extra_switches=extra_switches, environment=environment, **kwargs
+            kernel_name,
+            group_id,
+            logger,
+            cwd=self._workdir,
+            extra_switches=extra_switches,
+            environment=environment,
+            **kwargs,
         )
         self._kernel_client = self._kernel_manager.client() if self._kernel_manager is not None else None
         self._startup_timeout = startup_timeout
