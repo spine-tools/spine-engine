@@ -66,8 +66,9 @@ class _KernelManagerFactory(metaclass=Singleton):
             KernelManager
         """
         km = self._make_kernel_manager(kernel_name, group_id)
+        conda_exe = kwargs.pop("conda_exe", "")
         if activate_env:
-            km.kernel_spec_manager = CondaKernelSpecManager()
+            km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
         msg_head = dict(kernel_name=kernel_name)
         if not km.is_alive():
             if not km.kernel_spec:
