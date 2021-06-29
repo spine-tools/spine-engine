@@ -1,3 +1,0 @@
-git+https://github.com/Spine-project/Spine-Database-API.git#egg=spinedb_api
-dagster>=0.10.1, <0.11
--e .

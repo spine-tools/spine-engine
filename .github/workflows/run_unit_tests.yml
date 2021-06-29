@@ -28,12 +28,12 @@ jobs:
         PYTHONUTF8: 1
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install .
         pip install coverage
         pip install codecov
     - name: Install spine_items  # Some engine tests require spine_items
       run: |
-        pip install git+https://github.com/Spine-project/spine-items.git#egg=spine_items
+        pip install spine_items
 
     - name: Install spine_items dependencies
       run: |
@@ -67,12 +67,12 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install .
         pip install coverage
         pip install codecov
     - name: Install spine_items  # Some engine tests require spine_items
       run: |
-        pip install git+https://github.com/Spine-project/spine-items.git#egg=spine_items
+        pip install spine_items
     - name: Install spine_items dependencies
       run: |
         pip install jupyter-client

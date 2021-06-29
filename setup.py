@@ -39,15 +39,24 @@ setup(
     version=version["__version__"],
     description="A package to run Spine workflows.",
     long_description=readme,
+    long_description_content_type="text/markdown",
     author="Spine Project consortium",
     author_email="spine_info@vtt.fi",
     url="https://github.com/Spine-project/spine-engine",
-    packages=find_packages(exclude=("tests",)),
+    packages=find_packages(exclude=("tests", "tests.*")),
     package_data={'spine_engine': ['execution_managers/spine_repl.jl']},
     license="LGPL-3.0-or-later",
     zip_safe=False,
     keywords="",
-    classifiers=[],
     install_requires=install_requires,
     test_suite="tests",
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+        "Operating System :: OS Independent",
+    ],
+    project_urls={
+        "Issue Tracker": "https://github.com/Spine-project/spine-engine/issues",
+        #"Documentation": ""
+    },
 )
