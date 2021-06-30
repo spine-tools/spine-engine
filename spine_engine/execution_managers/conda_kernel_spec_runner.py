@@ -14,7 +14,6 @@ except ImportError:
 
 
 def exec_in_env(conda_prefix, env_path, *command):
-    print("hello")
     # Run the standard conda activation script, and print the
     # resulting environment variables to stdout for reading.
     is_current_env = env_path == sys.prefix

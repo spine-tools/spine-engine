@@ -22,7 +22,7 @@ import subprocess
 from jupyter_client.manager import KernelManager
 from ..utils.helpers import Singleton
 from .execution_manager_base import ExecutionManagerBase
-from spine_engine.cksm import CondaKernelSpecManager
+from spine_engine.execution_managers.conda_kernel_spec_manager import CondaKernelSpecManager
 
 
 class _KernelManagerFactory(metaclass=Singleton):

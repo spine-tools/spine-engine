@@ -2,6 +2,7 @@
 # https://github.com/Anaconda-Platform/nb_conda_kernels/blob/master/nb_conda_kernels/manager.py
 
 # -*- coding: utf-8 -*-
+import logging
 import json
 import re
 import shutil
@@ -13,12 +14,11 @@ import glob
 import os
 from os.path import join, split, dirname, basename, abspath
 from traitlets import Bool, Unicode, TraitError, validate
-
 from jupyter_client.kernelspec import KernelSpecManager, KernelSpec, NoSuchKernel
 
 CACHE_TIMEOUT = 60
 
-RUNNER_COMMAND = ["python", "-m", "spine_engine.runner"]
+RUNNER_COMMAND = ["python", "-m", "spine_engine.execution_managers.conda_kernel_spec_runner"]
 
 
 class CondaKernelSpecManager(KernelSpecManager):
@@ -74,6 +74,7 @@ class CondaKernelSpecManager(KernelSpecManager):
 
     def __init__(self, **kwargs):
         super(CondaKernelSpecManager, self).__init__(**kwargs)
+        self.log = logging.getLogger(__name__)
         self._conda_executable = kwargs["conda_exe"]
         self._conda_info_cache = None
         self._conda_info_cache_expiry = None
@@ -353,9 +354,7 @@ class CondaKernelSpecManager(KernelSpecManager):
         """
 
         res = self._conda_kspecs.get(kernel_name)
-        print(f"res.argv:{res.argv}")
-        # res.argv[2] = "spine_engine.runner"
-        # print(f"res.argv:{res.argv}")
+        self.log.info(f"res.argv:{res.argv}")
         if res is None and not self.conda_only:
             res = super(CondaKernelSpecManager, self).get_kernel_spec(kernel_name)
         return res
