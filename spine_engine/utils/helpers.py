@@ -76,18 +76,18 @@ def create_timestamp():
 
 
 def resolve_conda_executable(conda_path):
-    """If given conda_path is not empty, returns
-    "conda" whether we are on conda or not.
+    """If given conda_path is an empty str, returns current Conda
+    executable from CONDA_EXE env variable if the app was started
+    on Conda, otherwise returns an empty string.
     """
     if conda_path != "":
         return conda_path
-    # Are we on Conda or not
-    CONDA_EXE = os.environ.get("CONDA_EXE", "conda")
-    return CONDA_EXE
+    conda_exe = os.environ.get("CONDA_EXE", "")
+    return conda_exe
 
 
 def resolve_python_interpreter(python_path):
-    """If given python_path is not empty, returns the
+    """If given python_path is empty, returns the
     full path to Python interpreter depending on user's
     settings and whether the app is frozen or not.
     """

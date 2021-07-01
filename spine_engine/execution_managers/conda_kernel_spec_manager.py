@@ -75,6 +75,7 @@ class CondaKernelSpecManager(KernelSpecManager):
     def __init__(self, **kwargs):
         super(CondaKernelSpecManager, self).__init__(**kwargs)
         self.log = logging.getLogger(__name__)
+        self.log.setLevel(logging.WARNING)
         self._conda_executable = kwargs["conda_exe"]
         self._conda_info_cache = None
         self._conda_info_cache_expiry = None

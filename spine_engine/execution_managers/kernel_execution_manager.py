@@ -49,7 +49,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             self._kernel_managers[key] = KernelManager(kernel_name=kernel_name)
         return self._kernel_managers[key]
 
-    def new_kernel_manager(self, kernel_name, group_id, logger, extra_switches=None, activate_env=False, **kwargs):
+    def new_kernel_manager(self, kernel_name, group_id, logger, extra_switches=None, environment="", **kwargs):
         """Creates a new kernel manager for given kernel and group id if none exists.
         Starts the kernel if not started, and returns it.
 
@@ -59,7 +59,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             logger (LoggerInterface): for logging
             extra_switches (list, optional): List of additional switches to julia or python.
                 These come before the 'programfile'.
-            activate_env (bool):
+            environment (str): "conda" to launch a Conda kernel spec. "" for a regular kernel spec
             `**kwargs`: optional. Keyword arguments passed to ``KernelManager.start_kernel()``
 
         Returns:
@@ -67,7 +67,7 @@ class _KernelManagerFactory(metaclass=Singleton):
         """
         km = self._make_kernel_manager(kernel_name, group_id)
         conda_exe = kwargs.pop("conda_exe", "")
-        if activate_env:
+        if environment == "conda":
             km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
         msg_head = dict(kernel_name=kernel_name)
         if not km.is_alive():
@@ -138,7 +138,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         workdir=None,
         startup_timeout=60,
         extra_switches=None,
-        activate_env=False,
+        environment="",
         **kwargs,
     ):
         """
@@ -151,7 +151,7 @@ class KernelExecutionManager(ExecutionManagerBase):
             startup_timeout (int, optional): How much to wait for the kernel, used in ``KernelClient.wait_for_ready()``
             extra_switches (list, optional): List of additional switches to launch julia.
                 These come before the 'programfile'.
-            activate_env (bool):
+            environment (str): "conda" to launch a Conda kernel spec. "" for a regular kernel spec.
             **kwargs (optional): Keyword arguments passed to ``KernelManager.start_kernel()``
         """
         super().__init__(logger)
@@ -164,7 +164,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         # Don't show console when frozen
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
-            kernel_name, group_id, logger, cwd=self._workdir, extra_switches=extra_switches, activate_env=activate_env, **kwargs
+            kernel_name, group_id, logger, cwd=self._workdir, extra_switches=extra_switches, environment=environment, **kwargs
         )
         self._kernel_client = self._kernel_manager.client() if self._kernel_manager is not None else None
         self._startup_timeout = startup_timeout
