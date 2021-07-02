@@ -20,6 +20,7 @@ import os
 import sys
 import subprocess
 from jupyter_client.manager import KernelManager
+from jupyter_client.kernelspec import NoSuchKernel
 from ..utils.helpers import Singleton
 from .execution_manager_base import ExecutionManagerBase
 from spine_engine.execution_managers.conda_kernel_spec_manager import CondaKernelSpecManager
@@ -71,7 +72,12 @@ class _KernelManagerFactory(metaclass=Singleton):
             km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
         msg_head = dict(kernel_name=kernel_name)
         if not km.is_alive():
-            if not km.kernel_spec:
+            try:
+                if not km.kernel_spec:  # TODO: Check if this is needed in addition to catching NoSuchKernel?
+                    msg = dict(type="kernel_spec_not_found", **msg_head)
+                    logger.msg_kernel_execution.emit(msg)
+                    raise RuntimeError
+            except NoSuchKernel:
                 msg = dict(type="kernel_spec_not_found", **msg_head)
                 logger.msg_kernel_execution.emit(msg)
                 raise RuntimeError
