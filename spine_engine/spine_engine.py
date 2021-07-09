@@ -158,7 +158,7 @@ class SpineEngine:
             self._chunks = None
         else:
             jumps = list(map(Jump.from_dict, jumps))
-            _validate_jumps(jumps, dag)
+            validate_jumps(jumps, dag)
             self._chunks = chunkify(dag, jumps)
         self._back_injectors = {
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
@@ -285,33 +285,32 @@ class SpineEngine:
             dagster_instance (DagsterInstance): dagster instance
             run_config (dict): dagster's run config
         """
-        for chunk in self._chunks:
+        chunk_index = 0
+        chunks_left = True
+        loop_counters = dict()
+        while chunks_left:
+            chunk = self._chunks[chunk_index]
             run_id = next(iter(dagster_instance.get_runs())).run_id
             forward_solids = [f"{ED.FORWARD}_{self._solid_names[name]}" for name in chunk.item_names]
+            for event in reexecute_pipeline_iterator(
+                self._pipeline, run_id, step_selection=forward_solids, run_config=run_config, instance=dagster_instance
+            ):
+                self._process_event(event)
             if chunk.jump is None:
-                for event in reexecute_pipeline_iterator(
-                    self._pipeline,
-                    run_id,
-                    step_selection=forward_solids,
-                    run_config=run_config,
-                    instance=dagster_instance,
-                ):
-                    self._process_event(event)
+                chunk_index += 1
             else:
-                loop_counter = 1  # We've already executed the loop once.
-                while chunk.jump.is_condition_true(loop_counter):
-                    for event in reexecute_pipeline_iterator(
-                        self._pipeline,
-                        run_id,
-                        step_selection=forward_solids,
-                        run_config=run_config,
-                        instance=dagster_instance,
-                    ):
-                        self._process_event(event)
-                    if self._state != SpineEngineState.RUNNING:
-                        break
-                    loop_counter += 1
-                    run_id = next(iter(dagster_instance.get_runs())).run_id
+                loop_counter = loop_counters.get(chunk_index, 1)  # We've executed the jump at least once already.
+                loop_counter += 1
+                loop_counters[chunk_index] = loop_counter
+                if chunk.jump.is_condition_true(loop_counter):
+                    for i, other_chunk in enumerate(self._chunks[: chunk_index + 1]):
+                        if chunk.jump.destination in other_chunk.item_names:
+                            chunk_index = i
+                            break
+                else:
+                    loop_counters[chunk_index] = 1
+                    chunk_index += 1
+            chunks_left = len(self._chunks) != chunk_index
 
     def _process_event(self, event):
         """
