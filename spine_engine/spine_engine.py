@@ -286,7 +286,7 @@ class SpineEngine:
             run_config (dict): dagster's run config
         """
         for chunk in self._chunks:
-            run_id = dagster_instance.get_runs()[0].run_id
+            run_id = next(iter(dagster_instance.get_runs())).run_id
             forward_solids = [f"{ED.FORWARD}_{self._solid_names[name]}" for name in chunk.item_names]
             if chunk.jump is None:
                 for event in reexecute_pipeline_iterator(
@@ -311,7 +311,7 @@ class SpineEngine:
                     if self._state != SpineEngineState.RUNNING:
                         break
                     loop_counter += 1
-                    run_id = dagster_instance.get_runs()[0].run_id
+                    run_id = next(iter(dagster_instance.get_runs())).run_id
 
     def _process_event(self, event):
         """
@@ -771,7 +771,7 @@ def _validate_dag(dag):
         raise EngineInitFailed("DAG contains unconnected items.")
 
 
-def _validate_jumps(jumps, dag):
+def validate_jumps(jumps, dag):
     """Raises an exception in case jumps are not valid.
 
     Args:
@@ -780,14 +780,21 @@ def _validate_jumps(jumps, dag):
     """
     jump_paths = dict()
     for jump in jumps:
-        if not jump.source in dag.nodes:
-            raise EngineInitFailed(f"Jump source '{jump.source}' not found in DAG")
+        for other in jumps:
+            if other is jump:
+                continue
+            if other.source == jump.source and other.destination == jump.destination:
+                raise EngineInitFailed("Loops with same source and destination not supported.")
+        if jump.source == jump.destination:
+            continue
+        if jump.source not in dag.nodes:
+            raise EngineInitFailed(f"Loop source '{jump.source}' not found in DAG")
         if jump.source == jump.destination:
             continue
         if nx.has_path(dag, jump.source, jump.destination):
-            raise EngineInitFailed("Cannot jump in forward direction.")
+            raise EngineInitFailed("Cannot loop in forward direction.")
         if not nx.has_path(nx.reverse_view(dag), jump.source, jump.destination):
-            raise EngineInitFailed("Cannot jump between DAG branches.")
+            raise EngineInitFailed("Cannot loop between DAG branches.")
         source_overlapping_jumps = set()
         destination_overlapping_jumps = set()
         for id_, path in jump_paths.items():
@@ -796,7 +803,7 @@ def _validate_jumps(jumps, dag):
             if jump.destination in path:
                 destination_overlapping_jumps.add(id_)
         if source_overlapping_jumps != destination_overlapping_jumps:
-            raise EngineInitFailed("Partially overlapping jumps not supported.")
+            raise EngineInitFailed("Partially overlapping loops not supported.")
         jump_paths[len(jump_paths)] = {
             item for path in nx.all_simple_paths(dag, jump.destination, jump.source) for item in path
         }
