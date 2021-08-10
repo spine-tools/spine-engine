@@ -101,6 +101,7 @@ class SpineEngine:
         specifications=None,
         connections=None,
         jumps=None,
+        items_module_name="spine_items",
         settings=None,
         project_dir=None,
         execution_permits=None,
@@ -113,6 +114,7 @@ class SpineEngine:
             specifications (dict(str,list(dict))): A mapping from item type to list of specification dicts.
             connections (list of dict): List of connection dicts
             jumps (list of dict, optional): List of jump dicts
+            items_module_name (str): name of the Python module that contains project items
             settings (dict): Toolbox execution settings.
             project_dir (str): Path to project directory.
             execution_permits (dict(str,bool)): A mapping from item name to a boolean value, False indicating that
@@ -126,7 +128,7 @@ class SpineEngine:
         super().__init__()
         self._queue = mp.Queue()
         if items is None:
-            items = []
+            items = {}
         self._items = items
         if connections is None:
             connections = []
@@ -139,10 +141,12 @@ class SpineEngine:
         self._settings = AppSettings(settings)
         self._project_dir = project_dir
         project_item_loader = ProjectItemLoader()
-        self._executable_item_classes = project_item_loader.load_executable_item_classes()
+        self._executable_item_classes = project_item_loader.load_executable_item_classes(items_module_name)
         if specifications is None:
             specifications = {}
-        self._item_specifications = self._make_item_specifications(specifications, project_item_loader)
+        self._item_specifications = self._make_item_specifications(
+            specifications, project_item_loader, items_module_name
+        )
         self._solid_names = {item_name: str(i) for i, item_name in enumerate(items)}
         self._item_names = {solid_name: item_name for item_name, solid_name in self._solid_names.items()}
         if execution_permits is None:
@@ -171,8 +175,18 @@ class SpineEngine:
         self._prompt_queues = {}
         self._event_stream = self._get_event_stream()
 
-    def _make_item_specifications(self, specifications, project_item_loader):
-        specification_factories = project_item_loader.load_item_specification_factories()
+    def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
+        """Instantiates item specifications.
+
+        Args:
+            specifications (dict): A mapping from item type to list of specification dicts.
+            project_item_loader (ProjectItemLoader): loader instance
+            items_module_name (str): name of the Python module that contains the project items
+
+        Returns:
+            dict: mapping from item type to a dict that maps specification names to specification instances
+        """
+        specification_factories = project_item_loader.load_item_specification_factories(items_module_name)
         item_specifications = {}
         for item_type, spec_dicts in specifications.items():
             factory = specification_factories.get(item_type)

@@ -20,24 +20,26 @@ import importlib
 import importlib.util
 
 
-def load_item_specification_factories():
+def load_item_specification_factories(items_package_name):
     """
-    Loads the project item specification factories in the ``spine_items`` package.
+    Loads the project item specification factories in given project item package.
+
+    Args:
+        items_package_name (str): name of the package that contains the project items
 
     Returns:
         dict: a map from item type to specification factory
     """
-    import spine_items  # pylint: disable=import-outside-toplevel
-
-    items_root = pathlib.Path(spine_items.__file__).parent
+    items = importlib.import_module(items_package_name)
+    items_root = pathlib.Path(items.__file__).parent
     factories = dict()
     for child in items_root.iterdir():
-        if (
-            child.is_dir()
-            and child.joinpath("specification_factory.py").exists()
-            or (child.is_dir() and child.joinpath("specification_factory.pyc").exists())
+        if child.is_dir() and (
+            child.joinpath("specification_factory.py").exists()
+            or child.is_dir()
+            and child.joinpath("specification_factory.pyc").exists()
         ):
-            spec = importlib.util.find_spec(f"spine_items.{child.stem}.specification_factory")
+            spec = importlib.util.find_spec(f"{items_package_name}.{child.stem}.specification_factory")
             m = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(m)
             if hasattr(m, "SpecificationFactory"):
@@ -46,16 +48,18 @@ def load_item_specification_factories():
     return factories
 
 
-def load_executable_item_classes():
+def load_executable_item_classes(items_package_name):
     """
-    Loads the project item executable classes included in the ``spine_items`` package.
+    Loads the project item executable classes included in given project item package.
+
+    Args:
+        items_package_name (str): name of the package that contains the project items
 
     Returns:
         dict: a map from item type to the executable item class
     """
-    import spine_items  # pylint: disable=import-outside-toplevel
-
-    items_root = pathlib.Path(spine_items.__file__).parent
+    items = importlib.import_module(items_package_name)
+    items_root = pathlib.Path(items.__file__).parent
     classes = dict()
     for child in items_root.iterdir():
         if (
@@ -63,7 +67,7 @@ def load_executable_item_classes():
             and child.joinpath("executable_item.py").exists()
             or (child.is_dir() and child.joinpath("executable_item.pyc").exists())
         ):
-            spec = importlib.util.find_spec(f"spine_items.{child.stem}.executable_item")
+            spec = importlib.util.find_spec(f"{items_package_name}.{child.stem}.executable_item")
             m = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(m)
             if hasattr(m, "ExecutableItem"):
