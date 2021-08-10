@@ -24,7 +24,7 @@ from spine_engine.project_item.project_item_specification_factory import Project
 
 class TestLoadProjectItems(unittest.TestCase):
     def test_load_executable_items(self):
-        item_classes = load_executable_item_classes()
+        item_classes = load_executable_item_classes("spine_items")
         item_types = ("Data Connection", "Data Store", "Importer", "GdxExporter", "Tool", "View")
         for item_type in item_types:
             self.assertIn(item_type, item_classes)
@@ -32,7 +32,7 @@ class TestLoadProjectItems(unittest.TestCase):
             self.assertTrue(issubclass(item_class, ExecutableItemBase))
 
     def test_load_item_specification_factories(self):
-        factories = load_item_specification_factories()
+        factories = load_item_specification_factories("spine_items")
         self.assertEqual(len(factories), 4)
         self.assertIn("Tool", factories)
         self.assertTrue(issubclass(factories["Tool"], ProjectItemSpecificationFactory))

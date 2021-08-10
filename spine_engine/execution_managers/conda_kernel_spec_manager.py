@@ -25,13 +25,19 @@ class CondaKernelSpecManager(KernelSpecManager):
     """ A custom KernelSpecManager able to search for conda environments and
         create kernelspecs for them.
     """
-    conda_only = Bool(False, config=True,
-                      help="Include only the kernels not visible from Jupyter normally (True if kernelspec_path is not None)")
 
-    env_filter = Unicode(None, config=True, allow_none=True,
-                         help="Do not list environment names that match this regex")
+    conda_only = Bool(
+        False,
+        config=True,
+        help="Include only the kernels not visible from Jupyter normally (True if kernelspec_path is not None)",
+    )
 
-    kernelspec_path = Unicode(None, config=True, allow_none=True,
+    env_filter = Unicode(None, config=True, allow_none=True, help="Do not list environment names that match this regex")
+
+    kernelspec_path = Unicode(
+        None,
+        config=True,
+        allow_none=True,
         help="""Path to install conda kernel specs to.
 
         The acceptable values are:
@@ -44,7 +50,8 @@ class CondaKernelSpecManager(KernelSpecManager):
         ``jupyter --paths`` to get the list of data directories.
 
         If None, the conda kernel specs will only be available dynamically on notebook editors.
-        """)
+        """,
+    )
 
     @validate("kernelspec_path")
     def _validate_kernelspec_path(self, proposal):
@@ -69,7 +76,7 @@ class CondaKernelSpecManager(KernelSpecManager):
         '{environment}'  = Environment name (identical to '{1}')
         '{kernel}' = Original kernel name (name of the folder containing the kernel spec)
         '{language}'  = Language (identical to '{0}')
-        """
+        """,
     )
 
     def __init__(self, **kwargs):
@@ -91,9 +98,7 @@ class CondaKernelSpecManager(KernelSpecManager):
         if not self._kernel_user:
             self._kernel_prefix = sys.prefix if self.kernelspec_path == "--sys-prefix" else self.kernelspec_path
 
-        self.log.info(
-            "[nb_conda_kernels] enabled, %s kernels found", len(self._conda_kspecs)
-        )
+        self.log.info("[nb_conda_kernels] enabled, %s kernels found", len(self._conda_kspecs))
 
     @staticmethod
     def clean_kernel_name(kname):
@@ -105,6 +110,7 @@ class CondaKernelSpecManager(KernelSpecManager):
         except UnicodeEncodeError:
             # Replace accented characters with unaccented equivalents
             import unicodedata
+
             nfkd_form = unicodedata.normalize('NFKD', kname)
             kname = u"".join([c for c in nfkd_form if not unicodedata.combining(c)])
         # Replace anything else, including spaces, with underscores
@@ -131,13 +137,11 @@ class CondaKernelSpecManager(KernelSpecManager):
                 # mechanism for non-ASCII characters. So it is always
                 # valid to decode here as 'ascii', since the JSON loads()
                 # method will recover any original Unicode for us.
-                p = subprocess.check_output([self._conda_executable, "info", "--json"],
-                                            shell=shell).decode('ascii')
+                p = subprocess.check_output([self._conda_executable, "info", "--json"], shell=shell).decode('ascii')
                 conda_info = json.loads(p)
             except Exception as err:
                 conda_info = None
-                self.log.error("[nb_conda_kernels] couldn't call conda:\n%s",
-                               err)
+                self.log.error("[nb_conda_kernels] couldn't call conda:\n%s", err)
             self._conda_info_cache = conda_info
             self._conda_info_cache_expiry = time.time() + CACHE_TIMEOUT
 
@@ -215,8 +219,7 @@ class CondaKernelSpecManager(KernelSpecManager):
                         data = fp.read()
                     spec = json.loads(data.decode('utf-8'))
                 except Exception as err:
-                    self.log.error("[nb_conda_kernels] error loading %s:\n%s",
-                                   spec_path, err)
+                    self.log.error("[nb_conda_kernels] error loading %s:\n%s", spec_path, err)
                     continue
                 kernel_dir = dirname(spec_path).lower()
                 kernel_name = raw_kernel_name = basename(kernel_dir)
@@ -254,20 +257,14 @@ class CondaKernelSpecManager(KernelSpecManager):
                 if env_path != sys.prefix:
                     spec['argv'] = RUNNER_COMMAND + [conda_prefix, env_path] + spec['argv']
                 metadata = spec.get('metadata', {})
-                metadata.update({
-                    'conda_env_name': env_name,
-                    'conda_env_path': env_path
-                })
+                metadata.update({'conda_env_name': env_name, 'conda_env_path': env_path})
                 spec['metadata'] = metadata
 
                 if self.kernelspec_path is not None:
                     # Install the kernel spec
                     try:
                         destination = self.install_kernel_spec(
-                            kernel_dir,
-                            kernel_name=kernel_name,
-                            user=self._kernel_user,
-                            prefix=self._kernel_prefix
+                            kernel_dir, kernel_name=kernel_name, user=self._kernel_user, prefix=self._kernel_prefix
                         )
                         # Update the kernel spec
                         kernel_spec = join(destination, "kernel.json")
@@ -278,8 +275,7 @@ class CondaKernelSpecManager(KernelSpecManager):
                             json.dump(tmp_spec, f)
                     except OSError as error:
                         self.log.warning(
-                            u"[nb_conda_kernels] Fail to install kernel '{}'.".format(kernel_dir),
-                            exc_info=error
+                            u"[nb_conda_kernels] Fail to install kernel '{}'.".format(kernel_dir), exc_info=error
                         )
 
                 # resource_dir is not part of the spec file, so it is added at the latest time
@@ -289,11 +285,7 @@ class CondaKernelSpecManager(KernelSpecManager):
 
         # Remove non-existing conda environments
         if self.kernelspec_path is not None:
-            kernels_destination = self._get_destination_dir(
-                "",
-                user=self._kernel_user,
-                prefix=self._kernel_prefix
-            )
+            kernels_destination = self._get_destination_dir("", user=self._kernel_user, prefix=self._kernel_prefix)
             for folder in glob.glob(join(kernels_destination, "*", "kernel.json")):
                 kernel_dir = dirname(folder)
                 kernel_name = basename(kernel_dir)
@@ -340,11 +332,11 @@ class CondaKernelSpecManager(KernelSpecManager):
 
         # add conda envs kernelspecs
         if self.whitelist:
-            kspecs.update({name: spec.resource_dir
-                           for name, spec in self._conda_kspecs.items() if name in self.whitelist})
+            kspecs.update(
+                {name: spec.resource_dir for name, spec in self._conda_kspecs.items() if name in self.whitelist}
+            )
         else:
-            kspecs.update({name: spec.resource_dir
-                           for name, spec in self._conda_kspecs.items()})
+            kspecs.update({name: spec.resource_dir for name, spec in self._conda_kspecs.items()})
         return kspecs
 
     def get_kernel_spec(self, kernel_name):
@@ -369,8 +361,7 @@ class CondaKernelSpecManager(KernelSpecManager):
         for name, resource_dir in self.find_kernel_specs().items():
             try:
                 spec = self.get_kernel_spec(name)
-                res[name] = {'resource_dir': resource_dir,
-                             'spec': spec.to_dict()}
+                res[name] = {'resource_dir': resource_dir, 'spec': spec.to_dict()}
             except NoSuchKernel:
                 self.log.warning("Error loading kernelspec %r", name, exc_info=True)
         return res
