@@ -30,7 +30,8 @@ install_requires = [
     "sqlalchemy>=1.3.24",
     "numpy>=1.20.2",
     "datapackage>=1.15.2",
-    "spinedb_api"
+    "jupyter_client",
+    "spinedb_api",
 ]
 
 
