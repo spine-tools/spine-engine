@@ -58,8 +58,8 @@ def load_executable_item_classes(items_package_name):
     Returns:
         dict: a map from item type to the executable item class
     """
-    spine_items = importlib.import_module(items_package_name)
-    items_root = pathlib.Path(spine_items.__file__).parent
+    items = importlib.import_module(items_package_name)
+    items_root = pathlib.Path(items.__file__).parent
     classes = dict()
     for child in items_root.iterdir():
         if (
