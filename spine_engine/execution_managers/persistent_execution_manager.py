@@ -64,7 +64,9 @@ class PersistentManagerBase:
         raise NotImplementedError()
 
     def _init_args(self):
-        """Returns init args for Popen. Subclasses must reimplement to include appropriate switches to ensure the
+        """Returns init args for Popen.
+
+        Subclasses must reimplement to include appropriate switches to ensure the
         process is interactive, or to load modules for internal communication.
 
         Returns:
@@ -76,6 +78,7 @@ class PersistentManagerBase:
     def _sentinel_command(host, port):
         """Returns a command in the underlying language, that sends a sentinel to a socket listening on given
         host/port.
+
         Used to synchronize with the persistent process.
 
         Args:
@@ -115,9 +118,11 @@ class PersistentManagerBase:
 
     def issue_command(self, cmd, add_history=False):
         """Issues cmd to the persistent process and returns an iterator of stdout and stderr messages.
+
         Each message is a dictionary with two keys:
-            "type": either "stdout" or "stderr"
-            "data": the actual message string.
+
+            - "type": either "stdout" or "stderr"
+            - "data": the actual message string.
 
         Args:
             cmd (str)
@@ -181,6 +186,7 @@ class PersistentManagerBase:
 
     def _wait(self):
         """Waits for the persistent process to become idle.
+
         This is implemented by writing the sentinel to stdin and waiting for the _SENTINEL to come out of stdout.
 
         Returns:
@@ -342,7 +348,7 @@ class PythonPersistentManager(PersistentManagerBase):
 
 class _PersistentManagerFactory(metaclass=Singleton):
     _persistent_managers = {}
-    """Maps tuples (*process args) to associated PersistentManagerBase."""
+    """Maps tuples (process args) to associated PersistentManagerBase."""
 
     def new_persistent_manager(self, constructor, logger, args, group_id, cwd=None):
         """Creates a new persistent for given args and group id if none exists.

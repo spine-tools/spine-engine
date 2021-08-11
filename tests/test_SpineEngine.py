@@ -19,6 +19,7 @@ and intended to supersede them.
 :date:   11.9.2019
 """
 import os.path
+import sys
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock, NonCallableMagicMock, call, patch
@@ -77,12 +78,16 @@ class TestSpineEngine(unittest.TestCase):
         return item
 
     def setUp(self):
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "mock_project_items"))
         self.url_a_fw = _make_resource("db:///url_a_fw")
         self.url_b_fw = _make_resource("db:///url_b_fw")
         self.url_c_fw = _make_resource("db:///url_c_fw")
         self.url_a_bw = _make_resource("db:///url_a_bw")
         self.url_b_bw = _make_resource("db:///url_b_bw")
         self.url_c_bw = _make_resource("db:///url_c_bw")
+
+    def tearDown(self):
+        sys.path.pop(0)
 
     def test_linear_execution_succeeds(self):
         """Tests execution with three items in a line."""
@@ -97,7 +102,11 @@ class TestSpineEngine(unittest.TestCase):
         successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
         engine = SpineEngine(
-            items=items, connections=connections, node_successors=successors, execution_permits=execution_permits
+            items=items,
+            connections=connections,
+            node_successors=successors,
+            execution_permits=execution_permits,
+            items_module_name="items_module",
         )
         engine._make_item = lambda name, direction: engine._items[name]
         engine.run()
@@ -125,7 +134,11 @@ class TestSpineEngine(unittest.TestCase):
         successors = {"item_a": ["item_b", "item_c"]}
         execution_permits = {"item_a": True, "item_b": True, "item_c": True}
         engine = SpineEngine(
-            items=items, connections=connections, node_successors=successors, execution_permits=execution_permits
+            items=items,
+            connections=connections,
+            node_successors=successors,
+            execution_permits=execution_permits,
+            items_module_name="items_module",
         )
         engine._make_item = lambda name, direction: engine._items[name]
         engine.run()
@@ -153,7 +166,11 @@ class TestSpineEngine(unittest.TestCase):
         successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
         execution_permits = {"item_a": True, "item_b": False, "item_c": True}
         engine = SpineEngine(
-            items=items, connections=connections, node_successors=successors, execution_permits=execution_permits
+            items=items,
+            connections=connections,
+            node_successors=successors,
+            execution_permits=execution_permits,
+            items_module_name="items_module",
         )
         engine._make_item = lambda name, direction: engine._items[name]
         engine.run()
@@ -196,7 +213,11 @@ class TestSpineEngine(unittest.TestCase):
             successors = {"item_a": ["item_b"], "item_b": ["item_c"]}
             execution_permits = {"item_a": True, "item_b": True, "item_c": True}
             engine = SpineEngine(
-                items=items, connections=connections, node_successors=successors, execution_permits=execution_permits
+                items=items,
+                connections=connections,
+                node_successors=successors,
+                execution_permits=execution_permits,
+                items_module_name="items_module",
             )
             engine._make_item = lambda name, direction: engine._items[name]
             with patch("spine_engine.spine_engine.create_timestamp") as mock_create_timestamp:

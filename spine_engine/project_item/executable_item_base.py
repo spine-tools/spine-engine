@@ -16,8 +16,7 @@ Contains ExecutableItem, a project item's counterpart in execution as well as su
 :date:    30.3.2020
 """
 from pathlib import Path
-from ..spine_engine import ExecutionDirection
-from ..spine_engine import ItemExecutionFinishState
+from ..spine_engine import ExecutionDirection, ItemExecutionFinishState
 from ..utils.helpers import shorten
 
 
