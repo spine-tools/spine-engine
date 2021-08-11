@@ -93,15 +93,13 @@ def execute_thread_step(step_context, retries):
 
     This function yields a complex set of objects to enable having multiple thread
     executions in flight:
+
         * None - nothing has happened, yielded to enable cooperative multitasking other iterators
-
         * ThreadEvent - Family of objects that communicates state changes in the thread
-
         * KeyboardInterrupt - Yielded in the case that an interrupt was recieved while
             polling the thread. Yielded instead of raised to allow forwarding of the
             interrupt to the thread and completion of the iterator for this thread and
             any others that may be executing
-
         * The actual values yielded by the thread execution
 
     Args:
