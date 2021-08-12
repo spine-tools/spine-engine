@@ -531,9 +531,14 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         self._logger.msg_persistent_execution.emit(msg)
         self._logger.msg_persistent_execution.emit(dict(type="stdin", data=self._alias.strip()))
         for cmd in self._commands:
+            failed = False
             for msg in self._persistent_manager.issue_command(cmd):
                 if msg["type"] != "stdin":
+                    if msg["type"] == "stderr":
+                        failed = True
                     self._logger.msg_persistent_execution.emit(msg)
+            if failed:
+                return -1
             if not self._persistent_manager.command_successful:
                 return -1
         return 0
