@@ -366,7 +366,7 @@ class TestSpineEngine(unittest.TestCase):
         self.assertEqual(len(arg_packs), len(expected_packs))
         for pack, expected_pack in zip(arg_packs, expected_packs):
             self.assertEqual(len(pack), len(expected_pack))
-            for args, expected in zip(pack.args, expected_pack):
+            for args, expected in zip(pack[0], expected_pack):
                 self.assertEqual(len(args), len(expected))
                 for resource, expected_resource in zip(args, expected):
                     self.assertEqual(resource.provider_name, expected_resource.provider_name)
