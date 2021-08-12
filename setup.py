@@ -28,6 +28,7 @@ with open("spine_engine/version.py") as fp:
 install_requires = [
     "dagster>=0.11",
     "sqlalchemy>=1.3.24",
+    "networkx",
     "numpy>=1.20.2",
     "datapackage>=1.15.2",
     "jupyter_client",
