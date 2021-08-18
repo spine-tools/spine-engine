@@ -165,6 +165,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._commands = commands
         self._group_id = group_id
         self._workdir = workdir
+        self._cmd_failed = False
         kwargs["stdout"] = open(os.devnull, 'w')
         kwargs["stderr"] = open(os.devnull, 'w')
         # Don't show console when frozen
@@ -185,9 +186,11 @@ class KernelExecutionManager(ExecutionManagerBase):
         if self._kernel_client is None:
             return
         self._kernel_client.start_channels()
-        returncode = self._do_run()
+        run_succeeded = self._do_run()
         self._kernel_client.stop_channels()
-        return returncode
+        if self._cmd_failed or not run_succeeded:
+            return -1
+        return 0
 
     def _do_run(self):
         try:
@@ -195,15 +198,24 @@ class KernelExecutionManager(ExecutionManagerBase):
         except RuntimeError as e:
             msg = dict(type="execution_failed_to_start", error=str(e), **self._msg_head)
             self._logger.msg_kernel_execution.emit(msg)
-            return
+            return False
         msg = dict(type="execution_started", **self._msg_head)
         self._logger.msg_kernel_execution.emit(msg)
         for cmd in self._commands:
-            reply = self._kernel_client.execute_interactive(cmd, output_hook=lambda msg: None)
+            self._cmd_failed = False
+            # 'reply' is an execute_reply msg coming from the shell (ROUTER/DEALER) channel, it's a response to
+            # an execute_request msg
+            reply = self._kernel_client.execute_interactive(cmd, output_hook=self._output_hook)
             st = reply["content"]["status"]
             if st != "ok":
-                return -1
-        return 0
+                return False  # This happens when execute_request fails
+        return True
+
+    def _output_hook(self, msg):
+        """Catches messages from the IOPUB (PUB/SUB) channel and handle case when message type is 'error'.
+        'error' msg is a response to an execute_input msg."""
+        if msg["header"]["msg_type"] == "error":
+            self._cmd_failed = True
 
     def stop_execution(self):
         if self._kernel_manager is not None:
