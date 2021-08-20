@@ -18,7 +18,6 @@ Module contains MultithreadExecutor.
 
 import os
 import sys
-import threading
 from dagster import check
 from dagster.core.executor.base import Executor
 from dagster.core.execution.retries import Retries

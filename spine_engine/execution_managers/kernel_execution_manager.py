@@ -141,7 +141,6 @@ class KernelExecutionManager(ExecutionManagerBase):
         kernel_name,
         *commands,
         group_id=None,
-        workdir=None,
         startup_timeout=60,
         extra_switches=None,
         environment="",
@@ -153,7 +152,6 @@ class KernelExecutionManager(ExecutionManagerBase):
             kernel_name (str): the kernel
             *commands: Commands to execute in the kernel
             group_id (str, optional): item group that will execute using this kernel
-            workdir (str, optional): item group that will execute using this kernel
             startup_timeout (int, optional): How much to wait for the kernel, used in ``KernelClient.wait_for_ready()``
             extra_switches (list, optional): List of additional switches to launch julia.
                 These come before the 'programfile'.
@@ -163,21 +161,13 @@ class KernelExecutionManager(ExecutionManagerBase):
         super().__init__(logger)
         self._msg_head = dict(kernel_name=kernel_name)
         self._commands = commands
-        self._group_id = group_id
-        self._workdir = workdir
         self._cmd_failed = False
         kwargs["stdout"] = open(os.devnull, 'w')
         kwargs["stderr"] = open(os.devnull, 'w')
         # Don't show console when frozen
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
-            kernel_name,
-            group_id,
-            logger,
-            cwd=self._workdir,
-            extra_switches=extra_switches,
-            environment=environment,
-            **kwargs,
+            kernel_name, group_id, logger, extra_switches=extra_switches, environment=environment, **kwargs
         )
         self._kernel_client = self._kernel_manager.client() if self._kernel_manager is not None else None
         self._startup_timeout = startup_timeout
