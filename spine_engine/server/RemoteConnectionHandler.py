@@ -39,7 +39,18 @@ class RemoteConnectionHandler(threading.Thread):
         threading.Thread.__init__(self)
         self.start()
 
-    def run():
+
+    def run(self):
         print("run()")
+        self._execute()
+        
 
 
+    def _execute(self):
+        """
+        Executes a query with the Spine engine, and returns a response to the Zero-MQ client.
+        """
+        #get message parts sent by the client
+        msgParts=self.zmqConn.getMessageParts()
+        print("RemoteConnectionHandler._execute() Received: ")
+        print(msgParts)

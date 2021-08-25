@@ -52,6 +52,7 @@ class ZMQServer(threading.Thread):
             context = zmq.Context() 
             self._socket = context.socket(zmq.REP)
             ret=self._socket.bind(protocol+"://*:"+str(port))     
+            self._zmqContext=context
         except:
             print("ZMQServer couldn't be started due to exception")
             self._state=ZMQServerState.STOPPED
@@ -73,6 +74,7 @@ class ZMQServer(threading.Thread):
         """
         if self._state==ZMQServerState.RUNNING:
             ret=self._socket.close()
+            self._zmqContext.term()
             print("ZMQServer closed at port %d"%self.port)
             self._state=ZMQServerState.STOPPED
             return 0

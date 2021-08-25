@@ -27,16 +27,24 @@ from RemoteConnectionHandler import RemoteConnectionHandler
 from ZMQServer import ZMQServer
 from ZMQServerObserver import ZMQServerObserver
 from ZMQConnection import ZMQConnection
+import time
 
 
 class TestObserver(ZMQServerObserver):
 
+#    def __init__():
+#           
+
     def receiveConnection(self,conn:ZMQConnection)-> None:
-        #print("TestObserver.receiveConnection()")
+        print("TestObserver.receiveConnection()")
         #parts=conn.getMessageParts()
         #print("TestObserver.receiveConnection(): parts received:")
         #print(parts)
         conn.sendReply(conn.getMessageParts()[0])
+        self.conn=conn
+
+    def getConnection(self):
+        return self.conn
 
 
 
@@ -55,9 +63,25 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        context = zmq.Context()
        socket = context.socket(zmq.REQ)
        socket.connect("tcp://localhost:5556")
-        
+       msg_parts=[]
+       part1="feiofnoknfsdnoiknsmd"
+       fileArray=bytearray([1, 2, 3, 4, 5])
+       part1Bytes = bytes(part1, 'utf-8')
+       msg_parts.append(part1Bytes)
+       msg_parts.append(fileArray)
+       socket.send_multipart(msg_parts)
 
+       time.sleep(1)
+       conn=ob.getConnection()
+       print("received connection: ")
+       print(conn)
+       #pass the connection to the connection handler
+       connHandler=RemoteConnectionHandler(conn)
 
+       #close connections
+       socket.close()
+       context.term()
+       zmqServer.close()
 
 if __name__ == '__main__':
     unittest.main()
