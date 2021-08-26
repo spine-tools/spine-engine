@@ -17,6 +17,12 @@ and running a DAG with Spine Engine. Only one DAG can be executed at a time.
 """
 
 import threading
+import sys
+
+sys.path.append('./util')
+from ServerMessageParser import ServerMessageParser
+from ServerMessage import ServerMessage
+
 
 class RemoteConnectionHandler(threading.Thread):
 
@@ -54,3 +60,10 @@ class RemoteConnectionHandler(threading.Thread):
         msgParts=self.zmqConn.getMessageParts()
         print("RemoteConnectionHandler._execute() Received: ")
         print(msgParts)
+
+        #parse JSON message 
+        msgPart1=str(msgParts[0])
+        if len(msgPart1)>10:
+            parsedMsg=ServerMessageParser.parse(msgParts)
+            print("parsed msg with command: %d"%parsedMsg.getCommand()) 
+        

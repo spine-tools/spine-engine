@@ -51,7 +51,19 @@ class TestServerMessage(unittest.TestCase):
         with self.assertRaises(ValueError):
             msg=ServerMessage("execute","","[]",listFiles)
 
-    
+    def test_message_tojson1(self):
+        listFiles=["dffd.zip","fdeef.zip"]
+        msg=ServerMessage("execute","4","[]",listFiles)
+        jsonStr=msg.toJSON()
+        #print("parsed msg:\n")
+        #print(jsonStr)
+
+    def test_message_tojson2(self):
+        msg=ServerMessage("execute","4","[]",None)
+        jsonStr=msg.toJSON()
+        #print("parsed msg2:\n")
+        #print(jsonStr)
+        
 
 
 if __name__ == '__main__':

@@ -22,6 +22,12 @@ class ServerMessageParser:
   
     @staticmethod
     def parse(message):
+        """
+        Args:
+            message: JSON-message as a string
+        Returns:
+            Parsed message as a ServerMessage
+        """
         if message==None:
             raise ValueError("invalid input to ServerMessageParser.parse()")
         if len(message)==0:

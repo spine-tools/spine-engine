@@ -21,6 +21,7 @@ from unittest.mock import NonCallableMagicMock
 import sys
 sys.path.append('./../../spine_engine/server')
 sys.path.append('./../../spine_engine/server/connectivity')
+sys.path.append('./../../spine_engine/server/util')
 import zmq
 
 from RemoteConnectionHandler import RemoteConnectionHandler
@@ -28,6 +29,7 @@ from ZMQServer import ZMQServer
 from ZMQServerObserver import ZMQServerObserver
 from ZMQConnection import ZMQConnection
 import time
+from ServerMessage import ServerMessage
 
 
 class TestObserver(ZMQServerObserver):
@@ -64,11 +66,19 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        socket = context.socket(zmq.REQ)
        socket.connect("tcp://localhost:5556")
        msg_parts=[]
-       part1="feiofnoknfsdnoiknsmd"
-       fileArray=bytearray([1, 2, 3, 4, 5])
-       part1Bytes = bytes(part1, 'utf-8')
+       #fileArray=bytearray([1, 2, 3, 4, 5])
+       
+       f=open('msg_data1.txt')
+       msgData = f.read()
+       f.close()
+       f2=open('test_zipfile.zip','rb')
+       data = f2.read()
+       f2.close()
+       listFiles=["helloworld.zip"]
+       msg=ServerMessage("execute","1",msgData,listFiles)
+       part1Bytes = bytes(msg.toJSON(), 'utf-8')
        msg_parts.append(part1Bytes)
-       msg_parts.append(fileArray)
+       msg_parts.append(data)
        socket.send_multipart(msg_parts)
 
        time.sleep(1)
@@ -78,10 +88,11 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        #pass the connection to the connection handler
        connHandler=RemoteConnectionHandler(conn)
 
+
        #close connections
-       socket.close()
-       context.term()
-       zmqServer.close()
+       #socket.close()
+       #context.term()
+       #zmqServer.close()
 
 if __name__ == '__main__':
     unittest.main()

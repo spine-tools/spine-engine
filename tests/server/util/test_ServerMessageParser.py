@@ -45,7 +45,23 @@ class TestServerMessageParser(unittest.TestCase):
             self.assertEqual(msg.getId(),"1")
             self.assertEqual(len(msg.getFileNames()),0)
 
+    def test_invalid_input1(self):
+        with self.assertRaises(ValueError):
+            ServerMessageParser.parse("")
 
+    def test_invalid_input2(self):
+        with self.assertRaises(ValueError):
+            ServerMessageParser.parse("fiuoehfoiewjkfdewjiofdj{")            
+
+    def test_msg_nofiles(self):
+        msg=ServerMessage("execute","4","[]",None)
+        jsonStr=msg.toJSON()
+        msg=ServerMessageParser.parse(jsonStr)
+        print(msg)
+        self.assertEqual(msg.getCommand(),"execute")
+        self.assertEqual(msg.getId(),"4")
+        self.assertEqual(msg.getData(),"[]")
+        self.assertEqual(len(msg.getFileNames()),0)
 
 
 if __name__ == '__main__':

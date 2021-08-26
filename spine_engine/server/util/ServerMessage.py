@@ -34,7 +34,7 @@ class ServerMessage:
         self._id=id
         self._data=data
         self._files=[]
-        
+
         if files!=None:
             if len(files)>0:
                 self._files.extend(files)
@@ -51,4 +51,35 @@ class ServerMessage:
     def getFileNames(self):
         return self._files
 
+    def toJSON(self):
+        """
+        Returns:
+            the class as a JSON string
+        """
+        jsonFileNames=self._getJSONFileNames()
+        #print("ServerMessage.toJSON(): %s"%jsonFileNames)
+        retStr=""
+        retStr+="{\n"
+        retStr+="   \"command\": \""+self._command+"\",\n"
+        retStr+="   \"id\":\""+self._id+"\",\n"
+        retStr+="   \"data\":\""+self._data+"\",\n"
+        retStr+="   \"files\": "+jsonFileNames
+        retStr+="}"
+        return retStr
+
+
+    def _getJSONFileNames(self):
+        fileNameCount=len(self._files)
+        if fileNameCount==0:
+            return "{}\n"
+        retStr='{\n'
+        i=0
+        for fName in self._files:
+            if i+1 < fileNameCount:
+                retStr=retStr+"    \"name-"+str(i)+"\": \""+fName+"\",\n"
+            else:
+                retStr=retStr+"    \"name-"+str(i)+"\": \""+fName+"\"\n"
+            i+=1
+        retStr=retStr+"    }\n"
+        return retStr
 
