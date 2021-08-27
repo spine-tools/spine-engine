@@ -87,7 +87,9 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        print(conn)
        #pass the connection to the connection handler
        connHandler=RemoteConnectionHandler(conn)
-
+       print("listening to replies..")
+       message = socket.recv()
+       print("out recv()..Received reply %s" %message)
 
        #close connections
        #socket.close()

@@ -18,11 +18,14 @@ and running a DAG with Spine Engine. Only one DAG can be executed at a time.
 
 import threading
 import sys
-
+import json
+import ast
 sys.path.append('./util')
 from ServerMessageParser import ServerMessageParser
 from ServerMessage import ServerMessage
-
+from FileExtractor import FileExtractor
+from RemoteSpineServiceImpl import RemoteSpineServiceImpl
+from EventDataConverter import EventDataConverter
 
 class RemoteConnectionHandler(threading.Thread):
 
@@ -47,7 +50,7 @@ class RemoteConnectionHandler(threading.Thread):
 
 
     def run(self):
-        print("run()")
+        #print("run()")
         self._execute()
         
 
@@ -58,12 +61,60 @@ class RemoteConnectionHandler(threading.Thread):
         """
         #get message parts sent by the client
         msgParts=self.zmqConn.getMessageParts()
-        print("RemoteConnectionHandler._execute() Received: ")
-        print(msgParts)
+        #print("RemoteConnectionHandler._execute() Received: ")
+        #print(msgParts)
 
         #parse JSON message 
-        msgPart1=str(msgParts[0])
-        if len(msgPart1)>10:
-            parsedMsg=ServerMessageParser.parse(msgParts)
-            print("parsed msg with command: %d"%parsedMsg.getCommand()) 
-        
+        if len(msgParts[0])>10:
+            msgPart1=msgParts[0].decode("utf-8")
+            #print("RemoteConnectionHandler._execute() Received JSON:\n %s"%msgPart1)
+            parsedMsg=ServerMessageParser.parse(msgPart1)
+            print("parsed msg with command: %s"%parsedMsg.getCommand()) 
+
+            #save attached file to the location indicated in the project_dir-field of the JSON
+            data=parsedMsg.getData()
+            #print("parsed data from the received msg: %s"%data)
+            print("parsed project_dir: %s"%data['project_dir'])
+
+            if(len(parsedMsg.getFileNames())==1):
+                print("file name: %s"%parsedMsg.getFileNames()[0])
+                f=open(data['project_dir']+"/"+parsedMsg.getFileNames()[0], "wb")
+                f.write(msgParts[1])
+                f.close()
+                print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],data['project_dir']))
+
+                #extract the saved file
+                FileExtractor.extract(data['project_dir']+"/"+parsedMsg.getFileNames()[0],data['project_dir']+"/")
+                print("extracted file: %s to folder: %s"%(parsedMsg.getFileNames()[0],data['project_dir']))
+
+                #execute DAG in the Spine engine
+                spineEngineImpl=RemoteSpineServiceImpl()
+                convertedData=self._convertTextDictToDicts(data)
+                #print("RemoteConnectionHandler._execute() passing data to spine engine: %s"%convertedData)
+                eventData=spineEngineImpl.execute(convertedData)
+                #print("received events/data: ")
+                #print(eventData)
+
+                #create a response message,parse and send it
+                jsonEventsData=EventDataConverter.convert(eventData)
+                #print(jsonEventsData)
+                replyMsg=ServerMessage(parsedMsg.getCommand(),parsedMsg.getId(),jsonEventsData,None)
+                replyAsJson=replyMsg.toJSON()
+                #print("RemoteConnectionHandler._execute() Reply to be sent: \n%s"%replyAsJson)
+                replyInBytes= bytes(replyAsJson, 'utf-8')
+                #print("RemoteConnectionHandler._execute() Reply to be sent in bytes:%s"%replyInBytes)
+                self.zmqConn.sendReply(replyInBytes)
+                
+
+
+    def _convertTextDictToDicts(self,data):
+        newData=dict()
+        newData['items']=ast.literal_eval(data['items'])
+        newData['connections']=ast.literal_eval(data['connections'])
+        newData['specifications']=ast.literal_eval(data['specifications'])
+        newData['node_successors']=ast.literal_eval(data['node_successors'])
+        newData['execution_permits']=ast.literal_eval(data['execution_permits'])
+        newData['settings']=ast.literal_eval(data['settings'])
+        newData['settings']=ast.literal_eval(data['settings'])
+        newData['project_dir']=data['project_dir']
+        return newData

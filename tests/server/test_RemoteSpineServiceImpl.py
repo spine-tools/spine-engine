@@ -53,9 +53,40 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         item.project_dir=project_dir
         return item
 
+
+    @staticmethod
+    def _dict_data(
+        items, connections, node_successors,
+          execution_permits,specifications,settings,
+          project_dir
+    ):
+        """Returns a dict to be passed to the class.
+        Args:
+            items (list(dict)): See SpineEngine.__init()
+            connections (list of dict): See SpineEngine.__init()
+            node_successors (dict(str,list(str))): See SpineEngine.__init()
+            execution_permits (dict(str,bool)): See SpineEngine.__init()
+            specifications (dict(str,list(dict))): SpineEngine.__init()
+            settings (dict): SpineEngine.__init()
+            project_dir (str): SpineEngine.__init()
+        Returns:
+            dict
+        """
+        item = dict()
+        item['items']=items
+        item['connections']=connections
+        item['node_successors']=node_successors
+        item['execution_permits']=execution_permits
+        item['specifications']=specifications
+        item['settings']=settings
+        item['project_dir']=project_dir
+        return item
+
+
+
     def test_basic_service_call_succeeds(self):
         """Tests execution with all data items present"""
-        mock_data = self._mock_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
+        dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
@@ -78,7 +109,9 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'})
 
         impl=RemoteSpineServiceImpl()
-        eventData=impl.execute(mock_data)
+        print("test_basic_service_call_succeeds(): input data to spine engine:")
+        print(dict_data)
+        eventData=impl.execute(dict_data)
 
         #asserts
         self.assertEqual(len(eventData),31)
@@ -98,7 +131,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def test_basic_service_call_succeeds_loop(self):
         """Tests execution with all data items present (in a loop)"""
-        mock_data = self._mock_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
+        dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
@@ -127,7 +160,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         while i<10:
             #print("test_basic_service_call_succeeds_loop(): iteration: %d"%i)
             i=i+1
-            eventData=impl.execute(mock_data)
+            eventData=impl.execute(dict_data)
 
             #asserts
             self.assertEqual(len(eventData),31)
@@ -147,7 +180,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def test_fail_invalid_projectdir(self):
         """Tests execution with an invalid project_dir in data"""
-        mock_data = self._mock_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
+        dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
@@ -170,7 +203,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'})
 
         impl=RemoteSpineServiceImpl()
-        eventData=impl.execute(mock_data)
+        eventData=impl.execute(dict_data)
 
         #asserts
         self.assertEqual(len(eventData),19)
@@ -189,7 +222,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def test_missing_field_in_data(self):
         """Tests execution with a missing field in data (that an error is raised)"""
-        mock_data = self._mock_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
+        dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
@@ -213,7 +246,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
         impl=RemoteSpineServiceImpl()
         with self.assertRaises(ValueError):
-            eventData=impl.execute(mock_data)
+            eventData=impl.execute(dict_data)
         
                 
 

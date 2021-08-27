@@ -56,19 +56,19 @@ class RemoteSpineServiceImpl:
         """
 
         #check for correct input 
-        if data.items==None or data.connections==None or data.node_successors==None or data.execution_permits==None or\
-        data.specifications==None or data.settings==None or data.project_dir==None or\
-        data.items=="" or data.connections=="" or data.node_successors=="" or data.execution_permits=="" or\
-        data.specifications=="" or data.settings=="" or data.project_dir=="":
+        if data['items']==None or data['connections']==None or data['node_successors']==None or data['execution_permits']==None or\
+        data['specifications']==None or data['settings']==None or data['project_dir']==None or\
+        data['items']=="" or data['connections']=="" or data['node_successors']=="" or data['execution_permits']=="" or\
+        data['specifications']=="" or data['settings']=="" or data['project_dir']=="":
             raise ValueError("invalid data content provided to RemoteSpineServiceImpl.execute()")
 
         #check our state
         #if self._state==RemoteSpineServiceImplState.IDLE:
         #    self._state=RemoteSpineServiceImplState.RUNNING
 
-        engine = SpineEngine(items=data.items, connections=data.connections, node_successors=data.node_successors,
-            execution_permits=data.execution_permits,specifications=data.specifications,settings=data.settings,
-            project_dir=data.project_dir)
+        engine = SpineEngine(items=data['items'], connections=data['connections'], node_successors=data['node_successors'],
+            execution_permits=data['execution_permits'],specifications=data['specifications'],settings=data['settings'],
+            project_dir=data['project_dir'])
 
         #get events+data from the spine engine
         eventData=[]
