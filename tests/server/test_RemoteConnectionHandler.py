@@ -23,13 +23,16 @@ sys.path.append('./../../spine_engine/server')
 sys.path.append('./../../spine_engine/server/connectivity')
 sys.path.append('./../../spine_engine/server/util')
 import zmq
+import json
+import time
 
 from RemoteConnectionHandler import RemoteConnectionHandler
 from ZMQServer import ZMQServer
 from ZMQServerObserver import ZMQServerObserver
 from ZMQConnection import ZMQConnection
-import time
 from ServerMessage import ServerMessage
+from ServerMessageParser import ServerMessageParser
+from EventDataConverter import EventDataConverter
 
 
 class TestObserver(ZMQServerObserver):
@@ -58,8 +61,8 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             handler=RemoteConnectionHandler(None)
 
     def test_init_complete(self):
-       ob=TestObserver()
-       zmqServer=ZMQServer("tcp",5556,ob)
+       #ob=TestObserver()
+       #zmqServer=ZMQServer("tcp",5556,ob)
 
        #connect to the server
        context = zmq.Context()
@@ -71,26 +74,37 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        f=open('msg_data1.txt')
        msgData = f.read()
        f.close()
+       msgDataJson=json.dumps(msgData)
+       print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
        f2=open('test_zipfile.zip','rb')
        data = f2.read()
        f2.close()
        listFiles=["helloworld.zip"]
-       msg=ServerMessage("execute","1",msgData,listFiles)
+       msg=ServerMessage("execute","1",msgDataJson,listFiles)
        part1Bytes = bytes(msg.toJSON(), 'utf-8')
        msg_parts.append(part1Bytes)
        msg_parts.append(data)
        socket.send_multipart(msg_parts)
 
        time.sleep(1)
-       conn=ob.getConnection()
-       print("received connection: ")
-       print(conn)
+       #conn=ob.getConnection()
+       #print("received connection: ")
+       #print(conn)
        #pass the connection to the connection handler
-       connHandler=RemoteConnectionHandler(conn)
+       #connHandler=RemoteConnectionHandler(conn)
        print("listening to replies..")
        message = socket.recv()
-       print("out recv()..Received reply %s" %message)
-
+       msgStr=message.decode('utf-8')
+       print("out recv()..Received reply %s" %msgStr)
+       parsedMsg=ServerMessageParser.parse(msgStr)
+       print(type(parsedMsg))
+       #get and decode events+data
+       data=parsedMsg.getData()
+       print(type(data))
+       jsonData=json.dumps(data)
+       dataEvents=EventDataConverter.convertJSON(jsonData,True)
+       print("parsed events+data:\n")
+       print(dataEvents)
        #close connections
        #socket.close()
        #context.term()

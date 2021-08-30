@@ -67,29 +67,32 @@ class RemoteConnectionHandler(threading.Thread):
         #parse JSON message 
         if len(msgParts[0])>10:
             msgPart1=msgParts[0].decode("utf-8")
-            #print("RemoteConnectionHandler._execute() Received JSON:\n %s"%msgPart1)
+            print("RemoteConnectionHandler._execute() Received JSON:\n %s"%msgPart1)
             parsedMsg=ServerMessageParser.parse(msgPart1)
             print("parsed msg with command: %s"%parsedMsg.getCommand()) 
 
             #save attached file to the location indicated in the project_dir-field of the JSON
             data=parsedMsg.getData()
+            print("RemoteConnectionHandler._execute() data type: %s"%type(data))
+            dataAsDict=json.loads(data)
+            print(dataAsDict)
             #print("parsed data from the received msg: %s"%data)
-            print("parsed project_dir: %s"%data['project_dir'])
+            #print("parsed project_dir: %s"%data['project_dir'])
 
             if(len(parsedMsg.getFileNames())==1):
                 print("file name: %s"%parsedMsg.getFileNames()[0])
-                f=open(data['project_dir']+"/"+parsedMsg.getFileNames()[0], "wb")
+                f=open(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0], "wb")
                 f.write(msgParts[1])
                 f.close()
-                print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],data['project_dir']))
+                print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
 
                 #extract the saved file
-                FileExtractor.extract(data['project_dir']+"/"+parsedMsg.getFileNames()[0],data['project_dir']+"/")
-                print("extracted file: %s to folder: %s"%(parsedMsg.getFileNames()[0],data['project_dir']))
+                FileExtractor.extract(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0],dataAsDict['project_dir']+"/")
+                print("extracted file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
 
                 #execute DAG in the Spine engine
                 spineEngineImpl=RemoteSpineServiceImpl()
-                convertedData=self._convertTextDictToDicts(data)
+                convertedData=self._convertTextDictToDicts(dataAsDict)
                 #print("RemoteConnectionHandler._execute() passing data to spine engine: %s"%convertedData)
                 eventData=spineEngineImpl.execute(convertedData)
                 #print("received events/data: ")
@@ -97,7 +100,7 @@ class RemoteConnectionHandler(threading.Thread):
 
                 #create a response message,parse and send it
                 jsonEventsData=EventDataConverter.convert(eventData)
-                #print(jsonEventsData)
+                print(type(jsonEventsData))
                 replyMsg=ServerMessage(parsedMsg.getCommand(),parsedMsg.getId(),jsonEventsData,None)
                 replyAsJson=replyMsg.toJSON()
                 #print("RemoteConnectionHandler._execute() Reply to be sent: \n%s"%replyAsJson)

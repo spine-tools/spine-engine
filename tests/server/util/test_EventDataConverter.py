@@ -41,6 +41,14 @@ class TestEventDataConverter(unittest.TestCase):
         jsonStr=EventDataConverter.convert(eventData)
         #print(jsonStr)
         json.loads(jsonStr)
+
+    def test_2converts_basic(self):
+        eventData=self._createEventData()
+        jsonStr=EventDataConverter.convert(eventData)
+        eventsData2=EventDataConverter.convertJSON(jsonStr,True)
+        #print(eventsData2)
+        jsonStr2=EventDataConverter.convert(eventsData2)
+        self.assertEqual(jsonStr,jsonStr2)
         
 
 if __name__ == '__main__':

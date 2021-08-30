@@ -28,7 +28,7 @@ class ServerMessage:
         if command==None or id==None or data==None:
             raise ValueError("invalid input to ServerMessage")
         if len(command)==0 or len(id)==0 or len(data)==0:
-            raise ValueError("invalid input to ServerMessage")
+            raise ValueError("invalid input to ServerMessage, len data: %d"%len(data))
 
         self._command=command
         self._id=id

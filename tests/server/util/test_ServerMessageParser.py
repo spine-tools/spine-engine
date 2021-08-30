@@ -54,13 +54,14 @@ class TestServerMessageParser(unittest.TestCase):
             ServerMessageParser.parse("fiuoehfoiewjkfdewjiofdj{")            
 
     def test_msg_nofiles(self):
-        msg=ServerMessage("execute","4","[]",None)
+        msg=ServerMessage("execute","4","{}",None)
         jsonStr=msg.toJSON()
+        print("JSON: %s"%jsonStr)
         msg=ServerMessageParser.parse(jsonStr)
         print(msg)
         self.assertEqual(msg.getCommand(),"execute")
         self.assertEqual(msg.getId(),"4")
-        self.assertEqual(msg.getData(),"[]")
+        self.assertEqual(msg.getData(),"{}")
         self.assertEqual(len(msg.getFileNames()),0)
 
 

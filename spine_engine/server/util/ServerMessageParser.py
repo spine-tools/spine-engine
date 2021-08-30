@@ -35,17 +35,23 @@ class ServerMessageParser:
 
         parsedMsg=json.loads(message)
         #print("ServerMessageParser.parse() parsed msg type:")
-        #print(type(parsedMsg))
+        #print(parsedMsg)
         fileNames=parsedMsg['files']
         #print("number of file names: %d"%len(fileNameStr))
 
         #parse file names
+        #print("ServerMessageParser.parse() type of data: ")
+        #print(type(json.dumps(parsedMsg['data'])))
+        #dataStr=json.dumps(parsedMsg['data'])
+        dataStr=parsedMsg['data']
+        print("ServerMessageParser.parse() Data: %s"%dataStr)
+
         parsedFileNames=[]
         if len(fileNames)>0:
             for f in fileNames:
                 #print(fileNames[f])
                 parsedFileNames.append(fileNames[f])
-            msg=ServerMessage(parsedMsg['command'],parsedMsg['id'],parsedMsg['data'],parsedFileNames)
+            msg=ServerMessage(parsedMsg['command'],parsedMsg['id'],dataStr,parsedFileNames)
         else:
-            msg=ServerMessage(parsedMsg['command'],parsedMsg['id'],parsedMsg['data'],None)
+            msg=ServerMessage(parsedMsg['command'],parsedMsg['id'],dataStr,None)
         return msg

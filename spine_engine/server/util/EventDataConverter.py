@@ -15,10 +15,11 @@ Contains a helper class for converting received event/data information to JSON-b
 :date:   27.08.2021
 """
 
+import base64
+import json
+
+
 class EventDataConverter:
-
-
-    
 
 
     """
@@ -28,8 +29,6 @@ class EventDataConverter:
     Return:
         JSON string
     """
-
-
     @staticmethod
     def convert(eventData):
         itemCount=len(eventData)
@@ -38,16 +37,52 @@ class EventDataConverter:
         retStr+="    \"items\": [\n"
         for ed in eventData:
             #print(ed)
+            #convert data to Base64
+            msgBytes=str(ed[1]).encode('ascii')
+            base64Bytes=base64.b64encode(msgBytes)
+            base64Data=base64Bytes.decode('ascii')
+
             retStr+="    {\n        \"event_type\": \""+ed[0]+"\",\n"
             if (i+1) < itemCount:
-                retStr+="        \"data\": \""+str(ed[1])+"\"\n    },\n"
+                retStr+="        \"data\": \""+base64Data+"\"\n    },\n"
                 #print("orig dict:")
                 #print(ed[1])
                 #print("modified to str:")
                 #print(str(ed[1]))
             else:
-                retStr+="        \"data\": \""+str(ed[1])+"\"\n    }\n"
+                retStr+="        \"data\": \""+base64Data+"\"\n    }\n"
             i+=1
         retStr+="    ]\n"
         retStr+="}\n"
         return retStr
+
+
+    """
+    Converts JSON to events+data
+    Args:
+        jsonStr(str): events+data as JSON
+        base64Data(Boolean):flag indicating, when data is encoded into Base64 
+    Return:
+        a list of tuples containing events and data
+    """
+    @staticmethod
+    def convertJSON(jsonStr,base64Data):
+        parsedJSON=json.loads(jsonStr)
+        #print(parsedJSON)
+        itemsList=parsedJSON['items']
+        #print("parsed list of items:")
+        #print(itemsList)
+        retList=[]
+        for item in itemsList:
+            #print(item['event_type'])
+            #print(item['data'])
+            if base64Data==False:
+                retList.append((item['event_type'],item['data']))
+            else: #decode Base64
+                base64_bytes=item['data'].encode('ascii')
+                message_bytes = base64.b64decode(base64_bytes)
+                decodedData = message_bytes.decode('ascii')
+                retList.append((item['event_type'],decodedData))
+        return retList 
+
+
