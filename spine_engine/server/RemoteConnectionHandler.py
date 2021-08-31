@@ -50,7 +50,7 @@ class RemoteConnectionHandler(threading.Thread):
 
 
     def run(self):
-        #print("run()")
+        print("RemoteConnectionHandler.run()")
         self._execute()
         
 
@@ -73,19 +73,23 @@ class RemoteConnectionHandler(threading.Thread):
 
             #save attached file to the location indicated in the project_dir-field of the JSON
             data=parsedMsg.getData()
-            print("RemoteConnectionHandler._execute() data type: %s"%type(data))
+            #print("RemoteConnectionHandler._execute() data type: %s"%type(data))
             dataAsDict=json.loads(data)
-            print(dataAsDict)
+            #print(dataAsDict)
             #print("parsed data from the received msg: %s"%data)
             #print("parsed project_dir: %s"%data['project_dir'])
 
             if(len(parsedMsg.getFileNames())==1):
-                print("file name: %s"%parsedMsg.getFileNames()[0])
-                f=open(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0], "wb")
-                f.write(msgParts[1])
-                f.close()
-                print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
 
+                #save the file
+                try:
+                    print("file name: %s"%parsedMsg.getFileNames()[0])
+                    f=open(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0], "wb")
+                    f.write(msgParts[1])
+                    f.close()
+                    print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
+                except:
+                    print("couldn't save the file, returning empty response..\n")
                 #extract the saved file
                 FileExtractor.extract(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0],dataAsDict['project_dir']+"/")
                 print("extracted file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
@@ -100,13 +104,15 @@ class RemoteConnectionHandler(threading.Thread):
 
                 #create a response message,parse and send it
                 jsonEventsData=EventDataConverter.convert(eventData)
-                print(type(jsonEventsData))
+                #print(type(jsonEventsData))
                 replyMsg=ServerMessage(parsedMsg.getCommand(),parsedMsg.getId(),jsonEventsData,None)
                 replyAsJson=replyMsg.toJSON()
                 #print("RemoteConnectionHandler._execute() Reply to be sent: \n%s"%replyAsJson)
                 replyInBytes= bytes(replyAsJson, 'utf-8')
                 #print("RemoteConnectionHandler._execute() Reply to be sent in bytes:%s"%replyInBytes)
                 self.zmqConn.sendReply(replyInBytes)
+                #self.zmqConn.close()
+                #print("RemoteConnectionHandler._execute(): closed the socket to the client.")
                 
 
 

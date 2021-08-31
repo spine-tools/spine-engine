@@ -44,7 +44,7 @@ class ServerMessageParser:
         #print(type(json.dumps(parsedMsg['data'])))
         #dataStr=json.dumps(parsedMsg['data'])
         dataStr=parsedMsg['data']
-        print("ServerMessageParser.parse() Data: %s"%dataStr)
+        #print("ServerMessageParser.parse() Data: %s"%dataStr)
 
         parsedFileNames=[]
         if len(fileNames)>0:

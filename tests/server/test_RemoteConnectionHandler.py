@@ -75,7 +75,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        msgData = f.read()
        f.close()
        msgDataJson=json.dumps(msgData)
-       print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
+       #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
        f2=open('test_zipfile.zip','rb')
        data = f2.read()
        f2.close()
@@ -97,18 +97,47 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        msgStr=message.decode('utf-8')
        print("out recv()..Received reply %s" %msgStr)
        parsedMsg=ServerMessageParser.parse(msgStr)
-       print(type(parsedMsg))
+       #print(type(parsedMsg))
        #get and decode events+data
        data=parsedMsg.getData()
-       print(type(data))
+       #print(type(data))
        jsonData=json.dumps(data)
-       dataEvents=EventDataConverter.convertJSON(jsonData,True)
-       print("parsed events+data:\n")
-       print(dataEvents)
+       dataEvents=EventDataConverter.convertJSON(jsonData,True)       
+       print("parsed events+data, items:%d\n"%len(dataEvents))
+       self.assertEqual(len(dataEvents),31)
+       #print(dataEvents)
        #close connections
        #socket.close()
        #context.term()
        #zmqServer.close()
+
+
+    def test_init_no_binarydata(self):
+       """
+       Send message with JSON, but no binary data.
+       """
+       #connect to the server       
+       context = zmq.Context()
+       socket = context.socket(zmq.REQ)
+       socket.connect("tcp://localhost:5556")
+       msg_parts=[]
+
+       f=open('msg_data1.txt')
+       msgData = f.read()
+       f.close()
+       msgDataJson=json.dumps(msgData)
+       listFiles=["helloworld.zip"]
+       msg=ServerMessage("execute","1",msgDataJson,listFiles)
+       part1Bytes = bytes(msg.toJSON(), 'utf-8')
+       msg_parts.append(part1Bytes)
+       socket.send_multipart(msg_parts)
+
+       time.sleep(1)
+       print("listening to replies..")
+       message = socket.recv()
+       msgStr=message.decode('utf-8')
+       print("out recv()..Received reply %s" %msgStr)
+
 
 if __name__ == '__main__':
     unittest.main()

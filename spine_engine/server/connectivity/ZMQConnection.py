@@ -34,6 +34,7 @@ class ZMQConnection:
         """
         self._socket=socket
         self._msgParts=msgParts
+        #self._closed=False
         #print("ZMQConnection(): parts:")
         #print(self._msgParts)
 
@@ -56,4 +57,21 @@ class ZMQConnection:
     """
     def sendReply(self,data):        
         self._socket.send(data)
+
+
+    #"""
+    #Closes the connection.
+    #"""
+    #def close(self):
+    #    self._socket.close()
+    #    self._closed=True
+
+    
+    #"""
+    #Indicates if the connection has been closed.
+    #Returns: 
+    #    Boolean
+    #"""
+    #def closed(self):
+    #    self._closed
 
