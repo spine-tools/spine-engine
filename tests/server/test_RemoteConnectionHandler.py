@@ -61,9 +61,6 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             handler=RemoteConnectionHandler(None)
 
     def test_init_complete(self):
-       #ob=TestObserver()
-       #zmqServer=ZMQServer("tcp",5556,ob)
-
        #connect to the server
        context = zmq.Context()
        socket = context.socket(zmq.REQ)
@@ -87,15 +84,10 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        socket.send_multipart(msg_parts)
 
        time.sleep(1)
-       #conn=ob.getConnection()
-       #print("received connection: ")
-       #print(conn)
-       #pass the connection to the connection handler
-       #connHandler=RemoteConnectionHandler(conn)
        print("listening to replies..")
        message = socket.recv()
        msgStr=message.decode('utf-8')
-       print("out recv()..Received reply %s" %msgStr)
+       #print("out recv()..Received reply %s" %msgStr)
        parsedMsg=ServerMessageParser.parse(msgStr)
        #print(type(parsedMsg))
        #get and decode events+data
@@ -103,20 +95,61 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        #print(type(data))
        jsonData=json.dumps(data)
        dataEvents=EventDataConverter.convertJSON(jsonData,True)       
-       print("parsed events+data, items:%d\n"%len(dataEvents))
+       #print("parsed events+data, items:%d\n"%len(dataEvents))
        self.assertEqual(len(dataEvents),31)
        #print(dataEvents)
        #close connections
-       #socket.close()
-       #context.term()
-       #zmqServer.close()
+       socket.close()
+
+
+
+    def test_loop_calls(self):
+       #connect to the server
+       context = zmq.Context()
+       socket = context.socket(zmq.REQ)
+       socket.connect("tcp://localhost:5556")
+       msg_parts=[]
+       #fileArray=bytearray([1, 2, 3, 4, 5])
+
+       f=open('msg_data1.txt')
+       msgData = f.read()
+       f.close()
+       msgDataJson=json.dumps(msgData)
+       #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
+       f2=open('test_zipfile.zip','rb')
+       data = f2.read()
+       f2.close()
+       listFiles=["helloworld.zip"]
+       msg=ServerMessage("execute","1",msgDataJson,listFiles)
+       part1Bytes = bytes(msg.toJSON(), 'utf-8')
+       msg_parts.append(part1Bytes)
+       msg_parts.append(data)
+       i=0
+       while i < 10:
+           socket.send_multipart(msg_parts)
+           print("listening to replies..%d"%i)
+           message = socket.recv()
+           msgStr=message.decode('utf-8')
+           #print("out recv()..Received reply %s" %msgStr)
+           parsedMsg=ServerMessageParser.parse(msgStr)
+           #get and decode events+data
+           data=parsedMsg.getData()
+           #print(type(data))
+           jsonData=json.dumps(data)
+           dataEvents=EventDataConverter.convertJSON(jsonData,True)
+           #print("parsed events+data, items:%d\n"%len(dataEvents))
+           self.assertEqual(len(dataEvents),31)
+           #print(dataEvents)
+           i+=1
+       #close connections
+       socket.close()
 
 
     def test_init_no_binarydata(self):
        """
        Send message with JSON, but no binary data.
        """
-       #connect to the server       
+       #connect to the server
        context = zmq.Context()
        socket = context.socket(zmq.REQ)
        socket.connect("tcp://localhost:5556")
@@ -132,11 +165,81 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        msg_parts.append(part1Bytes)
        socket.send_multipart(msg_parts)
 
-       time.sleep(1)
+       #time.sleep(1)
+       print("listening to replies..")
+       message = socket.recv()
+       msgStr=message.decode('utf-8')
+       #print("out recv()..Received reply %s" %msgStr)
+       parsedMsg=ServerMessageParser.parse(msgStr)
+       data=parsedMsg.getData()
+       print("received data: %s"%data)
+       self.assertEqual(str(data),"{}")
+
+
+    def test_no_filename(self):
+       #connect to the server
+       context = zmq.Context()
+       socket = context.socket(zmq.REQ)
+       socket.connect("tcp://localhost:5556")
+       msg_parts=[]
+       #fileArray=bytearray([1, 2, 3, 4, 5])
+
+       f=open('msg_data1.txt')
+       msgData = f.read()
+       f.close()
+       msgDataJson=json.dumps(msgData)
+       #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
+       f2=open('test_zipfile.zip','rb')
+       data = f2.read()
+       f2.close()
+       msg=ServerMessage("execute","1",msgDataJson,None)
+       part1Bytes = bytes(msg.toJSON(), 'utf-8')
+       msg_parts.append(part1Bytes)
+       msg_parts.append(data)
+       socket.send_multipart(msg_parts)
+
+       print("listening to replies..")
+       message = socket.recv()
+       msgStr=message.decode('utf-8')
+       #print("out recv()..Received reply %s" %msgStr)
+       parsedMsg=ServerMessageParser.parse(msgStr)
+       #print(type(parsedMsg))
+       #get and decode events+data
+       data=parsedMsg.getData()
+       self.assertEqual(str(data),"{}")
+
+       #close connections
+       socket.close()
+
+
+    def test_invalid_json(self):
+       #connect to the server
+       context = zmq.Context()
+       socket = context.socket(zmq.REQ)
+       socket.connect("tcp://localhost:5556")
+       msg_parts=[]
+
+       f=open('msg_data2.txt')
+       msgData = f.read()
+       f.close()
+       #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
+       f2=open('test_zipfile.zip','rb')
+       data = f2.read()
+       f2.close()
+       msg=ServerMessage("execute","1",msgData,None)
+       part1Bytes = bytes(msg.toJSON(), 'utf-8')
+       msg_parts.append(part1Bytes)
+       msg_parts.append(data)
+       socket.send_multipart(msg_parts)
+
        print("listening to replies..")
        message = socket.recv()
        msgStr=message.decode('utf-8')
        print("out recv()..Received reply %s" %msgStr)
+       self.assertEqual(msgStr,"{}")
+
+       #close connections
+       socket.close()
 
 
 if __name__ == '__main__':

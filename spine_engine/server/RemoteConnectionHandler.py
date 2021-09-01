@@ -19,6 +19,7 @@ and running a DAG with Spine Engine. Only one DAG can be executed at a time.
 import threading
 import sys
 import json
+import os
 import ast
 sys.path.append('./util')
 from ServerMessageParser import ServerMessageParser
@@ -66,23 +67,34 @@ class RemoteConnectionHandler(threading.Thread):
 
         #parse JSON message 
         if len(msgParts[0])>10:
-            msgPart1=msgParts[0].decode("utf-8")
-            print("RemoteConnectionHandler._execute() Received JSON:\n %s"%msgPart1)
-            parsedMsg=ServerMessageParser.parse(msgPart1)
-            print("parsed msg with command: %s"%parsedMsg.getCommand()) 
+            try:
+                msgPart1=msgParts[0].decode("utf-8")
+                #print("RemoteConnectionHandler._execute() Received JSON:\n %s"%msgPart1)
+                parsedMsg=ServerMessageParser.parse(msgPart1)
+                #print("parsed msg with command: %s"%parsedMsg.getCommand()) 
 
-            #save attached file to the location indicated in the project_dir-field of the JSON
-            data=parsedMsg.getData()
-            #print("RemoteConnectionHandler._execute() data type: %s"%type(data))
-            dataAsDict=json.loads(data)
-            #print(dataAsDict)
-            #print("parsed data from the received msg: %s"%data)
-            #print("parsed project_dir: %s"%data['project_dir'])
+                #save attached file to the location indicated in the project_dir-field of the JSON
+                data=parsedMsg.getData()
+                #print("RemoteConnectionHandler._execute() data type: %s"%type(data))
+                dataAsDict=json.loads(data)
+                #print(dataAsDict)
+                #print("parsed data from the received msg: %s"%data)
+                #print("parsed project_dir: %s"%data['project_dir'])
+            except:
+                print("RemoteConnectionHandler._execute(:) Error in parsing content, returning empty data")
+                retBytes=bytes("{}", 'utf-8')
+                self.zmqConn.sendReply(retBytes)
+                return 
 
             if(len(parsedMsg.getFileNames())==1):
 
                 #save the file
                 try:
+                    #create folder, if it doesn't exist yet
+                    if os.path.exists(dataAsDict['project_dir']+"/")==False:
+                        os.mkdir(dataAsDict['project_dir']+"/")
+                        print("RemoteConnectionHandler._execute() Created a new folder %s"%(dataAsDict['project_dir']+"/"))
+
                     print("file name: %s"%parsedMsg.getFileNames()[0])
                     f=open(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0], "wb")
                     f.write(msgParts[1])
@@ -90,6 +102,7 @@ class RemoteConnectionHandler(threading.Thread):
                     print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
                 except:
                     print("couldn't save the file, returning empty response..\n")
+                    self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
                 #extract the saved file
                 FileExtractor.extract(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0],dataAsDict['project_dir']+"/")
                 print("extracted file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
@@ -102,6 +115,10 @@ class RemoteConnectionHandler(threading.Thread):
                 #print("received events/data: ")
                 #print(eventData)
 
+                #delete extracted folder
+                FileExtractor.deleteFolder(dataAsDict['project_dir']+"/")
+                print("RemoteConnectionHandler._execute(): Deleted folder %s"%dataAsDict['project_dir']+"/")
+
                 #create a response message,parse and send it
                 jsonEventsData=EventDataConverter.convert(eventData)
                 #print(type(jsonEventsData))
@@ -113,7 +130,21 @@ class RemoteConnectionHandler(threading.Thread):
                 self.zmqConn.sendReply(replyInBytes)
                 #self.zmqConn.close()
                 #print("RemoteConnectionHandler._execute(): closed the socket to the client.")
-                
+            
+            else:
+                print("RemoteConnectionHandler._execute(): no file name included, returning empty response..\n")
+                self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
+    
+
+ 
+    def _sendResponse(self,msgCommand,msgId,data):
+        """
+        """
+        replyMsg=ServerMessage(msgCommand,msgId,data,None)
+        replyAsJson=replyMsg.toJSON()
+        replyInBytes= bytes(replyAsJson, 'utf-8')
+        self.zmqConn.sendReply(replyInBytes)
+
 
 
     def _convertTextDictToDicts(self,data):
