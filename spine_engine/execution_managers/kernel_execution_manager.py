@@ -161,7 +161,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         super().__init__(logger)
         self._msg_head = dict(kernel_name=kernel_name)
         self._commands = commands
-        self._cmd_failed = False
+        self._last_cmd_failed = False
         kwargs["stdout"] = open(os.devnull, 'w')
         kwargs["stderr"] = open(os.devnull, 'w')
         # Don't show console when frozen
@@ -178,7 +178,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._kernel_client.start_channels()
         run_succeeded = self._do_run()
         self._kernel_client.stop_channels()
-        if self._cmd_failed or not run_succeeded:
+        if self._last_cmd_failed or not run_succeeded:
             return -1
         return 0
 
@@ -191,8 +191,8 @@ class KernelExecutionManager(ExecutionManagerBase):
             return False
         msg = dict(type="execution_started", **self._msg_head)
         self._logger.msg_kernel_execution.emit(msg)
+        self._last_cmd_failed = False
         for cmd in self._commands:
-            self._cmd_failed = False
             # 'reply' is an execute_reply msg coming from the shell (ROUTER/DEALER) channel, it's a response to
             # an execute_request msg
             reply = self._kernel_client.execute_interactive(cmd, output_hook=self._output_hook)
@@ -204,8 +204,7 @@ class KernelExecutionManager(ExecutionManagerBase):
     def _output_hook(self, msg):
         """Catches messages from the IOPUB (PUB/SUB) channel and handle case when message type is 'error'.
         'error' msg is a response to an execute_input msg."""
-        if msg["header"]["msg_type"] == "error":
-            self._cmd_failed = True
+        self._last_cmd_failed = msg["header"]["msg_type"] == "error"
 
     def stop_execution(self):
         if self._kernel_manager is not None:
