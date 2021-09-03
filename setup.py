@@ -31,7 +31,7 @@ install_requires = [
     "numpy<1.22",
     "datapackage<1.16",
     "jupyter_client<7.0",
-    "spinedb_api==0.13.0",
+    "spinedb_api>=0.13.0",
 ]
 
 
