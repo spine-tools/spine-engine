@@ -141,7 +141,6 @@ class KernelExecutionManager(ExecutionManagerBase):
         kernel_name,
         *commands,
         group_id=None,
-        workdir=None,
         startup_timeout=60,
         extra_switches=None,
         environment="",
@@ -153,7 +152,6 @@ class KernelExecutionManager(ExecutionManagerBase):
             kernel_name (str): the kernel
             *commands: Commands to execute in the kernel
             group_id (str, optional): item group that will execute using this kernel
-            workdir (str, optional): item group that will execute using this kernel
             startup_timeout (int, optional): How much to wait for the kernel, used in ``KernelClient.wait_for_ready()``
             extra_switches (list, optional): List of additional switches to launch julia.
                 These come before the 'programfile'.
@@ -163,20 +161,13 @@ class KernelExecutionManager(ExecutionManagerBase):
         super().__init__(logger)
         self._msg_head = dict(kernel_name=kernel_name)
         self._commands = commands
-        self._group_id = group_id
-        self._workdir = workdir
+        self._cmd_failed = False
         kwargs["stdout"] = open(os.devnull, 'w')
         kwargs["stderr"] = open(os.devnull, 'w')
         # Don't show console when frozen
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
-            kernel_name,
-            group_id,
-            logger,
-            cwd=self._workdir,
-            extra_switches=extra_switches,
-            environment=environment,
-            **kwargs,
+            kernel_name, group_id, logger, extra_switches=extra_switches, environment=environment, **kwargs
         )
         self._kernel_client = self._kernel_manager.client() if self._kernel_manager is not None else None
         self._startup_timeout = startup_timeout
@@ -185,9 +176,11 @@ class KernelExecutionManager(ExecutionManagerBase):
         if self._kernel_client is None:
             return
         self._kernel_client.start_channels()
-        returncode = self._do_run()
+        run_succeeded = self._do_run()
         self._kernel_client.stop_channels()
-        return returncode
+        if self._cmd_failed or not run_succeeded:
+            return -1
+        return 0
 
     def _do_run(self):
         try:
@@ -195,15 +188,24 @@ class KernelExecutionManager(ExecutionManagerBase):
         except RuntimeError as e:
             msg = dict(type="execution_failed_to_start", error=str(e), **self._msg_head)
             self._logger.msg_kernel_execution.emit(msg)
-            return
+            return False
         msg = dict(type="execution_started", **self._msg_head)
         self._logger.msg_kernel_execution.emit(msg)
         for cmd in self._commands:
-            reply = self._kernel_client.execute_interactive(cmd, output_hook=lambda msg: None)
+            self._cmd_failed = False
+            # 'reply' is an execute_reply msg coming from the shell (ROUTER/DEALER) channel, it's a response to
+            # an execute_request msg
+            reply = self._kernel_client.execute_interactive(cmd, output_hook=self._output_hook)
             st = reply["content"]["status"]
             if st != "ok":
-                return -1
-        return 0
+                return False  # This happens when execute_request fails
+        return True
+
+    def _output_hook(self, msg):
+        """Catches messages from the IOPUB (PUB/SUB) channel and handle case when message type is 'error'.
+        'error' msg is a response to an execute_input msg."""
+        if msg["header"]["msg_type"] == "error":
+            self._cmd_failed = True
 
     def stop_execution(self):
         if self._kernel_manager is not None:

@@ -35,23 +35,23 @@ if sys.platform == "win32":
 
 
 class PersistentManagerBase:
-    def __init__(self, args, cwd=None):
+    def __init__(self, args):
         """
         Args:
             args (list): the arguments to launch the persistent process
-            cwd (str, optional): the directory where to start the process
         """
         self._args = args
         self._command_buffer = []
         self._server_address = None
         self._msg_queue = Queue()
         self.command_successful = False
-        self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=cwd)
+        self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE)
         if sys.platform == "win32":
             self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
             # Setup Popen to not show console in frozen app. Another option is to use
             # startupinfo argument and STARTUPINFO() class.
         self._lock = Lock()
+        self._persistent = None
         self._start_persistent()
 
     @property
@@ -284,8 +284,6 @@ class PersistentManagerBase:
 
     def interrupt_persistent(self):
         """Interrupts the persistent process."""
-        if self._persistent is None:
-            return
         Thread(target=self._do_interrupt_persistent).start()
 
     def _do_interrupt_persistent(self):
@@ -350,7 +348,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
     _persistent_managers = {}
     """Maps tuples (process args) to associated PersistentManagerBase."""
 
-    def new_persistent_manager(self, constructor, logger, args, group_id, cwd=None):
+    def new_persistent_manager(self, constructor, logger, args, group_id):
         """Creates a new persistent for given args and group id if none exists.
 
         Args:
@@ -358,18 +356,17 @@ class _PersistentManagerFactory(metaclass=Singleton):
             logger (LoggerInterface)
             args (list): the arguments to launch the persistent process
             group_id (str): item group that will execute using this persistent
-            cwd (str, optional): directory where to start the persistent
 
         Returns:
             PersistentManagerBase: persistent manager
         """
         if group_id is None:
             # Execute in isolation
-            return constructor(args, cwd=cwd)
+            return constructor(args)
         key = tuple(args + [group_id])
         if key not in self._persistent_managers or not self._persistent_managers[key].is_persistent_alive():
             try:
-                self._persistent_managers[key] = constructor(args, cwd=cwd)
+                self._persistent_managers[key] = constructor(args)
             except OSError as err:
                 msg = dict(type="persistent_failed_to_start", args=" ".join(args), error=str(err))
                 logger.msg_persistent_execution.emit(msg)
@@ -493,7 +490,7 @@ def get_persistent_history_item(key, index):
 class PersistentExecutionManagerBase(ExecutionManagerBase):
     """Base class for managing execution of commands on a persistent process."""
 
-    def __init__(self, logger, args, commands, alias, group_id=None, workdir=None):
+    def __init__(self, logger, args, commands, alias, group_id=None):
         """Class constructor.
 
         Args:
@@ -501,22 +498,21 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             args (list): List of args to start the persistent process
             commands (list): List of commands to execute in the persistent process
             group_id (str, optional): item group that will execute using this kernel
-            workdir (str, optional): item group that will execute using this kernel
         """
         super().__init__(logger)
         self._args = args
         self._commands = commands
         self._alias = alias
         self._persistent_manager = _persistent_manager_factory.new_persistent_manager(
-            self.persistent_manager_factory(), logger, args, group_id, cwd=workdir
+            self.persistent_manager_factory, logger, args, group_id
         )
 
     @property
     def alias(self):
         return self._alias
 
-    @staticmethod
-    def persistent_manager_factory():
+    @property
+    def persistent_manager_factory(self):
         """Returns a function to create a persistent manager for this execution
         (a subclass of PersistentManagerBase)
 
@@ -530,13 +526,16 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         msg = dict(type="execution_started", args=" ".join(self._args))
         self._logger.msg_persistent_execution.emit(msg)
         self._logger.msg_persistent_execution.emit(dict(type="stdin", data=self._alias.strip()))
+        failed = False
         for cmd in self._commands:
             for msg in self._persistent_manager.issue_command(cmd):
                 if msg["type"] != "stdin":
                     self._logger.msg_persistent_execution.emit(msg)
+                    if msg["type"] in ("stdout", "stderr"):
+                        failed = msg["type"] == "stderr"
             if not self._persistent_manager.command_successful:
                 return -1
-        return 0
+        return -1 if failed else 0
 
     def stop_execution(self):
         """See base class."""
@@ -546,8 +545,8 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
 class JuliaPersistentExecutionManager(PersistentExecutionManagerBase):
     """Manages execution of commands on a Julia persistent process."""
 
-    @staticmethod
-    def persistent_manager_factory():
+    @property
+    def persistent_manager_factory(self):
         """See base class."""
         return JuliaPersistentManager
 
@@ -555,7 +554,7 @@ class JuliaPersistentExecutionManager(PersistentExecutionManagerBase):
 class PythonPersistentExecutionManager(PersistentExecutionManagerBase):
     """Manages execution of commands on a Python persistent process."""
 
-    @staticmethod
-    def persistent_manager_factory():
+    @property
+    def persistent_manager_factory(self):
         """See base class."""
         return PythonPersistentManager
