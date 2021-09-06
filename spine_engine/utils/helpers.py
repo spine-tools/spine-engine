@@ -20,6 +20,8 @@ import sys
 import datetime
 import time
 import json
+
+import networkx
 from jupyter_client.kernelspec import find_kernel_specs
 from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON
 
@@ -211,3 +213,22 @@ def get_julia_env(settings):
             return None
     project = settings.value("appSettings/juliaProjectPath", defaultValue="")
     return julia, project
+
+
+def make_dag(node_successors):
+    """Builds a DAG from node successors.
+
+    Args:
+        node_successors (dict): mapping from item name to list of its successors' names
+
+    Returns:
+        DiGraph: directed acyclic graph
+    """
+    graph = networkx.DiGraph()
+    graph.add_nodes_from(node_successors)
+    for node, successors in node_successors.items():
+        if successors is None:
+            continue
+        for successor in successors:
+            graph.add_edge(node, successor)
+    return graph

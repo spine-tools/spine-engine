@@ -16,7 +16,7 @@ Module contains multithread_executor.
 :date:   1.11.2020
 """
 
-from dagster.core.definitions.executor import Int, Field, Retries, check, executor, get_retries_config
+from dagster.core.definitions.executor import Int, Field, RetryMode, check, executor, get_retries_config
 
 
 @executor(
@@ -53,5 +53,5 @@ def multithread_executor(init_context):
 
     return MultithreadExecutor(
         max_concurrent=init_context.executor_config["max_concurrent"],
-        retries=Retries.from_config(init_context.executor_config["retries"]),
+        retries=RetryMode.from_config(init_context.executor_config["retries"]),
     )

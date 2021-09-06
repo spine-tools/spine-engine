@@ -9,54 +9,47 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """
-Provides the :class:`Connection` class.
+Provides connection classes for linking project items.
 
 :authors: A. Soininen (VTT)
 :date:    12.2.2021
 """
 import os
+import subprocess
+import sys
+import tempfile
+
 from datapackage import Package
-from tabulator.exceptions import EncodingError
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
 from spine_engine.project_item.project_item_resource import file_resource
 
 
-class Connection:
-    """Represents a connection between two project items."""
+class ConnectionBase:
+    """Base class for connections between two project items."""
 
-    def __init__(
-        self, source_name, source_position, destination_name, destination_position, resource_filters=None, options=None
-    ):
+    def __init__(self, source_name, source_position, destination_name, destination_position):
         """
         Args:
             source_name (str): source project item's name
             source_position (str): source anchor's position
             destination_name (str): destination project item's name
             destination_position (str): destination anchor's position
-            resource_filters (dict, optional): mapping from resource labels and filter types to
-                database ids and activity flags
-            options (dict, optional): any options, at the moment only has "use_datapackage"
         """
         self.source = source_name
         self._source_position = source_position
         self.destination = destination_name
         self._destination_position = destination_position
-        self._resource_filters = resource_filters if resource_filters is not None else dict()
-        self.options = options if options is not None else dict()
-        self._resources = set()
-        self._id_to_name_cache = dict()
 
     def __eq__(self, other):
-        if not isinstance(other, Connection):
+        if not isinstance(other, ConnectionBase):
             return NotImplemented
         return (
             self.source == other.source
             and self._source_position == other._source_position
             and self.destination == other.destination
             and self._destination_position == other._destination_position
-            and self._resource_filters == other._resource_filters
         )
 
     @property
@@ -72,6 +65,46 @@ class Connection:
     def source_position(self):
         """Anchor's position on source item."""
         return self._source_position
+
+    def to_dict(self):
+        """Returns a dictionary representation of this connection.
+
+        Returns:
+            dict: serialized Connection
+        """
+        return {"from": [self.source, self._source_position], "to": [self.destination, self._destination_position]}
+
+
+class Connection(ConnectionBase):
+    """Represents a connection between two project items."""
+
+    def __init__(
+        self, source_name, source_position, destination_name, destination_position, resource_filters=None, options=None
+    ):
+        """
+        Args:
+            source_name (str): source project item's name
+            source_position (str): source anchor's position
+            destination_name (str): destination project item's name
+            destination_position (str): destination anchor's position
+            resource_filters (dict, optional): mapping from resource labels and filter types to
+                database ids and activity flags
+            options (dict, optional): any options, at the moment only has "use_datapackage"
+        """
+        super().__init__(source_name, source_position, destination_name, destination_position)
+        self._resource_filters = resource_filters if resource_filters is not None else dict()
+        self.options = options if options is not None else dict()
+        self._resources = set()
+        self._id_to_name_cache = dict()
+
+    def __eq__(self, other):
+        if not isinstance(other, Connection):
+            return NotImplemented
+        return (
+            super().__eq__(other)
+            and self._resource_filters == other._resource_filters
+            and self.options == other.options
+        )
 
     @property
     def database_resources(self):
@@ -211,7 +244,7 @@ class Connection:
         Returns:
             dict: serialized Connection
         """
-        d = {"from": [self.source, self._source_position], "to": [self.destination, self._destination_position]}
+        d = super().to_dict()
         if self.has_filters():
             online_ids_only = dict()
             for label, by_type in self._resource_filters.items():
@@ -245,3 +278,63 @@ class Connection:
                         resource_filters.setdefault(label, {}).setdefault(type_, {})[id_] = True
         options = connection_dict.get("options")
         return Connection(source_name, source_anchor, destination_name, destination_anchor, resource_filters, options)
+
+
+class Jump(ConnectionBase):
+    """Represents a conditional jump between two project items."""
+
+    def __init__(self, source_name, source_position, destination_name, destination_position, condition="exit(1)"):
+        """
+        Args:
+            source_name (str): source project item's name
+            source_position (str): source anchor's position
+            destination_name (str): destination project item's name
+            destination_position (str): destination anchor's position
+            condition (str): jump condition
+        """
+        super().__init__(source_name, source_position, destination_name, destination_position)
+        self.condition = condition
+
+    def is_condition_true(self, jump_counter):
+        """Evaluates jump condition.
+
+        Args:
+            jump_counter (int): how many times jump has been executed
+
+        Returns:
+            bool: True if jump should be executed, False otherwise
+        """
+        if not self.condition.strip():
+            return False
+        with tempfile.TemporaryFile("w+", encoding="utf-8") as script:
+            script.write(self.condition)
+            script.seek(0)
+            result = subprocess.run(
+                ["python", "-", str(jump_counter)], encoding="utf-8", stdin=script, capture_output=True
+            )
+            return result.returncode == 0
+
+    @staticmethod
+    def from_dict(jump_dict):
+        """Restores a Jump from dictionary.
+
+        Args:
+            jump_dict (dict): serialized jump
+
+        Returns:
+            Jump: restored jump
+        """
+        source_name, source_anchor = jump_dict["from"]
+        destination_name, destination_anchor = jump_dict["to"]
+        condition = jump_dict["condition"]["script"]
+        return Jump(source_name, source_anchor, destination_name, destination_anchor, condition)
+
+    def to_dict(self):
+        """Returns a dictionary representation of this Jump.
+
+        Returns:
+            dict: serialized Jump
+        """
+        d = super().to_dict()
+        d["condition"] = {"type": "python-script", "script": self.condition}
+        return d

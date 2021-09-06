@@ -19,9 +19,10 @@ Module contains MultithreadExecutor.
 import os
 import sys
 from dagster import check
+from dagster.core.execution.api import create_execution_plan, execute_plan_iterator
 from dagster.core.executor.base import Executor
-from dagster.core.execution.retries import Retries
-from dagster.core.execution.context.system import SystemPipelineExecutionContext
+from dagster.core.execution.retries import RetryMode
+from dagster.core.execution.context.system import PlanOrchestrationContext
 from dagster.core.execution.plan.objects import StepFailureData
 from dagster.core.execution.plan.plan import ExecutionPlan
 from dagster.core.events import DagsterEvent, EngineEventData
@@ -30,9 +31,9 @@ from dagster.utils.timing import format_duration, time_execution_scope
 from dagster.utils.error import serializable_error_info_from_exc_info
 
 
-from .thread_executor import ThreadCrashException, ThreadEvent, ThreadSystemErrorEvent, execute_thread_step
+from .thread_executor import ThreadCrashException, ThreadEvent, ThreadSystemErrorEvent, execute_thread_command
 
-DELEGATE_MARKER = "multithread_threat_init"
+DELEGATE_MARKER = "multithread_thread_init"
 
 
 class DagsterThreadError(DagsterError):
@@ -51,7 +52,7 @@ class DagsterThreadError(DagsterError):
 
 class MultithreadExecutor(Executor):
     def __init__(self, retries, max_concurrent=None):
-        self._retries = check.inst_param(retries, "retries", Retries)
+        self._retries = check.inst_param(retries, "retries", RetryMode)
         max_concurrent = max_concurrent if max_concurrent else 100  # TODO: How to determine a good amount?
         self.max_concurrent = check.int_param(max_concurrent, "max_concurrent")
 
@@ -60,7 +61,7 @@ class MultithreadExecutor(Executor):
         return self._retries
 
     def execute(self, pipeline_context, execution_plan):
-        check.inst_param(pipeline_context, "pipeline_context", SystemPipelineExecutionContext)
+        check.inst_param(pipeline_context, "pipeline_context", PlanOrchestrationContext)
         check.inst_param(execution_plan, "execution_plan", ExecutionPlan)
 
         limit = self.max_concurrent
@@ -72,10 +73,9 @@ class MultithreadExecutor(Executor):
         )
 
         with time_execution_scope() as timer_result:
-            with execution_plan.start(retries=self.retries) as active_execution:
+            with execution_plan.start(retry_mode=self.retries) as active_execution:
                 active_iters = {}
                 errors = {}
-
                 while not active_execution.is_complete or active_iters:
 
                     # start iterators
@@ -87,8 +87,13 @@ class MultithreadExecutor(Executor):
 
                         for step in steps:
                             step_context = pipeline_context.for_step(step)
-                            active_iters[step.key] = self.execute_step_in_thread(step.key, step_context, errors)
-
+                            active_iters[step.key] = self.execute_step_in_thread(
+                                pipeline_context.pipeline,
+                                step.key,
+                                step_context,
+                                errors,
+                                active_execution.get_known_state(),
+                            )
                     # process active iterators
                     empty_iters = []
                     for key, step_iter in active_iters.items():
@@ -115,7 +120,6 @@ class MultithreadExecutor(Executor):
                             empty_iters.append(key)
                         except StopIteration:
                             empty_iters.append(key)
-
                     # clear and mark complete finished iterators
                     for key in empty_iters:
                         del active_iters[key]
@@ -147,12 +151,21 @@ class MultithreadExecutor(Executor):
             event_specific_data=EngineEventData.multiprocess(os.getpid()),
         )
 
-    def execute_step_in_thread(self, step_key, step_context, errors):
+    def execute_step_in_thread(self, pipeline, step_key, step_context, errors, known_state):
         yield DagsterEvent.engine_event(
-            step_context, "Spawning thread for {}".format(step_key), EngineEventData(marker_start=DELEGATE_MARKER)
+            step_context, f"Spawning thread for {step_key}", EngineEventData(marker_start=DELEGATE_MARKER)
         )
 
-        for ret in execute_thread_step(step_context, self.retries):
+        command = ThreadExecutorChildThreadCommand(
+            step_context.run_config,
+            step_context.pipeline_run,
+            step_key,
+            step_context.instance,
+            pipeline,
+            self.retries,
+            known_state,
+        )
+        for ret in execute_thread_command(command):
             if ret is None or isinstance(ret, DagsterEvent):
                 yield ret
             elif isinstance(ret, ThreadEvent):
@@ -160,3 +173,31 @@ class MultithreadExecutor(Executor):
                     errors[ret.tid] = ret.error_info
             else:
                 check.failed("Unexpected return value from thread {}".format(type(ret)))
+
+
+class ThreadExecutorChildThreadCommand:
+    def __init__(self, run_config, pipeline_run, step_key, instance, pipeline, retry_mode, known_state):
+        self.run_config = run_config
+        self.pipeline_run = pipeline_run
+        self.step_key = step_key
+        self.instance = instance
+        self.pipeline = pipeline
+        self.retry_mode = retry_mode
+        self.known_state = known_state
+
+    def execute(self):
+        execution_plan = create_execution_plan(
+            pipeline=self.pipeline,
+            run_config=self.run_config,
+            mode=self.pipeline_run.mode,
+            step_keys_to_execute=[self.step_key],
+            known_state=self.known_state,
+        )
+        yield from execute_plan_iterator(
+            execution_plan,
+            self.pipeline,
+            self.pipeline_run,
+            run_config=self.run_config,
+            retry_mode=self.retry_mode.for_inner_plan(),
+            instance=self.instance,
+        )

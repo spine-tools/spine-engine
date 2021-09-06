@@ -41,15 +41,19 @@ class ThreadCrashException(Exception):
     """Thrown when the thread crashes."""
 
 
-def _execute_step_in_thread(event_queue, step_context, retries):
-    """Wraps the execution of a step.
+def _execute_command_in_thread(event_queue, command):
+    """Wraps the execution of a command.
 
-    Handles errors and communicates across a queue with the parent process."""
+    Handles errors and communicates across a queue with the parent thread.
 
+    Args:
+        event_queue (Queue): event queue
+        command (ChildThreadCommand): execution command
+    """
     tid = threading.get_ident()
     event_queue.put(ThreadStartEvent(tid=tid))
     try:
-        for step_event in check.generator(_dagster_event_sequence_for_step(step_context, retries)):
+        for step_event in command.execute():
             check.inst(step_event, DagsterEvent)
             event_queue.put(step_event)
         event_queue.put(ThreadDoneEvent(tid=tid))
@@ -84,35 +88,15 @@ def _poll_for_event(thread, event_queue):
     return None
 
 
-def execute_thread_step(step_context, retries):
-    """Execute a step in a new thread.
-
-    This function starts a new thread whose execution target is the given step context wrapped by
-    _execute_step_in_thread; polls the queue for events yielded by the thread
-    until it dies and the queue is empty.
-
-    This function yields a complex set of objects to enable having multiple thread
-    executions in flight:
-
-        * None - nothing has happened, yielded to enable cooperative multitasking other iterators
-        * ThreadEvent - Family of objects that communicates state changes in the thread
-        * KeyboardInterrupt - Yielded in the case that an interrupt was recieved while
-            polling the thread. Yielded instead of raised to allow forwarding of the
-            interrupt to the thread and completion of the iterator for this thread and
-            any others that may be executing
-        * The actual values yielded by the thread execution
+def execute_thread_command(command):
+    """Executes a ChildThreadCommand in a new thread.
 
     Args:
-        step_context (SystemStepExecutionContext): The step context to execute in the child process.
-        retries (Retries)
-
-    Warning: if the thread is in an infinite loop, this will
-    also infinitely loop.
+        command (ChildThreadCommand): command to execute
     """
-
     event_queue = queue.Queue()
 
-    thread = threading.Thread(target=_execute_step_in_thread, args=(event_queue, step_context, retries))
+    thread = threading.Thread(target=_execute_command_in_thread, args=(event_queue, command))
 
     thread.start()
 
@@ -130,7 +114,6 @@ def execute_thread_step(step_context, retries):
             completed_properly = True
 
     if not completed_properly:
-        # TODO Figure out what to do about stderr/stdout
         raise ThreadCrashException()
 
     thread.join()
