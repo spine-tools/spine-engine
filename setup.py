@@ -26,8 +26,8 @@ with open("spine_engine/version.py") as fp:
     exec(fp.read(), version)
 
 install_requires = [
-    "dagster>=0.11",
-    "networkx",
+    "dagster>=0.11, <0.12.9",
+    "networkx>2.5.1",
     "sqlalchemy>=1.3, <1.4",
     "numpy<1.22",
     "datapackage<1.16",
