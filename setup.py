@@ -30,11 +30,10 @@ install_requires = [
     "networkx>2.5.1",
     "sqlalchemy>=1.3, <1.4",
     "numpy<1.22",
-    "datapackage<1.16",
+    "datapackage>=1.15.2, <1.16",
     "jupyter_client<7.0",
     "spinedb_api>=0.13.0",
 ]
-
 
 setup(
     name="spine_engine",
