@@ -75,7 +75,9 @@ class RemoteSpineServiceImpl:
         while True:
             event_type, data = engine.get_event()
             eventData.append((event_type,data))
-            #print("test2 event: %s"%event_type)
+            #print("RemoteSpineServiceImpl.execute() event type: %s"%type(event_type))
+            #print("RemoteSpineServiceImpl.execute() data type: %s"%type(data))
+            #print("RemoteSpineServiceImpl.execute() data: %s"%data)
             if data == "COMPLETED" or data =="FAILED":
                 #print("finished, data:")
                 #print(data)

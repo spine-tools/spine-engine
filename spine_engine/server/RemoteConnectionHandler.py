@@ -109,7 +109,9 @@ class RemoteConnectionHandler(threading.Thread):
 
                 #execute DAG in the Spine engine
                 spineEngineImpl=RemoteSpineServiceImpl()
-                convertedData=self._convertTextDictToDicts(dataAsDict)
+                print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
+                #convertedData=self._convertTextDictToDicts(dataAsDict)
+                convertedData=dataAsDict
                 #print("RemoteConnectionHandler._execute() passing data to spine engine: %s"%convertedData)
                 eventData=spineEngineImpl.execute(convertedData)
                 #print("received events/data: ")
@@ -149,6 +151,7 @@ class RemoteConnectionHandler(threading.Thread):
 
     def _convertTextDictToDicts(self,data):
         newData=dict()
+        print("_convertTextDictToDicts() items: %s"%type(data['items']))
         newData['items']=ast.literal_eval(data['items'])
         newData['connections']=ast.literal_eval(data['connections'])
         newData['specifications']=ast.literal_eval(data['specifications'])
