@@ -28,7 +28,6 @@ with open("spine_engine/version.py") as fp:
 install_requires = [
     "dagster>=0.12, <0.12.9",
     "networkx>2.5.1",
-    "numpy<1.22",
     "datapackage>=1.15.2, <1.16",
     "jupyter_client<7.0",
     "spinedb_api>=0.13.0",
