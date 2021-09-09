@@ -69,11 +69,17 @@ class _KernelManagerFactory(metaclass=Singleton):
         km = self._make_kernel_manager(kernel_name, group_id)
         conda_exe = kwargs.pop("conda_exe", "")
         if environment == "conda":
-            km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
+            try:
+                km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
+            except Exception as err:
+                logger.msg_kernel_execution.emit(msg=dict(type="conda_not_found", error=err))
+                raise RuntimeError
         msg_head = dict(kernel_name=kernel_name)
         if not km.is_alive():
             try:
-                if not km.kernel_spec:  # TODO: Check if this is needed in addition to catching NoSuchKernel?
+                if not km.kernel_spec:
+                    # Happens when a conda kernel spec with the requested name cannot be dynamically created
+                    # i.e. the conda environment does not exist
                     msg = dict(type="kernel_spec_not_found", **msg_head)
                     logger.msg_kernel_execution.emit(msg)
                     raise RuntimeError
