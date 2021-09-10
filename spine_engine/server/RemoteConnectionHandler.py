@@ -16,6 +16,7 @@ and running a DAG with Spine Engine. Only one DAG can be executed at a time.
 :date:   24.08.2021
 """
 
+import time
 import threading
 import sys
 import json
@@ -60,6 +61,9 @@ class RemoteConnectionHandler(threading.Thread):
         """
         Executes a query with the Spine engine, and returns a response to the Zero-MQ client.
         """
+        #debugging
+        execStartTimeMs=round(time.time()*1000.0)
+
         #get message parts sent by the client
         msgParts=self.zmqConn.getMessageParts()
         #print("RemoteConnectionHandler._execute() Received: ")
@@ -132,6 +136,10 @@ class RemoteConnectionHandler(threading.Thread):
                 self.zmqConn.sendReply(replyInBytes)
                 #self.zmqConn.close()
                 #print("RemoteConnectionHandler._execute(): closed the socket to the client.")
+                #debugging
+                execStopTimeMs=round(time.time()*1000.0)
+                print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
+
             
             else:
                 print("RemoteConnectionHandler._execute(): no file name included, returning empty response..\n")

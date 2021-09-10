@@ -97,14 +97,14 @@ class ZMQServer(threading.Thread):
         #try:
         while self._state==ZMQServerState.RUNNING:
             try:
-                print("ZMQServer._receive_data(): Starting listening..")
+                #print("ZMQServer._receive_data(): Starting listening..")
                 msg_parts=self._socket.recv_multipart()
                 self._conn=ZMQConnection(self._socket,msg_parts)
                 self._observer.receiveConnection(self._conn)
                 #print("ZMQServer._receive_data(): Received multi-part data.")
-                time.sleep(1.00)
+                time.sleep(0.01)
             except Exception as e: 
-                print("ZMQServer._receive_data(): reading failed, exception: %s"%e)            
-                time.sleep(1.00)
+                #print("ZMQServer._receive_data(): reading failed, exception: %s"%e)            
+                time.sleep(0.01)
                 #self._state==ZMQServerState.STOPPED  
         print("ZMQServer._receive_data(): out..")
