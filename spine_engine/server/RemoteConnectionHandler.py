@@ -116,7 +116,7 @@ class RemoteConnectionHandler(threading.Thread):
                 print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
                 #convertedData=self._convertTextDictToDicts(dataAsDict)
                 convertedData=dataAsDict
-                #print("RemoteConnectionHandler._execute() passing data to spine engine: %s"%convertedData)
+                print("RemoteConnectionHandler._execute() passing data to spine engine: %s"%convertedData)
                 eventData=spineEngineImpl.execute(convertedData)
                 #print("received events/data: ")
                 #print(eventData)

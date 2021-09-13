@@ -31,7 +31,7 @@ class TestServerMessageParser(unittest.TestCase):
         with open('testMsg.txt') as f:
             content = f.read()
             msg=ServerMessageParser.parse(content)
-            print(msg)
+            #print(msg)
             self.assertEqual(msg.getCommand(),"execute")
             self.assertEqual(msg.getId(),"1")
             self.assertEqual(msg.getFileNames()[0],"helloworld.zip")
@@ -40,7 +40,7 @@ class TestServerMessageParser(unittest.TestCase):
         with open('testMsg2.txt') as f:
             content = f.read()
             msg=ServerMessageParser.parse(content)
-            print(msg)
+            #print(msg)
             self.assertEqual(msg.getCommand(),"execute")
             self.assertEqual(msg.getId(),"1")
             self.assertEqual(len(msg.getFileNames()),0)
@@ -56,12 +56,12 @@ class TestServerMessageParser(unittest.TestCase):
     def test_msg_nofiles(self):
         msg=ServerMessage("execute","4","{}",None)
         jsonStr=msg.toJSON()
-        print("JSON: %s"%jsonStr)
+        #print("JSON: %s"%jsonStr)
         msg=ServerMessageParser.parse(jsonStr)
-        print(msg)
+        #print(msg)
         self.assertEqual(msg.getCommand(),"execute")
         self.assertEqual(msg.getId(),"4")
-        self.assertEqual(msg.getData(),"{}")
+        self.assertEqual(msg.getData(),{})
         self.assertEqual(len(msg.getFileNames()),0)
 
 

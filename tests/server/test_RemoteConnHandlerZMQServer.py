@@ -56,8 +56,10 @@ class RemoteConnHandlerZMQServer:
         self.ob=TestObserver()
         self.zmqServer=ZMQServer("tcp",5556,self.ob)
 
+    def close(self):
+        self.zmqServer.close()
 
 
-server=RemoteConnHandlerZMQServer()
+#server=RemoteConnHandlerZMQServer()
 
 

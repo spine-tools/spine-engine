@@ -41,10 +41,11 @@ class TestServerMessage(unittest.TestCase):
         self.assertEqual("4",msg.getId())
         self.assertEqual("[]",msg.getData())
 
-    def test_msg_bad_input1(self):
+    def test_msg_nodata(self):
         listFiles=["dffd.zip","fdeef.zip"]
-        with self.assertRaises(ValueError):           
-            msg=ServerMessage("execute","4","",listFiles)
+        msg=ServerMessage("execute","4","",listFiles)
+        self.assertEqual("execute",msg.getCommand())
+        self.assertEqual("4",msg.getId())
 
     def test_msg_bad_input2(self):
         listFiles=["dffd.zip","fdeef.zip"]

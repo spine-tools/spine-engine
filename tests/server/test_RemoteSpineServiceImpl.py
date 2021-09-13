@@ -86,6 +86,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def test_basic_service_call_succeeds(self):
         """Tests execution with all data items present"""
+        
         dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
@@ -108,13 +109,37 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store', 
             'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'})
 
+        dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
+            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
+            'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
+             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+            connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
+            node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
+            execution_permits={'Data Connection 1': True, 'helloworld': True},
+            project_dir = './helloworld',
+            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
+            'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
+            'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
+            'includes_main_path': '../../..',
+            'definition_file_path':
+            './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
+            settings = {'appSettings/previousProject': './helloworld',
+            'appSettings/recentProjectStorages': './',
+            'appSettings/recentProjects': 'helloworld<>./helloworld',
+            'appSettings/showExitPrompt': '2',
+            'appSettings/toolbarIconOrdering':
+            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
+            'appSettings/workDir': './Spine-Toolbox/work'})
+
+
         impl=RemoteSpineServiceImpl()
         print("test_basic_service_call_succeeds(): input data to spine engine:")
-        print(dict_data)
-        eventData=impl.execute(dict_data)
+        #print(dict_data2)
+        eventData=impl.execute(dict_data2)
+        print(eventData)
 
         #asserts
-        self.assertEqual(len(eventData),31)
+        self.assertEqual(len(eventData),30)
         #print("test_basic_service_call_succeeds() Final data value: %s"%eventData[len(eventData)-1][1])
         self.assertEqual(eventData[len(eventData)-1][1],"COMPLETED")
 
@@ -153,6 +178,28 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
             'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'})
 
+        dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
+            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
+            'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
+             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+            connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
+            node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
+            execution_permits={'Data Connection 1': True, 'helloworld': True},
+            project_dir = './helloworld',
+            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
+            'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
+            'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
+            'includes_main_path': '../../..',
+            'definition_file_path':
+            './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
+            settings = {'appSettings/previousProject': './helloworld',
+            'appSettings/recentProjectStorages': './',
+            'appSettings/recentProjects': 'helloworld<>./helloworld',
+            'appSettings/showExitPrompt': '2',
+            'appSettings/toolbarIconOrdering':
+            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
+            'appSettings/workDir': './Spine-Toolbox/work'})
+
         impl=RemoteSpineServiceImpl()
 
         #loop periodic calls to the service
@@ -160,10 +207,10 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         while i<10:
             #print("test_basic_service_call_succeeds_loop(): iteration: %d"%i)
             i=i+1
-            eventData=impl.execute(dict_data)
+            eventData=impl.execute(dict_data2)
 
             #asserts
-            self.assertEqual(len(eventData),31)
+            self.assertEqual(len(eventData),30)
             #print("test_basic_service_call_succeeds() Final data value: %s"%eventData[len(eventData)-1][1])
             self.assertEqual(eventData[len(eventData)-1][1],"COMPLETED")
 
