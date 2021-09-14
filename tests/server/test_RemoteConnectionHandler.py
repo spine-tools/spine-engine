@@ -56,11 +56,13 @@ class TestObserver(ZMQServerObserver):
 
 class TestRemoteConnectionHandler(unittest.TestCase):
 
-    def setUp(self):
-        self.server=RemoteConnHandlerZMQServer()
+    @classmethod
+    def setUpClass(cls):
+        cls._server=RemoteConnHandlerZMQServer()
 
-    def tearDown(self):
-        self.server.close()
+    @classmethod
+    def tearDownClass(cls):
+        cls._server.close()
 
     @staticmethod
     def _dict_data(
