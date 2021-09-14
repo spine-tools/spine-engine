@@ -150,9 +150,9 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        print("test_init_complete(): listening to replies..")
        message = socket.recv()
        msgStr=message.decode('utf-8')
-       #print("out recv()..Received reply %s" %msgStr)
+       #print("out recv()..Received reply (from network) %s" %msgStr)
        parsedMsg=ServerMessageParser.parse(msgStr)
-       #print(type(parsedMsg))
+       #print(parsedMsg)
        #get and decode events+data
        data=parsedMsg.getData()
        #print(type(data))
