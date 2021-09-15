@@ -26,7 +26,7 @@ with open("spine_engine/version.py") as fp:
     exec(fp.read(), version)
 
 install_requires = [
-    "dagster>=0.12, <0.12.9",
+    "dagster>=0.12.6, <0.12.9",  # dagster >= 0.12.9 requires alembic that is incompatible with spinedb_api
     "networkx>2.5.1",
     "datapackage>=1.15.2, <1.16",
     "jupyter_client<7.0",

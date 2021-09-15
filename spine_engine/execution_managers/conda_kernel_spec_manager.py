@@ -138,10 +138,9 @@ class CondaKernelSpecManager(KernelSpecManager):
                 # valid to decode here as 'ascii', since the JSON loads()
                 # method will recover any original Unicode for us.
                 blackhole = open(os.devnull, 'w')  # for stderr of the subprocess. Remove for debugging.
-                p = subprocess.check_output([self._conda_executable, "info", "--json"],
-                                            stderr=blackhole,
-                                            shell=shell
-                                            ).decode('ascii')
+                p = subprocess.check_output(
+                    [self._conda_executable, "info", "--json"], stderr=blackhole, shell=shell
+                ).decode('ascii')
                 conda_info = json.loads(p)
             except Exception:
                 # Handle in CondaKernelSpecManager

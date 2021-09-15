@@ -29,10 +29,10 @@ class SharedMemoryIOManager(IOManager):
 
     def handle_output(self, context, obj):
         """Stores values in memory."""
-        keys = tuple(context.get_run_scoped_output_identifier())
+        keys = tuple(context.get_output_identifier())
         self._shared_values[keys] = obj
 
     def load_input(self, context):
         """Loads value from memory."""
-        keys = tuple(context.upstream_output.get_run_scoped_output_identifier())
+        keys = tuple(context.upstream_output.get_output_identifier())
         return self._shared_values[keys]
