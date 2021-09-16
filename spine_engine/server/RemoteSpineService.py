@@ -26,13 +26,14 @@ from RemoteConnectionHandler import RemoteConnectionHandler
 from ZMQServer import ZMQServer
 from ZMQServerObserver import ZMQServerObserver
 from ZMQConnection import ZMQConnection
+from ZMQServer import ZMQSecurityModelState
 
 
 class RemoteSpineService(ZMQServerObserver):
 
-    def __init__(self,protocol,port):
-        self.zmqServer=ZMQServer(protocol,port,self)
-        print("RemoteSpineService() initialised with protocol %s and port %d"%(protocol,port))
+    def __init__(self,protocol,port,zmqSecModelState,secFolder):
+        self.zmqServer=ZMQServer(protocol,port,self,zmqSecModelState,secFolder)
+        print("RemoteSpineService() initialised with protocol %s, port %d, Zero-MQ security model: %s, and sec.folder: %s"%(protocol,port,zmqSecModelState,secFolder))
 
     def receiveConnection(self,conn:ZMQConnection)-> None:
         print("RemoteSpineService.receiveConnection()")
@@ -48,21 +49,32 @@ class RemoteSpineService(ZMQServerObserver):
     #    return self.conn
 
 
-
-
 def main(argv):
     print("cmd line arguments: %s"%argv)
    
-    if len(argv)!=3:
-        print("protocol and port are required as parameters")
+    if len(argv)<4:
+        print("protocol, port, security model(None,StoneHouse) and security folder(required with security) are required as parameters")
+        return
+    if len(argv)!=5 and argv[3]=='StoneHouse':
+        print("security folder(required with security) is also required as a parameter")
+        return
+
+    if argv[3]!='StoneHouse' and argv[3]!='None':
+        print("invalid security model, use None or StoneHouse.")
         return
 
     try:
         portInt=int(argv[2])
-        RemoteSpineService(argv[1],portInt)
 
-    except:
-        print("%s must be a int (now it is %s)"%(argv[2],type(argv[2])))
+        if len(argv)==4 and argv[3]=='None':
+            RemoteSpineService(argv[1],portInt,ZMQSecurityModelState.NONE,"")
+
+        elif len(argv)==5 and argv[3]=='StoneHouse':
+            RemoteSpineService(argv[1],portInt,ZMQSecurityModelState.STONEHOUSE,argv[4])
+
+    except Exception as e:
+        print("RemoteSpineService() error: %s"%e)
+        print("%s must be a int (now it is %s)"%(argv[2],type(int(argv[2]))))
         return
     
 
