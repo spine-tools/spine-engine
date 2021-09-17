@@ -21,6 +21,7 @@ import threading
 from ZMQConnection import ZMQConnection
 import time
 import os
+import ipaddress
 import sys
 import zmq.auth
 from zmq.auth.thread import ThreadAuthenticator
@@ -32,7 +33,7 @@ class ZMQServerState(Enum):
 
 @unique
 class ZMQSecurityModelState(Enum):
-    NONE = 0
+    NONE = 0       #ZMQ can be executed without security
     STONEHOUSE = 1 #stonehouse-security model of Zero-MQ
 
 
@@ -45,7 +46,8 @@ class ZMQServer(threading.Thread):
     def __init__(
         self,protocol,port,zmqServerObserver,secModel,secFolder
     ):
-        """        
+        """
+        Initialises the server.
         Args:
             protocol: protocol to be used by the server.
             port: port to bind the server to
@@ -66,7 +68,7 @@ class ZMQServer(threading.Thread):
                 self._zmqContext=context
                 self._secModelState=ZMQSecurityModelState.NONE
             elif secModel==ZMQSecurityModelState.STONEHOUSE:
-
+                #implementation based on https://github.com/zeromq/pyzmq/blob/main/examples/security/stonehouse.py
                 if secFolder==None:
                     raise ValueError("ZMQServer(): security folder input is missing.")
 
@@ -91,9 +93,20 @@ class ZMQServer(threading.Thread):
                 # Start an authenticator for this context.
                 self._auth = ThreadAuthenticator(self._zmqContext)
                 self._auth.start()
-                self._auth.allow('193.166.160.218') #to be configured
-                #self._auth.allow('192.168.253.146')
-                #self._auth.allow('127.0.0.1')
+                endpoints=self._readEndpoints(secFolder+"/allowEndpoints.txt")  #read endpoints to allow
+                print("read allowed endpoins from config file: %s"%endpoints)
+
+                if len(endpoints)==0:
+                    self._state=ZMQServerState.STOPPED
+                    raise ValueError("Invalid input in allowEndpoints.txt at ZMQServer()")
+                #allow configured endpoints
+                for ep in endpoints:
+                    try:
+                        ipaddress.ip_address(ep.strip())
+                        self._auth.allow(ep.strip()) 
+                        print("ZMQServer(): allowed endpoint %s"%ep.strip())
+                    except:
+                        print("ZMQServer(): invalid IP address: %s"%ep)
                 print("ZMQServer(): started authenticator.")
 
                 # Tell the authenticator how to handle CURVE requests
@@ -169,3 +182,11 @@ class ZMQServer(threading.Thread):
                 time.sleep(0.01)
                 #self._state==ZMQServerState.STOPPED  
         print("ZMQServer._receive_data(): out..")
+
+
+
+    def _readEndpoints(self,configFileLocation):
+       
+        with open(configFileLocation) as f:
+            lines = f.readlines()
+            return lines

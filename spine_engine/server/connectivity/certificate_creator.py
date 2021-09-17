@@ -64,4 +64,4 @@ class certificate_creator:
                 )
 
 
-certificate_creator.generate_certificates("/home/ubuntu/sw/spine/dev/github/spine-engine/tests/server/connectivity/secfolder")
+#certificate_creator.generate_certificates("")
