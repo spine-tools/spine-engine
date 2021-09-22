@@ -20,12 +20,13 @@ from unittest.mock import NonCallableMagicMock
 
 import sys 
 sys.path.append('./../../spine_engine/server')
+#sys.path.append('./../spine_engine')
 import os
 from shutil import copyfile,rmtree
 from zipfile import ZipFile
 
 from RemoteSpineServiceImpl import RemoteSpineServiceImpl
-
+#from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
 
 class TestRemoteSpineServiceImpl(unittest.TestCase):
 
