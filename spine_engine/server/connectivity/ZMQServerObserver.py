@@ -16,7 +16,7 @@ Contains ZMQServerObserver interface for receiving Zero MQ connections.
 """
 
 from abc import abstractmethod
-import ZMQConnection
+from .ZMQConnection import ZMQConnection
 
 
 class ZMQServerObserver:

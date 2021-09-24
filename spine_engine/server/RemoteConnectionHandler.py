@@ -22,12 +22,12 @@ import sys
 import json
 import os
 import ast
-sys.path.append('./util')
-from ServerMessageParser import ServerMessageParser
-from ServerMessage import ServerMessage
-from FileExtractor import FileExtractor
-from RemoteSpineServiceImpl import RemoteSpineServiceImpl
-from EventDataConverter import EventDataConverter
+#sys.path.append('./util')
+from spine_engine.server.util.ServerMessageParser import ServerMessageParser
+from spine_engine.server.util.ServerMessage import ServerMessage
+from spine_engine.server.util.FileExtractor import FileExtractor
+from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
+from spine_engine.server.util.EventDataConverter import EventDataConverter
 
 class RemoteConnectionHandler(threading.Thread):
 

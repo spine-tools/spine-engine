@@ -18,15 +18,16 @@ Unit tests for RemoteConnHandlerZMQServer class.
 import unittest
 
 import sys
-sys.path.append('./../../spine_engine/server')
-sys.path.append('./../../spine_engine/server/connectivity')
-sys.path.append('./../../spine_engine/server/util')
+#sys.path.append('./../../spine_engine/server')
+#sys.path.append('./../../spine_engine/server/connectivity')
+#sys.path.append('./../../spine_engine/server/util')
 import zmq
 
-from RemoteConnectionHandler import RemoteConnectionHandler
-from ZMQServer import ZMQServer
-from ZMQServerObserver import ZMQServerObserver
-from ZMQConnection import ZMQConnection
+from spine_engine.server.RemoteConnectionHandler import RemoteConnectionHandler
+from spine_engine.server.connectivity.ZMQServer import ZMQServer
+from spine_engine.server.connectivity.ZMQServerObserver import ZMQServerObserver
+from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
+from spine_engine.server.connectivity.ZMQServer import ZMQSecurityModelState
 
 
 class TestObserver(ZMQServerObserver):
@@ -54,7 +55,8 @@ class RemoteConnHandlerZMQServer:
 
     def __init__(self):
         self.ob=TestObserver()
-        self.zmqServer=ZMQServer("tcp",5556,self.ob)
+        #self.zmqServer=ZMQServer("tcp",5556,self.ob,ZMQSecurityModelState.STONEHOUSE,"./tests/server/connectivity/secfolder")
+        self.zmqServer=ZMQServer("tcp",5556,self.ob,ZMQSecurityModelState.NONE,"")
 
     def close(self):
         self.zmqServer.close()

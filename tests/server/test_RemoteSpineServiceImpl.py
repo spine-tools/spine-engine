@@ -19,31 +19,33 @@ import unittest
 from unittest.mock import NonCallableMagicMock
 
 import sys 
-sys.path.append('./../../spine_engine/server')
+#sys.path.append('./../../spine_engine/server')
 #sys.path.append('./../spine_engine')
+#sys.path.append('./../../..')
+
 import os
 from shutil import copyfile,rmtree
 from zipfile import ZipFile
 
-from RemoteSpineServiceImpl import RemoteSpineServiceImpl
-#from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
+#from RemoteSpineServiceImpl import RemoteSpineServiceImpl
+from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
 
 class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def setUp(self):
-        if os.path.exists('./helloworld')==False:
+        if os.path.exists('./tests/server/helloworld')==False:
             print("helloworld path doesn't exist.")
-            os.makedirs('./helloworld')
+            os.makedirs('./tests/server/helloworld')
             print("created ./helloworld folder")
-        copyfile("./test_zipfile.zip","./helloworld/test_zipfile.zip")
+        copyfile("./tests/server/test_zipfile.zip","./tests/server/helloworld/test_zipfile.zip")
         print("copied test_zipfile.zip to ./helloworld")
-        with ZipFile('./helloworld/test_zipfile.zip', 'r') as zipObj:
-            zipObj.extractall('./helloworld')
+        with ZipFile('./tests/server/helloworld/test_zipfile.zip', 'r') as zipObj:
+            zipObj.extractall('./tests/server/helloworld')
             print("extracted ZIP-file to ./helloworld")
 
 
     def tearDown(self):
-        rmtree('./helloworld')
+        rmtree('./tests/server/helloworld')
         print("deleted ./helloworld")
 
 
@@ -138,7 +140,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './helloworld',
+            project_dir = './tests/server/helloworld',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
@@ -207,7 +209,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './helloworld',
+            project_dir = './tests/server/helloworld',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,

@@ -19,16 +19,16 @@ import unittest
 from unittest.mock import NonCallableMagicMock
 
 import sys
-sys.path.append('./../../../spine_engine/server/connectivity')
+#sys.path.append('./../../../spine_engine/server/connectivity')
 import zmq
 #from zmq.error import ZMQError
 import time
 import os
 
-from ZMQServer import ZMQServer
-from ZMQServerObserver import ZMQServerObserver
-from ZMQConnection import ZMQConnection
-from ZMQServer import ZMQSecurityModelState
+from spine_engine.server.connectivity.ZMQServer import ZMQServer
+from spine_engine.server.connectivity.ZMQServerObserver import ZMQServerObserver
+from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
+from spine_engine.server.connectivity.ZMQServer import ZMQSecurityModelState
 
 
 class TestObserver(ZMQServerObserver):
@@ -83,7 +83,7 @@ class TestZMQServer(unittest.TestCase):
        Tests starting of a ZMQ server with tcp, and reception of a connection and message parts (with security).
        """
        ob=TestObserver()
-       zmqServer=ZMQServer("tcp",6006,ob,ZMQSecurityModelState.STONEHOUSE,"./secfolder")
+       zmqServer=ZMQServer("tcp",6006,ob,ZMQSecurityModelState.STONEHOUSE,"./tests/server/connectivity/secfolder")
 
        #connect to the server
        time.sleep(1)
@@ -93,7 +93,7 @@ class TestZMQServer(unittest.TestCase):
        #security configs
        #prepare folders
        print("test_starting_server_connection_withsecurity_tcp() starting to configure security..")
-       base_dir = "./secfolder"
+       base_dir = "./tests/server/connectivity/secfolder"
        #base_dir = os.path.dirname("/home/ubuntu/sw/spine/dev/zmq_server_certs/")
        print("test_starting_server_connection_withsecurity_tcp() dirname: %s"%base_dir)
        secret_keys_dir = os.path.join(base_dir, 'private_keys')

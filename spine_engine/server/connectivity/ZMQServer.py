@@ -18,7 +18,8 @@ Contains ZMQServer class for running a Zero-MQ server with Spine Engine.
 import zmq
 from enum import unique, Enum
 import threading
-from ZMQConnection import ZMQConnection
+#from spine_server.server.connectivity.ZMQConnection import ZMQConnection
+from .ZMQConnection import ZMQConnection
 import time
 import os
 import ipaddress
