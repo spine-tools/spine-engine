@@ -3,5 +3,6 @@ __pycache__
 build
 dist
 spine_engine.egg-info
+.coverage
+htmlcov/
 tests/server/Spine-Toolbox/work/
-

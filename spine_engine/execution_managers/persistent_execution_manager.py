@@ -526,18 +526,16 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         msg = dict(type="execution_started", args=" ".join(self._args))
         self._logger.msg_persistent_execution.emit(msg)
         self._logger.msg_persistent_execution.emit(dict(type="stdin", data=self._alias.strip()))
+        failed = False
         for cmd in self._commands:
-            failed = False
             for msg in self._persistent_manager.issue_command(cmd):
                 if msg["type"] != "stdin":
-                    if msg["type"] == "stderr":
-                        failed = True
                     self._logger.msg_persistent_execution.emit(msg)
-            if failed:
-                return -1
+                    if msg["type"] in ("stdout", "stderr"):
+                        failed = msg["type"] == "stderr"
             if not self._persistent_manager.command_successful:
                 return -1
-        return 0
+        return -1 if failed else 0
 
     def stop_execution(self):
         """See base class."""

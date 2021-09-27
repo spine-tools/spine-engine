@@ -26,14 +26,12 @@ with open("spine_engine/version.py") as fp:
     exec(fp.read(), version)
 
 install_requires = [
-    "dagster>=0.10.1, <0.11",
-    "sqlalchemy>=1.3.24",
-    "numpy>=1.20.2",
-    "datapackage>=1.15.2",
-    "jupyter_client",
-    "spinedb_api",
+    "dagster>=0.12.6, <0.12.9",  # dagster >= 0.12.9 requires alembic that is incompatible with spinedb_api
+    "networkx>2.5.1",
+    "datapackage>=1.15.2, <1.16",
+    "jupyter_client<7.0",
+    "spinedb_api>=0.13.0",
 ]
-
 
 setup(
     name="spine_engine",

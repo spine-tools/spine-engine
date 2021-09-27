@@ -137,11 +137,14 @@ class CondaKernelSpecManager(KernelSpecManager):
                 # mechanism for non-ASCII characters. So it is always
                 # valid to decode here as 'ascii', since the JSON loads()
                 # method will recover any original Unicode for us.
-                p = subprocess.check_output([self._conda_executable, "info", "--json"], shell=shell).decode('ascii')
+                blackhole = open(os.devnull, 'w')  # for stderr of the subprocess. Remove for debugging.
+                p = subprocess.check_output(
+                    [self._conda_executable, "info", "--json"], stderr=blackhole, shell=shell
+                ).decode('ascii')
                 conda_info = json.loads(p)
-            except Exception as err:
-                conda_info = None
-                self.log.error("[nb_conda_kernels] couldn't call conda:\n%s", err)
+            except Exception:
+                # Handle in CondaKernelSpecManager
+                raise
             self._conda_info_cache = conda_info
             self._conda_info_cache_expiry = time.time() + CACHE_TIMEOUT
 
@@ -347,6 +350,9 @@ class CondaKernelSpecManager(KernelSpecManager):
         """
 
         res = self._conda_kspecs.get(kernel_name)
+        if not res:
+            # Happens when a Tool spec is trying to start a Conda kernel spec that doesn't exist
+            return None
         self.log.info(f"res.argv:{res.argv}")
         if res is None and not self.conda_only:
             res = super(CondaKernelSpecManager, self).get_kernel_spec(kernel_name)
