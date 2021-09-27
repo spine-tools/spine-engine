@@ -18,15 +18,15 @@ Starts the Remote Spine Server
 import unittest
 
 import sys
-sys.path.append('./connectivity')
-sys.path.append('./util')
+#sys.path.append('./connectivity')
+#sys.path.append('./util')
 import zmq
 
 from RemoteConnectionHandler import RemoteConnectionHandler
-from ZMQServer import ZMQServer
-from ZMQServerObserver import ZMQServerObserver
-from ZMQConnection import ZMQConnection
-from ZMQServer import ZMQSecurityModelState
+from spine_engine.server.connectivity.ZMQServer import ZMQServer
+from spine_engine.server.connectivity.ZMQServerObserver import ZMQServerObserver
+from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
+from spine_engine.server.connectivity.ZMQServer import ZMQSecurityModelState
 
 
 class RemoteSpineService(ZMQServerObserver):
