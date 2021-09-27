@@ -19,7 +19,7 @@ Only one DAG can be executed at a time.
 from enum import unique, Enum
 
 import sys
-sys.path.append('./../../spine_engine')
+#sys.path.append('./../../spine_engine')
 from spine_engine import SpineEngine
 
 #@unique
