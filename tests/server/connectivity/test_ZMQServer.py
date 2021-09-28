@@ -131,7 +131,7 @@ class TestZMQServer(unittest.TestCase):
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
        socket.close()
        zmqServer.close()
-
+       context.term()
 
 
     #def test_starting_stopping_closed_server_tcp(self):
@@ -193,6 +193,7 @@ class TestZMQServer(unittest.TestCase):
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
        socket.close()
        zmqServer.close()
+       context.term()
 
 
     def test_multiple_data_items_tcp(self):
@@ -222,6 +223,7 @@ class TestZMQServer(unittest.TestCase):
            j=j+1
        socket.close()
        zmqServer.close()
+       context.term()
 
 
     def test_multiple_sockets_tcp(self):
@@ -266,6 +268,7 @@ class TestZMQServer(unittest.TestCase):
        socket2.close()
        socket3.close()
        zmqServer.close()
+       context.term()
 
 
     def test_multiple_sockets_seq_transfer_tcp(self):
@@ -312,7 +315,7 @@ class TestZMQServer(unittest.TestCase):
        socket2.close()
        socket3.close()
        zmqServer.close()
-
+       context.term()
     
 
 #    def test_multiple_data_items_sequentially_tcp(self):
