@@ -82,7 +82,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
     def _dict_data(
         items, connections, node_successors,
           execution_permits,specifications,settings,
-          project_dir
+          project_dir,jumps,items_module_name
     ):
         """Returns a dict to be passed to the class.
         Args:
@@ -93,15 +93,19 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             specifications (dict(str,list(dict))): SpineEngine.__init()
             settings (dict): SpineEngine.__init()
             project_dir (str): SpineEngine.__init()
+            jumps (List of jump dicts): SpineEngine.__init()
+            items_module_name (str): SpineEngine.__init()
         Returns:
             dict
         """
         item = dict()
         item['items']=items
+        item['specifications']=specifications
         item['connections']=connections
+        item['jumps']=jumps
         item['node_successors']=node_successors
         item['execution_permits']=execution_permits
-        item['specifications']=specifications
+        item['items_module_name']=items_module_name
         item['settings']=settings
         item['project_dir']=project_dir
         return item
@@ -125,13 +129,16 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'includes_main_path': '../../..', 
             'definition_file_path': 
             '/home/ubuntu/sw/spine/helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld', 
+            #settings = {'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld', 
+            settings = {'appSettings/previousProject': '',
             'appSettings/recentProjectStorages': '/home/ubuntu/sw/spine', 
             'appSettings/recentProjects': 'helloworld<>/home/ubuntu/sw/spine/helloworld', 
             'appSettings/showExitPrompt': '2', 
             'appSettings/toolbarIconOrdering': 
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store', 
-            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'})
+            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'},
+            jumps=[],
+            items_module_name= 'spine_items')
 
         dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
@@ -141,6 +148,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
             project_dir = './tests/server/helloworld',
+            #project_dir = '/home/ubuntu/sw/spine/helloworld',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
@@ -153,8 +161,9 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'appSettings/showExitPrompt': '2',
             'appSettings/toolbarIconOrdering':
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': './Spine-Toolbox/work'})
-
+            'appSettings/workDir': './Spine-Toolbox/work'},
+            jumps=[],
+            items_module_name= 'spine_items')
 
         impl=RemoteSpineServiceImpl()
         print("test_basic_service_call_succeeds(): input data to spine engine:")
@@ -200,7 +209,10 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'appSettings/showExitPrompt': '2',
             'appSettings/toolbarIconOrdering':
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'})
+            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'},
+            jumps=[],
+            items_module_name= 'spine_items')
+
 
         dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
@@ -222,7 +234,9 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'appSettings/showExitPrompt': '2',
             'appSettings/toolbarIconOrdering':
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': './Spine-Toolbox/work'})
+            'appSettings/workDir': './Spine-Toolbox/work'},
+            jumps=[],
+            items_module_name= 'spine_items')
 
         impl=RemoteSpineServiceImpl()
 
@@ -271,7 +285,9 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'appSettings/showExitPrompt': '2',
             'appSettings/toolbarIconOrdering':
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'})
+            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'},
+            jumps=[],
+            items_module_name= 'spine_items')
 
         impl=RemoteSpineServiceImpl()
         eventData=impl.execute(dict_data)
@@ -313,7 +329,9 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'appSettings/showExitPrompt': '2',
             'appSettings/toolbarIconOrdering':
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'})
+            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'},
+            jumps=[],
+            items_module_name= 'spine_items')
 
         impl=RemoteSpineServiceImpl()
         with self.assertRaises(ValueError):
