@@ -68,7 +68,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
     def _dict_data(
         items, connections, node_successors,
           execution_permits,specifications,settings,
-          project_dir
+          project_dir,jumps,items_module_name
     ):
         """Returns a dict to be passed to the class.
         Args:
@@ -79,15 +79,19 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             specifications (dict(str,list(dict))): SpineEngine.__init()
             settings (dict): SpineEngine.__init()
             project_dir (str): SpineEngine.__init()
+            jumps (List of jump dicts): SpineEngine.__init()
+            items_module_name (str): SpineEngine.__init()
         Returns:
             dict
         """
         item = dict()
         item['items']=items
+        item['specifications']=specifications
         item['connections']=connections
+        item['jumps']=jumps
         item['node_successors']=node_successors
         item['execution_permits']=execution_permits
-        item['specifications']=specifications
+        item['items_module_name']=items_module_name
         item['settings']=settings
         item['project_dir']=project_dir
         return item
@@ -128,7 +132,10 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             'appSettings/showExitPrompt': '2',
             'appSettings/toolbarIconOrdering':
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': './Spine-Toolbox/work'})
+            'appSettings/workDir': './Spine-Toolbox/work'},
+            jumps=[],
+            items_module_name= 'spine_items')
+
        
        #f=open('msg_data1.txt')
        #msgData = f.read()
@@ -195,7 +202,10 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             'appSettings/showExitPrompt': '2',
             'appSettings/toolbarIconOrdering':
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': './Spine-Toolbox/work'})
+            'appSettings/workDir': './Spine-Toolbox/work'},
+            jumps=[],
+            items_module_name= 'spine_items')
+
 
        #f=open('msg_data1.txt')
        #msgData = f.read()

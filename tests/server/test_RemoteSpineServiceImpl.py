@@ -168,7 +168,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         impl=RemoteSpineServiceImpl()
         print("test_basic_service_call_succeeds(): input data to spine engine:")
         #print(dict_data2)
-        eventData=impl.execute(dict_data2)
+        eventData=impl.execute(dict_data)
         print(eventData)
 
         #asserts
