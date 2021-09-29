@@ -81,8 +81,9 @@ class TestConnectionWithDatabase(unittest.TestCase):
         connection.receive_resources_from_source(resources)
         self.assertFalse(connection.has_filters())
         connection.fetch_database_items()
-        self.assertTrue(connection.has_filters())
         self.assertEqual(connection.resource_filters, {resources[0].label: {"scenario_filter": {1: False}}})
+        connection.set_online(resources[0].label, "scenario_filter", {1: True})
+        self.assertTrue(connection.has_filters())
 
     def test_fetch_tools(self):
         connection = Connection("source", "bottom", "destination", "top")
@@ -95,8 +96,9 @@ class TestConnectionWithDatabase(unittest.TestCase):
         connection.receive_resources_from_source(resources)
         self.assertFalse(connection.has_filters())
         connection.fetch_database_items()
-        self.assertTrue(connection.has_filters())
         self.assertEqual(connection.resource_filters, {resources[0].label: {"tool_filter": {1: False}}})
+        connection.set_online(resources[0].label, "tool_filter", {1: True})
+        self.assertTrue(connection.has_filters())
 
 
 class TestJump(unittest.TestCase):
