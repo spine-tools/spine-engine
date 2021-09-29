@@ -23,31 +23,33 @@ from spine_engine.server.util.FileExtractor import FileExtractor
 class TestFileExtractor(unittest.TestCase):
 
     def test_simple_extraction(self):
-        FileExtractor.extract(os.path.join(os.getcwd(), "tests", "server", "util", "test_zipfile.zip"), './output')
-        self.assertEqual(os.path.isdir('./output'), True)
+        FileExtractor.extract(os.path.join(os.getcwd(), "tests", "server", "util", "test_zipfile.zip"), "./output")
+        self.assertEqual(os.path.isdir("./output"), True)
         print("test_simple_extraction")
 
     def test_invalid_input1(self):
         with self.assertRaises(ValueError):
-            FileExtractor.extract('', './output')
+            FileExtractor.extract("", "./output")
 
     def test_invalid_input2(self):
         with self.assertRaises(ValueError):
-            FileExtractor.extract('test_zipfile.zip', '')
+            FileExtractor.extract("test_zipfile.zip", "")
 
     def test_removeFolder(self):
-        FileExtractor.deleteFolder('./output')
-        self.assertEqual(os.path.isdir('./output'), False)
+        FileExtractor.extract(os.path.join(os.getcwd(), "tests", "server", "util", "test_zipfile.zip"), "./output")
+        self.assertEqual(os.path.isdir("./output"), True)
+        FileExtractor.deleteFolder("./output")
+        self.assertEqual(os.path.isdir("./output"), False)
 
     def test_remove_nonexisting_Folder(self):
         with self.assertRaises(ValueError):
-            FileExtractor.deleteFolder('./output2')
+            FileExtractor.deleteFolder("./output2")
 
     def test_invalid_input1_remove_folder(self):
         with self.assertRaises(ValueError):
-            FileExtractor.deleteFolder('')
+            FileExtractor.deleteFolder("")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 
