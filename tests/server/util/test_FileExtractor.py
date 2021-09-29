@@ -17,15 +17,17 @@ Unit tests for FileExtractor class.
 
 import unittest
 import os
+from pathlib import Path
 from spine_engine.server.util.FileExtractor import FileExtractor
 
 
 class TestFileExtractor(unittest.TestCase):
 
     def test_simple_extraction(self):
-        FileExtractor.extract(os.path.join(os.getcwd(), "tests", "server", "util", "test_zipfile.zip"), "./output")
-        self.assertEqual(os.path.isdir("./output"), True)
-        print("test_simple_extraction")
+        zip_file_path = str(Path(__file__).parent / "test_zipfile.zip")
+        output_dir_path = str(Path(__file__).parent / "output")
+        FileExtractor.extract(zip_file_path, output_dir_path)
+        self.assertEqual(os.path.isdir(output_dir_path), True)
 
     def test_invalid_input1(self):
         with self.assertRaises(ValueError):
@@ -33,13 +35,15 @@ class TestFileExtractor(unittest.TestCase):
 
     def test_invalid_input2(self):
         with self.assertRaises(ValueError):
-            FileExtractor.extract("test_zipfile.zip", "")
+            FileExtractor.extract("does_not_exist.zip", "")
 
     def test_removeFolder(self):
-        FileExtractor.extract(os.path.join(os.getcwd(), "tests", "server", "util", "test_zipfile.zip"), "./output")
-        self.assertEqual(os.path.isdir("./output"), True)
-        FileExtractor.deleteFolder("./output")
-        self.assertEqual(os.path.isdir("./output"), False)
+        zip_file_path = str(Path(__file__).parent / "test_zipfile.zip")
+        output_dir_path = str(Path(__file__).parent / "output")
+        FileExtractor.extract(zip_file_path, output_dir_path)
+        self.assertEqual(os.path.isdir(output_dir_path), True)
+        FileExtractor.deleteFolder(output_dir_path)
+        self.assertEqual(os.path.isdir(output_dir_path), False)
 
     def test_remove_nonexisting_Folder(self):
         with self.assertRaises(ValueError):
