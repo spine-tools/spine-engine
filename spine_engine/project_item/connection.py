@@ -117,7 +117,11 @@ class Connection(ConnectionBase):
         Returns:
             bool: True if connection has filters, False otherwise
         """
-        return bool(self._resource_filters)
+        for ids_by_type in self._resource_filters.values():
+            for ids in ids_by_type.values():
+                if any(ids.values()):
+                    return True
+        return False
 
     @property
     def resource_filters(self):
