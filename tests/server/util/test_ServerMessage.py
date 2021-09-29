@@ -16,16 +16,10 @@ Unit tests for ServerMessage class.
 """
 
 import unittest
-
-import sys
-sys.path.append('./../../../spine_engine/server/util')
-import os
-
-from ServerMessage import ServerMessage
+from spine_engine.server.util.ServerMessage import ServerMessage
 
 
 class TestServerMessage(unittest.TestCase):
-
 
     def test_msg_creation(self):
         listFiles=["dffd.zip","fdeef.zip"]
@@ -64,9 +58,7 @@ class TestServerMessage(unittest.TestCase):
         jsonStr=msg.toJSON()
         #print("parsed msg2:\n")
         #print(jsonStr)
-        
 
 
 if __name__ == '__main__':
     unittest.main()
-

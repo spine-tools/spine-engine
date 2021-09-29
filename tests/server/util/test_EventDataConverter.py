@@ -17,14 +17,10 @@ Unit tests for EventDataConverter class.
 
 import unittest
 import json
-import sys
-sys.path.append('./../../../spine_engine/server/util')
-import os
+from spine_engine.server.util.EventDataConverter import EventDataConverter
 
-from EventDataConverter import EventDataConverter
 
 class TestEventDataConverter(unittest.TestCase):
-
 
     def _createEventData(self):
         eventData=[]
@@ -49,7 +45,7 @@ class TestEventDataConverter(unittest.TestCase):
         #print(eventsData2)
         jsonStr2=EventDataConverter.convert(eventsData2)
         self.assertEqual(jsonStr,jsonStr2)
-        
+
 
 if __name__ == '__main__':
     unittest.main()

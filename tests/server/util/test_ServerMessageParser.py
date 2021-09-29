@@ -16,19 +16,16 @@ Unit tests for ServerMessageParser class.
 """
 
 import unittest
-
-import sys
-sys.path.append('./../../../spine_engine/server/util')
 import os
+from spine_engine.server.util.ServerMessageParser import ServerMessageParser
+from spine_engine.server.util.ServerMessage import ServerMessage
 
-from ServerMessageParser import ServerMessageParser
-from ServerMessage import ServerMessage
 
 class TestServerMessageParser(unittest.TestCase):
 
-
     def test_msg_parsing(self):
-        with open('testMsg.txt') as f:
+        test_file_path = os.path.join(os.getcwd(), "tests", "server", "util", "testMsg.txt")
+        with open(test_file_path) as f:
             content = f.read()
             msg=ServerMessageParser.parse(content)
             #print(msg)
@@ -37,7 +34,8 @@ class TestServerMessageParser(unittest.TestCase):
             self.assertEqual(msg.getFileNames()[0],"helloworld.zip")
 
     def test_msg_parsingw(self):
-        with open('testMsg2.txt') as f:
+        test_file_path = os.path.join(os.getcwd(), "tests", "server", "util", "testMsg2.txt")
+        with open(test_file_path) as f:
             content = f.read()
             msg=ServerMessageParser.parse(content)
             #print(msg)
