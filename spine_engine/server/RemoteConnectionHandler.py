@@ -52,7 +52,7 @@ class RemoteConnectionHandler(threading.Thread):
 
 
     def run(self):
-        print("RemoteConnectionHandler.run()")
+        #print("RemoteConnectionHandler.run()")
         self._execute()
         
 
@@ -85,7 +85,7 @@ class RemoteConnectionHandler(threading.Thread):
                 #print("parsed data from the received msg: %s"%data)
                 #print("parsed project_dir: %s"%data['project_dir'])
             except:
-                print("RemoteConnectionHandler._execute(:) Error in parsing content, returning empty data")
+                #print("RemoteConnectionHandler._execute(:) Error in parsing content, returning empty data")
                 retBytes=bytes("{}", 'utf-8')
                 self.zmqConn.sendReply(retBytes)
                 return 
@@ -97,23 +97,23 @@ class RemoteConnectionHandler(threading.Thread):
                     #create folder, if it doesn't exist yet
                     if os.path.exists(dataAsDict['project_dir']+"/")==False:
                         os.mkdir(dataAsDict['project_dir']+"/")
-                        print("RemoteConnectionHandler._execute() Created a new folder %s"%(dataAsDict['project_dir']+"/"))
+                        #print("RemoteConnectionHandler._execute() Created a new folder %s"%(dataAsDict['project_dir']+"/"))
 
-                    print("file name: %s"%parsedMsg.getFileNames()[0])
+                    #print("file name: %s"%parsedMsg.getFileNames()[0])
                     f=open(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0], "wb")
                     f.write(msgParts[1])
                     f.close()
-                    print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
+                    #print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
                 except:
-                    print("couldn't save the file, returning empty response..\n")
+                    #print("couldn't save the file, returning empty response..\n")
                     self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
                 #extract the saved file
                 FileExtractor.extract(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0],dataAsDict['project_dir']+"/")
-                print("extracted file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
+                #print("extracted file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
 
                 #execute DAG in the Spine engine
                 spineEngineImpl=RemoteSpineServiceImpl()
-                print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
+                #print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
                 #convertedData=self._convertTextDictToDicts(dataAsDict)
                 convertedData=dataAsDict
                 #print("RemoteConnectionHandler._execute() passing data to spine engine: %s"%convertedData)
@@ -123,7 +123,7 @@ class RemoteConnectionHandler(threading.Thread):
 
                 #delete extracted folder
                 FileExtractor.deleteFolder(dataAsDict['project_dir']+"/")
-                print("RemoteConnectionHandler._execute(): Deleted folder %s"%dataAsDict['project_dir']+"/")
+                #print("RemoteConnectionHandler._execute(): Deleted folder %s"%dataAsDict['project_dir']+"/")
 
                 #create a response message,parse and send it
                 jsonEventsData=EventDataConverter.convert(eventData)
@@ -136,13 +136,18 @@ class RemoteConnectionHandler(threading.Thread):
                 self.zmqConn.sendReply(replyInBytes)
                 #self.zmqConn.close()
                 #print("RemoteConnectionHandler._execute(): closed the socket to the client.")
+
+                #delete extracted folder
+                #FileExtractor.deleteFolder(dataAsDict['project_dir']+"/")
+                #print("RemoteConnectionHandler._execute(): Deleted folder %s"%dataAsDict['project_dir']+"/")
+
                 #debugging
                 execStopTimeMs=round(time.time()*1000.0)
-                print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
+                #print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
 
             
             else:
-                print("RemoteConnectionHandler._execute(): no file name included, returning empty response..\n")
+                #print("RemoteConnectionHandler._execute(): no file name included, returning empty response..\n")
                 self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
     
 
@@ -159,7 +164,7 @@ class RemoteConnectionHandler(threading.Thread):
 
     def _convertTextDictToDicts(self,data):
         newData=dict()
-        print("_convertTextDictToDicts() items: %s"%type(data['items']))
+        #print("_convertTextDictToDicts() items: %s"%type(data['items']))
         newData['items']=ast.literal_eval(data['items'])
         newData['connections']=ast.literal_eval(data['connections'])
         newData['specifications']=ast.literal_eval(data['specifications'])

@@ -37,14 +37,14 @@ class TestObserver(ZMQServerObserver):
 
 
     def receiveConnection(self,conn:ZMQConnection)-> None:
-        print("TestObserver.receiveConnection()")
+        #print("TestObserver.receiveConnection()")
         #parts=conn.getMessageParts()
         #print("TestObserver.receiveConnection(): parts received:")
         #print(parts)
         #conn.sendReply(conn.getMessageParts()[0])
         self.conn=conn
         connHandler=RemoteConnectionHandler(conn)
-        print("TestObserver.receiveConnection() RemoteConnectionHandler started.")
+        #print("TestObserver.receiveConnection() RemoteConnectionHandler started.")
 
     def getConnection(self):
         return self.conn

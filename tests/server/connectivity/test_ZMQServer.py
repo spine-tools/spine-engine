@@ -65,7 +65,7 @@ class TestZMQServer(unittest.TestCase):
         ob=TestObserver()
         with self.assertRaises(ValueError):
             zmqServer=ZMQServer("tcp",6002,ob,ZMQSecurityModelState.STONEHOUSE,"")
-        print("test_missing_secfolder() completed.")
+        #print("test_missing_secfolder() completed.")
     
 
     def test_invalid_secfolder(self):
@@ -75,7 +75,7 @@ class TestZMQServer(unittest.TestCase):
         ob=TestObserver()
         with self.assertRaises(ValueError):
             zmqServer=ZMQServer("tcp",6003,ob,ZMQSecurityModelState.STONEHOUSE,"/fwhkjfnsefkjnselk")
-        print("test_invalid_secfolder() completed.")
+        #print("test_invalid_secfolder() completed.")
 
 
     def test_starting_server_connection_withsecurity_tcp(self):
@@ -92,10 +92,10 @@ class TestZMQServer(unittest.TestCase):
 
        #security configs
        #prepare folders
-       print("test_starting_server_connection_withsecurity_tcp() starting to configure security..")
+       #print("test_starting_server_connection_withsecurity_tcp() starting to configure security..")
        base_dir = "./tests/server/connectivity/secfolder"
        #base_dir = os.path.dirname("/home/ubuntu/sw/spine/dev/zmq_server_certs/")
-       print("test_starting_server_connection_withsecurity_tcp() dirname: %s"%base_dir)
+       #print("test_starting_server_connection_withsecurity_tcp() dirname: %s"%base_dir)
        secret_keys_dir = os.path.join(base_dir, 'private_keys')
        keys_dir = os.path.join(base_dir, 'certificates')
        public_keys_dir = os.path.join(base_dir, 'public_keys')
@@ -127,7 +127,7 @@ class TestZMQServer(unittest.TestCase):
        #print("test_starting_server_connection_withsecurity_tcp() msg parts sent.")
        #time.sleep(1)
        msg=socket.recv()
-       print("test_starting_server_connection_withsecurity_tcp() msg received: %s"%msg)
+       #print("test_starting_server_connection_withsecurity_tcp() msg received: %s"%msg)
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
        socket.close()
        zmqServer.close()
@@ -186,10 +186,10 @@ class TestZMQServer(unittest.TestCase):
        msg_parts.append(part1Bytes)
        msg_parts.append(fileArray)
        socket.send_multipart(msg_parts)
-       print("test_starting_server_connection_established_tcp() msg parts sent.")
+       #print("test_starting_server_connection_established_tcp() msg parts sent.")
        #time.sleep(1)       
        msg=socket.recv()
-       print("test_starting_server_connection_established_tcp() msg received: %s"%msg)
+       #print("test_starting_server_connection_established_tcp() msg received: %s"%msg)
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
        socket.close()
        zmqServer.close()
@@ -249,19 +249,19 @@ class TestZMQServer(unittest.TestCase):
        msg_parts.append(fileArray)
        #send over multiple sockets
        socket1.send_multipart(msg_parts)
-       print("test_multiple_sockets_tcp() msg on socket 1 sent.")
+       #print("test_multiple_sockets_tcp() msg on socket 1 sent.")
        msg=socket1.recv()
-       print("test_multiple_sockets_tcp() msg received: %s"%msg)
+       #print("test_multiple_sockets_tcp() msg received: %s"%msg)
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
        socket2.send_multipart(msg_parts)
-       print("test_multiple_sockets_tcp() msg on socket 2 sent.")
+       #print("test_multiple_sockets_tcp() msg on socket 2 sent.")
        msg=socket2.recv()
-       print("test_multiple_sockets_tcp() msg received: %s"%msg)
+       #print("test_multiple_sockets_tcp() msg received: %s"%msg)
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
        socket3.send_multipart(msg_parts)
-       print("test_multiple_sockets_tcp() msg on socket 3 sent.")
+       #print("test_multiple_sockets_tcp() msg on socket 3 sent.")
        msg=socket3.recv()
-       print("test_multiple_sockets_tcp() msg received: %s"%msg)
+       #print("test_multiple_sockets_tcp() msg received: %s"%msg)
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
 
        socket1.close()
@@ -295,20 +295,20 @@ class TestZMQServer(unittest.TestCase):
        msg_parts.append(fileArray)
        #send over multiple sockets
        socket1.send_multipart(msg_parts)
-       print("test_multiple_sockets_seq_transfer_tcp() msg on socket 1 sent.")
+       #print("test_multiple_sockets_seq_transfer_tcp() msg on socket 1 sent.")
        socket2.send_multipart(msg_parts)
-       print("test_multiple_sockets_seq_transfer_tcp() msg on socket 2 sent.")
+       #print("test_multiple_sockets_seq_transfer_tcp() msg on socket 2 sent.")
        socket3.send_multipart(msg_parts)
-       print("test_multiple_sockets_seq_transfer_tcp() msg on socket 3 sent.")
+       #print("test_multiple_sockets_seq_transfer_tcp() msg on socket 3 sent.")
 
        msg=socket1.recv()
-       print("test_multiple_sockets_seq_transfer_tcp() msg received: %s"%msg)
+       #print("test_multiple_sockets_seq_transfer_tcp() msg received: %s"%msg)
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
        msg=socket2.recv()
-       print("test_multiple_sockets_seq_transfer_tcp() msg received: %s"%msg)
+       #print("test_multiple_sockets_seq_transfer_tcp() msg received: %s"%msg)
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
        msg=socket3.recv()
-       print("test_multiple_sockets_seq_transfer_tcp() msg received: %s"%msg)
+       #print("test_multiple_sockets_seq_transfer_tcp() msg received: %s"%msg)
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
 
        socket1.close()

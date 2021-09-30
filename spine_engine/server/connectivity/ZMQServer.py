@@ -76,7 +76,7 @@ class ZMQServer(threading.Thread):
                 if len(secFolder)==0:
                     raise ValueError("ZMQServer(): security folder input is missing.")
 
-                print("beginning to configure security for stonehouse-model of ZMQ")
+                #print("beginning to configure security for stonehouse-model of ZMQ")
                 base_dir = secFolder
                 keys_dir = os.path.join(base_dir, 'certificates')
                 public_keys_dir = os.path.join(base_dir, 'public_keys')
@@ -95,7 +95,7 @@ class ZMQServer(threading.Thread):
                 self._auth = ThreadAuthenticator(self._zmqContext)
                 self._auth.start()
                 endpoints=self._readEndpoints(secFolder+"/allowEndpoints.txt")  #read endpoints to allow
-                print("read allowed endpoins from config file: %s"%endpoints)
+                #print("read allowed endpoins from config file: %s"%endpoints)
 
                 if len(endpoints)==0:
                     self._state=ZMQServerState.STOPPED
@@ -105,10 +105,10 @@ class ZMQServer(threading.Thread):
                     try:
                         ipaddress.ip_address(ep.strip())
                         self._auth.allow(ep.strip()) 
-                        print("ZMQServer(): allowed endpoint %s"%ep.strip())
+                        #print("ZMQServer(): allowed endpoint %s"%ep.strip())
                     except:
                         print("ZMQServer(): invalid IP address: %s"%ep)
-                print("ZMQServer(): started authenticator.")
+                #print("ZMQServer(): started authenticator.")
 
                 # Tell the authenticator how to handle CURVE requests
                 self._auth.configure_curve(domain='*', location=zmq.auth.CURVE_ALLOW_ANY)
@@ -119,19 +119,19 @@ class ZMQServer(threading.Thread):
                 self._socket.curve_secretkey = server_secret
                 self._socket.curve_publickey = server_public
                 self._socket.curve_server = True  # must come before bind
-                print("ZMQServer(): binding server and listening (with stonehouse security configured)..")
+                #print("ZMQServer(): binding server and listening (with stonehouse security configured)..")
                 self._socket.bind(protocol+"://*:"+str(port))
                 self._secModelState=ZMQSecurityModelState.STONEHOUSE
 
         except Exception as e:
-            print("ZMQServer couldn't be started due to exception: %s"%e)
+            #print("ZMQServer couldn't be started due to exception: %s"%e)
             self._state=ZMQServerState.STOPPED
             raise ValueError("Invalid input ZMQServer.")            
 
         #self._state=ZMQServerState.RUNNING
         #self._socket=socket
         self.port=port
-        print("ZMQServer started with protocol %s to port %d"%(protocol,port))
+        #print("ZMQServer started with protocol %s to port %d"%(protocol,port))
         threading.Thread.__init__(self)
         self.start()
  
@@ -146,11 +146,11 @@ class ZMQServer(threading.Thread):
 
             if self._secModelState==ZMQSecurityModelState.STONEHOUSE:
                 self._auth.stop()
-                print("ZMQServer.close(): stopped security authenticator.")
+                #print("ZMQServer.close(): stopped security authenticator.")
 
             ret=self._socket.close()
             self._zmqContext.term()
-            print("ZMQServer closed at port %d"%self.port)
+            #print("ZMQServer closed at port %d"%self.port)
             self._state=ZMQServerState.STOPPED
             return 0
 
@@ -168,7 +168,7 @@ class ZMQServer(threading.Thread):
         #"""
         #Receives data from the socket, and creates new connections.
         #"""
-        print("ZMQServer._receive_data()")
+        #print("ZMQServer._receive_data()")
         #try:
         while self._state==ZMQServerState.RUNNING:
             try:
@@ -182,7 +182,7 @@ class ZMQServer(threading.Thread):
                 #print("ZMQServer._receive_data(): reading failed, exception: %s"%e)            
                 time.sleep(0.01)
                 #self._state==ZMQServerState.STOPPED  
-        print("ZMQServer._receive_data(): out..")
+        #print("ZMQServer._receive_data(): out..")
 
 
 

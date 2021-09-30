@@ -42,6 +42,7 @@ class FileExtractor:
            raise ValueError('invalid input to FileExtractor.extract()')
         with ZipFile(zipFile, 'r') as zipObj:
             zipObj.extractall(outputFolder)
+            zipObj.close()
 
 
     @staticmethod
@@ -61,4 +62,4 @@ class FileExtractor:
             raise ValueError('provided folder %s doesn''t exist'%folder)  
 
         shutil.rmtree(folder) 
-        print("FileExtractor.deleteFolder(): Removed folder: %s"%folder)   
+        #print("FileExtractor.deleteFolder(): Removed folder: %s"%folder)   

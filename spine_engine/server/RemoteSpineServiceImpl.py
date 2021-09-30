@@ -66,7 +66,7 @@ class RemoteSpineServiceImpl:
         #if self._state==RemoteSpineServiceImplState.IDLE:
         #    self._state=RemoteSpineServiceImplState.RUNNING
 
-        print("RemoteSpineServiceImpl.execute() calling spine_engine with data %s"%data)
+        #print("RemoteSpineServiceImpl.execute() calling spine_engine with data %s"%data)
         engine = SpineEngine(items=data['items'], specifications=data['specifications'],connections=data['connections'],jumps=data['jumps'], node_successors=data['node_successors'],
             execution_permits=data['execution_permits'],items_module_name=data['items_module_name'],settings=data['settings'],
             project_dir=data['project_dir'])
