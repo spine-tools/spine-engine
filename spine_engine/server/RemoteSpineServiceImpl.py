@@ -19,6 +19,7 @@ Only one DAG can be executed at a time.
 from enum import unique, Enum
 
 import sys
+import time
 #sys.path.append('./../../spine_engine')
 from spine_engine import SpineEngine
 
@@ -72,6 +73,7 @@ class RemoteSpineServiceImpl:
             project_dir=data['project_dir'])
 
         #engine.run()
+        #time.sleep(1)
         #get events+data from the spine engine
         eventData=[]
         while True:
@@ -86,6 +88,7 @@ class RemoteSpineServiceImpl:
                 #print("engine state:")
                 #print(engine.state())
                 #self._state=RemoteSpineServiceImplState.IDLE
+                #engine.stop()
                 return eventData
 
 

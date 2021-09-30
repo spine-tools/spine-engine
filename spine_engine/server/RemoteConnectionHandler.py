@@ -116,13 +116,13 @@ class RemoteConnectionHandler(threading.Thread):
                 #print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
                 #convertedData=self._convertTextDictToDicts(dataAsDict)
                 convertedData=dataAsDict
-                #print("RemoteConnectionHandler._execute() passing data to spine engine: %s"%convertedData)
+                #print("RemoteConnectionHandler._execute() passing data to spine engine impl: %s"%convertedData)
                 eventData=spineEngineImpl.execute(convertedData)
-                #print("received events/data: ")
+                #print("RemoteConnectionHandler._execute(): received events/data: ")
                 #print(eventData)
 
                 #delete extracted folder
-                FileExtractor.deleteFolder(dataAsDict['project_dir']+"/")
+                #FileExtractor.deleteFolder(dataAsDict['project_dir']+"/")
                 #print("RemoteConnectionHandler._execute(): Deleted folder %s"%dataAsDict['project_dir']+"/")
 
                 #create a response message,parse and send it
@@ -138,9 +138,14 @@ class RemoteConnectionHandler(threading.Thread):
                 #print("RemoteConnectionHandler._execute(): closed the socket to the client.")
 
                 #delete extracted folder
-                #FileExtractor.deleteFolder(dataAsDict['project_dir']+"/")
-                #print("RemoteConnectionHandler._execute(): Deleted folder %s"%dataAsDict['project_dir']+"/")
-
+                try:
+                    time.sleep(6)
+                    FileExtractor.deleteFolder(dataAsDict['project_dir']+"/")
+                    #print("RemoteConnectionHandler._execute(): Deleted folder %s"%dataAsDict['project_dir']+"/")
+                except:                 
+                    pass
+                    #print("RemoteConnectionHandler._execute(): folder %s wax probably already deleted, returning.."%dataAsDict)
+       
                 #debugging
                 execStopTimeMs=round(time.time()*1000.0)
                 #print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))

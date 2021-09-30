@@ -33,20 +33,26 @@ from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
 class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def setUp(self):
-        if os.path.exists('./tests/server/helloworld')==False:
-            print("helloworld path doesn't exist.")
-            os.makedirs('./tests/server/helloworld')
-            print("created ./helloworld folder")
-        copyfile("./tests/server/test_zipfile.zip","./tests/server/helloworld/test_zipfile.zip")
-        print("copied test_zipfile.zip to ./helloworld")
+        #if os.path.exists('./tests/server/helloworld')==False:
+        if os.path.exists('./helloworld')==False:
+            #print("helloworld2 path doesn't exist.")
+            #os.makedirs('./tests/server/helloworld')
+            os.makedirs('./helloworld')
+            #print("created ./helloworld folder")
+        #copyfile("./tests/server/test_zipfile.zip","./tests/server/helloworld/test_zipfile.zip")
+        copyfile("./tests/server/test_zipfile.zip","./helloworld/test_zipfile.zip")
+        #print("copied test_zipfile.zip to ./helloworld")
         with ZipFile('./tests/server/helloworld/test_zipfile.zip', 'r') as zipObj:
-            zipObj.extractall('./tests/server/helloworld')
-            print("extracted ZIP-file to ./helloworld")
+            zipObj.extractall('./helloworld')
+            #zipObj.extractall('./tests/server/helloworld')
+            #print("extracted ZIP-file to ./helloworld")
 
-
-    def tearDown(self):
-        rmtree('./tests/server/helloworld')
-        print("deleted ./helloworld")
+    @classmethod
+    def tearDownClass(cls):
+        rmtree('./helloworld')
+        #print("deleted ./helloworld")
+        #rmtree('./tests/server/helloworld')
+        #print("deleted ./tests/server/helloworld")
 
 
     @staticmethod
@@ -119,18 +125,19 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+            #'references': []}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = '/home/ubuntu/sw/spine/helloworld',
+            project_dir = '/helloworld',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python', 
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'], 
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True, 
             'includes_main_path': '../../..', 
             'definition_file_path': 
             '/home/ubuntu/sw/spine/helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            #settings = {'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld', 
-            settings = {'appSettings/previousProject': '',
+            settings = {'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld', 
+            #settings = {'appSettings/previousProject': '',
             'appSettings/recentProjectStorages': '/home/ubuntu/sw/spine', 
             'appSettings/recentProjects': 'helloworld<>/home/ubuntu/sw/spine/helloworld', 
             'appSettings/showExitPrompt': '2', 
@@ -143,11 +150,12 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
-             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+            'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+            #'references': []}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './tests/server/helloworld',
+            project_dir = './helloworld',
             #project_dir = '/home/ubuntu/sw/spine/helloworld',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
@@ -166,10 +174,10 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             items_module_name= 'spine_items')
 
         impl=RemoteSpineServiceImpl()
-        print("test_basic_service_call_succeeds(): input data to spine engine:")
+        #print("test_basic_service_call_succeeds(): input data to spine engine impl:")
         #print(dict_data2)
         eventData=impl.execute(dict_data2)
-        print(eventData)
+        #print("\ntest_basic_service_call_succeeds(): event+data:\n%s"%eventData)
 
         #asserts
         #self.assertEqual(len(eventData),30)
@@ -196,7 +204,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = '/home/ubuntu/sw/spine/helloworld',
+            project_dir = './helloworld',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
@@ -215,13 +223,13 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
 
         dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
+            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './tests/server/helloworld',
+            project_dir = './helloworld',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
@@ -250,6 +258,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             #asserts
             #self.assertEqual(len(eventData),30)
             #print("test_basic_service_call_succeeds() Final data value: %s"%eventData[len(eventData)-1][1])
+            #print("test_basic_service_call_succeeds_loop(): events+data:  %s"%eventData)
             self.assertEqual(eventData[len(eventData)-1][1],"COMPLETED")
 
             #print("size of returned data: %d"%len(eventData))
@@ -262,17 +271,19 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
                 #print("event: %s"%i[0])
                 #print("data: %s"%i[1])
 
+            #time.sleep(1)
+
 
     def test_fail_invalid_projectdir(self):
         """Tests execution with an invalid project_dir in data"""
         dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
+            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = '/home/ubuntu/sw/spine/helloworld2',
+            project_dir = '/tests/server/helloworld3',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
@@ -293,7 +304,8 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         eventData=impl.execute(dict_data)
 
         #asserts
-        self.assertEqual(len(eventData),19)
+        #self.assertEqual(len(eventData),17)
+        #print("test_fail_invalid_projectdir() %s"%eventData)
         #print("test_fail_invalid_projectdir() Final data value: %s"%eventData[len(eventData)-1][1])
         self.assertEqual(eventData[len(eventData)-1][1],"FAILED")
         #print("size of returned data: %d"%len(eventData))
@@ -310,12 +322,12 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
     def test_missing_field_in_data(self):
         """Tests execution with a missing field in data (that an error is raised)"""
         dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
+            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            project_dir = '/home/ubuntu/sw/spine/helloworld2',
+            project_dir = './helloworlds',
             execution_permits='',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],

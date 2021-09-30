@@ -33,7 +33,7 @@ from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
 from spine_engine.server.util.ServerMessage import ServerMessage
 from spine_engine.server.util.ServerMessageParser import ServerMessageParser
 from spine_engine.server.util.EventDataConverter import EventDataConverter
-from .test_RemoteConnHandlerZMQServer import RemoteConnHandlerZMQServer
+from test_RemoteConnHandlerZMQServer import RemoteConnHandlerZMQServer
 
 
 class TestObserver(ZMQServerObserver):
@@ -42,7 +42,7 @@ class TestObserver(ZMQServerObserver):
 #           
 
     def receiveConnection(self,conn:ZMQConnection)-> None:
-        print("TestObserver.receiveConnection()")
+        #print("TestObserver.receiveConnection()")
         #parts=conn.getMessageParts()
         #print("TestObserver.receiveConnection(): parts received:")
         #print(parts)
@@ -125,7 +125,8 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
             'includes_main_path': '../../..',
             'definition_file_path':
-            './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
+  
+           './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
             settings = {'appSettings/previousProject': './helloworld',
             'appSettings/recentProjectStorages': './',
             'appSettings/recentProjects': 'helloworld<>./helloworld',
@@ -146,15 +147,17 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        f2=open('./tests/server/test_zipfile.zip','rb')
        data = f2.read()
        f2.close()
+   
        listFiles=["helloworld.zip"]
        msg=ServerMessage("execute","1",msgDataJson,listFiles)
        part1Bytes = bytes(msg.toJSON(), 'utf-8')
        msg_parts.append(part1Bytes)
        msg_parts.append(data)
+   
        socket.send_multipart(msg_parts)
 
        time.sleep(1)
-       print("test_init_complete(): listening to replies..")
+       #print("test_init_complete(): listening to replies..")
        message = socket.recv()
        msgStr=message.decode('utf-8')
        #print("out recv()..Received reply (from network) %s" %msgStr)
@@ -165,14 +168,13 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        #print(type(data))
        jsonData=json.dumps(data)
        dataEvents=EventDataConverter.convertJSON(jsonData,True)       
-       #print("parsed events+data, items:%d\n"%len(dataEvents))
+       #print("test_init_complete(): parsed events+data :%s\n"%dataEvents)
        #self.assertEqual(len(dataEvents),34)
        self.assertEqual(dataEvents[len(dataEvents)-1][1],"COMPLETED")
        #print(dataEvents)
        #close connections
        socket.close()
        context.term()
-
 
 
     def test_loop_calls(self):
@@ -184,13 +186,13 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        #fileArray=bytearray([1, 2, 3, 4, 5])
 
        dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
+            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './helloworld',
+            project_dir = './helloworld2',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
@@ -211,35 +213,45 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        #f=open('msg_data1.txt')
        #msgData = f.read()
        #f.close()
-       msgDataJson=json.dumps(dict_data2)
-       msgDataJson=json.dumps(msgDataJson)
+       #msgDataJson=json.dumps(dict_data2)
+       #msgDataJson=json.dumps(msgDataJson)
        #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
        f2=open('./tests/server/test_zipfile.zip','rb')
        data = f2.read()
        f2.close()
        listFiles=["helloworld.zip"]
-       msg=ServerMessage("execute","1",msgDataJson,listFiles)
-       part1Bytes = bytes(msg.toJSON(), 'utf-8')
-       msg_parts.append(part1Bytes)
-       msg_parts.append(data)
+       #msg=ServerMessage("execute","1",msgDataJson,listFiles)
+       #part1Bytes = bytes(msg.toJSON(), 'utf-8')
+       #msg_parts.append(part1Bytes)
+       #msg_parts.append(data)
        i=0
        while i < 10:
+           msg_parts=[]
+           dict_data2['project_dir']='./helloworld'+str(i)
+           msgDataJson=json.dumps(dict_data2)
+           msgDataJson=json.dumps(msgDataJson)
+           #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
+           msg=ServerMessage("execute","1",msgDataJson,listFiles)
+           part1Bytes = bytes(msg.toJSON(), 'utf-8')
+           msg_parts.append(part1Bytes)
+           msg_parts.append(data)
+
            socket.send_multipart(msg_parts)
-           print("test_loop_calls(): listening to replies..%d"%i)
+           #print("test_loop_calls(): listening to replies..%d"%i)
            message = socket.recv()
            msgStr=message.decode('utf-8')
            #print("out recv()..Received reply %s" %msgStr)
            parsedMsg=ServerMessageParser.parse(msgStr)
            #get and decode events+data
-           data=parsedMsg.getData()
+           retData=parsedMsg.getData()
            #print(type(data))
-           jsonData=json.dumps(data)
+           jsonData=json.dumps(retData)
            dataEvents=EventDataConverter.convertJSON(jsonData,True)
            #print("parsed events+data, items:%d\n"%len(dataEvents))
            #self.assertEqual(len(dataEvents),34)
            self.assertEqual(dataEvents[len(dataEvents)-1][1],"COMPLETED")
            #sleep(1)
-           print(dataEvents)
+           #print(dataEvents)
            i+=1
        #close connections
        socket.close()
@@ -254,30 +266,34 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        context = zmq.Context()
        socket = context.socket(zmq.REQ)
        socket.connect("tcp://localhost:5556")
+    
        msg_parts=[]
 
        f=open('./tests/server/msg_data1.txt')
        msgData = f.read()
+    
        f.close()
        msgDataJson=json.dumps(msgData)
        listFiles=["helloworld.zip"]
        msg=ServerMessage("execute","1",msgDataJson,listFiles)
        part1Bytes = bytes(msg.toJSON(), 'utf-8')
        msg_parts.append(part1Bytes)
+    
        socket.send_multipart(msg_parts)
 
        #time.sleep(1)
-       print("test_init_no_binarydata(): listening to replies..")
+       #print("test_init_no_binarydata(): listening to replies..")
        message = socket.recv()
        msgStr=message.decode('utf-8')
        #print("out recv()..Received reply %s" %msgStr)
        parsedMsg=ServerMessageParser.parse(msgStr)
        data=parsedMsg.getData()
-       print("received data: %s"%data)
+       #print("received data: %s"%data)
        self.assertEqual(str(data),"{}")
 
        socket.close()
        context.term()
+
 
     def test_no_filename(self):
        #connect to the server
@@ -301,7 +317,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        msg_parts.append(data)
        socket.send_multipart(msg_parts)
 
-       print("test_no_filename(): listening to replies..")
+       #print("test_no_filename(): listening to replies..")
        message = socket.recv()
        msgStr=message.decode('utf-8')
        #print("out recv()..Received reply %s" %msgStr)
@@ -336,10 +352,10 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        msg_parts.append(data)
        socket.send_multipart(msg_parts)
 
-       print("test_invalid_json(): listening to replies..")
+       #print("test_invalid_json(): listening to replies..")
        message = socket.recv()
        msgStr=message.decode('utf-8')
-       print("out recv()..Received reply %s" %msgStr)
+       #print("out recv()..Received reply %s" %msgStr)
        self.assertEqual(msgStr,"{}")
 
        #close connections
