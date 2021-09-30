@@ -33,7 +33,7 @@ from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
 from spine_engine.server.util.ServerMessage import ServerMessage
 from spine_engine.server.util.ServerMessageParser import ServerMessageParser
 from spine_engine.server.util.EventDataConverter import EventDataConverter
-from .test_RemoteConnHandlerZMQServer import RemoteConnHandlerZMQServer
+from test_RemoteConnHandlerZMQServer import RemoteConnHandlerZMQServer
 
 
 class TestObserver(ZMQServerObserver):
@@ -113,7 +113,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        #fileArray=bytearray([1, 2, 3, 4, 5])
 
        dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
+            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
@@ -171,6 +171,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        #print(dataEvents)
        #close connections
        socket.close()
+       context.term()
 
 
 
@@ -237,10 +238,12 @@ class TestRemoteConnectionHandler(unittest.TestCase):
            #print("parsed events+data, items:%d\n"%len(dataEvents))
            #self.assertEqual(len(dataEvents),34)
            self.assertEqual(dataEvents[len(dataEvents)-1][1],"COMPLETED")
-           #print(dataEvents)
+           #sleep(1)
+           print(dataEvents)
            i+=1
        #close connections
        socket.close()
+       context.term()
 
 
     def test_init_no_binarydata(self):
@@ -264,7 +267,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        socket.send_multipart(msg_parts)
 
        #time.sleep(1)
-       print("listening to replies..")
+       print("test_init_no_binarydata(): listening to replies..")
        message = socket.recv()
        msgStr=message.decode('utf-8')
        #print("out recv()..Received reply %s" %msgStr)
@@ -273,6 +276,8 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        print("received data: %s"%data)
        self.assertEqual(str(data),"{}")
 
+       socket.close()
+       context.term()
 
     def test_no_filename(self):
        #connect to the server
@@ -296,7 +301,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        msg_parts.append(data)
        socket.send_multipart(msg_parts)
 
-       print("listening to replies..")
+       print("test_no_filename(): listening to replies..")
        message = socket.recv()
        msgStr=message.decode('utf-8')
        #print("out recv()..Received reply %s" %msgStr)
@@ -308,6 +313,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
 
        #close connections
        socket.close()
+       context.term()
 
 
     def test_invalid_json(self):
@@ -330,7 +336,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        msg_parts.append(data)
        socket.send_multipart(msg_parts)
 
-       print("listening to replies..")
+       print("test_invalid_json(): listening to replies..")
        message = socket.recv()
        msgStr=message.decode('utf-8')
        print("out recv()..Received reply %s" %msgStr)
@@ -338,6 +344,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
 
        #close connections
        socket.close()
+       context.term()
 
 
 if __name__ == '__main__':
