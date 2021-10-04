@@ -33,7 +33,7 @@ from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
 from spine_engine.server.util.ServerMessage import ServerMessage
 from spine_engine.server.util.ServerMessageParser import ServerMessageParser
 from spine_engine.server.util.EventDataConverter import EventDataConverter
-from test_RemoteConnHandlerZMQServer import RemoteConnHandlerZMQServer
+from .test_RemoteConnHandlerZMQServer import RemoteConnHandlerZMQServer
 
 
 class TestObserver(ZMQServerObserver):

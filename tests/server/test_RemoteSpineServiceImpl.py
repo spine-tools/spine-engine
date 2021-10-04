@@ -42,7 +42,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         #copyfile("./tests/server/test_zipfile.zip","./tests/server/helloworld/test_zipfile.zip")
         copyfile("./tests/server/test_zipfile.zip","./helloworld/test_zipfile.zip")
         #print("copied test_zipfile.zip to ./helloworld")
-        with ZipFile('./tests/server/helloworld/test_zipfile.zip', 'r') as zipObj:
+        with ZipFile('./helloworld/test_zipfile.zip', 'r') as zipObj:
             zipObj.extractall('./helloworld')
             #zipObj.extractall('./tests/server/helloworld')
             #print("extracted ZIP-file to ./helloworld")
