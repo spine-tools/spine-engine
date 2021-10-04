@@ -34,22 +34,22 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def setUp(self):
         #if os.path.exists('./tests/server/helloworld')==False:
-        if os.path.exists('./helloworld')==False:
+        if os.path.exists('./hellow')==False:
             #print("helloworld2 path doesn't exist.")
             #os.makedirs('./tests/server/helloworld')
-            os.makedirs('./helloworld')
+            os.makedirs('./hellow')
             #print("created ./helloworld folder")
         #copyfile("./tests/server/test_zipfile.zip","./tests/server/helloworld/test_zipfile.zip")
-        copyfile("./tests/server/test_zipfile.zip","./helloworld/test_zipfile.zip")
+        copyfile("./tests/server/test_zipfile.zip","./hellow/test_zipfile.zip")
         #print("copied test_zipfile.zip to ./helloworld")
-        with ZipFile('./helloworld/test_zipfile.zip', 'r') as zipObj:
-            zipObj.extractall('./helloworld')
+        with ZipFile('./hellow/test_zipfile.zip', 'r') as zipObj:
+            zipObj.extractall('./hellow')
             #zipObj.extractall('./tests/server/helloworld')
             #print("extracted ZIP-file to ./helloworld")
 
     @classmethod
     def tearDownClass(cls):
-        rmtree('./helloworld')
+        rmtree('./hellow')
         #print("deleted ./helloworld")
         #rmtree('./tests/server/helloworld')
         #print("deleted ./tests/server/helloworld")
@@ -148,24 +148,24 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             items_module_name= 'spine_items')
 
         dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
+            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             #'references': []}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './helloworld',
+            project_dir = './hellow',
             #project_dir = '/home/ubuntu/sw/spine/helloworld',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
             'includes_main_path': '../../..',
             'definition_file_path':
-            './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': './helloworld',
+            './hellow/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
+            settings = {'appSettings/previousProject': './hellow',
             'appSettings/recentProjectStorages': './',
-            'appSettings/recentProjects': 'helloworld<>./helloworld',
+            'appSettings/recentProjects': 'helloworld<>./hellow',
             'appSettings/showExitPrompt': '2',
             'appSettings/toolbarIconOrdering':
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
@@ -229,16 +229,16 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './helloworld',
+            project_dir = './hellow',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
             'includes_main_path': '../../..',
             'definition_file_path':
-            './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': './helloworld',
+            './hellow/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
+            settings = {'appSettings/previousProject': './hellow',
             'appSettings/recentProjectStorages': './',
-            'appSettings/recentProjects': 'helloworld<>./helloworld',
+            'appSettings/recentProjects': 'helloworld<>./hellow',
             'appSettings/showExitPrompt': '2',
             'appSettings/toolbarIconOrdering':
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
@@ -327,7 +327,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            project_dir = './helloworlds',
+            project_dir = './hellow',
             execution_permits='',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
