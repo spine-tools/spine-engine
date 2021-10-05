@@ -90,7 +90,7 @@ class RemoteConnectionHandler(threading.Thread):
                 self.zmqConn.sendReply(retBytes)
                 return 
 
-            if(len(parsedMsg.getFileNames())==1):
+            if(len(parsedMsg.getFileNames())==1 and len(msgParts)==2): #check for presence of 2 message parts
 
                 #save the file
                 try:
@@ -104,13 +104,18 @@ class RemoteConnectionHandler(threading.Thread):
                     f.write(msgParts[1])
                     f.close()
                     #print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
-                except:
-                    #print("couldn't save the file, returning empty response..\n")
+                except exp as e:
+                    print("RemoteConnectionHandler._execute(): couldn't save the extracted file, returning empty response, reason: %s\n"%e)
                     self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
-                #extract the saved file
-                FileExtractor.extract(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0],dataAsDict['project_dir']+"/")
-                #print("extracted file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
-
+                    return
+                try:
+                    #extract the saved file
+                    FileExtractor.extract(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0],dataAsDict['project_dir']+"/")
+                    #print("extracted file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
+                except:
+                    print("RemoteConnectionHandler._execute(): couldn't extract the file, returning empty response..\n")
+                    self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
+                    return
                 #execute DAG in the Spine engine
                 spineEngineImpl=RemoteSpineServiceImpl()
                 #print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))

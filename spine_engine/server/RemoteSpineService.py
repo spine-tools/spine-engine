@@ -36,14 +36,14 @@ class RemoteSpineService(ZMQServerObserver):
         print("RemoteSpineService() initialised with protocol %s, port %d, Zero-MQ security model: %s, and sec.folder: %s"%(protocol,port,zmqSecModelState,secFolder))
 
     def receiveConnection(self,conn:ZMQConnection)-> None:
-        print("RemoteSpineService.receiveConnection()")
+        #print("RemoteSpineService.receiveConnection()")
         #parts=conn.getMessageParts()
         #print("TestObserver.receiveConnection(): parts received:")
         #print(parts)
         #conn.sendReply(conn.getMessageParts()[0])
         self.conn=conn
         self.connHandler=RemoteConnectionHandler(self.conn)
-        print("RemoteSpineService.receiveConnection() RemoteConnectionHandler started.")
+        #print("RemoteSpineService.receiveConnection() RemoteConnectionHandler started.")
 
     #def getConnection(self):
     #    return self.conn

@@ -18,6 +18,7 @@ Contains FileExtractor class for extraction of ZIP files in Spine Engine.
 from zipfile import ZipFile
 import shutil
 import os
+from os.path import exists
 
 
 class FileExtractor:
@@ -40,6 +41,10 @@ class FileExtractor:
             raise ValueError('invalid input to FileExtractor.extract()')
         if len(zipFile)==0 or len(outputFolder)==0:
            raise ValueError('invalid input to FileExtractor.extract()')
+        zipfile_exists = exists(zipFile)
+        fileSize=os.path.getsize(zipFile)
+        if zipfile_exists==False or fileSize<100:
+            raise ValueError('invalid ZIP-file to FileExtractor.extract()')
         with ZipFile(zipFile, 'r') as zipObj:
             zipObj.extractall(outputFolder)
             zipObj.close()
