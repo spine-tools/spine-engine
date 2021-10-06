@@ -18,22 +18,24 @@ https://github.com/zeromq/pyzmq/blob/main/examples/security/generate_certificate
 :date:   15.09.2021
 """
 
-import os 
+import os
+import sys
 import shutil
 import zmq.auth
 
-class certificate_creator:
+
+class CertificateCreator:
 
     @staticmethod
     def generate_certificates(base_dir):
-        """
-        Generates client,server keys for enabling security.
+        """Generates client and server keys for enabling security.
+
         Args:
             base_dir: folder where the files are created.
         """
-        keys_dir = os.path.join(base_dir, 'certificates')
-        public_keys_dir = os.path.join(base_dir, 'public_keys')
-        secret_keys_dir = os.path.join(base_dir, 'private_keys')
+        keys_dir = os.path.join(base_dir, "certificates")
+        public_keys_dir = os.path.join(base_dir, "public_keys")
+        secret_keys_dir = os.path.join(base_dir, "private_keys")
 
         # Create directories for certificates, remove old content if necessary
         for d in [keys_dir, public_keys_dir, secret_keys_dir]:
@@ -48,20 +50,40 @@ class certificate_creator:
         client_public_file, client_secret_file = zmq.auth.create_certificates(
             keys_dir, "client"
         )
-
         # move public keys to appropriate directory
         for key_file in os.listdir(keys_dir):
             if key_file.endswith(".key"):
                 shutil.move(
-                    os.path.join(keys_dir, key_file), os.path.join(public_keys_dir, '.')
+                    os.path.join(keys_dir, key_file), os.path.join(public_keys_dir, ".")
                 )
-
         # move secret keys to appropriate directory
         for key_file in os.listdir(keys_dir):
             if key_file.endswith(".key_secret"):
                 shutil.move(
-                    os.path.join(keys_dir, key_file), os.path.join(secret_keys_dir, '.')
+                    os.path.join(keys_dir, key_file), os.path.join(secret_keys_dir, ".")
                 )
 
 
-#certificate_creator.generate_certificates("")
+def main(args):
+
+    if len(args) < 2:
+        base_dir = os.path.join(os.getcwd())
+
+        cert_dir = os.path.join(base_dir, "certificates")
+        if os.path.exists(cert_dir):
+            print(f"Directory {cert_dir} already exists. Please remove it manually to recreate certs.")
+            return 0
+    else:
+        print("Too many arguments")
+        return 0
+    try:
+        CertificateCreator.generate_certificates(base_dir)
+    except Exception as e:
+        print(f"Creating certificates failed. Error:{e}")
+        return 1
+    print(f"Certificates successfully created to: {base_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    main(sys.argv)
