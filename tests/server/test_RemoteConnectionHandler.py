@@ -228,6 +228,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        while i < 10:
            msg_parts=[]
            dict_data2['project_dir']='./helloworld'+str(i)
+           dict_data2['specifications']['Tool'][0]['definition_file_path']='./helloworld'+str(i)+'/.spinetoolbox/specifications/Tool/helloworld2.json'
            msgDataJson=json.dumps(dict_data2)
            msgDataJson=json.dumps(msgDataJson)
            #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
@@ -362,6 +363,20 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        #close connections
        socket.close()
        context.term()
+
+
+    def test_local_folder_function(self):
+       testStr='./home/ubuntu/hellofolder'
+       retStr=RemoteConnectionHandler.getFolderForProject(testStr)
+       #print("test_local_folder_function(): ret1 str: %s"%retStr)
+       testStr='./hellofolder'
+       retStr=RemoteConnectionHandler.getFolderForProject(testStr)
+       #print("test_local_folder_function(): ret2 str: %s"%retStr)
+       retStr=RemoteConnectionHandler.getFolderForProject('')
+       self.assertEqual(retStr,"")
+       retStr=RemoteConnectionHandler.getFolderForProject(None)
+       self.assertEqual(retStr,"")
+
 
 
 if __name__ == '__main__':

@@ -22,6 +22,10 @@ import sys
 import json
 import os
 import ast
+import random 
+import string
+from pathlib import Path
+
 #sys.path.append('./util')
 from spine_engine.server.util.ServerMessageParser import ServerMessageParser
 from spine_engine.server.util.ServerMessage import ServerMessage
@@ -35,6 +39,8 @@ class RemoteConnectionHandler(threading.Thread):
     Handles one remote connection at a time from Spine Toolbox, executes a DAG, and returns 
     response to the client.
     """
+
+    internalProjectFolder="./received_projects/" #location, where all projects will be extracted and executed
 
 
     def __init__(
@@ -94,33 +100,37 @@ class RemoteConnectionHandler(threading.Thread):
 
                 #save the file
                 try:
+                    #get a new local folder name based on project_dir
+                    localFolder=RemoteConnectionHandler.getFolderForProject(dataAsDict['project_dir'])
+                    #print("RemoteConnectionHandler._execute(): using a new folder: %s"%localFolder)
+
                     #create folder, if it doesn't exist yet
-                    if os.path.exists(dataAsDict['project_dir']+"/")==False:
-                        os.mkdir(dataAsDict['project_dir']+"/")
-                        #print("RemoteConnectionHandler._execute() Created a new folder %s"%(dataAsDict['project_dir']+"/"))
+                    if os.path.exists(localFolder+"/")==False:
+                        os.makedirs(localFolder+"/")
+                        #print("RemoteConnectionHandler._execute() Created a new folder %s"%(localFolder+"/"))
 
                     #print("file name: %s"%parsedMsg.getFileNames()[0])
-                    f=open(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0], "wb")
+                    f=open(localFolder+"/"+parsedMsg.getFileNames()[0], "wb")
                     f.write(msgParts[1])
                     f.close()
-                    #print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
+                    #print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],localFolder))
                 except exp as e:
-                    print("RemoteConnectionHandler._execute(): couldn't save the extracted file, returning empty response, reason: %s\n"%e)
+                    #print("RemoteConnectionHandler._execute(): couldn't save the extracted file, returning empty response, reason: %s\n"%e)
                     self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
                     return
                 try:
                     #extract the saved file
-                    FileExtractor.extract(dataAsDict['project_dir']+"/"+parsedMsg.getFileNames()[0],dataAsDict['project_dir']+"/")
+                    FileExtractor.extract(localFolder+"/"+parsedMsg.getFileNames()[0],localFolder+"/")
                     #print("extracted file: %s to folder: %s"%(parsedMsg.getFileNames()[0],dataAsDict['project_dir']))
                 except:
-                    print("RemoteConnectionHandler._execute(): couldn't extract the file, returning empty response..\n")
+                    #print("RemoteConnectionHandler._execute(): couldn't extract the file, returning empty response..\n")
                     self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
                     return
                 #execute DAG in the Spine engine
                 spineEngineImpl=RemoteSpineServiceImpl()
                 #print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
                 #convertedData=self._convertTextDictToDicts(dataAsDict)
-                convertedData=dataAsDict
+                convertedData=self._convertInput(dataAsDict,localFolder)
                 #print("RemoteConnectionHandler._execute() passing data to spine engine impl: %s"%convertedData)
                 eventData=spineEngineImpl.execute(convertedData)
                 #print("RemoteConnectionHandler._execute(): received events/data: ")
@@ -144,9 +154,15 @@ class RemoteConnectionHandler(threading.Thread):
 
                 #delete extracted folder
                 try:
-                    time.sleep(6)
-                    FileExtractor.deleteFolder(dataAsDict['project_dir']+"/")
-                    #print("RemoteConnectionHandler._execute(): Deleted folder %s"%dataAsDict['project_dir']+"/")
+                    time.sleep(10)
+                    FileExtractor.deleteFolder(localFolder+"/")
+                    #print("RemoteConnectionHandler._execute(): Deleted folder %s"%localFolder+"/")
+                    localFolderParent=Path(localFolder+"/").parent
+                    #print("RemoteConnectionHandler._execute(): local folder parent path: %s"%localFolderParent)
+                    #print(str(localFolderParent))
+                    #delete also the parent path
+                    FileExtractor.deleteFolder("./"+str(localFolderParent)+"/")
+                    #print("RemoteConnectionHandler._execute(): Deleted parent folder ./%s"%localFolderParent)
                 except:                 
                     pass
                     #print("RemoteConnectionHandler._execute(): folder %s wax probably already deleted, returning.."%dataAsDict)
@@ -159,9 +175,67 @@ class RemoteConnectionHandler(threading.Thread):
             else:
                 #print("RemoteConnectionHandler._execute(): no file name included, returning empty response..\n")
                 self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
-    
 
- 
+
+    @staticmethod
+    def getFolderForProject(projectDir):
+        """
+        Returns internal folder, where the project's ZIP-file will be extracted to.
+        Args:    
+            projectDir: project directory received from the client (remote folder)
+        Returns:
+            internal folder, empty string is returned for invalid input
+        """
+        if projectDir==None:
+            return ""
+        if len(projectDir)==0:
+            return ""
+
+        retStr=""
+        projectFolderName=""
+        #get rightmost folder of the project directory (strip the remote folder path)
+        slashIndex=projectDir.rfind('/')
+        if slashIndex!=-1:
+            projectFolderName=projectDir[slashIndex:]
+        else:
+            projectFolderName=projectDir
+        #print("RemoteConnectionHandler._getFolderForProject() Project folder name: %s"%projectFolderName)
+        #create a random string
+        randomStr=''.join(random.choices(string.ascii_lowercase, k = 10)) 
+        #print("RemoteConnectionHandler._getFolderForProject() random str: %s"%randomStr)
+        
+        retStr=RemoteConnectionHandler.internalProjectFolder+randomStr+projectFolderName
+
+        return retStr
+
+
+    def _convertInput(self,inputData,localFolder):
+        """
+        Converts received input data for execution in a local folder.
+        Args:
+            inputData: input data as a dict.
+        """
+        #adjust project_dir
+        remoteFolder=inputData['project_dir']
+        inputData['project_dir']=localFolder
+        specsDict=inputData['specifications']
+        #for item in specsDict:
+        #    print(type(item))
+        #    print(item)
+        #print(type(inputData['specifications']['Tool'][0]))
+        originalDefinitionFilePath=inputData['specifications']['Tool'][0]['definition_file_path']
+        #print("RemoteConnectionHandler._convertInput() original definition file path: %s"%originalDefinitionFilePath)
+        #cut original path
+        cuttedRemoteFolder=originalDefinitionFilePath.replace(remoteFolder,'')
+        #print("RemoteConnectionHandler._convertInput() cutted remote folder: %s"%cuttedRemoteFolder)
+        modifiedDefinitionFilePath=localFolder+cuttedRemoteFolder
+        #print("RemoteConnectionHandler._convertInput() modified definition file path: %s"%modifiedDefinitionFilePath)
+        inputData['specifications']['Tool'][0]['definition_file_path']=modifiedDefinitionFilePath
+        #print(inputData['specifications']['Tool'][0]['definition_file_path'])
+
+        return inputData
+
+
     def _sendResponse(self,msgCommand,msgId,data):
         """
         """
