@@ -21,6 +21,8 @@ import sys
 #sys.path.append('./connectivity')
 #sys.path.append('./util')
 import zmq
+import threading
+import time
 
 from RemoteConnectionHandler import RemoteConnectionHandler
 from spine_engine.server.connectivity.ZMQServer import ZMQServer
@@ -29,11 +31,15 @@ from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
 from spine_engine.server.connectivity.ZMQServer import ZMQSecurityModelState
 
 
-class RemoteSpineService(ZMQServerObserver):
+class RemoteSpineService(ZMQServerObserver,threading.Thread):
 
     def __init__(self,protocol,port,zmqSecModelState,secFolder):
         self.zmqServer=ZMQServer(protocol,port,self,zmqSecModelState,secFolder)
+        #time.sleep(1)
         print("RemoteSpineService() initialised with protocol %s, port %d, Zero-MQ security model: %s, and sec.folder: %s"%(protocol,port,zmqSecModelState,secFolder))
+        threading.Thread.__init__(self)
+        self.start()
+
 
     def receiveConnection(self,conn:ZMQConnection)-> None:
         #print("RemoteSpineService.receiveConnection()")
@@ -45,12 +51,26 @@ class RemoteSpineService(ZMQServerObserver):
         self.connHandler=RemoteConnectionHandler(self.conn)
         #print("RemoteSpineService.receiveConnection() RemoteConnectionHandler started.")
 
-    #def getConnection(self):
-    #    return self.conn
+
+    def run(self):
+        #print("RemoteSpineService() press c to close the server")
+        self.serviceRunning=True
+               
+        while self.serviceRunning==True:
+            print("RemoteSpineService() press c to close the server")
+            userInput=input()
+            #print("RemoteSpineService() user input: %s"%userInput)
+            if userInput=="c":
+                self.zmqServer.close()
+                print("RemoteSpineService() closed.")
+                self.serviceRunning=False
+            else:
+                time.sleep(1)
+        print("RemoteSpineService().run() .. out") 
 
 
 def main(argv):
-    print("cmd line arguments: %s"%argv)
+    #print("cmd line arguments: %s"%argv)
    
     if len(argv)<4:
         print("protocol, port, security model(None,StoneHouse) and security folder(required with security) are required as parameters")

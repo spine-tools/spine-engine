@@ -65,6 +65,7 @@ class ZMQServer(threading.Thread):
             if secModel==ZMQSecurityModelState.NONE:
                 context = zmq.Context() 
                 self._socket = context.socket(zmq.REP)
+                #self._socket.setsockopt(zmq.LINGER, 1) #shutdown lingering
                 ret=self._socket.bind(protocol+"://*:"+str(port))     
                 self._zmqContext=context
                 self._secModelState=ZMQSecurityModelState.NONE
@@ -133,6 +134,7 @@ class ZMQServer(threading.Thread):
         self.port=port
         #print("ZMQServer started with protocol %s to port %d"%(protocol,port))
         threading.Thread.__init__(self)
+        #self.setDaemon(True)
         self.start()
  
    
@@ -149,8 +151,11 @@ class ZMQServer(threading.Thread):
                 #print("ZMQServer.close(): stopped security authenticator.")
 
             ret=self._socket.close()
+            #print("ZMQServer.close(): socket closed.")
+            #time.sleep(1)
             self._zmqContext.term()
-            #print("ZMQServer closed at port %d"%self.port)
+            #self._zmqContext.destroy()
+            #print("ZMQServer.close(): ZMQ context closed at port %d"%self.port)
             self._state=ZMQServerState.STOPPED
             return 0
 
@@ -181,6 +186,10 @@ class ZMQServer(threading.Thread):
             except Exception as e: 
                 #print("ZMQServer._receive_data(): reading failed, exception: %s"%e)            
                 time.sleep(0.01)
+                if str(e)=="Context was terminated":
+                    print("ZMQServer._receive_data(): ZMQ context was terminated,out..")
+                    self._state=ZMQServerState.STOPPED
+                    #return
                 #self._state==ZMQServerState.STOPPED  
         #print("ZMQServer._receive_data(): out..")
 
