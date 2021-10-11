@@ -104,6 +104,12 @@ class RemoteConnectionHandler(threading.Thread):
                     localFolder=RemoteConnectionHandler.getFolderForProject(dataAsDict['project_dir'])
                     #print("RemoteConnectionHandler._execute(): using a new folder: %s"%localFolder)
 
+                    #check for validity of the new folder
+                    if len(localFolder)==0:
+                        #print("RemoteConnectionHandler._execute() Couldn't parse a valid local folder based on project_dir")
+                        self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
+                        return
+
                     #create folder, if it doesn't exist yet
                     if os.path.exists(localFolder+"/")==False:
                         os.makedirs(localFolder+"/")
@@ -218,11 +224,13 @@ class RemoteConnectionHandler(threading.Thread):
         #adjust project_dir
         remoteFolder=inputData['project_dir']
         inputData['project_dir']=localFolder
-        specsDict=inputData['specifications']
+        #specsDict=inputData['specifications']
         #for item in specsDict:
         #    print(type(item))
         #    print(item)
         #print(type(inputData['specifications']['Tool'][0]))
+
+        #adjust definition_file_path in specs to point to the local folder
         originalDefinitionFilePath=inputData['specifications']['Tool'][0]['definition_file_path']
         #print("RemoteConnectionHandler._convertInput() original definition file path: %s"%originalDefinitionFilePath)
         #cut original path

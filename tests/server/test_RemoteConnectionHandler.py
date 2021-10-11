@@ -177,6 +177,69 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        context.term()
 
 
+    def test_invalid_project_folder(self):
+       #connect to the server
+       context = zmq.Context()
+       socket = context.socket(zmq.REQ)
+       socket.connect("tcp://localhost:5556")
+       msg_parts=[]
+
+       dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
+            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
+            'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
+             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+            connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
+            node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
+            execution_permits={'Data Connection 1': True, 'helloworld': True},
+            project_dir = '',
+            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
+            'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
+            'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
+            'includes_main_path': '../../..',
+            'definition_file_path':
+
+           './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
+            settings = {'appSettings/previousProject': './helloworld',
+            'appSettings/recentProjectStorages': './',
+            'appSettings/recentProjects': 'helloworld<>./helloworld',
+            'appSettings/showExitPrompt': '2',
+            'appSettings/toolbarIconOrdering':
+            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
+            'appSettings/workDir': './Spine-Toolbox/work'},
+            jumps=[],
+            items_module_name= 'spine_items')
+
+       msgDataJson=json.dumps(dict_data2)
+       msgDataJson=json.dumps(msgDataJson)
+       #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
+       f2=open('./tests/server/test_zipfile.zip','rb')
+       data = f2.read()
+       f2.close()
+
+       listFiles=["helloworld.zip"]
+       msg=ServerMessage("execute","1",msgDataJson,listFiles)
+       part1Bytes = bytes(msg.toJSON(), 'utf-8')
+       msg_parts.append(part1Bytes)
+       msg_parts.append(data)
+
+       socket.send_multipart(msg_parts)
+
+       time.sleep(1)
+       #print("test_init_complete(): listening to replies..")
+       message = socket.recv()
+       msgStr=message.decode('utf-8')
+       #print("test_invalid_project_folder():..Received reply (from network) %s" %msgStr)
+       parsedMsg=ServerMessageParser.parse(msgStr)
+       #print(parsedMsg)
+       #get and decode events+data
+       data=parsedMsg.getData()
+       #print("test_invalid_project_folder():received data %s"%data)
+       self.assertEqual(str(data),"{}")
+       #close connections
+       socket.close()
+       context.term()
+
+
     def test_loop_calls(self):
        #connect to the server
        context = zmq.Context()
