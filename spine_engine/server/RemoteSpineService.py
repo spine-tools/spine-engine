@@ -34,6 +34,13 @@ from spine_engine.server.connectivity.ZMQServer import ZMQSecurityModelState
 class RemoteSpineService(ZMQServerObserver,threading.Thread):
 
     def __init__(self,protocol,port,zmqSecModelState,secFolder):
+        """
+        Args: 
+            protocol: Zero-MQ protocol (string)
+            port: Zero-MQ port to listen at for incoming connections
+            zmqSecModelState: Zero-MQ security model (None, StoneHouse)
+            secFolder: folder, where security files are stored at (if security mode StoneHouse is used) 
+        """
         self.zmqServer=ZMQServer(protocol,port,self,zmqSecModelState,secFolder)
         #time.sleep(1)
         print("RemoteSpineService() initialised with protocol %s, port %d, Zero-MQ security model: %s, and sec.folder: %s"%(protocol,port,zmqSecModelState,secFolder))
@@ -52,26 +59,30 @@ class RemoteSpineService(ZMQServerObserver,threading.Thread):
         #print("RemoteSpineService.receiveConnection() RemoteConnectionHandler started.")
 
 
+    def close(self):
+        """
+        Closes the service.
+        """
+        self.serviceRunning=False 
+        #print("RemoteSpineService() closed")
+
+
     def run(self):
         #print("RemoteSpineService() press c to close the server")
         self.serviceRunning=True
                
         while self.serviceRunning==True:
-            print("RemoteSpineService() press c to close the server")
-            userInput=input()
-            #print("RemoteSpineService() user input: %s"%userInput)
-            if userInput=="c":
-                self.zmqServer.close()
-                print("RemoteSpineService() closed.")
-                self.serviceRunning=False
-            else:
-                time.sleep(1)
-        print("RemoteSpineService().run() .. out") 
+            time.sleep(0.1)
+
+        self.zmqServer.close()
+        #print("RemoteSpineService().run() .. out") 
 
 
 def main(argv):
     #print("cmd line arguments: %s"%argv)
-   
+    userInput=""
+    remoteSpineService=None
+
     if len(argv)<4:
         print("protocol, port, security model(None,StoneHouse) and security folder(required with security) are required as parameters")
         return
@@ -87,10 +98,18 @@ def main(argv):
         portInt=int(argv[2])
 
         if len(argv)==4 and argv[3]=='None':
-            RemoteSpineService(argv[1],portInt,ZMQSecurityModelState.NONE,"")
+            remoteSpineService=RemoteSpineService(argv[1],portInt,ZMQSecurityModelState.NONE,"")
 
         elif len(argv)==5 and argv[3]=='StoneHouse':
-            RemoteSpineService(argv[1],portInt,ZMQSecurityModelState.STONEHOUSE,argv[4])
+            remoteSpineService=RemoteSpineService(argv[1],portInt,ZMQSecurityModelState.STONEHOUSE,argv[4])
+
+        while userInput!="c":
+            print("press c to close the server")
+            userInput=input()
+            if userInput=="c":
+                remoteSpineService.close()
+            else:
+                time.sleep(1)
 
     except Exception as e:
         print("RemoteSpineService() error: %s"%e)

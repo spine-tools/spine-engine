@@ -174,13 +174,14 @@ class RemoteConnectionHandler(threading.Thread):
                     #print("RemoteConnectionHandler._execute(): folder %s wax probably already deleted, returning.."%dataAsDict)
        
                 #debugging
-                execStopTimeMs=round(time.time()*1000.0)
+                #execStopTimeMs=round(time.time()*1000.0)
                 #print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
 
             
             else:
                 #print("RemoteConnectionHandler._execute(): no file name included, returning empty response..\n")
                 self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
+             
 
 
     @staticmethod
