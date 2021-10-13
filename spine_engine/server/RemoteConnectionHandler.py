@@ -120,7 +120,7 @@ class RemoteConnectionHandler(threading.Thread):
                     f.write(msgParts[1])
                     f.close()
                     #print("saved received file: %s to folder: %s"%(parsedMsg.getFileNames()[0],localFolder))
-                except exp as e:
+                except Exception as e:
                     #print("RemoteConnectionHandler._execute(): couldn't save the extracted file, returning empty response, reason: %s\n"%e)
                     self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
                     return
