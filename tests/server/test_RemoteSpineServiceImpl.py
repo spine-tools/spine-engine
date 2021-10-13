@@ -250,7 +250,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
         #loop periodic calls to the service
         i=0
-        while i<10:
+        while i<3:
             #print("test_basic_service_call_succeeds_loop(): iteration: %d"%i)
             i=i+1
             eventData=impl.execute(dict_data2)

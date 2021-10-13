@@ -160,7 +160,7 @@ class RemoteConnectionHandler(threading.Thread):
 
                 #delete extracted folder
                 try:
-                    time.sleep(10)
+                    time.sleep(4)
                     FileExtractor.deleteFolder(localFolder+"/")
                     #print("RemoteConnectionHandler._execute(): Deleted folder %s"%localFolder+"/")
                     localFolderParent=Path(localFolder+"/").parent

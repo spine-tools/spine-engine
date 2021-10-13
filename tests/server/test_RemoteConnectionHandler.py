@@ -288,7 +288,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
        #msg_parts.append(part1Bytes)
        #msg_parts.append(data)
        i=0
-       while i < 10:
+       while i < 3:
            msg_parts=[]
            dict_data2['project_dir']='./helloworld'+str(i)
            dict_data2['specifications']['Tool'][0]['definition_file_path']='./helloworld'+str(i)+'/.spinetoolbox/specifications/Tool/helloworld2.json'

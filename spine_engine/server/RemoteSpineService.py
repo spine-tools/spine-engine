@@ -24,11 +24,16 @@ import zmq
 import threading
 import time
 
-from RemoteConnectionHandler import RemoteConnectionHandler
+#from .RemoteConnectionHandler import RemoteConnectionHandler
+from spine_engine.server.RemoteConnectionHandler import RemoteConnectionHandler
 from spine_engine.server.connectivity.ZMQServer import ZMQServer
 from spine_engine.server.connectivity.ZMQServerObserver import ZMQServerObserver
 from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
 from spine_engine.server.connectivity.ZMQServer import ZMQSecurityModelState
+from spine_engine.server.util.ServerMessageParser import ServerMessageParser
+from spine_engine.server.util.ServerMessage import ServerMessage
+#from .RemotePingHandler import RemotePingHandler
+from spine_engine.server.RemotePingHandler import RemotePingHandler
 
 
 class RemoteSpineService(ZMQServerObserver,threading.Thread):
@@ -43,21 +48,37 @@ class RemoteSpineService(ZMQServerObserver,threading.Thread):
         """
         self.zmqServer=ZMQServer(protocol,port,self,zmqSecModelState,secFolder)
         #time.sleep(1)
-        print("RemoteSpineService() initialised with protocol %s, port %d, Zero-MQ security model: %s, and sec.folder: %s"%(protocol,port,zmqSecModelState,secFolder))
+        #print("RemoteSpineService() initialised with protocol %s, port %d, Zero-MQ security model: %s, and sec.folder: %s"%(protocol,port,zmqSecModelState,secFolder))
         threading.Thread.__init__(self)
         self.start()
 
 
     def receiveConnection(self,conn:ZMQConnection)-> None:
         #print("RemoteSpineService.receiveConnection()")
-        #parts=conn.getMessageParts()
-        #print("TestObserver.receiveConnection(): parts received:")
-        #print(parts)
-        #conn.sendReply(conn.getMessageParts()[0])
-        self.conn=conn
-        self.connHandler=RemoteConnectionHandler(self.conn)
-        #print("RemoteSpineService.receiveConnection() RemoteConnectionHandler started.")
 
+        try:
+            startTimeMs=round(time.time()*1000.0) #debugging
+            msgParts=conn.getMessageParts()
+            #print("RemoteSpineService.receiveConnection() msg parts:")
+            #print(msgParts)
+            msgPart1=msgParts[0].decode("utf-8")
+            #print("RemoteSpineService.receiveConnection() msg part 1: %s"%msgPart1)
+            parsedMsg=ServerMessageParser.parse(msgPart1)
+            #print("RemoteSpineService.receiveConnection() parsed msg with command: %s"%parsedMsg.getCommand())
+        
+            #handle pings
+            if parsedMsg.getCommand()=="ping":
+                RemotePingHandler.handlePing(parsedMsg,conn)
+
+            #handle project execution messages
+            elif parsedMsg.getCommand()=="execute":
+                self.conn=conn
+                self.connHandler=RemoteConnectionHandler(self.conn)
+                #print("RemoteSpineService.receiveConnection() RemoteConnectionHandler started.")
+            stopTimeMs=round(time.time()*1000.0)
+            #print("RemoteSpineService.receiveConnection() msg processing time %d ms"%(stopTimeMs-startTimeMs))
+        except Exception as e:
+            print("RemoteSpineService.receiveConnection(): exception: %s"%e)
 
     def close(self):
         """
@@ -72,7 +93,7 @@ class RemoteSpineService(ZMQServerObserver,threading.Thread):
         self.serviceRunning=True
                
         while self.serviceRunning==True:
-            time.sleep(0.1)
+            time.sleep(0.01)
 
         self.zmqServer.close()
         #print("RemoteSpineService().run() .. out") 
