@@ -38,7 +38,7 @@ class CertificateCreator:
         secret_keys_dir = os.path.join(base_dir, "private_keys")
 
         # Create directories for certificates, remove old content if necessary
-        for d in [keys_dir, public_keys_dir, secret_keys_dir]:
+        for d in [base_dir, keys_dir, public_keys_dir, secret_keys_dir]:
             if os.path.exists(d):
                 shutil.rmtree(d)
             os.mkdir(d)
@@ -67,11 +67,11 @@ class CertificateCreator:
 def main(args):
 
     if len(args) < 2:
-        base_dir = os.path.join(os.getcwd())
-
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        base_dir = os.path.join(script_dir, "certs")
         cert_dir = os.path.join(base_dir, "certificates")
-        if os.path.exists(cert_dir):
-            print(f"Directory {cert_dir} already exists. Please remove it manually to recreate certs.")
+        if os.path.exists(base_dir):
+            print(f"Directory {base_dir} already exists. Please remove it to recreate certificates.")
             return 0
     else:
         print("Too many arguments")
