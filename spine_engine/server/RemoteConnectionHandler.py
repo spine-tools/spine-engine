@@ -34,7 +34,8 @@ class RemoteConnectionHandler(threading.Thread):
     """Handles one remote connection at a time from Spine Toolbox,
     executes a DAG, and returns response to the client."""
 
-    internalProjectFolder = "./received_projects/"  # location, where all projects will be extracted and executed
+    # location, where all projects will be extracted and executed
+    internalProjectFolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "received_projects")
 
     def __init__(self,zmqConnection):
         """
@@ -166,7 +167,7 @@ class RemoteConnectionHandler(threading.Thread):
         # get rightmost folder of the project directory (strip the remote folder path)
         _, project_folder_name = os.path.split(project_dir)
         random_str = "".join(random.choices(string.ascii_lowercase, k=10))  # create a random string
-        return RemoteConnectionHandler.internalProjectFolder + project_folder_name + "_" + random_str
+        return os.path.join(RemoteConnectionHandler.internalProjectFolder, project_folder_name + "_" + random_str)
 
     def _convertInput(self,inputData,localFolder):
         """Converts received input data for execution in a local folder.
