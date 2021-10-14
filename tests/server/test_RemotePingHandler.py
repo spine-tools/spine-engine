@@ -66,6 +66,36 @@ class TestRemotePingHandler(unittest.TestCase):
        context.term()
 
 
+    def test_noconnection(self):
+        """
+        Tests connection failure at sending.
+        """
+        remoteSpineService=RemoteSpineService("tcp",7001,ZMQSecurityModelState.NONE,"")
+        context = zmq.Context()
+        socket = context.socket(zmq.REQ)
+        socket.setsockopt(zmq.LINGER, 1)
+        socket.connect("tcp://localhost:7002")
+        msg_parts=[]
+        pingMsg=ServerMessage("ping","2","",None)
+        pingAsJson=pingMsg.toJSON()
+        pingInBytes= bytes(pingAsJson, 'utf-8')
+        msg_parts.append(pingInBytes)
+        startTimeMs=round(time.time()*1000.0)
+        sendRet=socket.send_multipart(msg_parts,flags=zmq.NOBLOCK)
+        #print("send ret: %s"%sendRet)
+        event=socket.poll(timeout=1000)
+        if event == 0:
+            #print("test_noconnection(): timeout occurred, no reply will be listened to")
+            pass
+        else:
+            msg=socket.recv()
+            msgStr=msg.decode("utf-8")
+            print("test_noconnection(): message was received :%s"%msgStr)
+        self.assertEqual(event,0)
+        socket.close()
+        remoteSpineService.close()
+        context.term()
+
 if __name__ == '__main__':
     unittest.main()
 
