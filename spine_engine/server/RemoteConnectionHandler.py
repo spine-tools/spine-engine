@@ -164,7 +164,9 @@ class RemoteConnectionHandler(threading.Thread):
         if not project_dir:
             return ""
         # get rightmost folder of the project directory (strip the remote folder path)
-        _, project_folder_name = os.path.split(project_dir)
+        # Convert to raw string (r"") so Windows style paths do not produce Syntax error (Unicode error). 
+        # (e.g. "\U" produces an error but r\"U" does not
+        _, project_folder_name = os.path.split(r"project_dir")
         random_str = "".join(random.choices(string.ascii_lowercase, k=10))  # create a random string
         return os.path.join(RemoteConnectionHandler.internalProjectFolder, project_folder_name + "_" + random_str)
 
