@@ -86,18 +86,18 @@ class RemoteConnectionHandler(threading.Thread):
                 try:
                     # get a new local folder name based on project_dir
                     localFolder = RemoteConnectionHandler.getFolderForProject(dataAsDict['project_dir'])
-                    # print("RemoteConnectionHandler._execute(): using a new folder: %s"%localFolder)
+                    print("RemoteConnectionHandler._execute(): using a new folder: %s"%localFolder)
 
                     # check for validity of the new folder
                     if not localFolder:
                         self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(),"{}")
                         return
                     # create folder, if it doesn't exist yet
-                    if not os.path.exists(localFolder+"/"):
-                        os.makedirs(localFolder+"/")
-                        # print("RemoteConnectionHandler._execute() Created a new folder %s"%(localFolder+"/"))
+                    if not os.path.exists(localFolder):
+                        os.makedirs(localFolder)
+                        #print("RemoteConnectionHandler._execute() Created a new folder %s"%(localFolder))
                     # print("file name: %s"%parsedMsg.getFileNames()[0])
-                    f = open(localFolder+"/"+parsedMsg.getFileNames()[0], "wb")
+                    f = open(os.path.join(localFolder,parsedMsg.getFileNames()[0]), "wb")
                     f.write(msgParts[1])
                     f.close()
                 except Exception as e:
@@ -108,7 +108,7 @@ class RemoteConnectionHandler(threading.Thread):
                     # extract the saved file
                     print(f"RemoteConnectionHandler._execute(): Extracting received "
                           f"file: {parsedMsg.getFileNames()[0]} to: {localFolder}")
-                    FileExtractor.extract(localFolder+"/"+parsedMsg.getFileNames()[0], localFolder+"/")
+                    FileExtractor.extract(os.path.join(localFolder,parsedMsg.getFileNames()[0]), localFolder)
                 except Exception as e:
                     print("RemoteConnectionHandler._execute(): File extraction failed, returning empty response..")
                     self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")

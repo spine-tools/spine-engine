@@ -23,6 +23,7 @@ import sys
 #sys.path.append('./../spine_engine')
 #sys.path.append('./../../..')
 
+from pathlib import Path
 import os
 from shutil import copyfile,rmtree
 from zipfile import ZipFile
@@ -34,23 +35,23 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def setUp(self):
         #if os.path.exists('./tests/server/helloworld')==False:
-        if os.path.exists('./hellow')==False:
+        if os.path.exists(os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))==False:
             #print("helloworld2 path doesn't exist.")
             #os.makedirs('./tests/server/helloworld')
-            os.makedirs('./hellow')
-            #print("created ./helloworld folder")
+            os.makedirs(os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
+            #print("created %s folder"%os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
         #copyfile("./tests/server/test_zipfile.zip","./tests/server/helloworld/test_zipfile.zip")
-        copyfile("./tests/server/test_zipfile.zip","./hellow/test_zipfile.zip")
+        copyfile(os.path.join(str(Path(__file__).parent),"test_zipfile.zip"),os.path.join(str(Path(__file__).parent.parent.parent),"hellow","test_zipfile.zip"))
         #print("copied test_zipfile.zip to ./helloworld")
-        with ZipFile('./hellow/test_zipfile.zip', 'r') as zipObj:
-            zipObj.extractall('./hellow')
+        with ZipFile(os.path.join(str(Path(__file__).parent.parent.parent),"hellow","test_zipfile.zip"), 'r') as zipObj:
+            zipObj.extractall(os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
             #zipObj.extractall('./tests/server/helloworld')
-            #print("extracted ZIP-file to ./helloworld")
+            #print("extracted ZIP-file to %s"%os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
 
     @classmethod
     def tearDownClass(cls):
-        rmtree('./hellow')
-        #print("deleted ./helloworld")
+        rmtree(os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
+        #print("deleted %s"%os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
         #rmtree('./tests/server/helloworld')
         #print("deleted ./tests/server/helloworld")
 
