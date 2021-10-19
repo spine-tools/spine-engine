@@ -70,7 +70,7 @@ class TestRemotePingHandler(unittest.TestCase):
         """
         Tests connection failure at sending.
         """
-        remoteSpineService=RemoteSpineService("tcp",7001,ZMQSecurityModelState.NONE,"")
+        #remoteSpineService=RemoteSpineService("tcp",7001,ZMQSecurityModelState.NONE,"")
         context = zmq.Context()
         socket = context.socket(zmq.REQ)
         socket.setsockopt(zmq.LINGER, 1)
@@ -93,7 +93,7 @@ class TestRemotePingHandler(unittest.TestCase):
             print("test_noconnection(): message was received :%s"%msgStr)
         self.assertEqual(event,0)
         socket.close()
-        remoteSpineService.close()
+        #remoteSpineService.close()
         context.term()
 
 if __name__ == '__main__':

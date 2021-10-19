@@ -170,6 +170,7 @@ class ZMQServer(threading.Thread):
                 self._auth.configure_curve(domain='*', location=zmq.auth.CURVE_ALLOW_ANY)
 
                 self._socket =  self._zmqContext.socket(zmq.REP)
+                #self._socket.setsockopt(zmq.LINGER, 0)
                 server_secret_file = os.path.join(self.secret_keys_dir, "server.key_secret")
                 server_public, server_secret = zmq.auth.load_certificate(server_secret_file)
                 self._socket.curve_secretkey = server_secret

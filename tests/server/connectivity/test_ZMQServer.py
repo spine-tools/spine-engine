@@ -84,11 +84,13 @@ class TestZMQServer(unittest.TestCase):
        """
        ob=TestObserver()
        zmqServer=ZMQServer("tcp",6006,ob,ZMQSecurityModelState.STONEHOUSE,"./tests/server/connectivity/secfolder")
+       #zmqServer=ZMQServer("tcp",6006,ob,ZMQSecurityModelState.NONE,"")
 
        #connect to the server
        time.sleep(1)
        context = zmq.Context()
        socket = context.socket(zmq.REQ)
+       #socket.setsockopt(zmq.LINGER, 0)
 
        #security configs
        #prepare folders
@@ -130,8 +132,10 @@ class TestZMQServer(unittest.TestCase):
        #print("test_starting_server_connection_withsecurity_tcp() msg received: %s"%msg)
        self.assertEqual(msg,part1Bytes) #check that echoed content is as expected
        socket.close()
-       zmqServer.close()
        context.term()
+       time.sleep(1)
+       zmqServer.close()
+       #context.term()
 
 
     #def test_starting_stopping_closed_server_tcp(self):

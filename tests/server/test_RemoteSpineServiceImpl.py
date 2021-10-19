@@ -122,32 +122,6 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
     def test_basic_service_call_succeeds(self):
         """Tests execution with all data items present"""
         
-        dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
-            'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
-             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
-            #'references': []}},
-            connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
-            node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = '/helloworld',
-            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python', 
-            'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'], 
-            'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True, 
-            'includes_main_path': '../../..', 
-            'definition_file_path': 
-            '/home/ubuntu/sw/spine/helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld', 
-            #settings = {'appSettings/previousProject': '',
-            'appSettings/recentProjectStorages': '/home/ubuntu/sw/spine', 
-            'appSettings/recentProjects': 'helloworld<>/home/ubuntu/sw/spine/helloworld', 
-            'appSettings/showExitPrompt': '2', 
-            'appSettings/toolbarIconOrdering': 
-            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store', 
-            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'},
-            jumps=[],
-            items_module_name= 'spine_items')
-
         dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
@@ -198,30 +172,6 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def test_basic_service_call_succeeds_loop(self):
         """Tests execution with all data items present (in a loop)"""
-        dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []},
-            'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
-             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
-            connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
-            node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './helloworld',
-            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
-            'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
-            'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
-            'includes_main_path': '../../..',
-            'definition_file_path':
-            '/home/ubuntu/sw/spine/helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld',
-            'appSettings/recentProjectStorages': '/home/ubuntu/sw/spine',
-            'appSettings/recentProjects': 'helloworld<>/home/ubuntu/sw/spine/helloworld',
-            'appSettings/showExitPrompt': '2',
-            'appSettings/toolbarIconOrdering':
-            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'},
-            jumps=[],
-            items_module_name= 'spine_items')
-
 
         dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
