@@ -23,6 +23,7 @@ import os
 import ast
 import random 
 import string
+import pathlib
 from spine_engine.server.util.ServerMessageParser import ServerMessageParser
 from spine_engine.server.util.ServerMessage import ServerMessage
 from spine_engine.server.util.FileExtractor import FileExtractor
@@ -73,7 +74,7 @@ class RemoteConnectionHandler(threading.Thread):
                 # print("RemoteConnectionHandler._execute() data type: %s"%type(data))
                 dataAsDict=json.loads(data)
                 # print(f"RemoteConnectionHandler._execute(): {dataAsDict}")
-                # print("parsed data from the received msg: %s"%data)
+                # print(f"Received msg:\n{dataAsDict}")
                 # print(f"parsed project_dir: {dataAsDict['project_dir']}")
             except:
                 #print("RemoteConnectionHandler._execute(): Error in parsing content, returning empty data")
@@ -163,12 +164,18 @@ class RemoteConnectionHandler(threading.Thread):
         """
         if not project_dir:
             return ""
-        # get rightmost folder of the project directory (strip the remote folder path)
-        # Convert to raw string (r"") so Windows style paths do not produce Syntax error (Unicode error). 
+        # Convert to raw string so Windows style paths do not produce Syntax error (Unicode error). 
         # (e.g. "\U" produces an error but r\"U" does not
-        _, project_folder_name = os.path.split(r"project_dir")
+        fixed_project_dir = project_dir.encode("unicode_escape").decode()
+        # Convert to path to OS specific PurePath and get the rightmost folder name
+        if fixed_project_dir.startswith("/"):
+            # It's a Posix absolute path
+            p = pathlib.PurePosixPath(fixed_project_dir).stem
+        else:
+            # It's a Windows absolute Path
+            p = pathlib.PureWindowsPath(fixed_project_dir).stem
         random_str = "".join(random.choices(string.ascii_lowercase, k=10))  # create a random string
-        return os.path.join(RemoteConnectionHandler.internalProjectFolder, project_folder_name + "_" + random_str)
+        return os.path.join(RemoteConnectionHandler.internalProjectFolder, p + "_" + random_str)
 
     def _convertInput(self,inputData,localFolder):
         """Converts received input data for execution in a local folder.
