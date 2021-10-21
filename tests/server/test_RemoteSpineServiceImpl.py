@@ -17,52 +17,40 @@ Unit tests for RemoteSpineServiceImpl class.
 
 import unittest
 from unittest.mock import NonCallableMagicMock
-
-import sys 
-#sys.path.append('./../../spine_engine/server')
-#sys.path.append('./../spine_engine')
-#sys.path.append('./../../..')
-
 from pathlib import Path
 import os
-from shutil import copyfile,rmtree
+from shutil import copyfile, rmtree
 from zipfile import ZipFile
-
-#from RemoteSpineServiceImpl import RemoteSpineServiceImpl
 from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
+
 
 class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def setUp(self):
-        #if os.path.exists('./tests/server/helloworld')==False:
-        if os.path.exists(os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))==False:
-            #print("helloworld2 path doesn't exist.")
-            #os.makedirs('./tests/server/helloworld')
-            os.makedirs(os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
-            #print("created %s folder"%os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
-        #copyfile("./tests/server/test_zipfile.zip","./tests/server/helloworld/test_zipfile.zip")
-        copyfile(os.path.join(str(Path(__file__).parent),"test_zipfile.zip"),os.path.join(str(Path(__file__).parent.parent.parent),"hellow","test_zipfile.zip"))
-        #print("copied test_zipfile.zip to ./helloworld")
-        with ZipFile(os.path.join(str(Path(__file__).parent.parent.parent),"hellow","test_zipfile.zip"), 'r') as zipObj:
-            zipObj.extractall(os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
-            #zipObj.extractall('./tests/server/helloworld')
-            #print("extracted ZIP-file to %s"%os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
+        self._zip_extraction_path = Path(__file__).parent / "hellow"
+        self._test_zip_file_path = Path(__file__).parent / "test_zipfile.zip"
+        if not Path.exists(self._zip_extraction_path):
+            os.makedirs(self._zip_extraction_path)
+        copyfile(self._test_zip_file_path, self._zip_extraction_path / "test_zipfile.zip")
+        with ZipFile(self._zip_extraction_path / "test_zipfile.zip", 'r') as zipObj:
+            zipObj.extractall(self._zip_extraction_path)
 
-    @classmethod
-    def tearDownClass(cls):
-        rmtree(os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
-        #print("deleted %s"%os.path.join(str(Path(__file__).parent.parent.parent),'hellow'))
-        #rmtree('./tests/server/helloworld')
-        #print("deleted ./tests/server/helloworld")
-
+    def tearDown(self):
+        if Path.exists(self._zip_extraction_path):
+            rmtree(self._zip_extraction_path)
 
     @staticmethod
     def _mock_data(
-        items, connections, node_successors,
-          execution_permits,specifications,settings,
-          project_dir
+            items,
+            connections,
+            node_successors,
+            execution_permits,
+            specifications,
+            settings,
+            project_dir
     ):
         """Returns mock data to be passed to the class.
+
         Args:
             items (list(dict)): See SpineEngine.__init()
             connections (list of dict): See SpineEngine.__init()
@@ -71,27 +59,34 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             specifications (dict(str,list(dict))): SpineEngine.__init()
             settings (dict): SpineEngine.__init()
             project_dir (str): SpineEngine.__init()
+
         Returns:
             NonCallableMagicMock
         """
         item = NonCallableMagicMock()
-        item.items=items
-        item.connections=connections
-        item.node_successors=node_successors
-        item.execution_permits=execution_permits
-        item.specifications=specifications
-        item.settings=settings
-        item.project_dir=project_dir
+        item.items = items
+        item.connections = connections
+        item.node_successors = node_successors
+        item.execution_permits = execution_permits
+        item.specifications = specifications
+        item.settings = settings
+        item.project_dir = project_dir
         return item
-
 
     @staticmethod
     def _dict_data(
-        items, connections, node_successors,
-          execution_permits,specifications,settings,
-          project_dir,jumps,items_module_name
+            items,
+            connections,
+            node_successors,
+            execution_permits,
+            specifications,
+            settings,
+            project_dir,
+            jumps,
+            items_module_name
     ):
         """Returns a dict to be passed to the class.
+
         Args:
             items (list(dict)): See SpineEngine.__init()
             connections (list of dict): See SpineEngine.__init()
@@ -102,22 +97,21 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             project_dir (str): SpineEngine.__init()
             jumps (List of jump dicts): SpineEngine.__init()
             items_module_name (str): SpineEngine.__init()
+
         Returns:
             dict
         """
         item = dict()
-        item['items']=items
-        item['specifications']=specifications
-        item['connections']=connections
-        item['jumps']=jumps
-        item['node_successors']=node_successors
-        item['execution_permits']=execution_permits
-        item['items_module_name']=items_module_name
-        item['settings']=settings
-        item['project_dir']=project_dir
+        item['items'] = items
+        item['specifications'] = specifications
+        item['connections'] = connections
+        item['jumps'] = jumps
+        item['node_successors'] = node_successors
+        item['execution_permits'] = execution_permits
+        item['items_module_name'] = items_module_name
+        item['settings'] = settings
+        item['project_dir'] = project_dir
         return item
-
-
 
     def test_basic_service_call_succeeds(self):
         """Tests execution with all data items present"""
@@ -126,19 +120,17 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
-            #'references': []}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir='./hellow',
-            #project_dir = '/home/ubuntu/sw/spine/helloworld',
+            project_dir='/hellow',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
             'includes_main_path': '../../..',
             'definition_file_path':
             './hellow/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': './hellow',
+            settings={'appSettings/previousProject': './hellow',
             'appSettings/recentProjectStorages': './',
             'appSettings/recentProjects': 'helloworld<>./hellow',
             'appSettings/showExitPrompt': '2',
@@ -157,7 +149,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         #asserts
         #self.assertEqual(len(eventData),30)
         #print("test_basic_service_call_succeeds() Final data value: %s"%eventData[len(eventData)-1][1])
-        self.assertEqual(eventData[len(eventData)-1][1],"COMPLETED")
+        self.assertEqual(eventData[len(eventData)-1][1], "COMPLETED")
 
         #print("size of returned data: %d"%len(eventData))
         #check for returned data contents
@@ -169,7 +161,6 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
           #print("event: %s"%i[0])
           #print("data: %s"%i[1])
 
-
     def test_basic_service_call_succeeds_loop(self):
         """Tests execution with all data items present (in a loop)"""
 
@@ -180,7 +171,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './hellow',
+            project_dir='/hellow',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
@@ -221,7 +212,6 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
                 self.assertNotEqual(len(j[1]),0)
                 #print("event: %s"%i[0])
                 #print("data: %s"%i[1])
-
             #time.sleep(1)
 
     def test_missing_field_in_data(self):
@@ -232,7 +222,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            project_dir='./hellow',
+            project_dir='/hellow',
             execution_permits='',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
@@ -248,13 +238,12 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
             'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'},
             jumps=[],
-            items_module_name= 'spine_items')
+            items_module_name='spine_items')
 
         impl=RemoteSpineServiceImpl()
         with self.assertRaises(ValueError):
             eventData=impl.execute(dict_data)
-        
-                
+
 
 if __name__ == '__main__':
     unittest.main()
