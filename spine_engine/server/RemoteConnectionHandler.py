@@ -179,29 +179,49 @@ class RemoteConnectionHandler(threading.Thread):
 
     def _convertInput(self,inputData,localFolder):
         """Converts received input data for execution in a local folder.
-
         Args:
             inputData: input data as a dict.
+            localFolder: local folder to be used for DAG execution
         """
-        #adjust project_dir
+        #print("RemoteConnectionHandler._convertInput(): input data")
+        #print(inputData)
+
+        #adjust project_dir to point to the local folder
         remoteFolder=inputData['project_dir']
         inputData['project_dir']=localFolder
-        #specsDict=inputData['specifications']
-        #for item in specsDict:
-        #    print(type(item))
-        #    print(item)
-        #print(type(inputData['specifications']['Tool'][0]))
 
-        #adjust definition_file_path in specs to point to the local folder
-        originalDefinitionFilePath=inputData['specifications']['Tool'][0]['definition_file_path']
-        #print("RemoteConnectionHandler._convertInput() original definition file path: %s"%originalDefinitionFilePath)
-        #cut original path
-        cuttedRemoteFolder=originalDefinitionFilePath.replace(remoteFolder,'')
-        #print("RemoteConnectionHandler._convertInput() cutted remote folder: %s"%cuttedRemoteFolder)
-        modifiedDefinitionFilePath=localFolder+cuttedRemoteFolder
-        #print("RemoteConnectionHandler._convertInput() modified definition file path: %s"%modifiedDefinitionFilePath)
-        inputData['specifications']['Tool'][0]['definition_file_path']=modifiedDefinitionFilePath
-        #print(inputData['specifications']['Tool'][0]['definition_file_path'])
+        #loop specs
+        specsKeys=inputData['specifications'].keys()
+        for specKey in specsKeys:
+            specItem=inputData['specifications'][specKey]
+            #print("RemoteConnectionHandler._convertInput(): spec item type: %s"%type(specItem))
+            i=0
+            for specItemInfo in specItem:
+                #print("RemoteConnectionHandler._convertInput(): spec item info type%s"%type(specItemInfo))
+                #adjust definition_file_path in specs to point to the local folder
+                if 'definition_file_path' in specItemInfo:
+                    #print("RemoteConnectionHandler._convertInput(): spec item info contains definition_file_path")
+                    originalDefinitionFilePath=specItemInfo['definition_file_path']
+                    cuttedRemoteFolder=originalDefinitionFilePath.replace(remoteFolder,'')
+                    modifiedDefinitionFilePath=localFolder+cuttedRemoteFolder
+                    inputData['specifications'][specKey][i]['definition_file_path']=modifiedDefinitionFilePath
+                #force execute_in_work-field to False
+                if 'execute_in_work' in specItemInfo:
+                    #print("RemoteConnectionHandler._convertInput(): spec item info contains execute_in_work")
+                    inputData['specifications'][specKey][i]['execute_in_work']=False
+                i+=1
+
+        #loop items
+        itemsKeys=inputData['items'].keys()
+        for itemKey in itemsKeys:
+            #force execute_in_work to False in items
+            if 'execute_in_work' in inputData['items'][itemKey]:
+                #print("RemoteConnectionHandler._convertInput() execute_in_work in an item")
+                inputData['items'][itemKey]['execute_in_work']=False
+
+        #print("RemoteConnectionHandler._convertInput(): converted data:")
+        #print(inputData)
+
         return inputData
 
     def _sendResponse(self,msgCommand,msgId,data):
