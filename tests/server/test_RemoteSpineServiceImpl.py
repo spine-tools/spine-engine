@@ -140,26 +140,27 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             jumps=[],
             items_module_name='spine_items')
 
-        impl=RemoteSpineServiceImpl()
-        #print("test_basic_service_call_succeeds(): input data to spine engine impl:")
-        #print(dict_data2)
-        eventData=impl.execute(dict_data2)
-        #print("\ntest_basic_service_call_succeeds(): event+data:\n%s"%eventData)
+        impl = RemoteSpineServiceImpl()
+        # print("test_basic_service_call_succeeds(): input data to spine engine impl:")
+        # print(dict_data2)
+        eventData = impl.execute(dict_data2)
+        # print("\ntest_basic_service_call_succeeds(): event+data:\n%s"%eventData)
 
-        #asserts
-        #self.assertEqual(len(eventData),30)
-        #print("test_basic_service_call_succeeds() Final data value: %s"%eventData[len(eventData)-1][1])
-        self.assertEqual(eventData[len(eventData)-1][1], "COMPLETED")
+        # asserts
+        # self.assertEqual(len(eventData),30)
+        # print("test_basic_service_call_succeeds() Final data value: %s"%eventData[len(eventData)-1][1])
+        # self.assertEqual(expected, actual)
+        self.assertEqual("COMPLETED", eventData[-1][1])
 
-        #print("size of returned data: %d"%len(eventData))
-        #check for returned data contents
+        # print("size of returned data: %d"%len(eventData))
+        # check for returned data contents
         for i in eventData:
-          self.assertNotEqual(i[0],None)
-          self.assertNotEqual(i[1],None)
-          self.assertNotEqual(len(i[0]),0)
-          self.assertNotEqual(len(i[1]),0)
-          #print("event: %s"%i[0])
-          #print("data: %s"%i[1])
+            self.assertNotEqual(i[0], None)
+            self.assertNotEqual(i[1], None)
+            self.assertNotEqual(len(i[0]), 0)
+            self.assertNotEqual(len(i[1]), 0)
+            #print("event: %s"%i[0])
+            #print("data: %s"%i[1])
 
     def test_basic_service_call_succeeds_loop(self):
         """Tests execution with all data items present (in a loop)"""
@@ -188,31 +189,30 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             jumps=[],
             items_module_name='spine_items')
 
-        impl=RemoteSpineServiceImpl()
+        impl = RemoteSpineServiceImpl()
 
-        #loop periodic calls to the service
-        i=0
-        while i<3:
-            #print("test_basic_service_call_succeeds_loop(): iteration: %d"%i)
-            i=i+1
-            eventData=impl.execute(dict_data2)
+        # loop periodic calls to the service
+        i = 0
+        while i < 3:
+            # print("test_basic_service_call_succeeds_loop(): iteration: %d"%i)
+            i = i+1
+            eventData = impl.execute(dict_data2)
 
-            #asserts
-            #self.assertEqual(len(eventData),30)
-            #print("test_basic_service_call_succeeds() Final data value: %s"%eventData[len(eventData)-1][1])
-            #print("test_basic_service_call_succeeds_loop(): events+data:  %s"%eventData)
-            self.assertEqual(eventData[len(eventData)-1][1],"COMPLETED")
+            # asserts
+            # self.assertEqual(len(eventData),30)
+            # print("test_basic_service_call_succeeds() Final data value: %s"%eventData[len(eventData)-1][1])
+            # print("test_basic_service_call_succeeds_loop(): events+data:  %s"%eventData)
+            self.assertEqual("COMPLETED", eventData[-1][1])
 
-            #print("size of returned data: %d"%len(eventData))
-            #check for returned data contents
+            # print("size of returned data: %d"%len(eventData))
+            # check for returned data contents
             for j in eventData:
-                self.assertNotEqual(j[0],None)
-                self.assertNotEqual(j[1],None)
-                self.assertNotEqual(len(j[0]),0)
-                self.assertNotEqual(len(j[1]),0)
+                self.assertNotEqual(j[0], None)
+                self.assertNotEqual(j[1], None)
+                self.assertNotEqual(len(j[0]), 0)
+                self.assertNotEqual(len(j[1]), 0)
                 #print("event: %s"%i[0])
                 #print("data: %s"%i[1])
-            #time.sleep(1)
 
     def test_missing_field_in_data(self):
         """Tests execution with a missing field in data (that an error is raised)"""
@@ -240,9 +240,9 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             jumps=[],
             items_module_name='spine_items')
 
-        impl=RemoteSpineServiceImpl()
+        impl = RemoteSpineServiceImpl()
         with self.assertRaises(ValueError):
-            eventData=impl.execute(dict_data)
+            impl.execute(dict_data)
 
 
 if __name__ == '__main__':
