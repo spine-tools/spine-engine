@@ -130,7 +130,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './hellow',
+            project_dir='./hellow',
             #project_dir = '/home/ubuntu/sw/spine/helloworld',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
@@ -146,7 +146,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
             'appSettings/workDir': './Spine-Toolbox/work'},
             jumps=[],
-            items_module_name= 'spine_items')
+            items_module_name='spine_items')
 
         impl=RemoteSpineServiceImpl()
         #print("test_basic_service_call_succeeds(): input data to spine engine impl:")
@@ -195,7 +195,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
             'appSettings/workDir': './Spine-Toolbox/work'},
             jumps=[],
-            items_module_name= 'spine_items')
+            items_module_name='spine_items')
 
         impl=RemoteSpineServiceImpl()
 
@@ -224,52 +224,6 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
             #time.sleep(1)
 
-
-    def test_fail_invalid_projectdir(self):
-        """Tests execution with an invalid project_dir in data"""
-        dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
-            'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
-             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
-            connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
-            node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = '/tests/server/helloworld3',
-            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
-            'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
-            'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
-            'includes_main_path': '../../..',
-            'definition_file_path':
-            '/home/ubuntu/sw/spine/helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld',
-            'appSettings/recentProjectStorages': '/home/ubuntu/sw/spine',
-            'appSettings/recentProjects': 'helloworld<>/home/ubuntu/sw/spine/helloworld',
-            'appSettings/showExitPrompt': '2',
-            'appSettings/toolbarIconOrdering':
-            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'},
-            jumps=[],
-            items_module_name= 'spine_items')
-
-        impl=RemoteSpineServiceImpl()
-        eventData=impl.execute(dict_data)
-
-        #asserts
-        #self.assertEqual(len(eventData),17)
-        #print("test_fail_invalid_projectdir() %s"%eventData)
-        #print("test_fail_invalid_projectdir() Final data value: %s"%eventData[len(eventData)-1][1])
-        self.assertEqual(eventData[len(eventData)-1][1],"FAILED")
-        #print("size of returned data: %d"%len(eventData))
-        #check for returned data contents
-        for i in eventData:
-          self.assertNotEqual(i[0],None)
-          self.assertNotEqual(i[1],None)
-          self.assertNotEqual(len(i[0]),0)
-          self.assertNotEqual(len(i[1]),0)
-          #print("event: %s"%i[0])
-          #print("data: %s"%i[1])
-
-
     def test_missing_field_in_data(self):
         """Tests execution with a missing field in data (that an error is raised)"""
         dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
@@ -278,7 +232,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            project_dir = './hellow',
+            project_dir='./hellow',
             execution_permits='',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
