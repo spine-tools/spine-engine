@@ -59,8 +59,6 @@ class RemoteConnectionHandler(threading.Thread):
         execStartTimeMs = round(time.time()*1000.0)
         # get message parts sent by the client
         msgParts=self.zmqConn.getMessageParts()
-        # print("RemoteConnectionHandler._execute() Received: ")
-        # print(msgParts)
         # parse JSON message
         if len(msgParts[0])>10:
             try:
@@ -68,36 +66,26 @@ class RemoteConnectionHandler(threading.Thread):
                 # print("RemoteConnectionHandler._execute() Received JSON:\n %s"%msgPart1)
                 parsedMsg=ServerMessageParser.parse(msgPart1)
                 # print("parsed msg with command: %s"%parsedMsg.getCommand())
-
-                # save attached file to the location indicated in the project_dir-field of the JSON
-                data=parsedMsg.getData()
-                # print("RemoteConnectionHandler._execute() data type: %s"%type(data))
-                dataAsDict=json.loads(data)
-                # print(f"RemoteConnectionHandler._execute(): {dataAsDict}")
-                # print(f"Received msg:\n{dataAsDict}")
-                # print(f"parsed project_dir: {dataAsDict['project_dir']}")
+                dataAsDict=parsedMsg.getData()
+                # print(f"RemoteConnectionHandler._execute():\n{dataAsDict}")
             except:
-                #print("RemoteConnectionHandler._execute(): Error in parsing content, returning empty data")
-                retBytes=bytes("{}", 'utf-8')
-                self.zmqConn.sendReply(retBytes)
+                print("RemoteConnectionHandler._execute(): Error in parsing content, returning empty data")
+                self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(),"{}")
                 return
-
             if len(parsedMsg.getFileNames()) == 1 and len(msgParts) == 2:  # check for presence of 2 message parts
                 # save the file
                 try:
                     # get a new local folder name based on project_dir
                     localFolder = RemoteConnectionHandler.getFolderForProject(dataAsDict['project_dir'])
                     print("RemoteConnectionHandler._execute(): using a new folder: %s"%localFolder)
-
                     # check for validity of the new folder
                     if not localFolder:
                         self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(),"{}")
                         return
-                    # create folder, if it doesn't exist yet
+                    # create folder
                     if not os.path.exists(localFolder):
                         os.makedirs(localFolder)
-                        #print("RemoteConnectionHandler._execute() Created a new folder %s"%(localFolder))
-                    # print("file name: %s"%parsedMsg.getFileNames()[0])
+                    # save attached file to the location indicated in the project_dir-field of the JSON
                     f = open(os.path.join(localFolder,parsedMsg.getFileNames()[0]), "wb")
                     f.write(msgParts[1])
                     f.close()
@@ -135,9 +123,6 @@ class RemoteConnectionHandler(threading.Thread):
                 replyInBytes= bytes(replyAsJson, "utf-8")
                 # print("RemoteConnectionHandler._execute() Reply to be sent in bytes:%s"%replyInBytes)
                 self.zmqConn.sendReply(replyInBytes)
-                # self.zmqConn.close()
-                # print("RemoteConnectionHandler._execute(): closed the socket to the client.")
-
                 # delete extracted folder
                 # try:
                 #     time.sleep(4)
@@ -164,16 +149,13 @@ class RemoteConnectionHandler(threading.Thread):
         """
         if not project_dir:
             return ""
-        # Convert to raw string so Windows style paths do not produce Syntax error (Unicode error). 
-        # (e.g. "\U" produces an error but r\"U" does not
-        fixed_project_dir = project_dir.encode("unicode_escape").decode()
         # Convert to path to OS specific PurePath and get the rightmost folder name
-        if fixed_project_dir.startswith("/"):
+        if project_dir.startswith("/"):
             # It's a Posix absolute path
-            p = pathlib.PurePosixPath(fixed_project_dir).stem
+            p = pathlib.PurePosixPath(project_dir).stem
         else:
             # It's a Windows absolute Path
-            p = pathlib.PureWindowsPath(fixed_project_dir).stem
+            p = pathlib.PureWindowsPath(project_dir).stem
         random_str = "".join(random.choices(string.ascii_lowercase, k=10))  # create a random string
         return os.path.join(RemoteConnectionHandler.internalProjectFolder, p + "_" + random_str)
 

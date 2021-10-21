@@ -22,7 +22,7 @@ class ServerMessage:
         Args:
             command (str):command to be executed at the server
             id(str): identifier associated with the command
-            data(str): associated data
+            data(dict): associated data
             files(list[str]): a list of file names to be associated with the message (optional)  
         """
         if command==None or id==None or data==None:

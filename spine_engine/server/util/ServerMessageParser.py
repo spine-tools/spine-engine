@@ -22,36 +22,34 @@ class ServerMessageParser:
   
     @staticmethod
     def parse(message):
-        """
+        """Parses received message-
+        
         Args:
             message: JSON-message as a string
-        Returns:
-            Parsed message as a ServerMessage
-        """
-        if message==None:
-            raise ValueError("invalid input to ServerMessageParser.parse()")
-        if len(message)==0:
-            raise ValueError("invalid input to ServerMessageParser.parse()")
 
+        Returns:
+            ServerMessage: Parsed message
+        """
+        if not message:
+            raise ValueError("invalid input to ServerMessageParser.parse()")
+        # Load JSON string into dictionary
         parsedMsg=json.loads(message)
         #print("ServerMessageParser.parse() parsed msg type:")
         #print(parsedMsg)
         fileNames=parsedMsg['files']
         #print("number of file names: %d"%len(fileNameStr))
-
         #parse file names
         #print("ServerMessageParser.parse() type of data: ")
         #print(type(json.dumps(parsedMsg['data'])))
         #dataStr=json.dumps(parsedMsg['data'])
         dataStr=parsedMsg['data']
         #print("ServerMessageParser.parse() Data: %s"%dataStr)
-
         parsedFileNames=[]
         if len(fileNames)>0:
             for f in fileNames:
                 #print(fileNames[f])
                 parsedFileNames.append(fileNames[f])
-            msg=ServerMessage(parsedMsg['command'],parsedMsg['id'],dataStr,parsedFileNames)
+            msg = ServerMessage(parsedMsg['command'], parsedMsg['id'], dataStr, parsedFileNames)
         else:
-            msg=ServerMessage(parsedMsg['command'],parsedMsg['id'],dataStr,None)
+            msg = ServerMessage(parsedMsg['command'], parsedMsg['id'], dataStr, None)
         return msg
