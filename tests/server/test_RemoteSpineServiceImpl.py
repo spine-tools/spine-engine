@@ -27,7 +27,7 @@ from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
 class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def setUp(self):
-        self._zip_extraction_path = Path(__file__).parent / "hellow"
+        self._zip_extraction_path = Path(__file__).parent / "hellow"  # also project_dir
         self._test_zip_file_path = Path(__file__).parent / "test_zipfile.zip"
         if not Path.exists(self._zip_extraction_path):
             os.makedirs(self._zip_extraction_path)
@@ -36,8 +36,9 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             zipObj.extractall(self._zip_extraction_path)
 
     def tearDown(self):
-        if Path.exists(self._zip_extraction_path):
-            rmtree(self._zip_extraction_path)
+        pass
+        # if Path.exists(self._zip_extraction_path):
+        #     rmtree(self._zip_extraction_path)
 
     @staticmethod
     def _mock_data(
@@ -115,7 +116,6 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def test_basic_service_call_succeeds(self):
         """Tests execution with all data items present"""
-        
         dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
@@ -123,7 +123,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir='/hellow',
+            project_dir=str(self._zip_extraction_path),  # Project_dir should be c:\data\GIT\SPINEENGINE\tests\server\hellow
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
@@ -149,8 +149,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         # asserts
         # self.assertEqual(len(eventData),30)
         # print("test_basic_service_call_succeeds() Final data value: %s"%eventData[len(eventData)-1][1])
-        # self.assertEqual(expected, actual)
-        self.assertEqual("COMPLETED", eventData[-1][1])
+        self.assertEqual("COMPLETED", eventData[-1][1])  # (expected, actual)
 
         # print("size of returned data: %d"%len(eventData))
         # check for returned data contents
@@ -172,7 +171,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir='/hellow',
+            project_dir=str(self._zip_extraction_path),
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
@@ -222,7 +221,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            project_dir='/hellow',
+            project_dir=str(self._zip_extraction_path),
             execution_permits='',
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],

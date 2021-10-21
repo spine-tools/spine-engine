@@ -68,9 +68,11 @@ class RemoteConnectionHandler(threading.Thread):
                 # print("parsed msg with command: %s"%parsedMsg.getCommand())
                 dataAsDict=parsedMsg.getData()
                 # print(f"RemoteConnectionHandler._execute():\n{dataAsDict}")
+                # dataAsDict = json.loads(dataAsDict)
             except:
                 print("RemoteConnectionHandler._execute(): Error in parsing content, returning empty data")
-                self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(),"{}")
+                retBytes=bytes("{}", 'utf-8')
+                self.zmqConn.sendReply(retBytes)
                 return
             if len(parsedMsg.getFileNames()) == 1 and len(msgParts) == 2:  # check for presence of 2 message parts
                 # save the file

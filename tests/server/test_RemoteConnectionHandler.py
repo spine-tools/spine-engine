@@ -21,14 +21,14 @@ import json
 import time
 import os
 from pathlib import Path
-
 from spine_engine.server.RemoteConnectionHandler import RemoteConnectionHandler
 from spine_engine.server.connectivity.ZMQServerObserver import ZMQServerObserver
 from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
 from spine_engine.server.util.ServerMessage import ServerMessage
 from spine_engine.server.util.ServerMessageParser import ServerMessageParser
 from spine_engine.server.util.EventDataConverter import EventDataConverter
-from .test_RemoteConnHandlerZMQServer import RemoteConnHandlerZMQServer
+from tests.server.test_RemoteConnHandlerZMQServer import RemoteConnHandlerZMQServer
+
 
 class TestObserver(ZMQServerObserver):
 
@@ -106,33 +106,28 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         msg_parts=[]
         # fileArray=bytearray([1, 2, 3, 4, 5])
 
-        dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
+        dict_data2 = {
+            'items':
+                {'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
-             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
-            connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
-            node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './helloworld',
-            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
+            'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+            'connections':
+                [{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
+            'node_successors': {'Data Connection 1': ['helloworld'], 'helloworld': []},
+            'execution_permits': {'Data Connection 1': True, 'helloworld': True},
+            'project_dir': './helloworld',
+            'specifications':
+                {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
             'includes_main_path': '../../..',
             'definition_file_path': './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': './helloworld',
-            'appSettings/recentProjectStorages': './',
-            'appSettings/recentProjects': 'helloworld<>./helloworld',
-            'appSettings/showExitPrompt': '2',
-            'appSettings/toolbarIconOrdering':
-            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': './Spine-Toolbox/work'},
-            jumps=[],
-            items_module_name='spine_items')
+            'settings': {}, 'jumps': [], 'items_module_name': 'spine_items'}
         #f=open('msg_data1.txt')
         #msgData = f.read()
         #f.close()
         msgDataJson=json.dumps(dict_data2)
-        msgDataJson=json.dumps(msgDataJson)
         #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
         f2=open(os.path.join(str(Path(__file__).parent),'test_zipfile.zip'),'rb')
         data = f2.read()
@@ -166,7 +161,6 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         socket.close()
         context.term()
 
-
     def test_invalid_project_folder(self):
         #connect to the server
         context = zmq.Context()
@@ -174,31 +168,27 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         socket.connect("tcp://localhost:5556")
         msg_parts=[]
 
-        dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
+        dict_data2 = {
+            'items':
+                {'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
-             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
-            connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
-            node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = '',
-            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
+            'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+            'connections':
+                [{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
+            'node_successors': {'Data Connection 1': ['helloworld'], 'helloworld': []},
+            'execution_permits': {'Data Connection 1': True, 'helloworld': True},
+            'project_dir': '',
+            'specifications':
+                {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
             'includes_main_path': '../../..',
             'definition_file_path': './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': './helloworld',
-            'appSettings/recentProjectStorages': './',
-            'appSettings/recentProjects': 'helloworld<>./helloworld',
-            'appSettings/showExitPrompt': '2',
-            'appSettings/toolbarIconOrdering':
-            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': './Spine-Toolbox/work'},
-            jumps=[],
-            items_module_name='spine_items')
+            'settings': {}, 'jumps': [], 'items_module_name': 'spine_items'}
 
         msgDataJson=json.dumps(dict_data2)
-        msgDataJson=json.dumps(msgDataJson)
+        # msgDataJson=json.dumps(msgDataJson)
         #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
         f2=open(os.path.join(str(Path(__file__).parent),'test_zipfile.zip'),'rb')
         data = f2.read()
@@ -228,37 +218,30 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         context.term()
 
     def test_loop_calls(self):
-        #connect to the server
+        # connect to the server
         context = zmq.Context()
         socket = context.socket(zmq.REQ)
         socket.connect("tcp://localhost:5556")
         msg_parts=[]
         #fileArray=bytearray([1, 2, 3, 4, 5])
 
-        dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
+        dict_data2 = {'items': {'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
-            connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
-            node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir = './helloworld2',
-            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
+            'connections':[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
+            'node_successors':{'Data Connection 1': ['helloworld'], 'helloworld': []},
+            'execution_permits':{'Data Connection 1': True, 'helloworld': True},
+            'project_dir': './helloworld2',
+            'specifications': {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
             'includes_main_path': '../../..',
             'definition_file_path':
             './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': './helloworld',
-            'appSettings/recentProjectStorages': './',
-            'appSettings/recentProjects': 'helloworld<>./helloworld',
-            'appSettings/showExitPrompt': '2',
-            'appSettings/toolbarIconOrdering':
-            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': './Spine-Toolbox/work'},
-            jumps=[],
-            items_module_name= 'spine_items')
-
+            'settings': {},
+            'jumps': [],
+            'items_module_name': 'spine_items'}
 
         #f=open('msg_data1.txt')
         #msgData = f.read()
@@ -280,7 +263,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             dict_data2['project_dir']='./helloworld'+str(i)
             dict_data2['specifications']['Tool'][0]['definition_file_path']='./helloworld'+str(i)+'/.spinetoolbox/specifications/Tool/helloworld2.json'
             msgDataJson=json.dumps(dict_data2)
-            msgDataJson=json.dumps(msgDataJson)
+            # msgDataJson=json.dumps(msgDataJson)
             #print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
             msg=ServerMessage("execute","1",msgDataJson,listFiles)
             part1Bytes = bytes(msg.toJSON(), 'utf-8')
@@ -395,26 +378,32 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         msgStr=message.decode('utf-8')
         #print("out recv()..Received reply %s" %msgStr)
         self.assertEqual(msgStr,"{}")
-
-        #close connections
+        # close connections
         socket.close()
         context.term()
 
     def test_local_folder_function(self):
-        testStr = './home/ubuntu/hellofolder'
-        retStr = RemoteConnectionHandler.getFolderForProject(testStr)
-        # print("test_local_folder_function(): ret1 str: %s"%retStr)
-        testStr = './hellofolder'
-        retStr = RemoteConnectionHandler.getFolderForProject(testStr)
-        # print("test_local_folder_function(): ret2 str: %s"%retStr)
-        retStr = RemoteConnectionHandler.getFolderForProject("")
-        self.assertEqual(retStr, "")
-        retStr = RemoteConnectionHandler.getFolderForProject(None)
-        self.assertEqual(retStr, "")
+        p = './home/ubuntu/hellofolder'  # Linux relative
+        ret = RemoteConnectionHandler.getFolderForProject(p)
+        # TODO: Assert()
+        p = './hellofolder'  # Linux relative
+        ret = RemoteConnectionHandler.getFolderForProject(p)
+        # TODO: Assert()
+        p = '/home/ubuntu/hellofolder'  # Linux absolute
+        ret = RemoteConnectionHandler.getFolderForProject(p)
+        # TODO: Assert()
+        p = '.\\hellofolder'  # Windows relative
+        ret = RemoteConnectionHandler.getFolderForProject(p)
+        # TODO: Assert()
+        p = 'c:\\data\\project\\hellofolder'  # Windows absolute
+        ret = RemoteConnectionHandler.getFolderForProject(p)
+        # TODO: Assert()
+        ret = RemoteConnectionHandler.getFolderForProject("")
+        self.assertEqual("", ret)
+        ret = RemoteConnectionHandler.getFolderForProject(None)
+        self.assertEqual("", ret)
 
 
 if __name__ == '__main__':
-     #server=RemoteConnHandlerZMQServer()
      unittest.main()
-     #server.close()
 
