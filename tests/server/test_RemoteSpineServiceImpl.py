@@ -27,18 +27,24 @@ from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
 class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def setUp(self):
-        self._zip_extraction_path = Path(__file__).parent / "hellow"  # also project_dir
-        self._test_zip_file_path = Path(__file__).parent / "test_zipfile.zip"
-        if not Path.exists(self._zip_extraction_path):
-            os.makedirs(self._zip_extraction_path)
-        copyfile(self._test_zip_file_path, self._zip_extraction_path / "test_zipfile.zip")
-        with ZipFile(self._zip_extraction_path / "test_zipfile.zip", 'r') as zipObj:
-            zipObj.extractall(self._zip_extraction_path)
+        self._project_dir = Path(__file__).parent / "test_project"
+        self._zip_file_path = Path(__file__).parent / "test_zipfile.zip"
+        self._helloworld2_def_file_path = os.path.join(
+            self._project_dir, ".spinetoolbox", "specifications", "Tool", "helloworld2.json"
+        )
+        if not Path.exists(self._project_dir):
+            os.makedirs(self._project_dir)
+        copyfile(self._zip_file_path, self._project_dir / "test_zipfile.zip")
+        with ZipFile(self._project_dir / "test_zipfile.zip", 'r') as zipObj:
+            zipObj.extractall(self._project_dir)
 
     def tearDown(self):
         pass
-        # if Path.exists(self._zip_extraction_path):
-        #     rmtree(self._zip_extraction_path)
+        # TODO: Would be nice to remove the project dir after tests but it does not work.
+        # Also, using TemporaryDirectory() does not remove the directory. Just produces
+        # a RecursionError for some reason
+        # if Path.exists(self._project_dir):
+        #     rmtree(self._project_dir)
 
     @staticmethod
     def _mock_data(
@@ -123,13 +129,12 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir=str(self._zip_extraction_path),  # Project_dir should be c:\data\GIT\SPINEENGINE\tests\server\hellow
+            project_dir=str(self._project_dir),
             specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
             'includes_main_path': '../../..',
-            'definition_file_path':
-            './hellow/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
+            'definition_file_path': self._helloworld2_def_file_path}]},
             settings={'appSettings/previousProject': './hellow',
             'appSettings/recentProjectStorages': './',
             'appSettings/recentProjects': 'helloworld<>./hellow',
@@ -163,7 +168,6 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def test_basic_service_call_succeeds_loop(self):
         """Tests execution with all data items present (in a loop)"""
-
         dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
             'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
             'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
@@ -171,14 +175,13 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
-            project_dir=str(self._zip_extraction_path),
-            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
+            project_dir=str(self._project_dir),
+            specifications={'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
             'includes_main_path': '../../..',
-            'definition_file_path':
-            './hellow/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': './hellow',
+            'definition_file_path': self._helloworld2_def_file_path}]},
+            settings={'appSettings/previousProject': './hellow',
             'appSettings/recentProjectStorages': './',
             'appSettings/recentProjects': 'helloworld<>./hellow',
             'appSettings/showExitPrompt': '2',
@@ -221,15 +224,14 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
              'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
-            project_dir=str(self._zip_extraction_path),
-            execution_permits='',
-            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
+            project_dir=str(self._project_dir),
+            execution_permits='',  # missing data here
+            specifications={'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
             'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
             'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
             'includes_main_path': '../../..',
-            'definition_file_path':
-            '/home/ubuntu/sw/spine/helloworld/.spinetoolbox/specifications/Tool/helloworld2.json'}]},
-            settings = {'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld',
+            'definition_file_path': self._helloworld2_def_file_path}]},
+            settings={'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld',
             'appSettings/recentProjectStorages': '/home/ubuntu/sw/spine',
             'appSettings/recentProjects': 'helloworld<>/home/ubuntu/sw/spine/helloworld',
             'appSettings/showExitPrompt': '2',

@@ -62,16 +62,16 @@ class RemoteConnectionHandler(threading.Thread):
         # parse JSON message
         if len(msgParts[0])>10:
             try:
-                msgPart1=msgParts[0].decode("utf-8")
+                msgPart1 = msgParts[0].decode("utf-8")
                 # print("RemoteConnectionHandler._execute() Received JSON:\n %s"%msgPart1)
-                parsedMsg=ServerMessageParser.parse(msgPart1)
+                parsedMsg = ServerMessageParser.parse(msgPart1)
                 # print("parsed msg with command: %s"%parsedMsg.getCommand())
-                dataAsDict=parsedMsg.getData()
+                dataAsDict = parsedMsg.getData()
                 # print(f"RemoteConnectionHandler._execute():\n{dataAsDict}")
                 # dataAsDict = json.loads(dataAsDict)
             except:
                 print("RemoteConnectionHandler._execute(): Error in parsing content, returning empty data")
-                retBytes=bytes("{}", 'utf-8')
+                retBytes = bytes("{}", 'utf-8')
                 self.zmqConn.sendReply(retBytes)
                 return
             if len(parsedMsg.getFileNames()) == 1 and len(msgParts) == 2:  # check for presence of 2 message parts
@@ -79,20 +79,21 @@ class RemoteConnectionHandler(threading.Thread):
                 try:
                     # get a new local folder name based on project_dir
                     localFolder = RemoteConnectionHandler.getFolderForProject(dataAsDict['project_dir'])
-                    print("RemoteConnectionHandler._execute(): using a new folder: %s"%localFolder)
                     # check for validity of the new folder
                     if not localFolder:
+                        print(f"Creating project directory '{localFolder}' failed")
                         self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(),"{}")
                         return
                     # create folder
                     if not os.path.exists(localFolder):
                         os.makedirs(localFolder)
                     # save attached file to the location indicated in the project_dir-field of the JSON
-                    f = open(os.path.join(localFolder,parsedMsg.getFileNames()[0]), "wb")
+                    f = open(os.path.join(localFolder, parsedMsg.getFileNames()[0]), "wb")
                     f.write(msgParts[1])
                     f.close()
                 except Exception as e:
-                    print("RemoteConnectionHandler._execute(): couldn't save the extracted file, returning empty response, reason: %s\n"%e)
+                    print("RemoteConnectionHandler._execute(): couldn't save the extracted file, "
+                          "returning empty response, reason: %s\n" % e)
                     self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
                     return
                 try:
