@@ -15,6 +15,7 @@ Contains ExecutableItem, a project item's counterpart in execution as well as su
 :authors: A. Soininen (VTT)
 :date:    30.3.2020
 """
+from hashlib import sha1
 from pathlib import Path
 from ..spine_engine import ExecutionDirection, ItemExecutionFinishState
 from ..utils.helpers import shorten
@@ -61,6 +62,14 @@ class ExecutableItemBase:
     @property
     def filter_id(self):
         return self._filter_id
+
+    def hash_filter_id(self):
+        """Returns a hash of filter id.
+
+        Returns:
+            str: hash
+        """
+        return sha1(bytes(self._filter_id, "utf8")).hexdigest()
 
     @filter_id.setter
     def filter_id(self, filter_id):

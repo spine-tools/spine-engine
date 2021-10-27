@@ -490,19 +490,21 @@ def get_persistent_history_item(key, index):
 class PersistentExecutionManagerBase(ExecutionManagerBase):
     """Base class for managing execution of commands on a persistent process."""
 
-    def __init__(self, logger, args, commands, alias, group_id=None):
-        """Class constructor.
-
+    def __init__(self, logger, args, commands, alias, fail_run_on_stderror, group_id=None):
+        """
         Args:
             logger (LoggerInterface): a logger instance
             args (list): List of args to start the persistent process
             commands (list): List of commands to execute in the persistent process
+            alias (str): an alias name for the manager
+            fail_run_on_stderror (bool): if True, run_until_complete will fail if last console message goes to stderror
             group_id (str, optional): item group that will execute using this kernel
         """
         super().__init__(logger)
         self._args = args
         self._commands = commands
         self._alias = alias
+        self._fail_on_stderror = fail_run_on_stderror
         self._persistent_manager = _persistent_manager_factory.new_persistent_manager(
             self.persistent_manager_factory, logger, args, group_id
         )
@@ -517,7 +519,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         (a subclass of PersistentManagerBase)
 
         Returns:
-            function
+            Callable
         """
         raise NotImplementedError()
 
@@ -532,7 +534,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
                 if msg["type"] != "stdin":
                     self._logger.msg_persistent_execution.emit(msg)
                     if msg["type"] in ("stdout", "stderr"):
-                        failed = msg["type"] == "stderr"
+                        failed = self._fail_on_stderror and msg["type"] == "stderr"
             if not self._persistent_manager.command_successful:
                 return -1
         return -1 if failed else 0
