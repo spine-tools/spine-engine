@@ -25,7 +25,6 @@ from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
 
 
 class TestRemoteSpineServiceImpl(unittest.TestCase):
-
     def setUp(self):
         self._project_dir = Path(__file__).parent / "test_project"
         self._zip_file_path = Path(__file__).parent / "test_zipfile.zip"
@@ -47,15 +46,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         #     rmtree(self._project_dir)
 
     @staticmethod
-    def _mock_data(
-            items,
-            connections,
-            node_successors,
-            execution_permits,
-            specifications,
-            settings,
-            project_dir
-    ):
+    def _mock_data(items, connections, node_successors, execution_permits, specifications, settings, project_dir):
         """Returns mock data to be passed to the class.
 
         Args:
@@ -82,15 +73,15 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     @staticmethod
     def _dict_data(
-            items,
-            connections,
-            node_successors,
-            execution_permits,
-            specifications,
-            settings,
-            project_dir,
-            jumps,
-            items_module_name
+        items,
+        connections,
+        node_successors,
+        execution_permits,
+        specifications,
+        settings,
+        project_dir,
+        jumps,
+        items_module_name,
     ):
         """Returns a dict to be passed to the class.
 
@@ -122,28 +113,57 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
 
     def test_basic_service_call_succeeds(self):
         """Tests execution with all data items present"""
-        dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
-            'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
-            'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+        dict_data2 = self._dict_data(
+            items={
+                'helloworld': {
+                    'type': 'Tool',
+                    'description': '',
+                    'x': -91.6640625,
+                    'y': -5.609375,
+                    'specification': 'helloworld2',
+                    'execute_in_work': False,
+                    'cmd_line_args': [],
+                },
+                'Data Connection 1': {
+                    'type': 'Data Connection',
+                    'description': '',
+                    'x': 62.7109375,
+                    'y': 8.609375,
+                    'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}],
+                },
+            },
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
             project_dir=str(self._project_dir),
-            specifications = {'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
-            'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
-            'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
-            'includes_main_path': '../../..',
-            'definition_file_path': self._helloworld2_def_file_path}]},
-            settings={'appSettings/previousProject': './hellow',
-            'appSettings/recentProjectStorages': './',
-            'appSettings/recentProjects': 'helloworld<>./hellow',
-            'appSettings/showExitPrompt': '2',
-            'appSettings/toolbarIconOrdering':
-            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': './Spine-Toolbox/work'},
+            specifications={
+                'Tool': [
+                    {
+                        'name': 'helloworld2',
+                        'tooltype': 'python',
+                        'includes': ['helloworld.py'],
+                        'description': '',
+                        'inputfiles': ['input2.txt'],
+                        'inputfiles_opt': [],
+                        'outputfiles': [],
+                        'cmdline_args': [],
+                        'execute_in_work': True,
+                        'includes_main_path': '../../..',
+                        'definition_file_path': self._helloworld2_def_file_path,
+                    }
+                ]
+            },
+            settings={
+                'appSettings/previousProject': './hellow',
+                'appSettings/recentProjectStorages': './',
+                'appSettings/recentProjects': 'helloworld<>./hellow',
+                'appSettings/showExitPrompt': '2',
+                'appSettings/toolbarIconOrdering': 'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
+                'appSettings/workDir': './Spine-Toolbox/work',
+            },
             jumps=[],
-            items_module_name='spine_items')
+            items_module_name='spine_items',
+        )
 
         impl = RemoteSpineServiceImpl()
         # print("test_basic_service_call_succeeds(): input data to spine engine impl:")
@@ -163,33 +183,62 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             self.assertNotEqual(i[1], None)
             self.assertNotEqual(len(i[0]), 0)
             self.assertNotEqual(len(i[1]), 0)
-            #print("event: %s"%i[0])
-            #print("data: %s"%i[1])
+            # print("event: %s"%i[0])
+            # print("data: %s"%i[1])
 
     def test_basic_service_call_succeeds_loop(self):
         """Tests execution with all data items present (in a loop)"""
-        dict_data2 = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
-            'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
-             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+        dict_data2 = self._dict_data(
+            items={
+                'helloworld': {
+                    'type': 'Tool',
+                    'description': '',
+                    'x': -91.6640625,
+                    'y': -5.609375,
+                    'specification': 'helloworld2',
+                    'execute_in_work': False,
+                    'cmd_line_args': [],
+                },
+                'Data Connection 1': {
+                    'type': 'Data Connection',
+                    'description': '',
+                    'x': 62.7109375,
+                    'y': 8.609375,
+                    'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}],
+                },
+            },
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             execution_permits={'Data Connection 1': True, 'helloworld': True},
             project_dir=str(self._project_dir),
-            specifications={'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
-            'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
-            'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
-            'includes_main_path': '../../..',
-            'definition_file_path': self._helloworld2_def_file_path}]},
-            settings={'appSettings/previousProject': './hellow',
-            'appSettings/recentProjectStorages': './',
-            'appSettings/recentProjects': 'helloworld<>./hellow',
-            'appSettings/showExitPrompt': '2',
-            'appSettings/toolbarIconOrdering':
-            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': './Spine-Toolbox/work'},
+            specifications={
+                'Tool': [
+                    {
+                        'name': 'helloworld2',
+                        'tooltype': 'python',
+                        'includes': ['helloworld.py'],
+                        'description': '',
+                        'inputfiles': ['input2.txt'],
+                        'inputfiles_opt': [],
+                        'outputfiles': [],
+                        'cmdline_args': [],
+                        'execute_in_work': True,
+                        'includes_main_path': '../../..',
+                        'definition_file_path': self._helloworld2_def_file_path,
+                    }
+                ]
+            },
+            settings={
+                'appSettings/previousProject': './hellow',
+                'appSettings/recentProjectStorages': './',
+                'appSettings/recentProjects': 'helloworld<>./hellow',
+                'appSettings/showExitPrompt': '2',
+                'appSettings/toolbarIconOrdering': 'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
+                'appSettings/workDir': './Spine-Toolbox/work',
+            },
             jumps=[],
-            items_module_name='spine_items')
+            items_module_name='spine_items',
+        )
 
         impl = RemoteSpineServiceImpl()
 
@@ -197,7 +246,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         i = 0
         while i < 3:
             # print("test_basic_service_call_succeeds_loop(): iteration: %d"%i)
-            i = i+1
+            i = i + 1
             eventData = impl.execute(dict_data2)
 
             # asserts
@@ -213,33 +262,62 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
                 self.assertNotEqual(j[1], None)
                 self.assertNotEqual(len(j[0]), 0)
                 self.assertNotEqual(len(j[1]), 0)
-                #print("event: %s"%i[0])
-                #print("data: %s"%i[1])
+                # print("event: %s"%i[0])
+                # print("data: %s"%i[1])
 
     def test_missing_field_in_data(self):
         """Tests execution with a missing field in data (that an error is raised)"""
-        dict_data = self._dict_data(items={'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625,
-            'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': False, 'cmd_line_args': []},
-            'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375,
-             'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}},
+        dict_data = self._dict_data(
+            items={
+                'helloworld': {
+                    'type': 'Tool',
+                    'description': '',
+                    'x': -91.6640625,
+                    'y': -5.609375,
+                    'specification': 'helloworld2',
+                    'execute_in_work': False,
+                    'cmd_line_args': [],
+                },
+                'Data Connection 1': {
+                    'type': 'Data Connection',
+                    'description': '',
+                    'x': 62.7109375,
+                    'y': 8.609375,
+                    'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}],
+                },
+            },
             connections=[{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
             node_successors={'Data Connection 1': ['helloworld'], 'helloworld': []},
             project_dir=str(self._project_dir),
             execution_permits='',  # missing data here
-            specifications={'Tool': [{'name': 'helloworld2', 'tooltype': 'python',
-            'includes': ['helloworld.py'], 'description': '', 'inputfiles': ['input2.txt'],
-            'inputfiles_opt': [], 'outputfiles': [], 'cmdline_args': [], 'execute_in_work': True,
-            'includes_main_path': '../../..',
-            'definition_file_path': self._helloworld2_def_file_path}]},
-            settings={'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld',
-            'appSettings/recentProjectStorages': '/home/ubuntu/sw/spine',
-            'appSettings/recentProjects': 'helloworld<>/home/ubuntu/sw/spine/helloworld',
-            'appSettings/showExitPrompt': '2',
-            'appSettings/toolbarIconOrdering':
-            'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
-            'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work'},
+            specifications={
+                'Tool': [
+                    {
+                        'name': 'helloworld2',
+                        'tooltype': 'python',
+                        'includes': ['helloworld.py'],
+                        'description': '',
+                        'inputfiles': ['input2.txt'],
+                        'inputfiles_opt': [],
+                        'outputfiles': [],
+                        'cmdline_args': [],
+                        'execute_in_work': True,
+                        'includes_main_path': '../../..',
+                        'definition_file_path': self._helloworld2_def_file_path,
+                    }
+                ]
+            },
+            settings={
+                'appSettings/previousProject': '/home/ubuntu/sw/spine/helloworld',
+                'appSettings/recentProjectStorages': '/home/ubuntu/sw/spine',
+                'appSettings/recentProjects': 'helloworld<>/home/ubuntu/sw/spine/helloworld',
+                'appSettings/showExitPrompt': '2',
+                'appSettings/toolbarIconOrdering': 'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store',
+                'appSettings/workDir': '/home/ubuntu/sw/spine/Spine-Toolbox/work',
+            },
             jumps=[],
-            items_module_name='spine_items')
+            items_module_name='spine_items',
+        )
 
         impl = RemoteSpineServiceImpl()
         with self.assertRaises(ValueError):

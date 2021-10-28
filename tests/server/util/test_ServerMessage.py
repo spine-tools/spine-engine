@@ -20,44 +20,43 @@ from spine_engine.server.util.ServerMessage import ServerMessage
 
 
 class TestServerMessage(unittest.TestCase):
-
     def test_msg_creation(self):
-        listFiles=["dffd.zip","fdeef.zip"]
-        msg=ServerMessage("execute","4","[]",listFiles)
-        self.assertEqual("execute",msg.getCommand())
-        self.assertEqual("4",msg.getId())
-        self.assertEqual(listFiles,msg.getFileNames())
-        self.assertEqual("[]",msg.getData())
+        listFiles = ["dffd.zip", "fdeef.zip"]
+        msg = ServerMessage("execute", "4", "[]", listFiles)
+        self.assertEqual("execute", msg.getCommand())
+        self.assertEqual("4", msg.getId())
+        self.assertEqual(listFiles, msg.getFileNames())
+        self.assertEqual("[]", msg.getData())
 
     def test_msg_creation2_nofilenames(self):
-        msg=ServerMessage("execute","4","[]",None)
-        self.assertEqual("execute",msg.getCommand())
-        self.assertEqual("4",msg.getId())
-        self.assertEqual("[]",msg.getData())
+        msg = ServerMessage("execute", "4", "[]", None)
+        self.assertEqual("execute", msg.getCommand())
+        self.assertEqual("4", msg.getId())
+        self.assertEqual("[]", msg.getData())
 
     def test_msg_nodata(self):
-        listFiles=["dffd.zip","fdeef.zip"]
-        msg=ServerMessage("execute","4","",listFiles)
-        self.assertEqual("execute",msg.getCommand())
-        self.assertEqual("4",msg.getId())
+        listFiles = ["dffd.zip", "fdeef.zip"]
+        msg = ServerMessage("execute", "4", "", listFiles)
+        self.assertEqual("execute", msg.getCommand())
+        self.assertEqual("4", msg.getId())
 
     def test_msg_bad_input2(self):
-        listFiles=["dffd.zip","fdeef.zip"]
+        listFiles = ["dffd.zip", "fdeef.zip"]
         with self.assertRaises(ValueError):
-            msg=ServerMessage("execute","","[]",listFiles)
+            msg = ServerMessage("execute", "", "[]", listFiles)
 
     def test_message_tojson1(self):
-        listFiles=["dffd.zip","fdeef.zip"]
-        msg=ServerMessage("execute","4","[]",listFiles)
-        jsonStr=msg.toJSON()
-        #print("parsed msg:\n")
-        #print(jsonStr)
+        listFiles = ["dffd.zip", "fdeef.zip"]
+        msg = ServerMessage("execute", "4", "[]", listFiles)
+        jsonStr = msg.toJSON()
+        # print("parsed msg:\n")
+        # print(jsonStr)
 
     def test_message_tojson2(self):
-        msg=ServerMessage("execute","4","[]",None)
-        jsonStr=msg.toJSON()
-        #print("parsed msg2:\n")
-        #print(jsonStr)
+        msg = ServerMessage("execute", "4", "[]", None)
+        jsonStr = msg.toJSON()
+        # print("parsed msg2:\n")
+        # print(jsonStr)
 
 
 if __name__ == '__main__':

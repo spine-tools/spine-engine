@@ -23,26 +23,25 @@ from spine_engine.server.util.ServerMessage import ServerMessage
 
 
 class TestServerMessageParser(unittest.TestCase):
-
     def test_msg_parsing(self):
         test_file_path = str(Path(__file__).parent / "testMsg.txt")
         with open(test_file_path) as f:
             content = f.read()
-            msg=ServerMessageParser.parse(content)
-            #print(msg)
-            self.assertEqual(msg.getCommand(),"execute")
-            self.assertEqual(msg.getId(),"1")
-            self.assertEqual(msg.getFileNames()[0],"helloworld.zip")
+            msg = ServerMessageParser.parse(content)
+            # print(msg)
+            self.assertEqual(msg.getCommand(), "execute")
+            self.assertEqual(msg.getId(), "1")
+            self.assertEqual(msg.getFileNames()[0], "helloworld.zip")
 
     def test_msg_parsingw(self):
         test_file_path = str(Path(__file__).parent / "testMsg2.txt")
         with open(test_file_path) as f:
             content = f.read()
-            msg=ServerMessageParser.parse(content)
-            #print(msg)
-            self.assertEqual(msg.getCommand(),"execute")
-            self.assertEqual(msg.getId(),"1")
-            self.assertEqual(len(msg.getFileNames()),0)
+            msg = ServerMessageParser.parse(content)
+            # print(msg)
+            self.assertEqual(msg.getCommand(), "execute")
+            self.assertEqual(msg.getId(), "1")
+            self.assertEqual(len(msg.getFileNames()), 0)
 
     def test_invalid_input1(self):
         with self.assertRaises(ValueError):
@@ -50,20 +49,19 @@ class TestServerMessageParser(unittest.TestCase):
 
     def test_invalid_input2(self):
         with self.assertRaises(ValueError):
-            ServerMessageParser.parse("fiuoehfoiewjkfdewjiofdj{")            
+            ServerMessageParser.parse("fiuoehfoiewjkfdewjiofdj{")
 
     def test_msg_nofiles(self):
-        msg=ServerMessage("execute","4","{}",None)
-        jsonStr=msg.toJSON()
-        #print("JSON: %s"%jsonStr)
-        msg=ServerMessageParser.parse(jsonStr)
-        #print(msg)
-        self.assertEqual(msg.getCommand(),"execute")
-        self.assertEqual(msg.getId(),"4")
-        self.assertEqual(msg.getData(),{})
-        self.assertEqual(len(msg.getFileNames()),0)
+        msg = ServerMessage("execute", "4", "{}", None)
+        jsonStr = msg.toJSON()
+        # print("JSON: %s"%jsonStr)
+        msg = ServerMessageParser.parse(jsonStr)
+        # print(msg)
+        self.assertEqual(msg.getCommand(), "execute")
+        self.assertEqual(msg.getId(), "4")
+        self.assertEqual(msg.getData(), {})
+        self.assertEqual(len(msg.getFileNames()), 0)
 
 
 if __name__ == '__main__':
     unittest.main()
-

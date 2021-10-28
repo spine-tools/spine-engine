@@ -22,7 +22,6 @@ from spine_engine.server.util.FileExtractor import FileExtractor
 
 
 class TestFileExtractor(unittest.TestCase):
-
     def test_simple_extraction(self):
         zip_file_path = str(Path(__file__).parent / "test_zipfile.zip")
         output_dir_path = str(Path(__file__).parent / "output")
@@ -56,4 +55,3 @@ class TestFileExtractor(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

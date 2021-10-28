@@ -21,32 +21,30 @@ from spine_engine.server.util.EventDataConverter import EventDataConverter
 
 
 class TestEventDataConverter(unittest.TestCase):
-
     def _createEventData(self):
-        eventData=[]
-        i=0
-        while i< 20:
-            event='exec_finished'
-            data="'item_name': 'helloworld','direction': 'BACKWARD','state': 'RUNNING','item_state': < ItemExecutionFinishState.SUCCESS: 1 >"
-            eventData.append((event,data))
-            i+=1
+        eventData = []
+        i = 0
+        while i < 20:
+            event = 'exec_finished'
+            data = "'item_name': 'helloworld','direction': 'BACKWARD','state': 'RUNNING','item_state': < ItemExecutionFinishState.SUCCESS: 1 >"
+            eventData.append((event, data))
+            i += 1
         return eventData
 
     def test_converting_basic(self):
-        eventData=self._createEventData()
-        jsonStr=EventDataConverter.convert(eventData)
-        #print(jsonStr)
+        eventData = self._createEventData()
+        jsonStr = EventDataConverter.convert(eventData)
+        # print(jsonStr)
         json.loads(jsonStr)
 
     def test_2converts_basic(self):
-        eventData=self._createEventData()
-        jsonStr=EventDataConverter.convert(eventData)
-        eventsData2=EventDataConverter.convertJSON(jsonStr,True)
-        #print(eventsData2)
-        jsonStr2=EventDataConverter.convert(eventsData2)
-        self.assertEqual(jsonStr,jsonStr2)
+        eventData = self._createEventData()
+        jsonStr = EventDataConverter.convert(eventData)
+        eventsData2 = EventDataConverter.convertJSON(jsonStr, True)
+        # print(eventsData2)
+        jsonStr2 = EventDataConverter.convert(eventsData2)
+        self.assertEqual(jsonStr, jsonStr2)
 
 
 if __name__ == '__main__':
     unittest.main()
-
