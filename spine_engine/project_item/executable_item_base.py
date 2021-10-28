@@ -64,12 +64,12 @@ class ExecutableItemBase:
         return self._filter_id
 
     def hash_filter_id(self):
-        """Returns a hash of filter id.
+        """Hashes filter id.
 
         Returns:
             str: hash
         """
-        return sha1(bytes(self._filter_id, "utf8")).hexdigest()
+        return sha1(bytes(self._filter_id, "utf8")).hexdigest() if self._filter_id else ""
 
     @filter_id.setter
     def filter_id(self, filter_id):
