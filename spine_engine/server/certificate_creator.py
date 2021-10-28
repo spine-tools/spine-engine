@@ -25,7 +25,6 @@ import zmq.auth
 
 
 class CertificateCreator:
-
     @staticmethod
     def generate_certificates(base_dir):
         """Generates client and server keys for enabling security.
@@ -44,24 +43,16 @@ class CertificateCreator:
             os.mkdir(d)
 
         # create new keys in certificates dir
-        server_public_file, server_secret_file = zmq.auth.create_certificates(
-            keys_dir, "server"
-        )
-        client_public_file, client_secret_file = zmq.auth.create_certificates(
-            keys_dir, "client"
-        )
+        server_public_file, server_secret_file = zmq.auth.create_certificates(keys_dir, "server")
+        client_public_file, client_secret_file = zmq.auth.create_certificates(keys_dir, "client")
         # move public keys to appropriate directory
         for key_file in os.listdir(keys_dir):
             if key_file.endswith(".key"):
-                shutil.move(
-                    os.path.join(keys_dir, key_file), os.path.join(public_keys_dir, ".")
-                )
+                shutil.move(os.path.join(keys_dir, key_file), os.path.join(public_keys_dir, "."))
         # move secret keys to appropriate directory
         for key_file in os.listdir(keys_dir):
             if key_file.endswith(".key_secret"):
-                shutil.move(
-                    os.path.join(keys_dir, key_file), os.path.join(secret_keys_dir, ".")
-                )
+                shutil.move(os.path.join(keys_dir, key_file), os.path.join(secret_keys_dir, "."))
 
 
 def main(args):

@@ -21,7 +21,7 @@ import threading
 import json
 import os
 import ast
-import random 
+import random
 import string
 import pathlib
 from spine_engine.server.util.ServerMessageParser import ServerMessageParser
@@ -38,7 +38,7 @@ class RemoteConnectionHandler(threading.Thread):
     # location, where all projects will be extracted and executed
     internalProjectFolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "received_projects")
 
-    def __init__(self,zmqConnection):
+    def __init__(self, zmqConnection):
         """
         Args:
             zmqConnection: Zero-MQ connection of the client.
@@ -56,11 +56,11 @@ class RemoteConnectionHandler(threading.Thread):
     def _execute(self):
         """Executes a query with the Spine engine, and returns a response to the Zero-MQ client."""
         # debugging
-        execStartTimeMs = round(time.time()*1000.0)
+        execStartTimeMs = round(time.time() * 1000.0)
         # get message parts sent by the client
-        msgParts=self.zmqConn.getMessageParts()
+        msgParts = self.zmqConn.getMessageParts()
         # parse JSON message
-        if len(msgParts[0])>10:
+        if len(msgParts[0]) > 10:
             try:
                 msgPart1 = msgParts[0].decode("utf-8")
                 # print("RemoteConnectionHandler._execute() Received JSON:\n %s"%msgPart1)
@@ -82,7 +82,7 @@ class RemoteConnectionHandler(threading.Thread):
                     # check for validity of the new folder
                     if not localFolder:
                         print(f"Creating project directory '{localFolder}' failed")
-                        self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(),"{}")
+                        self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
                         return
                     # create folder
                     if not os.path.exists(localFolder):
@@ -92,38 +92,42 @@ class RemoteConnectionHandler(threading.Thread):
                     f.write(msgParts[1])
                     f.close()
                 except Exception as e:
-                    print("RemoteConnectionHandler._execute(): couldn't save the extracted file, "
-                          "returning empty response, reason: %s\n" % e)
+                    print(
+                        "RemoteConnectionHandler._execute(): couldn't save the extracted file, "
+                        "returning empty response, reason: %s\n" % e
+                    )
                     self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
                     return
                 try:
                     # extract the saved file
-                    print(f"RemoteConnectionHandler._execute(): Extracting received "
-                          f"file: {parsedMsg.getFileNames()[0]} to: {localFolder}")
-                    FileExtractor.extract(os.path.join(localFolder,parsedMsg.getFileNames()[0]), localFolder)
+                    print(
+                        f"RemoteConnectionHandler._execute(): Extracting received "
+                        f"file: {parsedMsg.getFileNames()[0]} to: {localFolder}"
+                    )
+                    FileExtractor.extract(os.path.join(localFolder, parsedMsg.getFileNames()[0]), localFolder)
                 except Exception as e:
                     print("RemoteConnectionHandler._execute(): File extraction failed, returning empty response..")
                     self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
                     return
                 # execute DAG in the Spine engine
                 print("RemoteConnectionHandler._execute(): Executing the project")
-                spineEngineImpl=RemoteSpineServiceImpl()
-                #print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
-                #convertedData=self._convertTextDictToDicts(dataAsDict)
-                convertedData=self._convertInput(dataAsDict,localFolder)
-                #print("RemoteConnectionHandler._execute() passing data to spine engine impl: %s"%convertedData)
-                eventData=spineEngineImpl.execute(convertedData)
-                #print("RemoteConnectionHandler._execute(): received events/data: ")
-                #print(eventData)
+                spineEngineImpl = RemoteSpineServiceImpl()
+                # print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
+                # convertedData=self._convertTextDictToDicts(dataAsDict)
+                convertedData = self._convertInput(dataAsDict, localFolder)
+                # print("RemoteConnectionHandler._execute() passing data to spine engine impl: %s"%convertedData)
+                eventData = spineEngineImpl.execute(convertedData)
+                # print("RemoteConnectionHandler._execute(): received events/data: ")
+                # print(eventData)
 
                 # create a response message, parse and send it
                 print("RemoteConnectionHandler._execute(): Execution done. Sending a response to client")
-                jsonEventsData=EventDataConverter.convert(eventData)
+                jsonEventsData = EventDataConverter.convert(eventData)
                 # print(type(jsonEventsData))
-                replyMsg=ServerMessage(parsedMsg.getCommand(), parsedMsg.getId(), jsonEventsData, None)
-                replyAsJson=replyMsg.toJSON()
+                replyMsg = ServerMessage(parsedMsg.getCommand(), parsedMsg.getId(), jsonEventsData, None)
+                replyAsJson = replyMsg.toJSON()
                 # print("RemoteConnectionHandler._execute() Reply to be sent: \n%s"%replyAsJson)
-                replyInBytes= bytes(replyAsJson, "utf-8")
+                replyInBytes = bytes(replyAsJson, "utf-8")
                 # print("RemoteConnectionHandler._execute() Reply to be sent in bytes:%s"%replyInBytes)
                 self.zmqConn.sendReply(replyInBytes)
                 # delete extracted folder
@@ -138,7 +142,7 @@ class RemoteConnectionHandler(threading.Thread):
                 # print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
             else:
                 # print("RemoteConnectionHandler._execute(): no file name included, returning empty response..\n")
-                self._sendResponse(parsedMsg.getCommand(),parsedMsg.getId(),"{}")
+                self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
 
     @staticmethod
     def getFolderForProject(project_dir):
@@ -162,54 +166,54 @@ class RemoteConnectionHandler(threading.Thread):
         random_str = "".join(random.choices(string.ascii_lowercase, k=10))  # create a random string
         return os.path.join(RemoteConnectionHandler.internalProjectFolder, p + "_" + random_str)
 
-    def _convertInput(self,inputData,localFolder):
+    def _convertInput(self, inputData, localFolder):
         """Converts received input data for execution in a local folder.
         Args:
             inputData: input data as a dict.
             localFolder: local folder to be used for DAG execution
         """
-        #print("RemoteConnectionHandler._convertInput(): input data")
-        #print(inputData)
+        # print("RemoteConnectionHandler._convertInput(): input data")
+        # print(inputData)
 
-        #adjust project_dir to point to the local folder
-        remoteFolder=inputData['project_dir']
-        inputData['project_dir']=localFolder
+        # adjust project_dir to point to the local folder
+        remoteFolder = inputData['project_dir']
+        inputData['project_dir'] = localFolder
 
-        #loop specs
-        specsKeys=inputData['specifications'].keys()
+        # loop specs
+        specsKeys = inputData['specifications'].keys()
         for specKey in specsKeys:
-            specItem=inputData['specifications'][specKey]
-            #print("RemoteConnectionHandler._convertInput(): spec item type: %s"%type(specItem))
-            i=0
+            specItem = inputData['specifications'][specKey]
+            # print("RemoteConnectionHandler._convertInput(): spec item type: %s"%type(specItem))
+            i = 0
             for specItemInfo in specItem:
-                #print("RemoteConnectionHandler._convertInput(): spec item info type%s"%type(specItemInfo))
-                #adjust definition_file_path in specs to point to the local folder
+                # print("RemoteConnectionHandler._convertInput(): spec item info type%s"%type(specItemInfo))
+                # adjust definition_file_path in specs to point to the local folder
                 if 'definition_file_path' in specItemInfo:
-                    #print("RemoteConnectionHandler._convertInput(): spec item info contains definition_file_path")
-                    originalDefinitionFilePath=specItemInfo['definition_file_path']
-                    cuttedRemoteFolder=originalDefinitionFilePath.replace(remoteFolder,'')
-                    modifiedDefinitionFilePath=localFolder+cuttedRemoteFolder
-                    inputData['specifications'][specKey][i]['definition_file_path']=modifiedDefinitionFilePath
-                #force execute_in_work-field to False
+                    # print("RemoteConnectionHandler._convertInput(): spec item info contains definition_file_path")
+                    originalDefinitionFilePath = specItemInfo['definition_file_path']
+                    cuttedRemoteFolder = originalDefinitionFilePath.replace(remoteFolder, '')
+                    modifiedDefinitionFilePath = localFolder + cuttedRemoteFolder
+                    inputData['specifications'][specKey][i]['definition_file_path'] = modifiedDefinitionFilePath
+                # force execute_in_work-field to False
                 if 'execute_in_work' in specItemInfo:
-                    #print("RemoteConnectionHandler._convertInput(): spec item info contains execute_in_work")
-                    inputData['specifications'][specKey][i]['execute_in_work']=False
-                i+=1
+                    # print("RemoteConnectionHandler._convertInput(): spec item info contains execute_in_work")
+                    inputData['specifications'][specKey][i]['execute_in_work'] = False
+                i += 1
 
-        #loop items
-        itemsKeys=inputData['items'].keys()
+        # loop items
+        itemsKeys = inputData['items'].keys()
         for itemKey in itemsKeys:
-            #force execute_in_work to False in items
+            # force execute_in_work to False in items
             if 'execute_in_work' in inputData['items'][itemKey]:
-                #print("RemoteConnectionHandler._convertInput() execute_in_work in an item")
-                inputData['items'][itemKey]['execute_in_work']=False
+                # print("RemoteConnectionHandler._convertInput() execute_in_work in an item")
+                inputData['items'][itemKey]['execute_in_work'] = False
 
-        #print("RemoteConnectionHandler._convertInput(): converted data:")
-        #print(inputData)
+        # print("RemoteConnectionHandler._convertInput(): converted data:")
+        # print(inputData)
 
         return inputData
 
-    def _sendResponse(self,msgCommand,msgId,data):
+    def _sendResponse(self, msgCommand, msgId, data):
         replyMsg = ServerMessage(msgCommand, msgId, data, None)
         replyAsJson = replyMsg.toJSON()
         replyInBytes = bytes(replyAsJson, "utf-8")
@@ -218,12 +222,12 @@ class RemoteConnectionHandler(threading.Thread):
     def _convertTextDictToDicts(self, data):
         newData = dict()
         # print("_convertTextDictToDicts() items: %s"%type(data['items']))
-        newData['items']=ast.literal_eval(data['items'])
-        newData['connections']=ast.literal_eval(data['connections'])
-        newData['specifications']=ast.literal_eval(data['specifications'])
-        newData['node_successors']=ast.literal_eval(data['node_successors'])
-        newData['execution_permits']=ast.literal_eval(data['execution_permits'])
-        newData['settings']=ast.literal_eval(data['settings'])
-        newData['settings']=ast.literal_eval(data['settings'])
-        newData['project_dir']=data['project_dir']
+        newData['items'] = ast.literal_eval(data['items'])
+        newData['connections'] = ast.literal_eval(data['connections'])
+        newData['specifications'] = ast.literal_eval(data['specifications'])
+        newData['node_successors'] = ast.literal_eval(data['node_successors'])
+        newData['execution_permits'] = ast.literal_eval(data['execution_permits'])
+        newData['settings'] = ast.literal_eval(data['settings'])
+        newData['settings'] = ast.literal_eval(data['settings'])
+        newData['project_dir'] = data['project_dir']
         return newData

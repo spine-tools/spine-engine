@@ -35,10 +35,22 @@ class RemoteSpineServiceImpl:
             A list of tuples containing event and data returned from the SpineEngine.
         """
         # check for correct input
-        if data['items']==None or data['connections']==None or data['node_successors']==None or data['execution_permits']==None or\
-        data['specifications']==None or data['settings']==None or data['project_dir']==None or\
-        data['items']=="" or data['connections']=="" or data['node_successors']=="" or data['execution_permits']=="" or\
-        data['specifications']=="" or data['settings']=="" or data['project_dir']=="":
+        if (
+            data['items'] == None
+            or data['connections'] == None
+            or data['node_successors'] == None
+            or data['execution_permits'] == None
+            or data['specifications'] == None
+            or data['settings'] == None
+            or data['project_dir'] == None
+            or data['items'] == ""
+            or data['connections'] == ""
+            or data['node_successors'] == ""
+            or data['execution_permits'] == ""
+            or data['specifications'] == ""
+            or data['settings'] == ""
+            or data['project_dir'] == ""
+        ):
             raise ValueError("invalid data content provided to RemoteSpineServiceImpl.execute()")
         # print("RemoteSpineServiceImpl.execute() calling spine_engine with data %s"%data)
         engine = SpineEngine(
@@ -50,23 +62,23 @@ class RemoteSpineServiceImpl:
             execution_permits=data['execution_permits'],
             items_module_name=data['items_module_name'],
             settings=data['settings'],
-            project_dir=data['project_dir']
+            project_dir=data['project_dir'],
         )
-        #engine.run()
-        #time.sleep(1)
-        #get events+data from the spine engine
+        # engine.run()
+        # time.sleep(1)
+        # get events+data from the spine engine
         event_data = []
         while True:
             event_type, data = engine.get_event()
             event_data.append((event_type, data))
-            #print("RemoteSpineServiceImpl.execute() event type: %s"%type(event_type))
-            #print("RemoteSpineServiceImpl.execute() data type: %s"%type(data))
-            #print("RemoteSpineServiceImpl.execute() data: %s"%data)
+            # print("RemoteSpineServiceImpl.execute() event type: %s"%type(event_type))
+            # print("RemoteSpineServiceImpl.execute() data type: %s"%type(data))
+            # print("RemoteSpineServiceImpl.execute() data: %s"%data)
             if data == "COMPLETED" or data == "FAILED":
-                #print("finished, data:")
-                #print(data)
-                #print("engine state:")
-                #print(engine.state())
-                #self._state=RemoteSpineServiceImplState.IDLE
-                #engine.stop()
+                # print("finished, data:")
+                # print(data)
+                # print("engine state:")
+                # print(engine.state())
+                # self._state=RemoteSpineServiceImplState.IDLE
+                # engine.stop()
                 return event_data

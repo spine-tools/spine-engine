@@ -20,10 +20,6 @@ from .ZMQConnection import ZMQConnection
 
 
 class ZMQServerObserver:
-
-
     @abstractmethod
-    def receiveConnection(self, conn:ZMQConnection) -> None:
+    def receiveConnection(self, conn: ZMQConnection) -> None:
         pass
-
-

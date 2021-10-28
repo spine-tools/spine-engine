@@ -27,28 +27,26 @@ class FileExtractor:
     ZIP-file extractor in Spine Engine.
     """
 
-
     @staticmethod
-    def extract(zipFile,outputFolder):
+    def extract(zipFile, outputFolder):
         """
         Extracts the content of a ZIP-file to the provided folder.
         Args:
             zipFile: the ZIP-file to be extracted.
             outputFolder: folder, where the contents are extracted to
         """
-         #check input
-        if zipFile==None or outputFolder==None:
+        # check input
+        if zipFile == None or outputFolder == None:
             raise ValueError('invalid input to FileExtractor.extract()')
-        if len(zipFile)==0 or len(outputFolder)==0:
-           raise ValueError('invalid input to FileExtractor.extract()')
+        if len(zipFile) == 0 or len(outputFolder) == 0:
+            raise ValueError('invalid input to FileExtractor.extract()')
         zipfile_exists = exists(zipFile)
-        fileSize=os.path.getsize(zipFile)
-        if zipfile_exists==False or fileSize<100:
+        fileSize = os.path.getsize(zipFile)
+        if zipfile_exists == False or fileSize < 100:
             raise ValueError('invalid ZIP-file to FileExtractor.extract()')
         with ZipFile(zipFile, 'r') as zipObj:
             zipObj.extractall(outputFolder)
             zipObj.close()
-
 
     @staticmethod
     def deleteFolder(folder):
@@ -57,14 +55,14 @@ class FileExtractor:
         Args:
             folder: folder to be deleted
         """
-         #check input
-        if folder==None:
+        # check input
+        if folder == None:
             raise ValueError('invalid input to FileExtractor.deleteFolder()')
-        if len(folder)==0:
+        if len(folder) == 0:
             raise ValueError('invalid input to FileExtractor.deleteFolder()')
 
-        if os.path.isdir(folder)==False:
-            raise ValueError('provided folder %s doesn''t exist'%folder)  
+        if os.path.isdir(folder) == False:
+            raise ValueError('provided folder %s doesn' 't exist' % folder)
 
-        shutil.rmtree(folder) 
-        #print("FileExtractor.deleteFolder(): Removed folder: %s"%folder)   
+        shutil.rmtree(folder)
+        # print("FileExtractor.deleteFolder(): Removed folder: %s"%folder)

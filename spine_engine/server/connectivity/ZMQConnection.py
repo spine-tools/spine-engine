@@ -23,31 +23,26 @@ class ZMQConnection:
     (see Zero-MQ docs at https://zguide.zeromq.org/).
     """
 
-
-    def __init__(
-        self,socket,msgParts
-    ):
+    def __init__(self, socket, msgParts):
         """
         Args:
             socket: ZMQSocket for communication
             msgParts: received message parts
         """
-        self._socket=socket
-        self._msgParts=msgParts
-        #self._closed=False
-        #print("ZMQConnection(): parts:")
-        #print(self._msgParts)
-
+        self._socket = socket
+        self._msgParts = msgParts
+        # self._closed=False
+        # print("ZMQConnection(): parts:")
+        # print(self._msgParts)
 
     """
     Provides Zero-MQ message parts as a list of binary data.
     Returns:
         a list of binary data.
     """
+
     def getMessageParts(self):
         return self._msgParts
-
-
 
     """
     Sends a reply message to the recipient.
@@ -55,23 +50,21 @@ class ZMQConnection:
         binary data
     Returns:
     """
-    def sendReply(self,data):        
+
+    def sendReply(self, data):
         self._socket.send(data)
 
-
-    #"""
-    #Closes the connection.
-    #"""
-    #def close(self):
+    # """
+    # Closes the connection.
+    # """
+    # def close(self):
     #    self._socket.close()
     #    self._closed=True
 
-    
-    #"""
-    #Indicates if the connection has been closed.
-    #Returns: 
+    # """
+    # Indicates if the connection has been closed.
+    # Returns:
     #    Boolean
-    #"""
-    #def closed(self):
+    # """
+    # def closed(self):
     #    self._closed
-
