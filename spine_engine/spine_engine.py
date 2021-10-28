@@ -560,7 +560,7 @@ class SpineEngine:
                 connection.receive_resources_from_source(resources)
                 if connection.has_filters():
                     connection.fetch_database_items()
-        return list(zip(*output_resources_list)), success[0]
+        return output_resources_list, success[0]
 
     def _execute_item_filtered(
         self, item, filtered_forward_resources, filtered_backward_resources, output_resources_list, success
@@ -613,10 +613,33 @@ class SpineEngine:
                 filter_ids_by_provider.setdefault(r.provider_name, set()).add(r.metadata.get("filter_id"))
             return all(len(filter_ids) == 1 for filter_ids in filter_ids_by_provider.values())
 
+        resource_filter_stacks = dict()
+        non_filterable_resources = dict()
+        filterable_resources = list()
+        for stack in forward_resource_stacks:
+            if not stack:
+                continue
+            non_filterable = list()
+            for resource in stack:
+                filter_stacks = self._filter_stacks(item_name, resource.provider_name, resource.label)
+                if not filter_stacks:
+                    non_filterable.append(resource)
+                else:
+                    resource_filter_stacks[(resource.provider_name, resource.label)] = filter_stacks
+                    filterable_resources.append(resource)
+            if non_filterable:
+                non_filterable_resources.setdefault(stack[0].provider_name, list()).append(non_filterable)
         forward_resource_stacks_iterator = (
-            self._expand_resource_stack(item_name, resource_stack) for resource_stack in forward_resource_stacks
+            self._expand_resource_stack(resource, resource_filter_stacks[(resource.provider_name, resource.label)])
+            for resource in filterable_resources
         )
-        for filtered_forward_resources in product(*forward_resource_stacks_iterator):
+        for resources_or_lists in product(*non_filterable_resources.values(), *forward_resource_stacks_iterator):
+            filtered_forward_resources = list()
+            for item in resources_or_lists:
+                if isinstance(item, list):
+                    filtered_forward_resources += item
+                else:
+                    filtered_forward_resources.append(item)
             if not check_resource_affinity(filtered_forward_resources):
                 continue
             filtered_forward_resources = self._convert_forward_resources(item_name, filtered_forward_resources)
@@ -633,31 +656,21 @@ class SpineEngine:
             filter_id = _make_filter_id(resource_filter_stack)
             yield list(filtered_forward_resources), filtered_backward_resources, filter_id
 
-    def _expand_resource_stack(self, item_name, resource_stack):
-        """Expands a resource stack if possible.
+    @staticmethod
+    def _expand_resource_stack(resource, filter_stacks):
+        """Expands a resource according to filters defined for that resource.
 
-        If the stack has more than one resource, returns the unaltered stack.
-
-        Otherwise, if the stack has only one resource but there are no filters defined for that resource,
-        again, returns the unaltered stack.
-
-        Otherwise, returns an expanded stack of as many resources as filter stacks defined for the only one resource.
+        Returns an expanded stack of as many resources as filter stacks defined for the resource.
         Each resource in the expanded stack is a clone of the original, with one of the filter stacks
         applied to the URL.
 
         Args:
-            item_name (str): resource receiving item's name
-            resource_stack (tuple(ProjectItemResource))
+            resource (ProjectItemResource): resource to expand
+            filter_stacks (list): resource's filter stacks
 
         Returns:
-            tuple(ProjectItemResource)
+            tuple(ProjectItemResource): expanded resources
         """
-        if len(resource_stack) > 1:
-            return resource_stack
-        resource = resource_stack[0]
-        filter_stacks = self._filter_stacks(item_name, resource.label)
-        if not filter_stacks:
-            return resource_stack
         expanded_stack = ()
         for filter_stack in filter_stacks:
             filtered_clone = resource.clone(additional_metadata={"filter_stack": filter_stack})
@@ -666,24 +679,30 @@ class SpineEngine:
             expanded_stack += (filtered_clone,)
         return expanded_stack
 
-    def _filter_stacks(self, item_name, resource_label):
+    def _filter_stacks(self, item_name, provider_name, resource_label):
         """Computes filter stacks.
 
         Stacks are computed as the cross-product of all individual filters defined for a resource.
 
         Args:
             item_name (str): item's name
+            provider_name (str): resource provider's name
             resource_label (str): resource's label
 
         Returns:
             list of list: filter stacks
         """
         connections = self._connections_by_destination.get(item_name, [])
-        connection_filters_iterator = ((c, c.resource_filters.get(resource_label)) for c in connections)
-        connection_filters = next(((c, f) for c, f in connection_filters_iterator if f is not None), None)
-        if connection_filters is None:
+        connection = None
+        for c in connections:
+            if c.source == provider_name:
+                connection = c
+                break
+        if connection is None:
+            raise RuntimeError("Logic error: no connection from resource provider")
+        filters = connection.resource_filters.get(resource_label)
+        if filters is None:
             return []
-        connection, filters = connection_filters
         filter_configs_list = []
         for filter_type, ids in filters.items():
             filter_configs = [

@@ -25,7 +25,7 @@ import unittest
 from unittest.mock import MagicMock, NonCallableMagicMock, call, patch
 
 from spine_engine.project_item.connection import Jump, Connection
-from spinedb_api import DiffDatabaseMapping, import_scenarios, import_tools
+from spinedb_api import DatabaseMapping, import_scenarios, import_tools
 from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.filters.tool_filter import tool_filter_config
 from spinedb_api.filters.execution_filter import execution_filter_config
@@ -34,7 +34,7 @@ from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState, Item
 from spine_engine.project_item.project_item_resource import ProjectItemResource
 
 
-def _make_resource(url):
+def _make_url_resource(url):
     return ProjectItemResource("name", "database", "label", url)
 
 
@@ -54,7 +54,7 @@ class TestSpineEngine(unittest.TestCase):
             execute_outcome (ItemExecutionFinishState): Execution return state.
 
         Returns:
-            NonCallableMagicMock
+            NonCallableMagicMock`
         """
         if resources_forward is None:
             resources_forward = []
@@ -63,15 +63,8 @@ class TestSpineEngine(unittest.TestCase):
         item = NonCallableMagicMock()
         item.name = name
         item.short_name = name.lower().replace(' ', '_')
-        item.fwd_flt_stacks = []
-        item.bwd_flt_stacks = []
 
-        def execute(forward_resources, backward_resources, item=item):
-            item.fwd_flt_stacks += [r.metadata.get("filter_stack", ()) for r in forward_resources]
-            item.bwd_flt_stacks += [r.metadata.get("filter_stack", ()) for r in backward_resources]
-            return execute_outcome
-
-        item.execute.side_effect = execute
+        item.execute.return_value = execute_outcome
         item.exclude_execution = MagicMock()
         for r in resources_forward + resources_backward:
             r.provider_name = item.name
@@ -81,143 +74,217 @@ class TestSpineEngine(unittest.TestCase):
         }[direction]
         return item
 
+    @staticmethod
+    def _default_forward_url_resource(url, predecessor_name):
+        resource = _make_url_resource(url)
+        resource.provider_name = predecessor_name
+        resource.metadata = {'filter_id': '', 'filter_stack': ()}
+        return resource
+
+    @staticmethod
+    def _default_backward_url_resource(url, item_name, successor_name, scenarios=None):
+        resource = _make_url_resource(url)
+        resource.provider_name = successor_name
+        if scenarios is None:
+            scenarios = list()
+        resource.metadata = {
+            "filter_stack": (
+                execution_filter_config(
+                    {"execution_item": item_name, "scenarios": scenarios, "timestamp": "timestamp"}
+                ),
+            )
+        }
+        return resource
+
+    def _run_engine(self, items, connections, successors, execution_permits=None, jumps=None):
+        if execution_permits is None:
+            execution_permits = {item_name: True for item_name in items}
+        engine = SpineEngine(
+            items=items,
+            connections=connections,
+            jumps=jumps,
+            node_successors=successors,
+            execution_permits=execution_permits,
+            items_module_name="items_module",
+        )
+        engine._make_item = (
+            lambda name, direction: engine._items[name].pop(0)
+            if direction == ExecutionDirection.FORWARD
+            else engine._items[name][0]
+        )
+        with patch("spine_engine.spine_engine.create_timestamp") as mock_create_timestamp:
+            mock_create_timestamp.return_value = "timestamp"
+            engine.run()
+        self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
+
     def setUp(self):
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "mock_project_items"))
 
     def tearDown(self):
         sys.path.pop(0)
 
-    def test_linear_execution_succeeds(self):
-        """Tests execution with three items in a line."""
-        url_a_fw = _make_resource("db:///url_a_fw")
-        url_b_fw = _make_resource("db:///url_b_fw")
-        url_c_fw = _make_resource("db:///url_c_fw")
-        url_a_bw = _make_resource("db:///url_a_bw")
-        url_b_bw = _make_resource("db:///url_b_bw")
-        url_c_bw = _make_resource("db:///url_c_bw")
+    def test_single_item_execution(self):
+        """Test execution of a single item."""
+        url_a_fw = _make_url_resource("db:///url_a_fw")
+        url_a_bw = _make_url_resource("db:///url_b_fw")
+        mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
+        items = {"item_a": [mock_item_a]}
+        connections = []
+        successors = {}
+        self._run_engine(items, connections, successors)
+        item_a_execute_args = [[[], []]]
+        self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
+        mock_item_a.exclude_execution.assert_not_called()
+
+    def test_linear_execution(self):
+        """Test execution with items a-b-c in a line."""
+        url_a_fw = _make_url_resource("db:///url_a_fw")
+        url_b_fw = _make_url_resource("db:///url_b_fw")
+        url_c_fw = _make_url_resource("db:///url_c_fw")
+        url_a_bw = _make_url_resource("db:///url_a_bw")
+        url_b_bw = _make_url_resource("db:///url_b_bw")
+        url_c_bw = _make_url_resource("db:///url_c_bw")
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
-        items = {"item_a": mock_item_a, "item_b": mock_item_b, "item_c": mock_item_c}
+        items = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
         connections = [
             {"from": ("item_a", "right"), "to": ("item_b", "left")},
             {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
         ]
         successors = {"item_a": ["item_b"], "item_b": ["item_c"], "item_c": []}
-        execution_permits = {"item_a": True, "item_b": True, "item_c": True}
-        engine = SpineEngine(
-            items=items,
-            connections=connections,
-            node_successors=successors,
-            execution_permits=execution_permits,
-            items_module_name="items_module",
-        )
-        engine._make_item = lambda name, direction: engine._items[name]
-        engine.run()
-        item_a_execute_args = [[[], [url_b_bw]]]
-        item_b_execute_args = [[[url_a_fw], [url_c_bw]]]
-        item_c_execute_calls = [call([url_b_fw], [])]
+        self._run_engine(items, connections, successors)
+        expected_bw_resource = self._default_backward_url_resource("db:///url_b_bw", "item_a", "item_b")
+        item_a_execute_args = [[[], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         mock_item_a.exclude_execution.assert_not_called()
+        expected_fw_resource = self._default_forward_url_resource("db:///url_a_fw", "item_a")
+        expected_bw_resource = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c")
+        item_b_execute_args = [[[expected_fw_resource], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execute_args)
         mock_item_b.exclude_execution.assert_not_called()
-        mock_item_c.execute.assert_has_calls(item_c_execute_calls)
+        expected_fw_resource = self._default_forward_url_resource("db:///url_b_fw", "item_b")
+        item_c_execute_args = [[[expected_fw_resource], []]]
+        self._assert_resource_args(mock_item_c.execute.call_args_list, item_c_execute_args)
         mock_item_c.exclude_execution.assert_not_called()
-        self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
-    def test_fork_execution_succeeds(self):
-        """Tests execution with three items in a fork."""
-        url_a_fw = _make_resource("db:///url_a_fw")
-        url_b_fw = _make_resource("db:///url_b_fw")
-        url_c_fw = _make_resource("db:///url_c_fw")
-        url_a_bw = _make_resource("db:///url_a_bw")
-        url_b_bw = _make_resource("db:///url_b_bw")
-        url_c_bw = _make_resource("db:///url_c_bw")
+    def test_fork_execution(self):
+        """Test execution that forks from item a to items b and c."""
+        url_a_fw = _make_url_resource("db:///url_a_fw")
+        url_b_fw = _make_url_resource("db:///url_b_fw")
+        url_c_fw = _make_url_resource("db:///url_c_fw")
+        url_a_bw = _make_url_resource("db:///url_a_bw")
+        url_b_bw = _make_url_resource("db:///url_b_bw")
+        url_c_bw = _make_url_resource("db:///url_c_bw")
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
-        items = {"item_a": mock_item_a, "item_b": mock_item_b, "item_c": mock_item_c}
+        items = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
         connections = [
             {"from": ("item_a", "right"), "to": ("item_b", "left")},
-            {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
+            {"from": ("item_a", "bottom"), "to": ("item_c", "left")},
         ]
         successors = {"item_a": ["item_b", "item_c"], "item_b": [], "item_c": []}
-        execution_permits = {"item_a": True, "item_b": True, "item_c": True}
-        engine = SpineEngine(
-            items=items,
-            connections=connections,
-            node_successors=successors,
-            execution_permits=execution_permits,
-            items_module_name="items_module",
-        )
-        engine._make_item = lambda name, direction: engine._items[name]
-        engine.run()
-        item_a_execute_args = [[[], [url_b_bw, url_c_bw]]]
-        item_b_execute_calls = [call([url_a_fw], [])]
-        item_c_execute_calls = [call([url_a_fw], [])]
+        self._run_engine(items, connections, successors)
+        expected_bw_resource1 = self._default_backward_url_resource("db:///url_b_bw", "item_a", "item_b")
+        expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_a", "item_c")
+        item_a_execute_args = [[[], [expected_bw_resource1, expected_bw_resource2]]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         mock_item_a.exclude_execution.assert_not_called()
-        mock_item_b.execute.assert_has_calls(item_b_execute_calls)
+        expected_fw_resource = self._default_forward_url_resource("db:///url_a_fw", "item_a")
+        item_b_execute_calls = [[[expected_fw_resource], []]]
+        self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execute_calls)
         mock_item_b.exclude_execution.assert_not_called()
-        mock_item_c.execute.assert_has_calls(item_c_execute_calls)
+        item_c_execute_calls = [[[expected_fw_resource], []]]
+        self._assert_resource_args(mock_item_c.execute.call_args_list, item_c_execute_calls)
         mock_item_c.exclude_execution.assert_not_called()
-        self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
+
+    def test_branch_merge_execution(self):
+        """Tests execution with items a and b as direct successors for c."""
+        url_a_fw = _make_url_resource("db:///url_a_fw")
+        url_b_fw = _make_url_resource("db:///url_b_fw")
+        url_c_fw = _make_url_resource("db:///url_c_fw")
+        url_a_bw = _make_url_resource("db:///url_a_bw")
+        url_b_bw = _make_url_resource("db:///url_b_bw")
+        url_c_bw = _make_url_resource("db:///url_c_bw")
+        mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
+        mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
+        mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
+        items = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
+        connections = [
+            {"from": ("item_a", "right"), "to": ("item_c", "left")},
+            {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
+        ]
+        successors = {"item_a": ["item_c"], "item_b": ["item_c"], "item_c": []}
+        self._run_engine(items, connections, successors)
+        expected_bw_resource = self._default_backward_url_resource("db:///url_c_bw", "item_a", "item_c")
+        item_a_execute_args = [[[], [expected_bw_resource]]]
+        self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
+        expected_bw_resource = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c")
+        item_b_execute_calls = [[[], [expected_bw_resource]]]
+        self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execute_calls)
+        expected_fw_resource1 = self._default_forward_url_resource("db:///url_a_fw", "item_a")
+        expected_fw_resource2 = self._default_forward_url_resource("db:///url_b_fw", "item_b")
+        item_c_execute_calls = [[[expected_fw_resource1, expected_fw_resource2], []]]
+        self._assert_resource_args(mock_item_c.execute.call_args_list, item_c_execute_calls)
 
     def test_execution_permits(self):
         """Tests that the middle item of an item triplet is not executed when its execution permit is False."""
-        url_a_fw = _make_resource("db:///url_a_fw")
-        url_b_fw = _make_resource("db:///url_b_fw")
-        url_c_fw = _make_resource("db:///url_c_fw")
-        url_a_bw = _make_resource("db:///url_a_bw")
-        url_b_bw = _make_resource("db:///url_b_bw")
-        url_c_bw = _make_resource("db:///url_c_bw")
+        url_a_fw = _make_url_resource("db:///url_a_fw")
+        url_b_fw = _make_url_resource("db:///url_b_fw")
+        url_c_fw = _make_url_resource("db:///url_c_fw")
+        url_a_bw = _make_url_resource("db:///url_a_bw")
+        url_b_bw = _make_url_resource("db:///url_b_bw")
+        url_c_bw = _make_url_resource("db:///url_c_bw")
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
-        items = {"item_a": mock_item_a, "item_b": mock_item_b, "item_c": mock_item_c}
+        items = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
         connections = [
             {"from": ("item_a", "right"), "to": ("item_b", "left")},
             {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
         ]
         successors = {"item_a": ["item_b"], "item_b": ["item_c"], "item_c": []}
         execution_permits = {"item_a": True, "item_b": False, "item_c": True}
-        engine = SpineEngine(
-            items=items,
-            connections=connections,
-            node_successors=successors,
-            execution_permits=execution_permits,
-            items_module_name="items_module",
-        )
-        engine._make_item = lambda name, direction: engine._items[name]
-        engine.run()
-        item_a_execute_args = [[[], [url_b_bw]]]
-        item_b_skip_execution_args = [[[url_a_fw], [url_c_bw]]]
-        item_c_execute_calls = [call([url_b_fw], [])]
+        self._run_engine(items, connections, successors, execution_permits)
+        expected_bw_resource = self._default_backward_url_resource("db:///url_b_bw", "item_a", "item_b")
+        item_a_execute_args = [[[], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         mock_item_a.exclude_execution.assert_not_called()
         mock_item_b.execute.assert_not_called()
+        expected_fw_resource = self._default_forward_url_resource("db:///url_a_fw", "item_a")
+        expected_bw_resource = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c")
+        item_b_skip_execution_args = [[[expected_fw_resource], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_b.exclude_execution.call_args_list, item_b_skip_execution_args)
         mock_item_b.output_resources.assert_called()
-        mock_item_c.execute.assert_has_calls(item_c_execute_calls)
+        expected_fw_resource = self._default_forward_url_resource("db:///url_b_fw", "item_b")
+        item_c_execute_calls = [[[expected_fw_resource], []]]
+        self._assert_resource_args(mock_item_c.execute.call_args_list, item_c_execute_calls)
         mock_item_c.exclude_execution.assert_not_called()
-        self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     def test_filter_stacks(self):
         """Tests filter stacks are properly applied."""
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
-            db_map = DiffDatabaseMapping(url, create=True)
+            db_map = DatabaseMapping(url, create=True)
             import_scenarios(db_map, (("scen1", True), ("scen2", True)))
             import_tools(db_map, ("toolA",))
             db_map.commit_session("Add test data.")
             db_map.connection.close()
-            url_a_fw = _make_resource(url)
-            url_b_fw = _make_resource("db:///url_b_fw")
-            url_c_bw = _make_resource("db:///url_c_bw")
+            url_a_fw = _make_url_resource(url)
+            url_b_fw1 = _make_url_resource("db:///url_b_fw")
+            url_b_fw2 = _make_url_resource("db:///url_b_fw")
+            url_c_bw = _make_url_resource("db:///url_c_bw")
             mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
-            mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[])
-            mock_item_c = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
-            items = {"item_a": mock_item_a, "item_b": mock_item_b, "item_c": mock_item_c}
+            mock_item_b1 = self._mock_item("item_b", resources_forward=[url_b_fw1], resources_backward=[])
+            mock_item_b2 = self._mock_item("item_b", resources_forward=[url_b_fw2], resources_backward=[])
+            mock_item_c1 = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
+            mock_item_c2 = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
+            items = {
+                "item_a": [mock_item_a],
+                "item_b": [mock_item_b1, mock_item_b2],
+                "item_c": [mock_item_c1, mock_item_c2],
+            }
             connections = [
                 {
                     "from": ("item_a", "right"),
@@ -227,41 +294,380 @@ class TestSpineEngine(unittest.TestCase):
                 {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
             ]
             successors = {"item_a": ["item_b"], "item_b": ["item_c"], "item_c": []}
-            execution_permits = {"item_a": True, "item_b": True, "item_c": True}
-            engine = SpineEngine(
-                items=items,
-                connections=connections,
-                node_successors=successors,
-                execution_permits=execution_permits,
-                items_module_name="items_module",
-            )
-            engine._make_item = lambda name, direction: engine._items[name]
-            with patch("spine_engine.spine_engine.create_timestamp") as mock_create_timestamp:
-                mock_create_timestamp.return_value = "timestamp"
-                engine.run()
+            self._run_engine(items, connections, successors)
+            item_a_execution_args = [[[], []]]
+            self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execution_args)
             # Check that item_b has been executed two times, with the right filters
-            self.assertEqual(len(mock_item_b.fwd_flt_stacks), 2)
-            self.assertEqual(len(mock_item_b.bwd_flt_stacks), 2)
-            self.assertIn((scenario_filter_config("scen1"), tool_filter_config("toolA")), mock_item_b.fwd_flt_stacks)
-            self.assertIn((scenario_filter_config("scen2"), tool_filter_config("toolA")), mock_item_b.fwd_flt_stacks)
-            self.assertIn(
-                (
-                    execution_filter_config(
-                        {"execution_item": "item_b", "scenarios": ["scen1"], "timestamp": "timestamp"}
-                    ),
-                ),
-                mock_item_b.bwd_flt_stacks,
+            expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", url)
+            expected_filter_stack1 = (scenario_filter_config("scen1"), tool_filter_config("toolA"))
+            expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
+            expected_bw_resource1 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen1"])
+            item_b_execution_args = [[[expected_fw_resource1], [expected_bw_resource1]]]
+            self._assert_resource_args(mock_item_b1.execute.call_args_list, item_b_execution_args)
+            expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", url)
+            expected_filter_stack2 = (scenario_filter_config("scen2"), tool_filter_config("toolA"))
+            expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
+            expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen2"])
+            item_b_execution_args = [[[expected_fw_resource2], [expected_bw_resource2]]]
+            self._assert_resource_args(mock_item_b2.execute.call_args_list, item_b_execution_args)
+            # Check that item_c has been executed twice, with the right filters
+            expected_fw_resource1 = ProjectItemResource("item_b", "database", "label", "db:///url_b_fw")
+            expected_fw_resource1.metadata = {
+                "filter_stack": expected_filter_stack1,
+                "filter_id": "db.sqlite with scen1&toolA",
+            }
+            item_c_execution_args = [[[expected_fw_resource1], []]]
+            self._assert_resource_args(mock_item_c1.execute.call_args_list, item_c_execution_args)
+            expected_fw_resource2 = ProjectItemResource("item_b", "database", "label", "db:///url_b_fw")
+            expected_fw_resource2.metadata = {
+                "filter_stack": expected_filter_stack2,
+                "filter_id": "db.sqlite with scen2&toolA",
+            }
+            item_c_execution_args = [[[expected_fw_resource2], []]]
+            self._assert_resource_args(mock_item_c2.execute.call_args_list, item_c_execution_args)
+
+    def test_parallel_execution_ends_when_no_output_resources_are_generated(self):
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            db_map = DatabaseMapping(url, create=True)
+            import_scenarios(db_map, (("scen1", True), ("scen2", True)))
+            import_tools(db_map, ("toolA",))
+            db_map.commit_session("Add test data.")
+            db_map.connection.close()
+            url_a_fw = _make_url_resource(url)
+            url_c_bw = _make_url_resource("db:///url_c_bw")
+            mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
+            mock_item_b1 = self._mock_item("item_b", resources_forward=[], resources_backward=[])
+            mock_item_b2 = self._mock_item("item_b", resources_forward=[], resources_backward=[])
+            mock_item_c = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
+            items = {"item_a": [mock_item_a], "item_b": [mock_item_b1, mock_item_b2], "item_c": [mock_item_c]}
+            connections = [
+                {
+                    "from": ("item_a", "right"),
+                    "to": ("item_b", "left"),
+                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                },
+                {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
+            ]
+            successors = {"item_a": ["item_b"], "item_b": ["item_c"], "item_c": []}
+            self._run_engine(items, connections, successors)
+            item_a_execution_args = [[[], []]]
+            self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execution_args)
+            # Check that item_b has been executed two times, with the right filters
+            expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", url)
+            expected_filter_stack1 = (scenario_filter_config("scen1"), tool_filter_config("toolA"))
+            expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
+            expected_bw_resource1 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen1"])
+            item_b_execution_args = [[[expected_fw_resource1], [expected_bw_resource1]]]
+            self._assert_resource_args(mock_item_b1.execute.call_args_list, item_b_execution_args)
+            expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", url)
+            expected_filter_stack2 = (scenario_filter_config("scen2"), tool_filter_config("toolA"))
+            expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
+            expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen2"])
+            item_b_execution_args = [[[expected_fw_resource2], [expected_bw_resource2]]]
+            self._assert_resource_args(mock_item_b2.execute.call_args_list, item_b_execution_args)
+            # Check that item_c has been executed only once
+            self._assert_resource_args(mock_item_c.execute.call_args_list, [[[], []]])
+
+    def test_filter_stacks_and_multiple_file_output_resources(self):
+        """Multiple file output resources should be combined correctly for a successor"""
+        with TemporaryDirectory() as temp_dir:
+            url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
+            db_map = DatabaseMapping(url, create=True)
+            import_scenarios(db_map, (("scen1", True), ("scen2", True)))
+            import_tools(db_map, ("toolA",))
+            db_map.commit_session("Add test data.")
+            db_map.connection.close()
+            url_a_fw = _make_url_resource(url)
+            file_b_fw_11 = ProjectItemResource("item_b", "file", "label_1")
+            file_b_fw_12 = ProjectItemResource("item_b", "file", "label_1")
+            file_b_fw_21 = ProjectItemResource("item_b", "file", "label_2")
+            file_b_fw_22 = ProjectItemResource("item_b", "file", "label_2")
+            url_c_bw = _make_url_resource("db:///url_c_bw")
+            mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
+            mock_item_b1 = self._mock_item(
+                "item_b", resources_forward=[file_b_fw_11, file_b_fw_21], resources_backward=[]
             )
-            self.assertIn(
-                (
-                    execution_filter_config(
-                        {"execution_item": "item_b", "scenarios": ["scen2"], "timestamp": "timestamp"}
-                    ),
-                ),
-                mock_item_b.bwd_flt_stacks,
+            mock_item_b2 = self._mock_item(
+                "item_b", resources_forward=[file_b_fw_12, file_b_fw_22], resources_backward=[]
             )
-            # Check that item_c has also been executed two times
-            self.assertEqual(len(mock_item_c.fwd_flt_stacks), 2)
+            mock_item_c1 = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
+            mock_item_c2 = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
+            items = {
+                "item_a": [mock_item_a],
+                "item_b": [mock_item_b1, mock_item_b2],
+                "item_c": [mock_item_c1, mock_item_c2],
+            }
+            connections = [
+                {
+                    "from": ("item_a", "right"),
+                    "to": ("item_b", "left"),
+                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                },
+                {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
+            ]
+            successors = {"item_a": ["item_b"], "item_b": ["item_c"], "item_c": []}
+            self._run_engine(items, connections, successors)
+            item_a_execution_args = [[[], []]]
+            self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execution_args)
+            # Check that item_b has been executed two times, with the right filters
+            expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", url)
+            expected_filter_stack1 = (scenario_filter_config("scen1"), tool_filter_config("toolA"))
+            expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
+            expected_bw_resource1 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen1"])
+            item_b_execution_args = [[[expected_fw_resource1], [expected_bw_resource1]]]
+            self._assert_resource_args(mock_item_b1.execute.call_args_list, item_b_execution_args)
+            expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", url)
+            expected_filter_stack2 = (scenario_filter_config("scen2"), tool_filter_config("toolA"))
+            expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
+            expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen2"])
+            item_b_execution_args = [[[expected_fw_resource2], [expected_bw_resource2]]]
+            self._assert_resource_args(mock_item_b2.execute.call_args_list, item_b_execution_args)
+            # Check that item_c has been executed twice, with the right filters
+            expected_fw_resource1 = ProjectItemResource("item_b", "file", "label_1")
+            expected_fw_resource1.metadata = {
+                "filter_stack": expected_filter_stack1,
+                "filter_id": "db.sqlite with scen1&toolA",
+            }
+            expected_fw_resource2 = ProjectItemResource("item_b", "file", "label_2")
+            expected_fw_resource2.metadata = {
+                "filter_stack": expected_filter_stack1,
+                "filter_id": "db.sqlite with scen1&toolA",
+            }
+            item_c_execution_args = [[[expected_fw_resource1, expected_fw_resource2], []]]
+            self._assert_resource_args(mock_item_c1.execute.call_args_list, item_c_execution_args)
+            expected_fw_resource3 = ProjectItemResource("item_b", "file", "label_1")
+            expected_fw_resource3.metadata = {
+                "filter_stack": expected_filter_stack2,
+                "filter_id": "db.sqlite with scen2&toolA",
+            }
+            expected_fw_resource4 = ProjectItemResource("item_b", "file", "label_2")
+            expected_fw_resource4.metadata = {
+                "filter_stack": expected_filter_stack2,
+                "filter_id": "db.sqlite with scen2&toolA",
+            }
+            item_c_execution_args = [[[expected_fw_resource3, expected_fw_resource4], []]]
+            self._assert_resource_args(mock_item_c2.execute.call_args_list, item_c_execution_args)
+
+    def test_merge_two_filtered_database_branches(self):
+        with TemporaryDirectory() as temp_dir:
+            urlA = "sqlite:///" + os.path.join(temp_dir, "dbA.sqlite")
+            db_map = DatabaseMapping(urlA, create=True)
+            import_scenarios(db_map, (("scenA1", True), ("scenA2", True)))
+            import_tools(db_map, ("toolA",))
+            db_map.commit_session("Add test data.")
+            db_map.connection.close()
+            urlB = "sqlite:///" + os.path.join(temp_dir, "dbB.sqlite")
+            db_map = DatabaseMapping(urlB, create=True)
+            import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
+            import_tools(db_map, ("toolB",))
+            db_map.commit_session("Add test data.")
+            db_map.connection.close()
+            url_a_fw = _make_url_resource(urlA)
+            url_b_fw = _make_url_resource(urlB)
+            mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
+            mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[])
+            mock_item_c1 = self._mock_item("item_c", resources_forward=[], resources_backward=[])
+            mock_item_c2 = self._mock_item("item_c", resources_forward=[], resources_backward=[])
+            mock_item_c3 = self._mock_item("item_c", resources_forward=[], resources_backward=[])
+            mock_item_c4 = self._mock_item("item_c", resources_forward=[], resources_backward=[])
+            items = {
+                "item_a": [mock_item_a],
+                "item_b": [mock_item_b],
+                "item_c": [mock_item_c1, mock_item_c2, mock_item_c3, mock_item_c4],
+            }
+            connections = [
+                {
+                    "from": ("item_a", "right"),
+                    "to": ("item_c", "left"),
+                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                },
+                {
+                    "from": ("item_b", "right"),
+                    "to": ("item_c", "left"),
+                    "resource_filters": {url_b_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                },
+            ]
+            successors = {"item_a": ["item_c"], "item_b": ["item_c"], "item_c": []}
+            self._run_engine(items, connections, successors)
+            item_a_execution_args = [[[], []]]
+            self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execution_args)
+            item_b_execution_args = [[[], []]]
+            self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execution_args)
+            # Check that item_c has been executed four times, with all combinations of item_a and item_b filters
+            expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", urlA)
+            expected_filter_stack1 = (scenario_filter_config("scenA1"), tool_filter_config("toolA"))
+            expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
+            expected_fw_resource2 = ProjectItemResource("item_b", "database", "label", urlB)
+            expected_filter_stack2 = (scenario_filter_config("scenB1"), tool_filter_config("toolB"))
+            expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
+            item_c_execution_args = [[[expected_fw_resource1, expected_fw_resource2], []]]
+            self._assert_resource_args(mock_item_c1.execute.call_args_list, item_c_execution_args)
+            expected_fw_resource3 = ProjectItemResource("item_b", "database", "label", urlB)
+            expected_filter_stack3 = (scenario_filter_config("scenB2"), tool_filter_config("toolB"))
+            expected_fw_resource3.metadata = {"filter_stack": expected_filter_stack3, "filter_id": ""}
+            item_c_execution_args = [[[expected_fw_resource1, expected_fw_resource3], []]]
+            self._assert_resource_args(mock_item_c2.execute.call_args_list, item_c_execution_args)
+            expected_fw_resource4 = ProjectItemResource("item_a", "database", "label", urlA)
+            expected_filter_stack4 = (scenario_filter_config("scenA2"), tool_filter_config("toolA"))
+            expected_fw_resource4.metadata = {"filter_stack": expected_filter_stack4, "filter_id": ""}
+            item_c_execution_args = [[[expected_fw_resource4, expected_fw_resource2], []]]
+            self._assert_resource_args(mock_item_c3.execute.call_args_list, item_c_execution_args)
+            item_c_execution_args = [[[expected_fw_resource4, expected_fw_resource3], []]]
+            self._assert_resource_args(mock_item_c4.execute.call_args_list, item_c_execution_args)
+
+    def test_merge_two_filtered_file_resource_branches(self):
+        with TemporaryDirectory() as temp_dir:
+            urlA = "sqlite:///" + os.path.join(temp_dir, "dbA.sqlite")
+            db_map = DatabaseMapping(urlA, create=True)
+            import_scenarios(db_map, (("scenA1", True), ("scenA2", True)))
+            import_tools(db_map, ("toolA",))
+            db_map.commit_session("Add test data.")
+            db_map.connection.close()
+            urlB = "sqlite:///" + os.path.join(temp_dir, "dbB.sqlite")
+            db_map = DatabaseMapping(urlB, create=True)
+            import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
+            import_tools(db_map, ("toolB",))
+            db_map.commit_session("Add test data.")
+            db_map.connection.close()
+            url_a_fw = _make_url_resource(urlA)
+            url_b_fw = _make_url_resource(urlB)
+            file_c_fw_11 = ProjectItemResource("item_c", "file", "label_1")
+            file_c_fw_12 = ProjectItemResource("item_c", "file", "label_1")
+            file_c_fw_21 = ProjectItemResource("item_c", "file", "label_2")
+            file_c_fw_22 = ProjectItemResource("item_c", "file", "label_2")
+            file_d_fw_11 = ProjectItemResource("item_d", "file", "label_3")
+            file_d_fw_12 = ProjectItemResource("item_d", "file", "label_3")
+            file_d_fw_21 = ProjectItemResource("item_d", "file", "label_4")
+            file_d_fw_22 = ProjectItemResource("item_d", "file", "label_4")
+            mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
+            mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[])
+            mock_item_c1 = self._mock_item(
+                "item_c", resources_forward=[file_c_fw_11, file_c_fw_21], resources_backward=[]
+            )
+            mock_item_c2 = self._mock_item(
+                "item_c", resources_forward=[file_c_fw_12, file_c_fw_22], resources_backward=[]
+            )
+            mock_item_d1 = self._mock_item(
+                "item_d", resources_forward=[file_d_fw_11, file_d_fw_21], resources_backward=[]
+            )
+            mock_item_d2 = self._mock_item(
+                "item_d", resources_forward=[file_d_fw_12, file_d_fw_22], resources_backward=[]
+            )
+            mock_item_e1 = self._mock_item("item_e", resources_forward=[], resources_backward=[])
+            mock_item_e2 = self._mock_item("item_e", resources_forward=[], resources_backward=[])
+            mock_item_e3 = self._mock_item("item_e", resources_forward=[], resources_backward=[])
+            mock_item_e4 = self._mock_item("item_e", resources_forward=[], resources_backward=[])
+            items = {
+                "item_a": [mock_item_a],
+                "item_b": [mock_item_b],
+                "item_c": [mock_item_c1, mock_item_c2],
+                "item_d": [mock_item_d1, mock_item_d2],
+                "item_e": [mock_item_e1, mock_item_e2, mock_item_e3, mock_item_e4],
+            }
+            connections = [
+                {
+                    "from": ("item_a", "right"),
+                    "to": ("item_c", "left"),
+                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                },
+                {
+                    "from": ("item_b", "right"),
+                    "to": ("item_d", "left"),
+                    "resource_filters": {url_b_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                },
+                {"from": ("item_c", "right"), "to": ("item_e", "left")},
+                {"from": ("item_d", "bottom"), "to": ("item_e", "top")},
+            ]
+            successors = {"item_a": ["item_c"], "item_b": ["item_d"], "item_c": ["item_e"], "item_d": ["item_e"]}
+            self._run_engine(items, connections, successors)
+            item_a_execution_args = [[[], []]]
+            self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execution_args)
+            item_b_execution_args = [[[], []]]
+            self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execution_args)
+            # Check that item_c has been executed twice, with all combinations of item_a's filters
+            expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", urlA)
+            expected_filter_stack1 = (scenario_filter_config("scenA1"), tool_filter_config("toolA"))
+            expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
+            item_c_execution_args = [[[expected_fw_resource1], []]]
+            self._assert_resource_args(mock_item_c1.execute.call_args_list, item_c_execution_args)
+            expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", urlA)
+            expected_filter_stack2 = (scenario_filter_config("scenA2"), tool_filter_config("toolA"))
+            expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
+            item_c_execution_args = [[[expected_fw_resource2], []]]
+            self._assert_resource_args(mock_item_c2.execute.call_args_list, item_c_execution_args)
+            # Check that item_d has been executed twice, with all combinations of item_b's filters
+            expected_fw_resource3 = ProjectItemResource("item_b", "database", "label", urlB)
+            expected_filter_stack3 = (scenario_filter_config("scenB1"), tool_filter_config("toolB"))
+            expected_fw_resource3.metadata = {"filter_stack": expected_filter_stack3, "filter_id": ""}
+            item_d_execution_args = [[[expected_fw_resource3], []]]
+            self._assert_resource_args(mock_item_d1.execute.call_args_list, item_d_execution_args)
+            expected_fw_resource4 = ProjectItemResource("item_b", "database", "label", urlB)
+            expected_filter_stack4 = (scenario_filter_config("scenB2"), tool_filter_config("toolB"))
+            expected_fw_resource4.metadata = {"filter_stack": expected_filter_stack4, "filter_id": ""}
+            item_d_execution_args = [[[expected_fw_resource4], []]]
+            self._assert_resource_args(mock_item_d2.execute.call_args_list, item_d_execution_args)
+            # Check that item_e has been executed four times, with all combinations of item_c's and item_d's resources.
+            expected_fw_resource5 = ProjectItemResource("item_c", "file", "label_1")
+            expected_filter_stack5 = (scenario_filter_config("scenA1"), tool_filter_config("toolA"))
+            expected_fw_resource5.metadata = {
+                "filter_stack": expected_filter_stack5,
+                "filter_id": "dbA.sqlite with scenA1&toolA",
+            }
+            expected_fw_resource6 = ProjectItemResource("item_c", "file", "label_2")
+            expected_fw_resource6.metadata = {
+                "filter_stack": expected_filter_stack5,
+                "filter_id": "dbA.sqlite with scenA1&toolA",
+            }
+            expected_fw_resource7 = ProjectItemResource("item_d", "file", "label_3")
+            expected_filter_stack7 = (scenario_filter_config("scenB1"), tool_filter_config("toolB"))
+            expected_fw_resource7.metadata = {
+                "filter_stack": expected_filter_stack7,
+                "filter_id": "dbB.sqlite with scenB1&toolB",
+            }
+            expected_fw_resource8 = ProjectItemResource("item_d", "file", "label_4")
+            expected_fw_resource8.metadata = {
+                "filter_stack": expected_filter_stack7,
+                "filter_id": "dbB.sqlite with scenB1&toolB",
+            }
+            item_e_execution_args = [
+                [[expected_fw_resource5, expected_fw_resource6, expected_fw_resource7, expected_fw_resource8], []]
+            ]
+            self._assert_resource_args(mock_item_e1.execute.call_args_list, item_e_execution_args)
+            expected_fw_resource9 = ProjectItemResource("item_d", "file", "label_3")
+            expected_filter_stack9 = (scenario_filter_config("scenB2"), tool_filter_config("toolB"))
+            expected_fw_resource9.metadata = {
+                "filter_stack": expected_filter_stack9,
+                "filter_id": "dbB.sqlite with scenB2&toolB",
+            }
+            expected_fw_resource10 = ProjectItemResource("item_d", "file", "label_4")
+            expected_fw_resource10.metadata = {
+                "filter_stack": expected_filter_stack9,
+                "filter_id": "dbB.sqlite with scenB2&toolB",
+            }
+            item_e_execution_args = [
+                [[expected_fw_resource5, expected_fw_resource6, expected_fw_resource9, expected_fw_resource10], []]
+            ]
+            self._assert_resource_args(mock_item_e2.execute.call_args_list, item_e_execution_args)
+            expected_fw_resource11 = ProjectItemResource("item_c", "file", "label_1")
+            expected_filter_stack11 = (scenario_filter_config("scenA2"), tool_filter_config("toolA"))
+            expected_fw_resource11.metadata = {
+                "filter_stack": expected_filter_stack11,
+                "filter_id": "dbA.sqlite with scenA2&toolA",
+            }
+            expected_fw_resource12 = ProjectItemResource("item_c", "file", "label_2")
+            expected_fw_resource12.metadata = {
+                "filter_stack": expected_filter_stack11,
+                "filter_id": "dbA.sqlite with scenA2&toolA",
+            }
+            item_e_execution_args = [
+                [[expected_fw_resource11, expected_fw_resource12, expected_fw_resource7, expected_fw_resource8], []]
+            ]
+            self._assert_resource_args(mock_item_e3.execute.call_args_list, item_e_execution_args)
+            item_e_execution_args = [
+                [[expected_fw_resource11, expected_fw_resource12, expected_fw_resource9, expected_fw_resource10], []]
+            ]
+            self._assert_resource_args(mock_item_e4.execute.call_args_list, item_e_execution_args)
 
     def test_self_jump_succeeds(self):
         mock_item = self._mock_item("item", resources_forward=[], resources_backward=[])
@@ -284,19 +690,19 @@ class TestSpineEngine(unittest.TestCase):
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     def test_jump_resources_get_passed_correctly(self):
-        resource_fw_a = _make_resource("db:///fw_a")
-        resource_bw_a = _make_resource("db:///bw_a")
+        resource_fw_a = _make_url_resource("db:///fw_a")
+        resource_bw_a = _make_url_resource("db:///bw_a")
         item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
-        resource_fw_b = _make_resource("db:///fw_b")
-        resource_bw_b = _make_resource("db:///bw_b")
+        resource_fw_b = _make_url_resource("db:///fw_b")
+        resource_bw_b = _make_url_resource("db:///bw_b")
         item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
-        resource_fw_c = _make_resource("db:///fw_c")
-        resource_bw_c = _make_resource("db:///bw_c")
+        resource_fw_c = _make_url_resource("db:///fw_c")
+        resource_bw_c = _make_url_resource("db:///bw_c")
         item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
-        resource_fw_d = _make_resource("db:///fw_d")
-        resource_bw_d = _make_resource("db:///bw_d")
+        resource_fw_d = _make_url_resource("db:///fw_d")
+        resource_bw_d = _make_url_resource("db:///bw_d")
         item_d = self._mock_item("d", resources_forward=[resource_fw_d], resources_backward=[resource_bw_d])
-        items = {"a": item_a, "b": item_b, "c": item_c, "d": item_d}
+        items = {"a": [item_a], "b": [item_b, item_b], "c": [item_c, item_c], "d": [item_d]}
         connections = [
             c.to_dict()
             for c in (
@@ -307,34 +713,45 @@ class TestSpineEngine(unittest.TestCase):
         ]
         jumps = [Jump("c", "right", "b", "right", self._LOOP_TWICE).to_dict()]
         successors = {"a": ["b"], "b": ["c"], "c": ["d"], "d": []}
-        execution_permits = {i: True for i in ("a", "b", "c", "d")}
-        engine = SpineEngine(
-            items=items,
-            connections=connections,
-            jumps=jumps,
-            node_successors=successors,
-            execution_permits=execution_permits,
-            items_module_name="items_module",
+        self._run_engine(items, connections, successors, jumps=jumps)
+        self._assert_resource_args(
+            item_a.execute.call_args_list, [[[], [self._default_backward_url_resource("db:///bw_b", "a", "b")]]]
         )
-        engine._make_item = lambda name, direction: engine._items[name]
-        engine.run()
-        self._assert_resource_args(item_a.execute.call_args_list, [[[], [resource_bw_b]]])
-        self._assert_resource_args(item_b.execute.call_args_list, 2 * [[[resource_fw_a], [resource_bw_c]]])
-        self._assert_resource_args(item_c.execute.call_args_list, 2 * [[[resource_fw_b], [resource_bw_d]]])
-        self._assert_resource_args(item_d.execute.call_args_list, [[[resource_fw_c], []]])
-        self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
+        self._assert_resource_args(
+            item_b.execute.call_args_list,
+            2
+            * [
+                [
+                    [self._default_forward_url_resource("db:///fw_a", "a")],
+                    [self._default_backward_url_resource("db:///bw_c", "b", "c")],
+                ]
+            ],
+        )
+        self._assert_resource_args(
+            item_c.execute.call_args_list,
+            2
+            * [
+                [
+                    [self._default_forward_url_resource("db:///fw_b", "b")],
+                    [self._default_backward_url_resource("db:///bw_d", "c", "d")],
+                ]
+            ],
+        )
+        self._assert_resource_args(
+            item_d.execute.call_args_list, [[[self._default_forward_url_resource("db:///fw_c", "c")], []]]
+        )
 
     def test_nested_jump_with_inner_self_jump(self):
-        resource_fw_a = _make_resource("db:///fw_a")
-        resource_bw_a = _make_resource("db:///bw_a")
+        resource_fw_a = _make_url_resource("db:///fw_a")
+        resource_bw_a = _make_url_resource("db:///bw_a")
         item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
-        resource_fw_b = _make_resource("db:///fw_b")
-        resource_bw_b = _make_resource("db:///bw_b")
+        resource_fw_b = _make_url_resource("db:///fw_b")
+        resource_bw_b = _make_url_resource("db:///bw_b")
         item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
-        resource_fw_c = _make_resource("db:///fw_c")
-        resource_bw_c = _make_resource("db:///bw_c")
+        resource_fw_c = _make_url_resource("db:///fw_c")
+        resource_bw_c = _make_url_resource("db:///bw_c")
         item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
-        items = {"a": item_a, "b": item_b, "c": item_c}
+        items = {"a": 2 * [item_a], "b": 4 * [item_b], "c": 2 * [item_c]}
         connections = [
             c.to_dict() for c in (Connection("a", "right", "b", "left"), Connection("b", "bottom", "c", "top"))
         ]
@@ -343,24 +760,18 @@ class TestSpineEngine(unittest.TestCase):
             Jump("b", "top", "b", "top", self._LOOP_TWICE).to_dict(),
         ]
         successors = {"a": ["b"], "b": ["c"], "c": []}
-        execution_permits = {i: True for i in ("a", "b", "c")}
-        engine = SpineEngine(
-            items=items,
-            connections=connections,
-            jumps=jumps,
-            node_successors=successors,
-            execution_permits=execution_permits,
-            items_module_name="items_module",
-        )
-        engine._make_item = lambda name, direction: engine._items[name]
-        engine.run()
-        expected = 2 * [[[], [resource_bw_b]]]
+        self._run_engine(items, connections, successors, jumps=jumps)
+        expected = 2 * [[[], [self._default_backward_url_resource("db:///bw_b", "a", "b")]]]
         self._assert_resource_args(item_a.execute.call_args_list, expected)
-        expected = 4 * [[[resource_fw_a], [resource_bw_c]]]
+        expected = 4 * [
+            [
+                [self._default_forward_url_resource("db:///fw_a", "a")],
+                [self._default_backward_url_resource("db:///bw_c", "b", "c")],
+            ]
+        ]
         self._assert_resource_args(item_b.execute.call_args_list, expected)
-        expected = 2 * [[[resource_fw_b], []]]
+        expected = 2 * [[[self._default_forward_url_resource("db:///fw_b", "b")], []]]
         self._assert_resource_args(item_c.execute.call_args_list, expected)
-        self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     def _assert_resource_args(self, arg_packs, expected_packs):
         self.assertEqual(len(arg_packs), len(expected_packs))
@@ -372,7 +783,7 @@ class TestSpineEngine(unittest.TestCase):
                     self.assertEqual(resource.provider_name, expected_resource.provider_name)
                     self.assertEqual(resource.label, expected_resource.label)
                     self.assertEqual(clear_filter_configs(resource.url), expected_resource.url)
-                    self.assertIn("filter_stack", resource.metadata)
+                    self.assertEqual(resource.metadata, expected_resource.metadata)
 
 
 if __name__ == '__main__':
