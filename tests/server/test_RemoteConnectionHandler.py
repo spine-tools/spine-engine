@@ -186,10 +186,10 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         context.term()
 
     def test_invalid_project_folder(self):
-        # connect to the server
+        """project_dir is an empty string."""
         context = zmq.Context()
         socket = context.socket(zmq.REQ)
-        socket.connect("tcp://localhost:5556")
+        socket.connect("tcp://localhost:5556")  # connect to the server
         msg_parts = []
 
         dict_data2 = {
@@ -464,19 +464,30 @@ class TestRemoteConnectionHandler(unittest.TestCase):
     def test_local_folder_function(self):
         p = './home/ubuntu/hellofolder'  # Linux relative
         ret = RemoteConnectionHandler.getFolderForProject(p)
-        # TODO: Assert()
+        _, dir_name = os.path.split(ret)
+        self.assertTrue(os.path.isabs(ret))
+        self.assertTrue(dir_name.startswith("hellofolder"))
+        self.assertTrue(len(dir_name) == 22)  # e.g. "hellofolder_wuivsntkbe"
         p = './hellofolder'  # Linux relative
         ret = RemoteConnectionHandler.getFolderForProject(p)
-        # TODO: Assert()
+        self.assertTrue(os.path.isabs(ret))
+        self.assertTrue(dir_name.startswith("hellofolder"))
+        self.assertTrue(len(dir_name) == 22)
         p = '/home/ubuntu/hellofolder'  # Linux absolute
         ret = RemoteConnectionHandler.getFolderForProject(p)
-        # TODO: Assert()
+        self.assertTrue(os.path.isabs(ret))
+        self.assertTrue(dir_name.startswith("hellofolder"))
+        self.assertTrue(len(dir_name) == 22)
         p = '.\\hellofolder'  # Windows relative
         ret = RemoteConnectionHandler.getFolderForProject(p)
-        # TODO: Assert()
+        self.assertTrue(os.path.isabs(ret))
+        self.assertTrue(dir_name.startswith("hellofolder"))
+        self.assertTrue(len(dir_name) == 22)
         p = 'c:\\data\\project\\hellofolder'  # Windows absolute
         ret = RemoteConnectionHandler.getFolderForProject(p)
-        # TODO: Assert()
+        self.assertTrue(os.path.isabs(ret))
+        self.assertTrue(dir_name.startswith("hellofolder"))
+        self.assertTrue(len(dir_name) == 22)
         ret = RemoteConnectionHandler.getFolderForProject("")
         self.assertEqual("", ret)
         ret = RemoteConnectionHandler.getFolderForProject(None)

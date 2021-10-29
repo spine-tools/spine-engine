@@ -17,6 +17,8 @@ Unit tests for ZMQServer class.
 
 import unittest
 import zmq
+import time
+import os
 from spine_engine.server.connectivity.ZMQServer import ZMQServer
 from spine_engine.server.connectivity.ZMQServerObserver import ZMQServerObserver
 from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
