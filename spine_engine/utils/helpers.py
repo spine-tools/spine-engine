@@ -20,6 +20,7 @@ import sys
 import datetime
 import time
 import json
+from pathlib import Path
 
 import networkx
 from jupyter_client.kernelspec import find_kernel_specs
@@ -232,3 +233,14 @@ def make_dag(node_successors):
         for successor in successors:
             graph.add_edge(node, successor)
     return graph
+
+
+def write_filter_id_file(filter_id, path):
+    """Writes filter id to disk.
+
+    Args:
+        filter_id (str): filter id
+        path (Path or str): full path to directory where the filter id file will be written
+    """
+    with Path(path, ".filter_id").open("w") as filter_id_file:
+        filter_id_file.writelines([filter_id + "\n"])

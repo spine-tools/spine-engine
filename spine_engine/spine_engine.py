@@ -765,21 +765,28 @@ class SpineEngine:
         return deps
 
 
-def _shorten(resource):
-    if resource.hasfilepath:
-        return os.path.basename(resource.path)
-    return resource.label
-
-
 def _make_filter_id(resource_filter_stack):
-    resource_ids = []
+    """Builds filter id from resource filter stack.
+
+    Args:
+        resource_filter_stack (dict): mapping from resource to filter stack
+
+    Returns:
+        str: filter id
+    """
+    provider_filters = set()
     for resource, stack in resource_filter_stack.items():
-        filter_names = "&".join(_filter_names_from_stack(stack))
-        if not filter_names:
-            continue
-        resource_id = _shorten(resource) + f" with {filter_names}"
-        resource_ids.append(resource_id)
-    return " + ".join(resource_ids)
+        if resource.type_ != "database":
+            filter_id = resource.metadata.get("filter_id")
+            if filter_id is None:
+                continue
+            provider_filters.add(filter_id)
+        else:
+            filter_names = sorted(_filter_names_from_stack(stack))
+            if not filter_names:
+                continue
+            provider_filters.add(", ".join(filter_names) + " - " + resource.provider_name)
+    return " & ".join(sorted(provider_filters))
 
 
 def _filter_names_from_stack(stack):
