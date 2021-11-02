@@ -185,6 +185,120 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         socket.close()
         context.term()
 
+    def test_init_complete2(self):
+        """Tests unzipping and executing a project with 3 items (1 Dc, 2 Tools)."""
+        context = zmq.Context()
+        socket = context.socket(zmq.REQ)
+        socket.connect("tcp://localhost:5556")
+        msg_parts = []
+        engine_data = {
+            "items": {
+                "T1": {
+                    "type": "Tool",
+                    "description": "",
+                    "x": -12.991220992469263,
+                    "y": 40.624746917245005,
+                    "specification": "a",
+                    "execute_in_work": False,
+                    "cmd_line_args": [],
+                },
+                "T2": {
+                    "type": "Tool",
+                    "description": "",
+                    "x": 109.32691674373322,
+                    "y": -36.124746917245005,
+                    "specification": "b",
+                    "execute_in_work": True,
+                    "cmd_line_args": [],
+                },
+                "DC1": {
+                    "type": "Data Connection",
+                    "description": "",
+                    "x": -124.82691674373321,
+                    "y": -33.45884058790706,
+                    "references": [],
+                },
+            },
+            "specifications": {
+                "Tool": [
+                    {
+                        "name": "a",
+                        "tooltype": "python",
+                        "includes": ["a.py"],
+                        "description": "",
+                        "inputfiles": [],
+                        "inputfiles_opt": [],
+                        "outputfiles": [],
+                        "cmdline_args": [],
+                        "execute_in_work": False,
+                        "includes_main_path": ".",
+                        "execution_settings": {
+                            "env": "",
+                            "kernel_spec_name": "python38",
+                            "use_jupyter_console": False,
+                            "executable": "",
+                            "fail_on_stderror": False
+                        },
+                        "definition_file_path": "C:/Users/ttepsa/OneDrive - Teknologian Tutkimuskeskus VTT/Documents/SpineToolboxProjects/remote test 3 items/.spinetoolbox/specifications/Tool/a.json"
+                    },
+                    {
+                        "name": "b",
+                        "tooltype": "python",
+                        "includes": ["b.py"],
+                        "description": "",
+                        "inputfiles": [],
+                        "inputfiles_opt": [],
+                        "outputfiles": [],
+                        "cmdline_args": [],
+                        "execute_in_work": True,
+                        "includes_main_path": "../../..",
+                        "execution_settings": {
+                            "env": "",
+                            "kernel_spec_name": "python38",
+                            "use_jupyter_console": False,
+                            "executable": "",
+                            "fail_on_stderror": True
+                        },
+                        "definition_file_path": "C:/Users/ttepsa/OneDrive - Teknologian Tutkimuskeskus VTT/Documents/SpineToolboxProjects/remote test 3 items/.spinetoolbox/specifications/Tool/b.json"}
+                ],
+            },
+            "connections":
+                [
+                    {"from": ["DC1", "right"], "to": ["T1", "left"]},
+                    {"from": ["T1", "right"], "to": ["T2", "left"]}
+                ],
+            "jumps": [],
+            "node_successors": {"DC1": ["T1"], "T1": ["T2"], "T2": []},
+            "execution_permits":
+                {
+                    "DC1": True, "T1": True, "T2": True
+                },
+            "items_module_name": "spine_items",
+            "settings": {},
+            "project_dir": "C:/Users/ttepsa/OneDrive - Teknologian Tutkimuskeskus VTT/Documents/SpineToolboxProjects/remote test 3 items"
+        }
+        msgDataJson = json.dumps(engine_data)
+        with open(os.path.join(str(Path(__file__).parent), "project_package.zip"), "rb") as f:
+            data = f.read()
+        listFiles = ["project_package.zip"]  # optional
+        msg = ServerMessage("execute", "1", msgDataJson, listFiles)
+        part1Bytes = bytes(msg.toJSON(), "utf-8")
+        msg_parts.append(part1Bytes)
+        msg_parts.append(data)
+        socket.send_multipart(msg_parts)
+        time.sleep(1)
+
+        message = socket.recv()
+        msgStr = message.decode("utf-8")
+        parsedMsg = ServerMessageParser.parse(msgStr)
+        data = parsedMsg.getData()
+        jsonData = json.dumps(data)
+        dataEvents = EventDataConverter.convertJSON(jsonData, True)
+        self.assertEqual(dataEvents[len(dataEvents) - 1][1], "COMPLETED")
+        # close connections
+        socket.close()
+        context.term()
+
     def test_invalid_project_folder(self):
         """project_dir is an empty string."""
         context = zmq.Context()
