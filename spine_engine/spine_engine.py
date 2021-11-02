@@ -45,6 +45,7 @@ from spinedb_api.filters.execution_filter import execution_filter_config
 from .exception import EngineInitFailed
 from .utils.chunk import chunkify
 from .utils.helpers import AppSettings, inverted, create_timestamp, make_dag
+from .utils.returning_process import ReturningProcess
 from .utils.queue_logger import QueueLogger
 from .project_item_loader import ProjectItemLoader
 from .multithread_executor.executor import multithread_executor
@@ -138,7 +139,8 @@ class SpineEngine:
         for connection in self._connections:
             self._connections_by_source.setdefault(connection.source, list()).append(connection)
             self._connections_by_destination.setdefault(connection.destination, list()).append(connection)
-        self._settings = AppSettings(settings)
+        self._settings = AppSettings(settings if settings is not None else {})
+        _set_process_limits(self._settings)
         self._project_dir = project_dir
         project_item_loader = ProjectItemLoader()
         self._executable_item_classes = project_item_loader.load_executable_item_classes(items_module_name)
@@ -249,7 +251,6 @@ class SpineEngine:
 
     def _linear_run(self):
         """Runs the engine without jumps and chunking."""
-
         self._state = SpineEngineState.RUNNING
         run_config = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}, "execution": {"multithread": {}}}
         for event in execute_pipeline_iterator(self._pipeline, run_config=run_config):
@@ -260,7 +261,6 @@ class SpineEngine:
 
     def _chunked_run(self):
         """Runs the engine with jumps and chunking."""
-
         self._state = SpineEngineState.RUNNING
         run_id = "root run"
         dagster_instance = DagsterInstance.ephemeral()
@@ -846,3 +846,16 @@ def validate_jumps(jumps, dag):
         jump_paths[len(jump_paths)] = {
             item for path in nx.all_simple_paths(dag, jump.destination, jump.source) for item in path
         }
+
+
+def _set_process_limits(settings):
+    """Sets limits for how many simultaneous processes :class:`ReturningProcess` can spawn.
+
+    Args:
+        settings (AppSettings): Engine settings
+    """
+    control = settings.value("engineSettings/processLimiter", "auto")
+    if control == "auto":
+        ReturningProcess._MAX_PROCESSES = os.cpu_count()
+    else:
+        ReturningProcess._MAX_PROCESSES = int(settings.value("engineSettings/maxProcesses", os.cpu_count()))
