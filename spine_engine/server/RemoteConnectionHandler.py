@@ -71,24 +71,24 @@ class RemoteConnectionHandler(threading.Thread):
                 # dataAsDict = json.loads(dataAsDict)
             except:
                 print("RemoteConnectionHandler._execute(): Error in parsing content, returning empty data")
-                retBytes = bytes("{}", 'utf-8')
+                retBytes = bytes("{}", "utf-8")
                 self.zmqConn.sendReply(retBytes)
                 return
             if len(parsedMsg.getFileNames()) == 1 and len(msgParts) == 2:  # check for presence of 2 message parts
                 # save the file
                 try:
                     # get a new local folder name based on project_dir
-                    localFolder = RemoteConnectionHandler.getFolderForProject(dataAsDict['project_dir'])
+                    local_folder = RemoteConnectionHandler.getFolderForProject(dataAsDict["project_dir"])
                     # check for validity of the new folder
-                    if not localFolder:
-                        print(f"Creating project directory '{localFolder}' failed")
+                    if not local_folder:
+                        print(f"Creating project directory '{local_folder}' failed")
                         self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
                         return
                     # create folder
-                    if not os.path.exists(localFolder):
-                        os.makedirs(localFolder)
+                    if not os.path.exists(local_folder):
+                        os.makedirs(local_folder)
                     # save attached file to the location indicated in the project_dir-field of the JSON
-                    f = open(os.path.join(localFolder, parsedMsg.getFileNames()[0]), "wb")
+                    f = open(os.path.join(local_folder, parsedMsg.getFileNames()[0]), "wb")
                     f.write(msgParts[1])
                     f.close()
                 except Exception as e:
@@ -102,9 +102,9 @@ class RemoteConnectionHandler(threading.Thread):
                     # extract the saved file
                     print(
                         f"RemoteConnectionHandler._execute(): Extracting received "
-                        f"file: {parsedMsg.getFileNames()[0]} to: {localFolder}"
+                        f"file: {parsedMsg.getFileNames()[0]} to: {local_folder}"
                     )
-                    FileExtractor.extract(os.path.join(localFolder, parsedMsg.getFileNames()[0]), localFolder)
+                    FileExtractor.extract(os.path.join(local_folder, parsedMsg.getFileNames()[0]), local_folder)
                 except Exception as e:
                     print("RemoteConnectionHandler._execute(): File extraction failed, returning empty response..")
                     self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
@@ -114,7 +114,7 @@ class RemoteConnectionHandler(threading.Thread):
                 spineEngineImpl = RemoteSpineServiceImpl()
                 # print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
                 # convertedData=self._convertTextDictToDicts(dataAsDict)
-                convertedData = self._convertInput(dataAsDict, localFolder)
+                convertedData = self._convert_input(dataAsDict, local_folder)
                 # print("RemoteConnectionHandler._execute() passing data to spine engine impl: %s"%convertedData)
                 eventData = spineEngineImpl.execute(convertedData)
                 # print("RemoteConnectionHandler._execute(): received events/data: ")
@@ -133,10 +133,10 @@ class RemoteConnectionHandler(threading.Thread):
                 # delete extracted folder
                 # try:
                 #     time.sleep(4)
-                #     FileExtractor.deleteFolder(localFolder+"/")
-                #     print("RemoteConnectionHandler._execute(): Deleted folder %s"%localFolder+"/")
+                #     FileExtractor.deleteFolder(local_folder+"/")
+                #     print("RemoteConnectionHandler._execute(): Deleted folder %s"%local_folder+"/")
                 # except Exception as e:
-                #     print(f"RemoteConnectionHandler._execute(): Couldn't delete directory {localFolder}. Error:\n{e}")
+                #     print(f"RemoteConnectionHandler._execute(): Couldn't delete directory {local_folder}. Error:\n{e}")
                 # debugging
                 # execStopTimeMs=round(time.time()*1000.0)
                 # print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
@@ -166,52 +166,51 @@ class RemoteConnectionHandler(threading.Thread):
         random_str = "".join(random.choices(string.ascii_lowercase, k=10))  # create a random string
         return os.path.join(RemoteConnectionHandler.internalProjectFolder, p + "_" + random_str)
 
-    def _convertInput(self, inputData, localFolder):
+    def _convert_input(self, input_data, local_folder):
         """Converts received input data for execution in a local folder.
+
         Args:
-            inputData: input data as a dict.
-            localFolder: local folder to be used for DAG execution
+            input_data (dict): input data as a dict.
+            local_folder (str): local folder to be used for DAG execution.
+
+        Returns:
+            dict: Converted input data
         """
-        # print("RemoteConnectionHandler._convertInput(): input data")
-        # print(inputData)
-
         # adjust project_dir to point to the local folder
-        remoteFolder = inputData['project_dir']
-        inputData['project_dir'] = localFolder
-
+        remote_folder = input_data["project_dir"]  # Project directory on client
+        input_data["project_dir"] = local_folder  # Project directory on server
         # loop specs
-        specsKeys = inputData['specifications'].keys()
+        specsKeys = input_data["specifications"].keys()
         for specKey in specsKeys:
-            specItem = inputData['specifications'][specKey]
-            # print("RemoteConnectionHandler._convertInput(): spec item type: %s"%type(specItem))
+            specItem = input_data["specifications"][specKey]
             i = 0
             for specItemInfo in specItem:
-                # print("RemoteConnectionHandler._convertInput(): spec item info type%s"%type(specItemInfo))
-                # adjust definition_file_path in specs to point to the local folder
-                if 'definition_file_path' in specItemInfo:
-                    # print("RemoteConnectionHandler._convertInput(): spec item info contains definition_file_path")
-                    originalDefinitionFilePath = specItemInfo['definition_file_path']
-                    cuttedRemoteFolder = originalDefinitionFilePath.replace(remoteFolder, '')
-                    modifiedDefinitionFilePath = localFolder + cuttedRemoteFolder
-                    inputData['specifications'][specKey][i]['definition_file_path'] = modifiedDefinitionFilePath
+                # adjust definition_file_path in specs to point to the server folder
+                if "definition_file_path" in specItemInfo:
+                    original_def_file_path = specItemInfo["definition_file_path"]  # Absolute path on client machine
+                    # Remove part of definition file path that references client machine path to get
+                    # a relative definition file path
+                    rel_def_file_path = os.path.relpath(original_def_file_path, remote_folder)
+                    modified = os.path.join(local_folder, rel_def_file_path)  # Absolute path on server machine
+                    input_data["specifications"][specKey][i]["definition_file_path"] = modified
                 # force execute_in_work-field to False
-                if 'execute_in_work' in specItemInfo:
-                    # print("RemoteConnectionHandler._convertInput(): spec item info contains execute_in_work")
-                    inputData['specifications'][specKey][i]['execute_in_work'] = False
+                if "execute_in_work" in specItemInfo:
+                    # print("RemoteConnectionHandler._convert_input(): spec item info contains execute_in_work")
+                    input_data["specifications"][specKey][i]["execute_in_work"] = False
                 i += 1
 
         # loop items
-        itemsKeys = inputData['items'].keys()
+        itemsKeys = input_data["items"].keys()
         for itemKey in itemsKeys:
             # force execute_in_work to False in items
-            if 'execute_in_work' in inputData['items'][itemKey]:
-                # print("RemoteConnectionHandler._convertInput() execute_in_work in an item")
-                inputData['items'][itemKey]['execute_in_work'] = False
+            if "execute_in_work" in input_data["items"][itemKey]:
+                # print("RemoteConnectionHandler._convert_input() execute_in_work in an item")
+                input_data["items"][itemKey]["execute_in_work"] = False
 
-        # print("RemoteConnectionHandler._convertInput(): converted data:")
-        # print(inputData)
+        # print("RemoteConnectionHandler._convert_input(): converted data:")
+        # print(input_data)
 
-        return inputData
+        return input_data
 
     def _sendResponse(self, msgCommand, msgId, data):
         replyMsg = ServerMessage(msgCommand, msgId, data, None)
@@ -221,13 +220,13 @@ class RemoteConnectionHandler(threading.Thread):
 
     def _convertTextDictToDicts(self, data):
         newData = dict()
-        # print("_convertTextDictToDicts() items: %s"%type(data['items']))
-        newData['items'] = ast.literal_eval(data['items'])
-        newData['connections'] = ast.literal_eval(data['connections'])
-        newData['specifications'] = ast.literal_eval(data['specifications'])
-        newData['node_successors'] = ast.literal_eval(data['node_successors'])
-        newData['execution_permits'] = ast.literal_eval(data['execution_permits'])
-        newData['settings'] = ast.literal_eval(data['settings'])
-        newData['settings'] = ast.literal_eval(data['settings'])
-        newData['project_dir'] = data['project_dir']
+        # print("_convertTextDictToDicts() items: %s"%type(data["items"]))
+        newData["items"] = ast.literal_eval(data["items"])
+        newData["connections"] = ast.literal_eval(data["connections"])
+        newData["specifications"] = ast.literal_eval(data["specifications"])
+        newData["node_successors"] = ast.literal_eval(data["node_successors"])
+        newData["execution_permits"] = ast.literal_eval(data["execution_permits"])
+        newData["settings"] = ast.literal_eval(data["settings"])
+        newData["settings"] = ast.literal_eval(data["settings"])
+        newData["project_dir"] = data["project_dir"]
         return newData
