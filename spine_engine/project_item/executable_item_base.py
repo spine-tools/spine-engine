@@ -76,6 +76,10 @@ class ExecutableItemBase:
         self._filter_id = filter_id
         self._logger.set_filter_id(filter_id)
 
+    @property
+    def data_dir(self):
+        return self._data_dir
+
     def ready_to_execute(self, settings):
         """Validates the internal state of this project item before execution.
 
