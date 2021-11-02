@@ -107,6 +107,7 @@ class RemoteConnectionHandler(threading.Thread):
                     FileExtractor.extract(os.path.join(local_folder, parsedMsg.getFileNames()[0]), local_folder)
                 except Exception as e:
                     print("RemoteConnectionHandler._execute(): File extraction failed, returning empty response..")
+                    print(e)
                     self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
                     return
                 # execute DAG in the Spine engine

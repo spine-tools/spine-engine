@@ -11,47 +11,44 @@
 
 """
 Contains FileExtractor class for extraction of ZIP files in Spine Engine.
-:authors: P. Pääkkönen (VTT)
+:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   23.08.2021
 """
 
 from zipfile import ZipFile
 import shutil
 import os
-from os.path import exists
 
 
 class FileExtractor:
-
-    """
-    ZIP-file extractor in Spine Engine.
-    """
+    """ZIP-file extractor in Spine Engine."""
 
     @staticmethod
     def extract(zipFile, outputFolder):
-        """
-        Extracts the content of a ZIP-file to the provided folder.
+        """Extracts the content of a ZIP-file to the provided folder.
+
         Args:
-            zipFile: the ZIP-file to be extracted.
-            outputFolder: folder, where the contents are extracted to
+            zipFile (str): Absolute path to ZIP-file to be extracted.
+            outputFolder (str): Absolute path to folder where the contents are extracted to
         """
-        # check input
-        if zipFile == None or outputFolder == None:
+        if not zipFile or not outputFolder:
             raise ValueError('invalid input to FileExtractor.extract()')
-        if len(zipFile) == 0 or len(outputFolder) == 0:
-            raise ValueError('invalid input to FileExtractor.extract()')
-        zipfile_exists = exists(zipFile)
+        zipfile_exists = os.path.exists(zipFile)
         fileSize = os.path.getsize(zipFile)
-        if zipfile_exists == False or fileSize < 100:
-            raise ValueError('invalid ZIP-file to FileExtractor.extract()')
-        with ZipFile(zipFile, 'r') as zipObj:
-            zipObj.extractall(outputFolder)
-            zipObj.close()
+        if not zipfile_exists:
+            raise ValueError(f"zipfile '{zipFile}'does not exist")
+        if fileSize < 100:
+            raise ValueError(f"zipfile '{zipFile}' is too small. File size:{fileSize}")
+        with ZipFile(zipFile, "r") as zipObj:
+            try:
+                zipObj.extractall(outputFolder)
+            except Exception as e:
+                raise e
 
     @staticmethod
     def deleteFolder(folder):
-        """
-        Deletes the provided folder and all contents of it.
+        """Deletes the provided folder and all contents of it.
+        
         Args:
             folder: folder to be deleted
         """
@@ -60,9 +57,6 @@ class FileExtractor:
             raise ValueError('invalid input to FileExtractor.deleteFolder()')
         if len(folder) == 0:
             raise ValueError('invalid input to FileExtractor.deleteFolder()')
-
         if os.path.isdir(folder) == False:
             raise ValueError('provided folder %s doesn' 't exist' % folder)
-
         shutil.rmtree(folder)
-        # print("FileExtractor.deleteFolder(): Removed folder: %s"%folder)
