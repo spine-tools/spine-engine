@@ -21,12 +21,12 @@ import json
 import time
 import os
 from pathlib import Path
-from spine_engine.server.RemoteConnectionHandler import RemoteConnectionHandler
-from spine_engine.server.connectivity.ZMQServerObserver import ZMQServerObserver
-from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
-from spine_engine.server.util.ServerMessage import ServerMessage
-from spine_engine.server.util.ServerMessageParser import ServerMessageParser
-from spine_engine.server.util.EventDataConverter import EventDataConverter
+from spine_engine.server.remote_connection_handler import RemoteConnectionHandler
+from spine_engine.server.connectivity.zmq_server_observer import ZMQServerObserver
+from spine_engine.server.connectivity.zmq_connection import ZMQConnection
+from spine_engine.server.util.server_message import ServerMessage
+from spine_engine.server.util.server_message_parser import ServerMessageParser
+from spine_engine.server.util.event_data_converter import EventDataConverter
 from tests.server.test_RemoteConnHandlerZMQServer import RemoteConnHandlerZMQServer
 
 

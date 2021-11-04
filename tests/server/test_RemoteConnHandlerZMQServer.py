@@ -16,19 +16,10 @@ Unit tests for RemoteConnHandlerZMQServer class.
 """
 
 import unittest
-
-import sys
-
-# sys.path.append('./../../spine_engine/server')
-# sys.path.append('./../../spine_engine/server/connectivity')
-# sys.path.append('./../../spine_engine/server/util')
-import zmq
-
-from spine_engine.server.RemoteConnectionHandler import RemoteConnectionHandler
-from spine_engine.server.connectivity.ZMQServer import ZMQServer
-from spine_engine.server.connectivity.ZMQServerObserver import ZMQServerObserver
-from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
-from spine_engine.server.connectivity.ZMQServer import ZMQSecurityModelState
+from spine_engine.server.remote_connection_handler import RemoteConnectionHandler
+from spine_engine.server.connectivity.zmq_server import ZMQServer, ZMQSecurityModelState
+from spine_engine.server.connectivity.zmq_server_observer import ZMQServerObserver
+from spine_engine.server.connectivity.zmq_connection import ZMQConnection
 
 
 class TestObserver(ZMQServerObserver):

@@ -28,10 +28,10 @@ This creates the security certificates into <repo_root>/spine_engine/server/cert
 In directory, <repo_root>/spine_engine/server/
 
 Without security, run:
-`python RemoteSpineService.py tcp 50001 None`
+`python start_server.py tcp 50001 None`
 
 With Stonehouse security, run:
-`python RemoteSpineService.py tcp 50001 StoneHouse <repo_root>/spine-engine/server/connectivity/certs`
+`python start_server.py tcp 50001 StoneHouse <repo_root>/spine-engine/server/connectivity/certs`
 
 - Arguments: protocol, Zero-MQ listening port, security model (StoneHouse/None), location of the 
   security folder.
@@ -52,7 +52,7 @@ Setting up Spine Toolbox (client)
 
 4. Create a project and add some project items.
 
-5. Open the Remote Execution page from the Settings widget
+5. Open the **Engine** page in File->Settings widget
    - Enable remote execution from the checkbox (Enabled)
    - Set up the remote server settings: host, port, security model, and security folder
    - Click Ok, to close and save the new Settings

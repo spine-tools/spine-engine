@@ -18,17 +18,14 @@ Unit tests for RemotePingHandler class.
 import unittest
 import zmq
 import time
-
-from spine_engine.server.util.ServerMessage import ServerMessage
-from spine_engine.server.RemoteSpineService import RemoteSpineService
-from spine_engine.server.connectivity.ZMQServer import ZMQSecurityModelState
+from spine_engine.server.util.server_message import ServerMessage
+from spine_engine.server.start_server import RemoteSpineService
+from spine_engine.server.connectivity.zmq_server import ZMQSecurityModelState
 
 
 class TestRemotePingHandler(unittest.TestCase):
     def test_ping_tcp(self):
-        """
-       Tests starting of a ZMQ server with tcp, and pinging it.
-       """
+        """Tests starting of a ZMQ server with tcp, and pinging it."""
         remoteSpineService = RemoteSpineService("tcp", 7000, ZMQSecurityModelState.NONE, "")
 
         # connect to the server
@@ -64,10 +61,7 @@ class TestRemotePingHandler(unittest.TestCase):
         context.term()
 
     def test_noconnection(self):
-        """
-        Tests connection failure at sending.
-        """
-        # remoteSpineService=RemoteSpineService("tcp",7001,ZMQSecurityModelState.NONE,"")
+        """Tests connection failure at sending."""
         context = zmq.Context()
         socket = context.socket(zmq.REQ)
         socket.setsockopt(zmq.LINGER, 1)
@@ -90,7 +84,6 @@ class TestRemotePingHandler(unittest.TestCase):
             print("test_noconnection(): message was received :%s" % msgStr)
         self.assertEqual(event, 0)
         socket.close()
-        # remoteSpineService.close()
         context.term()
 
 

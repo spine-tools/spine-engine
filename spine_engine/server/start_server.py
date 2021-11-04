@@ -15,27 +15,16 @@ Starts the Remote Spine Server
 :date:   01.09.2021
 """
 
-import unittest
-
 import sys
-
-# sys.path.append('./connectivity')
-# sys.path.append('./util')
-import zmq
 import threading
 import time
-
-# from .RemoteConnectionHandler import RemoteConnectionHandler
-from spine_engine.server.RemoteConnectionHandler import RemoteConnectionHandler
-from spine_engine.server.connectivity.ZMQServer import ZMQServer
-from spine_engine.server.connectivity.ZMQServerObserver import ZMQServerObserver
-from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
-from spine_engine.server.connectivity.ZMQServer import ZMQSecurityModelState
-from spine_engine.server.util.ServerMessageParser import ServerMessageParser
-from spine_engine.server.util.ServerMessage import ServerMessage
-
-# from .RemotePingHandler import RemotePingHandler
-from spine_engine.server.RemotePingHandler import RemotePingHandler
+from spine_engine.server.remote_connection_handler import RemoteConnectionHandler
+from spine_engine.server.connectivity.zmq_server import ZMQServer
+from spine_engine.server.connectivity.zmq_server_observer import ZMQServerObserver
+from spine_engine.server.connectivity.zmq_connection import ZMQConnection
+from spine_engine.server.connectivity.zmq_server import ZMQSecurityModelState
+from spine_engine.server.util.server_message_parser import ServerMessageParser
+from spine_engine.server.remote_ping_handler import RemotePingHandler
 
 
 class RemoteSpineService(ZMQServerObserver, threading.Thread):
@@ -47,8 +36,8 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
             zmqSecModelState: Zero-MQ security model (None, StoneHouse)
             secFolder: folder, where security files are stored at (if security mode StoneHouse is used) 
         """
+        self.serviceRunning = False
         self.zmqServer = ZMQServer(protocol, port, self, zmqSecModelState, secFolder)
-        # time.sleep(1)
         # print("RemoteSpineService() initialised with protocol %s, port %d, Zero-MQ security model: %s, and sec.folder: %s"%(protocol,port,zmqSecModelState,secFolder))
         threading.Thread.__init__(self)
         self.start()
@@ -68,10 +57,12 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
 
             # handle pings
             if parsedMsg.getCommand() == "ping":
+                print("Ping command received")
                 RemotePingHandler.handlePing(parsedMsg, conn)
 
             # handle project execution messages
             elif parsedMsg.getCommand() == "execute":
+                print("Execute command received")
                 self.conn = conn
                 self.connHandler = RemoteConnectionHandler(self.conn)
                 # print("RemoteSpineService.receiveConnection() RemoteConnectionHandler started.")
@@ -81,21 +72,14 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
             print("RemoteSpineService.receiveConnection(): exception: %s" % e)
 
     def close(self):
-        """
-        Closes the service.
-        """
+        """Closes the service."""
         self.serviceRunning = False
-        # print("RemoteSpineService() closed")
 
     def run(self):
-        # print("RemoteSpineService() press c to close the server")
         self.serviceRunning = True
-
-        while self.serviceRunning == True:
+        while self.serviceRunning:
             time.sleep(0.01)
-
         self.zmqServer.close()
-        # print("RemoteSpineService().run() .. out")
 
 
 def main(argv):
@@ -105,7 +89,8 @@ def main(argv):
 
     if len(argv) < 4:
         print(
-            "protocol, port, security model(None,StoneHouse) and security folder(required with security) are required as parameters"
+            "protocol, port, security model(None,StoneHouse) and security "
+            "folder(required with security) are required as parameters"
         )
         return
     if len(argv) != 5 and argv[3] == 'StoneHouse':

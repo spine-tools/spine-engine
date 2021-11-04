@@ -18,8 +18,8 @@ Unit tests for ServerMessageParser class.
 import unittest
 import os
 from pathlib import Path
-from spine_engine.server.util.ServerMessageParser import ServerMessageParser
-from spine_engine.server.util.ServerMessage import ServerMessage
+from spine_engine.server.util.server_message_parser import ServerMessageParser
+from spine_engine.server.util.server_message import ServerMessage
 
 
 class TestServerMessageParser(unittest.TestCase):

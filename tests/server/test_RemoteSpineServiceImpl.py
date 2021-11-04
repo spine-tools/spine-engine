@@ -21,7 +21,7 @@ from pathlib import Path
 import os
 from shutil import copyfile, rmtree
 from zipfile import ZipFile
-from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
+from spine_engine.server.remote_spine_service_impl import RemoteSpineServiceImpl
 
 
 class TestRemoteSpineServiceImpl(unittest.TestCase):

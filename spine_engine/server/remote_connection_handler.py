@@ -24,11 +24,11 @@ import ast
 import random
 import string
 import pathlib
-from spine_engine.server.util.ServerMessageParser import ServerMessageParser
-from spine_engine.server.util.ServerMessage import ServerMessage
-from spine_engine.server.util.FileExtractor import FileExtractor
-from spine_engine.server.RemoteSpineServiceImpl import RemoteSpineServiceImpl
-from spine_engine.server.util.EventDataConverter import EventDataConverter
+from spine_engine.server.util.server_message_parser import ServerMessageParser
+from spine_engine.server.util.server_message import ServerMessage
+from spine_engine.server.util.file_extractor import FileExtractor
+from spine_engine.server.remote_spine_service_impl import RemoteSpineServiceImpl
+from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
 class RemoteConnectionHandler(threading.Thread):

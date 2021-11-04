@@ -22,49 +22,27 @@ class ZMQConnection:
     Data can be received and sent based on a request/reply pattern enabled by Zero-MQ 
     (see Zero-MQ docs at https://zguide.zeromq.org/).
     """
-
-    def __init__(self, socket, msgParts):
+    def __init__(self, socket, msg_parts):
         """
         Args:
             socket: ZMQSocket for communication
-            msgParts: received message parts
+            msg_parts: received message parts
         """
         self._socket = socket
-        self._msgParts = msgParts
-        # self._closed=False
-        # print("ZMQConnection(): parts:")
-        # print(self._msgParts)
-
-    """
-    Provides Zero-MQ message parts as a list of binary data.
-    Returns:
-        a list of binary data.
-    """
+        self._msg_parts = msg_parts
 
     def getMessageParts(self):
-        return self._msgParts
+        """Provides Zero-MQ message parts as a list of binary data.
 
-    """
-    Sends a reply message to the recipient.
-    Args:
-        binary data
-    Returns:
-    """
+        Returns:
+            list: List of binary data.
+        """
+        return self._msg_parts
 
     def sendReply(self, data):
+        """Sends a reply message to the recipient.
+
+        Args:
+            data: Binary data
+        """
         self._socket.send(data)
-
-    # """
-    # Closes the connection.
-    # """
-    # def close(self):
-    #    self._socket.close()
-    #    self._closed=True
-
-    # """
-    # Indicates if the connection has been closed.
-    # Returns:
-    #    Boolean
-    # """
-    # def closed(self):
-    #    self._closed

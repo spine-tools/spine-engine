@@ -17,7 +17,7 @@ Unit tests for EventDataConverter class.
 
 import unittest
 import json
-from spine_engine.server.util.EventDataConverter import EventDataConverter
+from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
 class TestEventDataConverter(unittest.TestCase):

@@ -15,17 +15,17 @@ Handles remote pings received from the toolbox.
 :date:   13.09.2021
 """
 
-from spine_engine.server.util.ServerMessage import ServerMessage
-from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
+from spine_engine.server.util.server_message import ServerMessage
 
 
 class RemotePingHandler:
     @staticmethod
     def handlePing(pingMessage, zmqConnection):
-        """
+        """Handles ping command.
+
         Args:
-            pingMessage: ServerMessage received (see util.ServerMessage) 
-            zmqConnection: Zero-MQ connection (see connection.ZMQConnection)
+            pingMessage (ServerMessage): ServerMessage received
+            zmqConnection (ZMQConnection): Zero-MQ connection
         """
         replyMsg = ServerMessage("ping", pingMessage.getId(), "", None)
         replyAsJson = replyMsg.toJSON()

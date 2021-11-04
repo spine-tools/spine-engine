@@ -16,7 +16,7 @@ Unit tests for ServerMessage class.
 """
 
 import unittest
-from spine_engine.server.util.ServerMessage import ServerMessage
+from spine_engine.server.util.server_message import ServerMessage
 
 
 class TestServerMessage(unittest.TestCase):

@@ -19,10 +19,9 @@ import unittest
 import zmq
 import time
 import os
-from spine_engine.server.connectivity.ZMQServer import ZMQServer
-from spine_engine.server.connectivity.ZMQServerObserver import ZMQServerObserver
-from spine_engine.server.connectivity.ZMQConnection import ZMQConnection
-from spine_engine.server.connectivity.ZMQServer import ZMQSecurityModelState
+from spine_engine.server.connectivity.zmq_server import ZMQServer, ZMQSecurityModelState
+from spine_engine.server.connectivity.zmq_server_observer import ZMQServerObserver
+from spine_engine.server.connectivity.zmq_connection import ZMQConnection
 
 
 class TestObserver(ZMQServerObserver):

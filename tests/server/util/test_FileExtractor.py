@@ -18,7 +18,7 @@ Unit tests for FileExtractor class.
 import unittest
 import os
 from pathlib import Path
-from spine_engine.server.util.FileExtractor import FileExtractor
+from spine_engine.server.util.file_extractor import FileExtractor
 
 
 class TestFileExtractor(unittest.TestCase):
