@@ -8,6 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
+from pickle import FALSE
 
 """
 Starts the Remote Spine Server
@@ -78,7 +79,11 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
     def run(self):
         self.serviceRunning = True
         while self.serviceRunning:
-            time.sleep(0.01)
+            user_input = input()
+            if user_input == "c":
+                self.serviceRunning = False
+            else:
+                time.sleep(0.5)
         self.zmqServer.close()
 
 
@@ -109,14 +114,6 @@ def main(argv):
 
         elif len(argv) == 5 and argv[3].lower() == 'stonehouse':
             remoteSpineService = RemoteSpineService(argv[1], portInt, ZMQSecurityModelState.STONEHOUSE, argv[4])
-
-        while userInput != "c":
-            print("press c to close the server")
-            userInput = input()
-            if userInput == "c":
-                remoteSpineService.close()
-            else:
-                time.sleep(1)
 
     except Exception as e:
         print("RemoteSpineService() error: %s" % e)

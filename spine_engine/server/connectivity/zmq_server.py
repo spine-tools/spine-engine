@@ -166,6 +166,7 @@ class ZMQServer(threading.Thread):
             self._state = ZMQServerState.STOPPED
             raise ValueError("Invalid input ZMQServer._receive()")
         # start listening..
+        print("Press c to close the server")
         print("\nListening...")
         while self._state == ZMQServerState.RUNNING:
             try:
