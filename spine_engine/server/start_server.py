@@ -89,25 +89,25 @@ def main(argv):
 
     if len(argv) < 4:
         print(
-            "protocol, port, security model(None,StoneHouse) and security "
-            "folder(required with security) are required as parameters"
+            "protocol, port, security model (None or StoneHouse) and security "
+            "folder (required with security) are required as parameters"
         )
         return
     if len(argv) != 5 and argv[3] == 'StoneHouse':
         print("security folder(required with security) is also required as a parameter")
         return
 
-    if argv[3] != 'StoneHouse' and argv[3] != 'None':
+    if argv[3].lower() != 'stonehouse' and argv[3].lower() != 'none':
         print("invalid security model, use None or StoneHouse.")
         return
 
     try:
         portInt = int(argv[2])
 
-        if len(argv) == 4 and argv[3] == 'None':
+        if len(argv) == 4 and argv[3].lower() == 'none':
             remoteSpineService = RemoteSpineService(argv[1], portInt, ZMQSecurityModelState.NONE, "")
 
-        elif len(argv) == 5 and argv[3] == 'StoneHouse':
+        elif len(argv) == 5 and argv[3].lower() == 'stonehouse':
             remoteSpineService = RemoteSpineService(argv[1], portInt, ZMQSecurityModelState.STONEHOUSE, argv[4])
 
         while userInput != "c":
