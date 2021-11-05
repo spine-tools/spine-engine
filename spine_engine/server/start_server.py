@@ -8,10 +8,9 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-from pickle import FALSE
 
 """
-Starts the Remote Spine Server
+Starts the Remote Spine Engine Server
 :author: P. Pääkkönen (VTT)
 :date:   01.09.2021
 """
@@ -77,6 +76,7 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
         self.serviceRunning = False
 
     def run(self):
+        """Runs a loop that listens for user input."""
         self.serviceRunning = True
         while self.serviceRunning:
             user_input = input()
@@ -88,30 +88,25 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
 
 
 def main(argv):
-    # print("cmd line arguments: %s"%argv)
-    userInput = ""
-    remoteSpineService = None
-
+    """Spine Engine server main function."""
     if len(argv) < 4:
         print(
             "protocol, port, security model (None or StoneHouse) and security "
             "folder (required with security) are required as parameters"
         )
         return
-    if len(argv) != 5 and argv[3] == 'StoneHouse':
-        print("security folder(required with security) is also required as a parameter")
+    if len(argv) != 5 and argv[3].lower() == "stonehouse":
+        print("security folder (required with security) is also required as a parameter")
         return
-
-    if argv[3].lower() != 'stonehouse' and argv[3].lower() != 'none':
-        print("invalid security model, use None or StoneHouse.")
+    if argv[3].lower() != "stonehouse" and argv[3].lower() != "none":
+        print("invalid security model, use None or StoneHouse")
         return
-
     try:
         portInt = int(argv[2])
-        if len(argv) == 4 and argv[3].lower() == 'none':
-            remoteSpineService = RemoteSpineService(argv[1], portInt, ZMQSecurityModelState.NONE, "")
-        elif len(argv) == 5 and argv[3].lower() == 'stonehouse':
-            remoteSpineService = RemoteSpineService(argv[1], portInt, ZMQSecurityModelState.STONEHOUSE, argv[4])
+        if len(argv) == 4 and argv[3].lower() == "none":
+            RemoteSpineService(argv[1], portInt, ZMQSecurityModelState.NONE, "")
+        elif len(argv) == 5 and argv[3].lower() == "stonehouse":
+            RemoteSpineService(argv[1], portInt, ZMQSecurityModelState.STONEHOUSE, argv[4])
     except Exception as e:
         print(f"RemoteSpineService() error: {e}")
 
