@@ -108,17 +108,12 @@ def main(argv):
 
     try:
         portInt = int(argv[2])
-
         if len(argv) == 4 and argv[3].lower() == 'none':
             remoteSpineService = RemoteSpineService(argv[1], portInt, ZMQSecurityModelState.NONE, "")
-
         elif len(argv) == 5 and argv[3].lower() == 'stonehouse':
             remoteSpineService = RemoteSpineService(argv[1], portInt, ZMQSecurityModelState.STONEHOUSE, argv[4])
-
     except Exception as e:
-        print("RemoteSpineService() error: %s" % e)
-        print("%s must be a int (now it is %s)" % (argv[2], type(int(argv[2]))))
-        return
+        print(f"RemoteSpineService() error: {e}")
 
 
 if __name__ == "__main__":

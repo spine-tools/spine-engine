@@ -68,18 +68,18 @@ class ZMQServer(threading.Thread):
                 self.keys_dir = os.path.join(base_dir, 'certificates')
                 self.public_keys_dir = os.path.join(base_dir, 'public_keys')
                 self.secret_keys_dir = os.path.join(base_dir, 'private_keys')
-                if not (
-                    os.path.exists(self.keys_dir)
-                    and os.path.exists(self.public_keys_dir)
-                    and os.path.exists(self.secret_keys_dir)
-                ):
-                    raise ValueError("invalid certificate folders at ZMQServer()")
+                if not os.path.exists(self.keys_dir):
+                    raise ValueError(f"Security folder: {self.keys_dir} does not exist")
+                elif not os.path.exists(self.public_keys_dir):
+                    raise ValueError(f"Security folder: {self.public_keys_dir} does not exist")
+                elif os.path.exists(self.secret_keys_dir):
+                    raise ValueError(f"Security folder: {self.secret_keys_dir} does not exist")
                 self.secFolder = secFolder
                 self._secModelState = ZMQSecurityModelState.STONEHOUSE
         except Exception as e:
             # print("ZMQServer couldn't be started due to exception: %s"%e)
             self._state = ZMQServerState.STOPPED
-            raise ValueError("Invalid input ZMQServer.")
+            raise ValueError(f"Invalid input. Error: {e}")
         self.protocol = protocol
         self.port = port
         # print("ZMQServer started with protocol %s to port %d"%(protocol,port))
