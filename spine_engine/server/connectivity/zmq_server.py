@@ -39,9 +39,7 @@ class ZMQSecurityModelState(Enum):
 
 
 class ZMQServer(threading.Thread):
-    """
-    A server implementation for receiving connections(ZMQConnection) from the Spine Toolbox.
-    """
+    """A server implementation for receiving connections(ZMQConnection) from the Spine Toolbox."""
 
     def __init__(self, protocol, port, zmqServerObserver, secModel, secFolder):
         """
@@ -63,18 +61,13 @@ class ZMQServer(threading.Thread):
                 self._secModelState = ZMQSecurityModelState.NONE
             elif secModel == ZMQSecurityModelState.STONEHOUSE:
                 # implementation based on https://github.com/zeromq/pyzmq/blob/main/examples/security/stonehouse.py
-                if secFolder == None:
+                if not secFolder:
                     raise ValueError("ZMQServer(): security folder input is missing.")
-
-                if len(secFolder) == 0:
-                    raise ValueError("ZMQServer(): security folder input is missing.")
-
                 # print("beginning to configure security for stonehouse-model of ZMQ")
                 base_dir = secFolder
                 self.keys_dir = os.path.join(base_dir, 'certificates')
                 self.public_keys_dir = os.path.join(base_dir, 'public_keys')
                 self.secret_keys_dir = os.path.join(base_dir, 'private_keys')
-
                 if not (
                     os.path.exists(self.keys_dir)
                     and os.path.exists(self.public_keys_dir)
@@ -83,12 +76,10 @@ class ZMQServer(threading.Thread):
                     raise ValueError("invalid certificate folders at ZMQServer()")
                 self.secFolder = secFolder
                 self._secModelState = ZMQSecurityModelState.STONEHOUSE
-
         except Exception as e:
             # print("ZMQServer couldn't be started due to exception: %s"%e)
             self._state = ZMQServerState.STOPPED
             raise ValueError("Invalid input ZMQServer.")
-
         self.protocol = protocol
         self.port = port
         # print("ZMQServer started with protocol %s to port %d"%(protocol,port))
@@ -96,18 +87,16 @@ class ZMQServer(threading.Thread):
         self.start()
 
     def close(self):
-        """
-       Closes the server.
+        """Closes the server.
+
         Returns:
-            On success: 0, otherwise -1
+            int: 0 on success, -1 otherwise
         """
         if self._state == ZMQServerState.RUNNING:
-
             if self._secModelState == ZMQSecurityModelState.STONEHOUSE:
                 self._auth.stop()
                 # print("ZMQServer.close(): stopped security authenticator.")
                 time.sleep(0.2)  # wait a bit until authenticator has been closed
-
             ret = self._socket.close()
             # print("ZMQServer.close(): socket closed.")
             # time.sleep(1)
@@ -116,7 +105,6 @@ class ZMQServer(threading.Thread):
             # print("ZMQServer.close(): ZMQ context closed at port %d"%self.port)
             self._state = ZMQServerState.STOPPED
             return 0
-
         else:
             print("ZMQServer is not running (port %d), cannot close." % self.port)
             return -1
@@ -126,41 +114,37 @@ class ZMQServer(threading.Thread):
         self._receive_data()
 
     def _receive_data(self):
-        """
-        Receives data from the socket, and creates new connections.
-        """
-        # print("ZMQServer._receive_data()")
-
+        """Receives data from the socket, and creates new connections."""
         # initialise Zero-MQ context and bind to a port depending on the security model
         try:
             if self._secModelState == ZMQSecurityModelState.NONE:
                 self._zmqContext = zmq.Context()
                 self._socket = self._zmqContext.socket(zmq.REP)
                 ret = self._socket.bind(self.protocol + "://*:" + str(self.port))
-
             elif self._secModelState == ZMQSecurityModelState.STONEHOUSE:
                 self._zmqContext = zmq.Context.instance()
-
                 # Start an authenticator for this context.
                 self._auth = ThreadAuthenticator(self._zmqContext)
                 self._auth.start()
                 endpoints_file = os.path.join(self.secFolder, "allowEndpoints.txt")
                 if not os.path.exists(endpoints_file):
-                    raise ValueError(f"File allowEndpoints.txt missing. Please create the file into directory: {self.secFolder} " 
-                                     " and add allowed IP addresses there")
+                    raise ValueError(
+                        f"File allowEndpoints.txt missing. Please create the file into directory: "
+                        f"{self.secFolder} and add allowed IP's there"
+                    )
                 endpoints = self._readEndpoints(endpoints_file)  # read endpoints to allow
                 endpoints = [x for x in endpoints if x]  # Remove empty string(s) from endpoint list
                 if not endpoints:
                     self._state = ZMQServerState.STOPPED
                     raise ValueError("No end points configured. Please add allowed IP's into allowEndPoints.txt")
                 # allow configured endpoints
+                allowed = list()
                 for ep in endpoints:
-                    allowed = list()
                     try:
                         ep = ep.strip()
                         ipaddress.ip_address(ep)
                         self._auth.allow(ep)
-                        allowed.append(ep)
+                        allowed.append(ep)  # Just for printing
                     except:
                         print("Invalid IP address in allowEndpoints.txt:'{ep}'")
                 allowed_str = "\n".join(allowed)
@@ -168,7 +152,6 @@ class ZMQServer(threading.Thread):
                 # print("ZMQServer(): started authenticator.")
                 # Tell the authenticator how to handle CURVE requests
                 self._auth.configure_curve(domain='*', location=zmq.auth.CURVE_ALLOW_ANY)
-
                 self._socket = self._zmqContext.socket(zmq.REP)
                 # self._socket.setsockopt(zmq.LINGER, 0)
                 server_secret_file = os.path.join(self.secret_keys_dir, "server.key_secret")
@@ -178,12 +161,10 @@ class ZMQServer(threading.Thread):
                 self._socket.curve_server = True  # must come before bind
                 # print("ZMQServer(): binding server and listening (with stonehouse security configured)..")
                 self._socket.bind(self.protocol + "://*:" + str(self.port))
-
         except Exception as e:
             # print("ZMQServer couldn't be started due to exception: %s"%e)
             self._state = ZMQServerState.STOPPED
             raise ValueError("Invalid input ZMQServer._receive()")
-
         # start listening..
         print("\nListening...")
         while self._state == ZMQServerState.RUNNING:
@@ -207,8 +188,7 @@ class ZMQServer(threading.Thread):
         # print("ZMQServer._receive_data(): out..")
 
     def _readEndpoints(self, configFileLocation):
-
+        """Reads all lines from a file and returns them in a list. Newline characters are removed."""
         with open(configFileLocation, "r") as f:
-            # lines = f.readlines()
             lines = f.read().splitlines()
             return lines

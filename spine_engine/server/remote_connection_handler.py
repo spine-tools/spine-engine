@@ -118,8 +118,11 @@ class RemoteConnectionHandler(threading.Thread):
                 convertedData = self._convert_input(dataAsDict, local_folder)
                 # print("RemoteConnectionHandler._execute() passing data to spine engine impl: %s"%convertedData)
                 eventData = spineEngineImpl.execute(convertedData)
-                # print("RemoteConnectionHandler._execute(): received events/data: ")
-                # print(eventData)
+                # NOTE! All execution event messages generated while running the DAG are collected into a single list.
+                # This list is sent back to Toolbox in a single message only after the whole DAG has finished execution
+                # in a single message. This means that Spine Toolbox cannot update the GUI (e.g. animations in Design
+                # View don't work, and the execution progress is not updated to Item Execution Log (or other Logs)
+                # until all items have finished.
 
                 # create a response message, parse and send it
                 print("RemoteConnectionHandler._execute(): Execution done. Sending a response to client")
