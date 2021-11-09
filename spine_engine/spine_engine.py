@@ -45,7 +45,7 @@ from spinedb_api.filters.execution_filter import execution_filter_config
 from .exception import EngineInitFailed
 from .utils.chunk import chunkify
 from .utils.helpers import AppSettings, inverted, create_timestamp, make_dag
-from .utils.returning_process import ReturningProcess
+from .utils.execution_resources import ProcessResource
 from .utils.queue_logger import QueueLogger
 from .project_item_loader import ProjectItemLoader
 from .multithread_executor.executor import multithread_executor
@@ -856,6 +856,6 @@ def _set_process_limits(settings):
     """
     control = settings.value("engineSettings/processLimiter", "auto")
     if control == "auto":
-        ReturningProcess._MAX_PROCESSES = os.cpu_count()
+        ProcessResource._MAX_PROCESSES = os.cpu_count()
     else:
-        ReturningProcess._MAX_PROCESSES = int(settings.value("engineSettings/maxProcesses", os.cpu_count()))
+        ProcessResource._MAX_PROCESSES = int(settings.value("engineSettings/maxProcesses", os.cpu_count()))
