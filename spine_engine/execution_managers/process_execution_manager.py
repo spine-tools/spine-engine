@@ -20,6 +20,7 @@ import sys
 import subprocess
 from threading import Thread
 from .execution_manager_base import ExecutionManagerBase
+from ..utils.execution_resources import acquire_resource, ProcessResource
 
 
 class ProcessExecutionManager(ExecutionManagerBase):
@@ -29,7 +30,7 @@ class ProcessExecutionManager(ExecutionManagerBase):
         Args:
             logger (LoggerInterface): a logger instance
             program (str): Path to program to run in the subprocess (e.g. julia.exe)
-            args (list): List of argument for the program (e.g. path to script file)
+            *args: List of arguments for the program (e.g. path to script file)
         """
         super().__init__(logger)
         self._process = None
@@ -39,23 +40,24 @@ class ProcessExecutionManager(ExecutionManagerBase):
 
     def run_until_complete(self):
         cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0  # Don't show console when frozen
-        try:
-            self._process = subprocess.Popen(
-                [self._program, *self._args],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=self._workdir,
-                creationflags=cf,
-            )
-        except OSError as e:
-            msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
+        with acquire_resource(ProcessResource):
+            try:
+                self._process = subprocess.Popen(
+                    [self._program, *self._args],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=self._workdir,
+                    creationflags=cf,
+                )
+            except OSError as e:
+                msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
+                self._logger.msg_standard_execution.emit(msg)
+                return
+            msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
             self._logger.msg_standard_execution.emit(msg)
-            return
-        msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
-        self._logger.msg_standard_execution.emit(msg)
-        Thread(target=self._log_stdout, args=(self._process.stdout,), daemon=True).start()
-        Thread(target=self._log_stderr, args=(self._process.stderr,), daemon=True).start()
-        return self._process.wait()
+            Thread(target=self._log_stdout, args=(self._process.stdout,), daemon=True).start()
+            Thread(target=self._log_stderr, args=(self._process.stderr,), daemon=True).start()
+            return self._process.wait()
 
     def stop_execution(self):
         if self._process is not None:
