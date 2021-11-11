@@ -17,7 +17,7 @@ The ReturningProcess class.
 """
 
 import multiprocessing as mp
-from .execution_resources import acquire_resource, ProcessResource
+from .execution_resources import OneShotProcessSemaphore
 
 
 class ReturningProcess(mp.Process):
@@ -32,7 +32,7 @@ class ReturningProcess(mp.Process):
         Returns:
             tuple: Return value of the process where the first element is a status flag
         """
-        with acquire_resource(ProcessResource):
+        with OneShotProcessSemaphore.semaphore:
             if self._terminated:
                 return (False,)
             self.start()

@@ -45,7 +45,7 @@ from spinedb_api.filters.execution_filter import execution_filter_config
 from .exception import EngineInitFailed
 from .utils.chunk import chunkify
 from .utils.helpers import AppSettings, inverted, create_timestamp, make_dag
-from .utils.execution_resources import ProcessResource
+from .utils.execution_resources import NonSemaphore, OneShotProcessSemaphore, PersistentProcessSemaphore
 from .utils.queue_logger import QueueLogger
 from .project_item_loader import ProjectItemLoader
 from .multithread_executor.executor import multithread_executor
@@ -140,7 +140,7 @@ class SpineEngine:
             self._connections_by_source.setdefault(connection.source, list()).append(connection)
             self._connections_by_destination.setdefault(connection.destination, list()).append(connection)
         self._settings = AppSettings(settings if settings is not None else {})
-        _set_process_limits(self._settings)
+        _set_resource_limits(self._settings)
         self._project_dir = project_dir
         project_item_loader = ProjectItemLoader()
         self._executable_item_classes = project_item_loader.load_executable_item_classes(items_module_name)
@@ -848,14 +848,23 @@ def validate_jumps(jumps, dag):
         }
 
 
-def _set_process_limits(settings):
-    """Sets limits for how many simultaneous processes :class:`ReturningProcess` can spawn.
+def _set_resource_limits(settings):
+    """Sets limits for simultaneous single-shot and persistent processes.
 
     Args:
         settings (AppSettings): Engine settings
     """
-    control = settings.value("engineSettings/processLimiter", "auto")
-    if control == "auto":
-        ProcessResource._MAX_PROCESSES = os.cpu_count()
+    single_shot_control = settings.value("engineSettings/processLimiter", "auto")
+    if single_shot_control == "auto":
+        OneShotProcessSemaphore.semaphore = threading.BoundedSemaphore(os.cpu_count())
     else:
-        ProcessResource._MAX_PROCESSES = int(settings.value("engineSettings/maxProcesses", os.cpu_count()))
+        limit = int(settings.value("engineSettings/maxProcesses", os.cpu_count()))
+        OneShotProcessSemaphore.semaphore = threading.BoundedSemaphore(limit)
+    persistent_process_control = settings.value("engineSettings/persistentLimiter", "unlimited")
+    if persistent_process_control == "unlimited":
+        PersistentProcessSemaphore.semaphore = NonSemaphore()
+    elif persistent_process_control == "auto":
+        PersistentProcessSemaphore.semaphore = threading.BoundedSemaphore(os.cpu_count())
+    else:
+        limit = int(settings.value("engineSettings/maxPersistentProcesses", os.cpu_count()))
+        PersistentProcessSemaphore.semaphore = threading.BoundedSemaphore(limit)

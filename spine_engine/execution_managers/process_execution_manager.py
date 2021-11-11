@@ -20,7 +20,7 @@ import sys
 import subprocess
 from threading import Thread
 from .execution_manager_base import ExecutionManagerBase
-from ..utils.execution_resources import acquire_resource, ProcessResource
+from ..utils.execution_resources import OneShotProcessSemaphore
 
 
 class ProcessExecutionManager(ExecutionManagerBase):
@@ -40,7 +40,7 @@ class ProcessExecutionManager(ExecutionManagerBase):
 
     def run_until_complete(self):
         cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0  # Don't show console when frozen
-        with acquire_resource(ProcessResource):
+        with OneShotProcessSemaphore.semaphore:
             try:
                 self._process = subprocess.Popen(
                     [self._program, *self._args],
