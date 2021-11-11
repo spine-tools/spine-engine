@@ -18,25 +18,74 @@ Utilities for managing execution resources such as processes.
 import threading
 
 
-class OneShotProcessSemaphore:
-    """Contains a class attribute semaphore that acts as limiter for simultaneous 'one-shot' processes."""
+class ResourceSemaphore:
+    """A bit more flexible semaphore than the one found in the standard threading module."""
 
-    semaphore = threading.BoundedSemaphore(1)
+    def __init__(self):
+        self._max_processes = 1
+        self._start_process_condition = threading.Condition()
+        self._process_count = 0
+        self._process_count_lock = threading.Lock()
 
+    def acquire(self, timeout=None):
+        """Waits for process count to drop below MAX_PROCESSES.
 
-class PersistentProcessSemaphore:
-    """Contains a class attribute semaphore that acts as limiter for simultaneous persistent processes."""
+        Args:
+            timeout (float, optional): timeout in seconds
 
-    semaphore = threading.BoundedSemaphore(1)
+        Returns:
+            bool: True if semaphore was acquired, False if there were too many processes or a time out occurred
+        """
+        with self._process_count_lock:
+            if self._max_processes == "unlimited":
+                self._process_count += 1
+                return True
+        with self._start_process_condition:
+            return self._start_process_condition.wait_for(self._check_and_update_process_count, timeout)
 
+    def __enter__(self):
+        return self.acquire()
 
-class NonSemaphore:
-    """A mock semaphore that can always be acquired."""
+    def _check_and_update_process_count(self):
+        """Atomically checks if process count is less than MAX_PROCESSES and if so, increments it by one.
+        Returns:
+            bool: True if process count was incremented, False otherwise
+        """
+        with self._process_count_lock:
+            if self._process_count < self._max_processes:
+                self._process_count += 1
+                return True
+            else:
+                return False
 
-    @staticmethod
-    def acquire(blocking=False, timeout=None):
-        return True
-
-    @staticmethod
     def release(self):
-        return
+        """Decrements process count and notifies other threads."""
+        with self._process_count_lock:
+            self._process_count -= 1
+            if self._process_count < 0:
+                raise RuntimeError("Logic error: process counter negative.")
+        with self._start_process_condition:
+            self._start_process_condition.notify()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.release()
+        return False
+
+    def set_limit(self, limit):
+        """Sets maximum number of processes.
+
+        Args:
+            limit (int or str): maximum number of processes or "unlimited"
+        """
+        with self._process_count_lock:
+            if limit == self._max_processes:
+                return
+            previous = self._max_processes
+            self._max_processes = limit
+        if limit == "unlimited" or (previous != "unlimited" and limit > previous):
+            with self._start_process_condition:
+                self._start_process_condition.notify_all()
+
+
+one_shot_process_semaphore = ResourceSemaphore()
+persistent_process_semaphore = ResourceSemaphore()

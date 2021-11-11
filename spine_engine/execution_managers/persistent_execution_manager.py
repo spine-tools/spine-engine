@@ -24,11 +24,12 @@ import os
 import signal
 import threading
 import time
+from itertools import chain
 from subprocess import Popen, PIPE
 from multiprocessing import Lock
 from queue import Queue
 from ..utils.helpers import Singleton
-from ..utils.execution_resources import PersistentProcessSemaphore
+from ..utils.execution_resources import persistent_process_semaphore
 from .execution_manager_base import ExecutionManagerBase
 
 if sys.platform == "win32":
@@ -129,6 +130,7 @@ class PersistentManagerBase:
 
         Args:
             cmd (str)
+            add_history (bool)
 
         Yields:
             dict: message
@@ -312,7 +314,7 @@ class PersistentManagerBase:
     def kill_process(self):
         self._persistent.kill()
         self._persistent.wait()
-        PersistentProcessSemaphore.semaphore.release()
+        persistent_process_semaphore.release()
 
 
 class JuliaPersistentManager(PersistentManagerBase):
@@ -465,7 +467,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
 
     def kill_manager_processes(self):
         """Kills persistent managers' Popen instances."""
-        for manager in self.persistent_managers.values():
+        for manager in chain(self.persistent_managers.values(), self._isolated_managers):
             manager.kill_process()
 
 
@@ -508,7 +510,7 @@ def get_persistent_history_item(key, index):
 
 @contextlib.contextmanager
 def acquire_persistent_process(group_persistent_managers, isolated_persistent_managers):
-    while not PersistentProcessSemaphore.semaphore.acquire(timeout=0.5):
+    while not persistent_process_semaphore.acquire(timeout=0.5):
         killed = False
         for pm in group_persistent_managers.values():
             if pm.is_persistent_alive() and pm.run_semaphore.acquire(blocking=False):

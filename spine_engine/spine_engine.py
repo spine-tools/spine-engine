@@ -43,9 +43,10 @@ from spinedb_api.filters.tools import filter_config
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
 from .exception import EngineInitFailed
+from .execution_managers.persistent_execution_manager import kill_persistent_processes
 from .utils.chunk import chunkify
 from .utils.helpers import AppSettings, inverted, create_timestamp, make_dag
-from .utils.execution_resources import NonSemaphore, OneShotProcessSemaphore, PersistentProcessSemaphore
+from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
 from .utils.queue_logger import QueueLogger
 from .project_item_loader import ProjectItemLoader
 from .multithread_executor.executor import multithread_executor
@@ -96,6 +97,8 @@ class SpineEngine:
     An engine for executing a Spine Toolbox DAG-workflow.
     """
 
+    _resource_limit_lock = threading.Lock()
+
     def __init__(
         self,
         items=None,
@@ -140,7 +143,7 @@ class SpineEngine:
             self._connections_by_source.setdefault(connection.source, list()).append(connection)
             self._connections_by_destination.setdefault(connection.destination, list()).append(connection)
         self._settings = AppSettings(settings if settings is not None else {})
-        _set_resource_limits(self._settings)
+        _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
         self._project_dir = project_dir
         project_item_loader = ProjectItemLoader()
         self._executable_item_classes = project_item_loader.load_executable_item_classes(items_module_name)
@@ -848,23 +851,26 @@ def validate_jumps(jumps, dag):
         }
 
 
-def _set_resource_limits(settings):
+def _set_resource_limits(settings, lock):
     """Sets limits for simultaneous single-shot and persistent processes.
+
+    May potentially kill existing persistent processes.
 
     Args:
         settings (AppSettings): Engine settings
     """
-    single_shot_control = settings.value("engineSettings/processLimiter", "auto")
-    if single_shot_control == "auto":
-        OneShotProcessSemaphore.semaphore = threading.BoundedSemaphore(os.cpu_count())
-    else:
-        limit = int(settings.value("engineSettings/maxProcesses", os.cpu_count()))
-        OneShotProcessSemaphore.semaphore = threading.BoundedSemaphore(limit)
-    persistent_process_control = settings.value("engineSettings/persistentLimiter", "unlimited")
-    if persistent_process_control == "unlimited":
-        PersistentProcessSemaphore.semaphore = NonSemaphore()
-    elif persistent_process_control == "auto":
-        PersistentProcessSemaphore.semaphore = threading.BoundedSemaphore(os.cpu_count())
-    else:
-        limit = int(settings.value("engineSettings/maxPersistentProcesses", os.cpu_count()))
-        PersistentProcessSemaphore.semaphore = threading.BoundedSemaphore(limit)
+    with lock:
+        single_shot_control = settings.value("engineSettings/processLimiter", "auto")
+        if single_shot_control == "auto":
+            limit = os.cpu_count()
+        else:
+            limit = int(settings.value("engineSettings/maxProcesses", os.cpu_count()))
+        one_shot_process_semaphore.set_limit(limit)
+        persistent_process_control = settings.value("engineSettings/persistentLimiter", "unlimited")
+        if persistent_process_control == "unlimited":
+            limit = "unlimited"
+        elif persistent_process_control == "auto":
+            limit = os.cpu_count()
+        else:
+            limit = int(settings.value("engineSettings/maxPersistentProcesses", os.cpu_count()))
+        persistent_process_semaphore.set_limit(limit)
