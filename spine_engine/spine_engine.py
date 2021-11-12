@@ -43,7 +43,10 @@ from spinedb_api.filters.tools import filter_config
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
 from .exception import EngineInitFailed
-from .execution_managers.persistent_execution_manager import kill_persistent_processes
+from .execution_managers.persistent_execution_manager import (
+    disable_persistent_process_creation,
+    enable_persistent_process_creation,
+)
 from .utils.chunk import chunkify
 from .utils.helpers import AppSettings, inverted, create_timestamp, make_dag
 from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
@@ -144,6 +147,7 @@ class SpineEngine:
             self._connections_by_destination.setdefault(connection.destination, list()).append(connection)
         self._settings = AppSettings(settings if settings is not None else {})
         _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
+        enable_persistent_process_creation()
         self._project_dir = project_dir
         project_item_loader = ProjectItemLoader()
         self._executable_item_classes = project_item_loader.load_executable_item_classes(items_module_name)
@@ -404,6 +408,7 @@ class SpineEngine:
     def stop(self):
         """Stops the engine."""
         self._state = SpineEngineState.USER_STOPPED
+        disable_persistent_process_creation()
         for item in self._running_items:
             self._stop_item(item)
         self._queue.put(("dag_exec_finished", str(self._state)))

@@ -24,6 +24,7 @@ import os
 import signal
 import threading
 import time
+from dataclasses import dataclass
 from itertools import chain
 from subprocess import Popen, PIPE
 from multiprocessing import Lock
@@ -309,11 +310,12 @@ class PersistentManagerBase:
         Returns:
             bool
         """
-        return self._persistent.returncode is None
+        return self._persistent is not None and self._persistent.returncode is None
 
     def kill_process(self):
         self._persistent.kill()
         self._persistent.wait()
+        self._persistent = None
         persistent_process_semaphore.release()
 
 
@@ -357,10 +359,18 @@ class PythonPersistentManager(PersistentManagerBase):
 
 
 class _PersistentManagerFactory(metaclass=Singleton):
+    @dataclass
+    class OpenSign:
+        open: bool = True
+
+        def __bool__(self):
+            return self.open
+
     persistent_managers = {}
+    """Maps tuples (process args) to associated PersistentManagerBase."""
     _isolated_managers = []
     factory_lock = threading.Lock()
-    """Maps tuples (process args) to associated PersistentManagerBase."""
+    _factory_open = OpenSign()
 
     def new_persistent_manager(self, constructor, logger, args, group_id):
         """Creates a new persistent for given args and group id if none exists.
@@ -372,18 +382,22 @@ class _PersistentManagerFactory(metaclass=Singleton):
             group_id (str): item group that will execute using this persistent
 
         Returns:
-            PersistentManagerBase: persistent manager
+            PersistentManagerBase: persistent manager or None if factory has been closed
         """
         with self.factory_lock:
             if group_id is None:
                 # Execute in isolation
-                with acquire_persistent_process(self.persistent_managers, self._isolated_managers):
+                with acquire_persistent_process(self.persistent_managers, self._isolated_managers, self._factory_open):
+                    if not self._factory_open:
+                        return None
                     mp = constructor(args)
                     self._isolated_managers.append(mp)
                     return mp
             key = tuple(args + [group_id])
             if key not in self.persistent_managers or not self.persistent_managers[key].is_persistent_alive():
-                with acquire_persistent_process(self.persistent_managers, self._isolated_managers):
+                with acquire_persistent_process(self.persistent_managers, self._isolated_managers, self._factory_open):
+                    if not self._factory_open:
+                        return None
                     try:
                         self.persistent_managers[key] = pm = constructor(args)
                     except OSError as err:
@@ -470,6 +484,20 @@ class _PersistentManagerFactory(metaclass=Singleton):
         for manager in chain(self.persistent_managers.values(), self._isolated_managers):
             manager.kill_process()
 
+    def open_factory(self):
+        """Opens factory.
+
+        An open factory instantiates new persistent managers.
+        """
+        self._factory_open.open = True
+
+    def close_factory(self):
+        """Closes the factory.
+
+        A closed factory does not instantiate new persistent managers
+        """
+        self._factory_open.open = False
+
 
 _persistent_manager_factory = _PersistentManagerFactory()
 
@@ -493,6 +521,16 @@ def kill_persistent_processes():
     _persistent_manager_factory.kill_manager_processes()
 
 
+def enable_persistent_process_creation():
+    """Enables creation of new persistent project managers."""
+    _persistent_manager_factory.open_factory()
+
+
+def disable_persistent_process_creation():
+    """Disables creation of new persistent project managers."""
+    _persistent_manager_factory.close_factory()
+
+
 def issue_persistent_command(key, cmd):
     """See _PersistentManagerFactory."""
     yield from _persistent_manager_factory.issue_persistent_command(key, cmd)
@@ -509,8 +547,10 @@ def get_persistent_history_item(key, index):
 
 
 @contextlib.contextmanager
-def acquire_persistent_process(group_persistent_managers, isolated_persistent_managers):
-    while not persistent_process_semaphore.acquire(timeout=0.5):
+def acquire_persistent_process(group_persistent_managers, isolated_persistent_managers, running):
+    while running and not persistent_process_semaphore.acquire(timeout=0.5):
+        if not running:
+            break
         killed = False
         for pm in group_persistent_managers.values():
             if pm.is_persistent_alive() and pm.run_semaphore.acquire(blocking=False):
@@ -566,6 +606,8 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
 
     def run_until_complete(self):
         """See base class."""
+        if self._persistent_manager is None:
+            return -1
         try:
             msg = dict(type="execution_started", args=" ".join(self._args))
             self._logger.msg_persistent_execution.emit(msg)
@@ -585,7 +627,8 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
 
     def stop_execution(self):
         """See base class."""
-        self._persistent_manager.interrupt_persistent()
+        if self._persistent_manager is not None:
+            self._persistent_manager.interrupt_persistent()
 
 
 class JuliaPersistentExecutionManager(PersistentExecutionManagerBase):

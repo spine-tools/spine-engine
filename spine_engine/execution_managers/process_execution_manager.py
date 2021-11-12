@@ -37,10 +37,14 @@ class ProcessExecutionManager(ExecutionManagerBase):
         self._program = program
         self._args = args
         self._workdir = workdir
+        self._stopped = False
 
     def run_until_complete(self):
+        self._stopped = False
         cf = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0  # Don't show console when frozen
         with one_shot_process_semaphore:
+            if self._stopped:
+                return 0
             try:
                 self._process = subprocess.Popen(
                     [self._program, *self._args],
@@ -52,7 +56,7 @@ class ProcessExecutionManager(ExecutionManagerBase):
             except OSError as e:
                 msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
                 self._logger.msg_standard_execution.emit(msg)
-                return
+                return 1
             msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
             self._logger.msg_standard_execution.emit(msg)
             Thread(target=self._log_stdout, args=(self._process.stdout,), daemon=True).start()
@@ -60,6 +64,7 @@ class ProcessExecutionManager(ExecutionManagerBase):
             return self._process.wait()
 
     def stop_execution(self):
+        self._stopped = True
         if self._process is not None:
             self._process.terminate()
 
