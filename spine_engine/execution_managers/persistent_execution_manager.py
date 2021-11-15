@@ -48,8 +48,8 @@ class PersistentManagerBase:
         self._server_address = None
         self._msg_queue = Queue()
         self.command_successful = False
-        self.run_semaphore = threading.Semaphore()
-        self.run_semaphore.acquire()
+        self._is_running_lock = Lock()
+        self._is_running = True
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE)
         if sys.platform == "win32":
             self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
@@ -67,6 +67,19 @@ class PersistentManagerBase:
             str
         """
         raise NotImplementedError()
+
+    def set_running_until_completion(self, running):
+        """Sets the 'running until completion' state.
+
+        Args:
+            running (bool): True if the manager is running until completion, False otherwise
+        """
+        with self._is_running_lock:
+            self._is_running = running
+
+    def is_running_until_completion(self):
+        with self._is_running_lock:
+            return self._is_running
 
     def _init_args(self):
         """Returns init args for Popen.
@@ -292,6 +305,7 @@ class PersistentManagerBase:
         self._persistent.wait()
         self._persistent.stdout = os.devnull
         self._persistent.stderr = os.devnull
+        self.set_running_until_completion(False)
         self._start_persistent()
 
     def interrupt_persistent(self):
@@ -300,9 +314,13 @@ class PersistentManagerBase:
 
     def _do_interrupt_persistent(self):
         sig = signal.CTRL_C_EVENT if sys.platform == "win32" else signal.SIGINT
+        persistent = self._persistent  # Make local copy; other threads may set self._persistent to None while sleeping.
+        if persistent is None:
+            return
         for _ in range(3):
-            self._persistent.send_signal(sig)
+            persistent.send_signal(sig)
             time.sleep(1)
+        self.set_running_until_completion(False)
 
     def is_persistent_alive(self):
         """Whether or not the persistent is still alive and ready to receive commands.
@@ -313,9 +331,15 @@ class PersistentManagerBase:
         return self._persistent is not None and self._persistent.returncode is None
 
     def kill_process(self):
+        if self._persistent is None:
+            return
         self._persistent.kill()
         self._persistent.wait()
+        self._persistent.stdin.close()
+        self._persistent.stdout.close()
+        self._persistent.stderr.close()
         self._persistent = None
+        self.set_running_until_completion(False)
         persistent_process_semaphore.release()
 
 
@@ -406,7 +430,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
                         return None
             else:
                 pm = self.persistent_managers[key]
-                pm.run_semaphore.acquire()
+                pm.restart()
             msg = dict(type="persistent_started", key=key, language=pm.language)
             logger.msg_persistent_execution.emit(msg)
             return pm
@@ -553,16 +577,14 @@ def acquire_persistent_process(group_persistent_managers, isolated_persistent_ma
             break
         killed = False
         for pm in group_persistent_managers.values():
-            if pm.is_persistent_alive() and pm.run_semaphore.acquire(blocking=False):
+            if pm.is_persistent_alive() and not pm.is_running_until_completion():
                 pm.kill_process()
-                pm.run_semaphore.release()
                 killed = True
                 break
         if not killed:
             for i, pm in enumerate(isolated_persistent_managers):
-                if pm.is_persistent_alive() and pm.run_semaphore.acquire(blocking=False):
+                if pm.is_persistent_alive() and pm.is_running_until_completion():
                     pm.kill_process()
-                    pm.run_semaphore.release()
                     isolated_persistent_managers.pop(i)
                     break
     yield None
@@ -623,7 +645,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
                     return -1
             return -1 if failed else 0
         finally:
-            self._persistent_manager.run_semaphore.release()
+            self._persistent_manager.set_running_until_completion(False)
 
     def stop_execution(self):
         """See base class."""
