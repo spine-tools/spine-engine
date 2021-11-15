@@ -72,7 +72,7 @@ class ZMQServer(threading.Thread):
                     raise ValueError(f"Security folder: {self.keys_dir} does not exist")
                 elif not os.path.exists(self.public_keys_dir):
                     raise ValueError(f"Security folder: {self.public_keys_dir} does not exist")
-                elif os.path.exists(self.secret_keys_dir):
+                elif not os.path.exists(self.secret_keys_dir):
                     raise ValueError(f"Security folder: {self.secret_keys_dir} does not exist")
                 self.secFolder = secFolder
                 self._secModelState = ZMQSecurityModelState.STONEHOUSE
