@@ -430,7 +430,6 @@ class _PersistentManagerFactory(metaclass=Singleton):
                         return None
             else:
                 pm = self.persistent_managers[key]
-                pm.restart()
             msg = dict(type="persistent_started", key=key, language=pm.language)
             logger.msg_persistent_execution.emit(msg)
             return pm
