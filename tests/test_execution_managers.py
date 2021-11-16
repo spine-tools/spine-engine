@@ -55,7 +55,7 @@ class TestStandardExecutionManager(unittest.TestCase):
         logger.msg_proc.emit.assert_not_called()
         logger.msg_proc_error.emit.assert_not_called()
         logger.msg_standard_execution.emit.assert_called_once()
-        self.assertIsNone(ret)
+        self.assertEqual(ret, 1)
 
     def test_run_with_workdir(self):
         logger = MagicMock()

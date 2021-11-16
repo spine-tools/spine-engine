@@ -145,19 +145,20 @@ class Connection(ConnectionBase):
         """
         self._resources = {r for r in resources if r.type_ == "database"}
 
-    def replace_resource_from_source(self, old, new):
-        """Replaces an existing resource.
+    def replace_resources_from_source(self, old, new):
+        """Replaces existing resources by new ones.
 
         Args:
-            old (ProjectItemResource): old resource
-            new (ProjectItemResource): new resource
+            old (list of ProjectItemResource): old resources
+            new (list of ProjectItemResource): new resources
         """
-        self._resources.discard(old)
-        old_filters = self._resource_filters.pop(old.label, None)
-        if new.type_ == "database":
-            self._resources.add(new)
-            if old_filters is not None:
-                self._resource_filters[new.label] = old_filters
+        for old_resource, new_resource in zip(old, new):
+            self._resources.discard(old_resource)
+            old_filters = self._resource_filters.pop(old_resource.label, None)
+            if new_resource.type_ == "database":
+                self._resources.add(new_resource)
+                if old_filters is not None:
+                    self._resource_filters[new_resource.label] = old_filters
 
     def fetch_database_items(self):
         """Reads filter information from database."""
@@ -206,7 +207,7 @@ class Connection(ConnectionBase):
         for id_, online_ in online.items():
             current_ids[id_] = online_
 
-    def convert_resources(self, resources):
+    def convert_resources(self, resources, override_provider_name=None):
         """Called when advertising resources through this connection *in the FORWARD direction*.
         Takes the initial list of resources advertised by the source item and returns a new list,
         which is the one finally advertised.
@@ -215,6 +216,7 @@ class Connection(ConnectionBase):
 
         Args:
             resources (list of ProjectItemResource): Resources to convert
+            override_provider_name (str, optional): set converted resources provider name to this; use source if None
 
         Returns:
             list of ProjectItemResource
@@ -238,7 +240,8 @@ class Connection(ConnectionBase):
             package.add_resource({"path": os.path.relpath(path, base_path)})
         package_path = os.path.join(base_path, "datapackage.json")
         package.save(package_path)
-        package_resource = file_resource(self.source, package_path, label=f"datapackage@{self.source}")
+        provider = self.source if override_provider_name is None else override_provider_name
+        package_resource = file_resource(provider, package_path, label=f"datapackage@{provider}")
         final_resources.append(package_resource)
         return final_resources
 

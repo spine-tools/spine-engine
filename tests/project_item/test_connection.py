@@ -58,7 +58,7 @@ class TestConnection(unittest.TestCase):
         connection.receive_resources_from_source([original])
         self.assertEqual(connection.database_resources, {original})
         modified = database_resource("source", "sqlite:///db2.sqlite", label="new database")
-        connection.replace_resource_from_source(original, modified)
+        connection.replace_resources_from_source([original], [modified])
         self.assertEqual(connection.database_resources, {modified})
         self.assertEqual(connection.resource_filters, {"new database": {"scenario_filter": {13: False}}})
 

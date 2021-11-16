@@ -16,18 +16,21 @@ as well as some convenience functions.
 :authors: M. Marin (KTH)
 :date:   12.10.2020
 """
-
+import contextlib
 import socket
 import socketserver
 import sys
 import os
 import signal
+import threading
 import time
+from dataclasses import dataclass
+from itertools import chain
 from subprocess import Popen, PIPE
-from threading import Thread
 from multiprocessing import Lock
 from queue import Queue
 from ..utils.helpers import Singleton
+from ..utils.execution_resources import persistent_process_semaphore
 from .execution_manager_base import ExecutionManagerBase
 
 if sys.platform == "win32":
@@ -45,6 +48,8 @@ class PersistentManagerBase:
         self._server_address = None
         self._msg_queue = Queue()
         self.command_successful = False
+        self._is_running_lock = Lock()
+        self._is_running = True
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE)
         if sys.platform == "win32":
             self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
@@ -62,6 +67,19 @@ class PersistentManagerBase:
             str
         """
         raise NotImplementedError()
+
+    def set_running_until_completion(self, running):
+        """Sets the 'running until completion' state.
+
+        Args:
+            running (bool): True if the manager is running until completion, False otherwise
+        """
+        with self._is_running_lock:
+            self._is_running = running
+
+    def is_running_until_completion(self):
+        with self._is_running_lock:
+            return self._is_running
 
     def _init_args(self):
         """Returns init args for Popen.
@@ -97,8 +115,8 @@ class PersistentManagerBase:
             self._server_address = s.server_address
         self.command_successful = False
         self._persistent = Popen(self._args + self._init_args(), **self._kwargs)
-        Thread(target=self._log_stdout, daemon=True).start()
-        Thread(target=self._log_stderr, daemon=True).start()
+        threading.Thread(target=self._log_stdout, daemon=True).start()
+        threading.Thread(target=self._log_stderr, daemon=True).start()
 
     def _log_stdout(self):
         """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
@@ -117,20 +135,24 @@ class PersistentManagerBase:
         return result.strip() == "true"
 
     def issue_command(self, cmd, add_history=False):
-        """Issues cmd to the persistent process and returns an iterator of stdout and stderr messages.
+        """Issues cmd to the persistent process and yields stdout and stderr messages.
 
         Each message is a dictionary with two keys:
 
-            - "type": either "stdout" or "stderr"
+            - "type": message type, e.g. "stdout" or "stderr"
             - "data": the actual message string.
 
         Args:
             cmd (str)
+            add_history (bool)
 
-        Returns:
-            generator
+        Yields:
+            dict: message
         """
-        t = Thread(target=self._issue_command_and_wait_for_idle, args=(cmd, add_history))
+        if not self.is_persistent_alive():
+            yield {"type": "process_dead"}
+            return
+        t = threading.Thread(target=self._issue_command_and_wait_for_idle, args=(cmd, add_history))
         t.start()
         while True:
             msg = self._msg_queue.get()
@@ -170,6 +192,9 @@ class PersistentManagerBase:
             cmd (str): Command to pass to the persistent process
             is_complete (bool): Whether or not the command is complete
             add_history (bool): Whether or not to add the command to history
+
+        Returns:
+            bool: True if command was issued successfully, False otherwise
         """
         cmd += os.linesep
         if is_complete:
@@ -196,7 +221,7 @@ class PersistentManagerBase:
         with socketserver.TCPServer((host, 0), None) as s:
             port = s.server_address[1]
         queue = Queue()
-        thread = Thread(target=self._listen_and_enqueue, args=(host, port, queue))
+        thread = threading.Thread(target=self._listen_and_enqueue, args=(host, port, queue))
         thread.start()
         queue.get()  # This blocks until the server is listening
         sentinel = self._sentinel_command(host, port)
@@ -280,17 +305,22 @@ class PersistentManagerBase:
         self._persistent.wait()
         self._persistent.stdout = os.devnull
         self._persistent.stderr = os.devnull
+        self.set_running_until_completion(False)
         self._start_persistent()
 
     def interrupt_persistent(self):
         """Interrupts the persistent process."""
-        Thread(target=self._do_interrupt_persistent).start()
+        threading.Thread(target=self._do_interrupt_persistent).start()
 
     def _do_interrupt_persistent(self):
         sig = signal.CTRL_C_EVENT if sys.platform == "win32" else signal.SIGINT
+        persistent = self._persistent  # Make local copy; other threads may set self._persistent to None while sleeping.
+        if persistent is None:
+            return
         for _ in range(3):
-            self._persistent.send_signal(sig)
+            persistent.send_signal(sig)
             time.sleep(1)
+        self.set_running_until_completion(False)
 
     def is_persistent_alive(self):
         """Whether or not the persistent is still alive and ready to receive commands.
@@ -298,11 +328,19 @@ class PersistentManagerBase:
         Returns:
             bool
         """
-        return self._persistent.returncode is None
+        return self._persistent is not None and self._persistent.returncode is None
 
     def kill_process(self):
+        if self._persistent is None:
+            return
         self._persistent.kill()
-        self._persistent.communicate(timeout=5)
+        self._persistent.wait()
+        self._persistent.stdin.close()
+        self._persistent.stdout.close()
+        self._persistent.stderr.close()
+        self._persistent = None
+        self.set_running_until_completion(False)
+        persistent_process_semaphore.release()
 
 
 class JuliaPersistentManager(PersistentManagerBase):
@@ -345,36 +383,57 @@ class PythonPersistentManager(PersistentManagerBase):
 
 
 class _PersistentManagerFactory(metaclass=Singleton):
-    _persistent_managers = {}
+    @dataclass
+    class OpenSign:
+        open: bool = True
+
+        def __bool__(self):
+            return self.open
+
+    persistent_managers = {}
     """Maps tuples (process args) to associated PersistentManagerBase."""
+    _isolated_managers = []
+    factory_lock = threading.Lock()
+    _factory_open = OpenSign()
 
     def new_persistent_manager(self, constructor, logger, args, group_id):
         """Creates a new persistent for given args and group id if none exists.
 
         Args:
-            constructor (function): the persistent manager constructor
+            constructor (Callable): the persistent manager constructor
             logger (LoggerInterface)
             args (list): the arguments to launch the persistent process
             group_id (str): item group that will execute using this persistent
 
         Returns:
-            PersistentManagerBase: persistent manager
+            PersistentManagerBase: persistent manager or None if factory has been closed
         """
-        if group_id is None:
-            # Execute in isolation
-            return constructor(args)
-        key = tuple(args + [group_id])
-        if key not in self._persistent_managers or not self._persistent_managers[key].is_persistent_alive():
-            try:
-                self._persistent_managers[key] = constructor(args)
-            except OSError as err:
-                msg = dict(type="persistent_failed_to_start", args=" ".join(args), error=str(err))
-                logger.msg_persistent_execution.emit(msg)
-                return None
-        pm = self._persistent_managers[key]
-        msg = dict(type="persistent_started", key=key, language=pm.language)
-        logger.msg_persistent_execution.emit(msg)
-        return pm
+        with self.factory_lock:
+            if group_id is None:
+                # Execute in isolation
+                with acquire_persistent_process(self.persistent_managers, self._isolated_managers, self._factory_open):
+                    if not self._factory_open:
+                        return None
+                    mp = constructor(args)
+                    self._isolated_managers.append(mp)
+                    return mp
+            key = tuple(args + [group_id])
+            if key not in self.persistent_managers or not self.persistent_managers[key].is_persistent_alive():
+                with acquire_persistent_process(self.persistent_managers, self._isolated_managers, self._factory_open):
+                    if not self._factory_open:
+                        return None
+                    try:
+                        self.persistent_managers[key] = pm = constructor(args)
+                    except OSError as err:
+                        msg = dict(type="persistent_failed_to_start", args=" ".join(args), error=str(err))
+                        logger.msg_persistent_execution.emit(msg)
+                        return None
+            else:
+                pm = self.persistent_managers[key]
+                pm.restart()
+            msg = dict(type="persistent_started", key=key, language=pm.language)
+            logger.msg_persistent_execution.emit(msg)
+            return pm
 
     def restart_persistent(self, key):
         """Restart a persistent process.
@@ -382,7 +441,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         Args:
             key (tuple): persistent identifier
         """
-        pm = self._persistent_managers.get(key)
+        pm = self.persistent_managers.get(key)
         if pm is None:
             return
         pm.restart_persistent()
@@ -393,7 +452,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         Args:
             key (tuple): persistent identifier
         """
-        pm = self._persistent_managers.get(key)
+        pm = self.persistent_managers.get(key)
         if pm is None:
             return
         pm.interrupt_persistent()
@@ -408,7 +467,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         Returns:
             generator: stdio and stderr messages (dictionaries with two keys: type, and data)
         """
-        pm = self._persistent_managers.get(key)
+        pm = self.persistent_managers.get(key)
         if pm is None:
             return
         for msg in pm.issue_command(cmd, add_history=True):
@@ -424,7 +483,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         Returns:
             list of str: options that match given text
         """
-        pm = self._persistent_managers.get(key)
+        pm = self.persistent_managers.get(key)
         if pm is None:
             return
         return pm.get_completions(text)
@@ -439,15 +498,29 @@ class _PersistentManagerFactory(metaclass=Singleton):
         Returns:
             str: history item or empty string if none
         """
-        pm = self._persistent_managers.get(key)
+        pm = self.persistent_managers.get(key)
         if pm is None:
             return
         return pm.get_history_item(index)
 
     def kill_manager_processes(self):
         """Kills persistent managers' Popen instances."""
-        for manager in self._persistent_managers.values():
+        for manager in chain(self.persistent_managers.values(), self._isolated_managers):
             manager.kill_process()
+
+    def open_factory(self):
+        """Opens factory.
+
+        An open factory instantiates new persistent managers.
+        """
+        self._factory_open.open = True
+
+    def close_factory(self):
+        """Closes the factory.
+
+        A closed factory does not instantiate new persistent managers
+        """
+        self._factory_open.open = False
 
 
 _persistent_manager_factory = _PersistentManagerFactory()
@@ -472,6 +545,16 @@ def kill_persistent_processes():
     _persistent_manager_factory.kill_manager_processes()
 
 
+def enable_persistent_process_creation():
+    """Enables creation of new persistent project managers."""
+    _persistent_manager_factory.open_factory()
+
+
+def disable_persistent_process_creation():
+    """Disables creation of new persistent project managers."""
+    _persistent_manager_factory.close_factory()
+
+
 def issue_persistent_command(key, cmd):
     """See _PersistentManagerFactory."""
     yield from _persistent_manager_factory.issue_persistent_command(key, cmd)
@@ -485,6 +568,26 @@ def get_persistent_completions(key, text):
 def get_persistent_history_item(key, index):
     """See _PersistentManagerFactory."""
     return _persistent_manager_factory.get_persistent_history_item(key, index)
+
+
+@contextlib.contextmanager
+def acquire_persistent_process(group_persistent_managers, isolated_persistent_managers, running):
+    while running and not persistent_process_semaphore.acquire(timeout=0.5):
+        if not running:
+            break
+        killed = False
+        for pm in group_persistent_managers.values():
+            if pm.is_persistent_alive() and not pm.is_running_until_completion():
+                pm.kill_process()
+                killed = True
+                break
+        if not killed:
+            for i, pm in enumerate(isolated_persistent_managers):
+                if pm.is_persistent_alive() and pm.is_running_until_completion():
+                    pm.kill_process()
+                    isolated_persistent_managers.pop(i)
+                    break
+    yield None
 
 
 class PersistentExecutionManagerBase(ExecutionManagerBase):
@@ -525,23 +628,29 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
 
     def run_until_complete(self):
         """See base class."""
-        msg = dict(type="execution_started", args=" ".join(self._args))
-        self._logger.msg_persistent_execution.emit(msg)
-        self._logger.msg_persistent_execution.emit(dict(type="stdin", data=self._alias.strip()))
-        failed = False
-        for cmd in self._commands:
-            for msg in self._persistent_manager.issue_command(cmd):
-                if msg["type"] != "stdin":
-                    self._logger.msg_persistent_execution.emit(msg)
-                    if msg["type"] in ("stdout", "stderr"):
-                        failed = self._fail_on_stderror and msg["type"] == "stderr"
-            if not self._persistent_manager.command_successful:
-                return -1
-        return -1 if failed else 0
+        if self._persistent_manager is None:
+            return -1
+        try:
+            msg = dict(type="execution_started", args=" ".join(self._args))
+            self._logger.msg_persistent_execution.emit(msg)
+            self._logger.msg_persistent_execution.emit(dict(type="stdin", data=self._alias.strip()))
+            failed = False
+            for cmd in self._commands:
+                for msg in self._persistent_manager.issue_command(cmd):
+                    if msg["type"] != "stdin":
+                        self._logger.msg_persistent_execution.emit(msg)
+                        if msg["type"] in ("stdout", "stderr"):
+                            failed = self._fail_on_stderror and msg["type"] == "stderr"
+                if not self._persistent_manager.command_successful:
+                    return -1
+            return -1 if failed else 0
+        finally:
+            self._persistent_manager.set_running_until_completion(False)
 
     def stop_execution(self):
         """See base class."""
-        self._persistent_manager.interrupt_persistent()
+        if self._persistent_manager is not None:
+            self._persistent_manager.interrupt_persistent()
 
 
 class JuliaPersistentExecutionManager(PersistentExecutionManagerBase):
