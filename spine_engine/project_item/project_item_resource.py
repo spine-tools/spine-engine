@@ -16,10 +16,12 @@ Provides the ProjectItemResource class.
 :date:   29.4.2020
 """
 import copy
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 from spinedb_api.filters.tools import clear_filter_configs
+from spinedb_api.spine_db_server import closing_spine_db_server
 
 
 class ProjectItemResource:
@@ -55,6 +57,14 @@ class ProjectItemResource:
         self._url = url
         self._parsed_url = urlparse(self._url)
         self.metadata = metadata if metadata is not None else dict()
+
+    @contextmanager
+    def open(self):
+        if self.type_ == "database":
+            with closing_spine_db_server(self.url) as server_url:
+                yield server_url
+        else:
+            yield self.path if self.hasfilepath else ""
 
     def clone(self, additional_metadata=None):
         """Clones a resource and optionally updates the clone's metadata.
