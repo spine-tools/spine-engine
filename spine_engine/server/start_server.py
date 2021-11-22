@@ -24,7 +24,6 @@ from spine_engine.server.connectivity.zmq_server_observer import ZMQServerObserv
 from spine_engine.server.connectivity.zmq_connection import ZMQConnection
 from spine_engine.server.connectivity.zmq_server import ZMQSecurityModelState
 from spine_engine.server.util.server_message_parser import ServerMessageParser
-from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.remote_ping_handler import RemotePingHandler
 
 
@@ -43,9 +42,12 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
         self.start()
 
     def receiveConnection(self, conn: ZMQConnection) -> None:
-        # print("RemoteSpineService.receiveConnection()")
         startTimeMs = round(time.time() * 1000.0)  # debugging
         msg_parts = conn.get_message_parts()
+        if len(msg_parts[0]) <= 10:  # Moved from RemoteConnectionHandler to here. TODO: What is this about?
+            print(f"Received msg too small. len(msg_parts[0]):{len(msg_parts[0])}. msg_parts:{msg_parts}")
+            conn.send_error_reply("", "", f"Sent msg too small?!")
+            return
         try:
             msg_part1 = msg_parts[0].decode("utf-8")
         except UnicodeDecodeError as e:
@@ -63,9 +65,13 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
             print("Handling ping request")
             RemotePingHandler.handlePing(parsed_msg, conn)
         elif cmd == "execute":  # Handle execute messages
+            if not len(msg_parts) == 2:
+                print(f"Not enough parts in received msg. Should be 2.")
+                conn.send_error_reply("", "", f"Message should have two parts. len(msg_parts): {len(msg_parts)}")
+                return
             print("Handling execute request")
             self.conn = conn
-            self.connHandler = RemoteConnectionHandler(self.conn)
+            self.connHandler = RemoteConnectionHandler(self.conn, parsed_msg, msg_parts[1])
         else:  # Unknown command
             print(f"Unknown command '{cmd}' received. Sending 'Unknown command' response'")
             conn.send_error_reply("", "", "Unknown command '{cmd}'")

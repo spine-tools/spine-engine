@@ -18,31 +18,14 @@ Unit tests for RemoteConnectionHandler class.
 import unittest
 import zmq
 import json
-import time
 import os
 from pathlib import Path
 from spine_engine.server.remote_connection_handler import RemoteConnectionHandler
-from spine_engine.server.connectivity.zmq_server_observer import ZMQServerObserver
-from spine_engine.server.connectivity.zmq_connection import ZMQConnection
-from spine_engine.server.connectivity.zmq_server import ZMQServer, ZMQSecurityModelState
+from spine_engine.server.connectivity.zmq_server import ZMQSecurityModelState
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.server_message_parser import ServerMessageParser
 from spine_engine.server.util.event_data_converter import EventDataConverter
 from spine_engine.server.start_server import RemoteSpineService
-
-
-# class TestObserver(ZMQServerObserver):
-#     def __init__(self):
-#         self.conn = None
-#         self.conn_handler = None
-#
-#     def receiveConnection(self, conn: ZMQConnection) -> None:
-#         self.conn = conn
-#         self.conn_handler = RemoteConnectionHandler(conn)
-#         # print("TestObserver.receiveConnection() RemoteConnectionHandler started.")
-#
-#     def getConnection(self):
-#         return self.conn
 
 
 class TestRemoteConnectionHandler(unittest.TestCase):
@@ -97,10 +80,6 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         item["settings"] = settings
         item["project_dir"] = project_dir
         return item
-
-    def test_init_error(self):
-        with self.assertRaises(ValueError):
-            handler = RemoteConnectionHandler(None)
 
     def test_init_complete(self):
         msg_parts = []
@@ -336,13 +315,9 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         # print("test_init_complete(): listening to replies..")
         message = self.socket.recv()
         msgStr = message.decode("utf-8")
-        # print("test_invalid_project_folder():..Received reply (from network) %s" %msgStr)
-        parsedMsg = ServerMessageParser.parse(msgStr)
-        # print(parsedMsg)
-        # get and decode events+data
-        data = parsedMsg.getData()
-        # print("test_invalid_project_folder():received data %s"%data)
-        self.assertEqual(str(data), "{}")
+        server_msg = ServerMessageParser.parse(msgStr)
+        msg_data = server_msg.getData()
+        self.assertTrue(msg_data.startswith("Server failed"))
 
     def test_loop_calls(self):
         dict_data2 = {
@@ -437,13 +412,10 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         msg_parts.append(part1Bytes)
         self.socket.send_multipart(msg_parts)
         message = self.socket.recv()
-        # print("test_init_no_binarydata(): recv().. out")
         msgStr = message.decode("utf-8")
-        # print("test_init_no_binarydata(): out recv()..Received reply %s" %msgStr)
-        parsedMsg = ServerMessageParser.parse(msgStr)
-        data = parsedMsg.getData()
-        # print("received data: %s"%data)
-        self.assertEqual(str(data), "{}")
+        server_msg = ServerMessageParser.parse(msgStr)
+        msg_data = server_msg.getData()
+        self.assertTrue(msg_data.startswith("Message should have two parts."))
 
     def test_no_filename(self):
         msg_parts = []
@@ -463,12 +435,9 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         # print("test_no_filename(): listening to replies..")
         message = self.socket.recv()
         msgStr = message.decode("utf-8")
-        # print("out recv()..Received reply %s" %msgStr)
-        parsedMsg = ServerMessageParser.parse(msgStr)
-        # print(type(parsedMsg))
-        # get and decode events+data
-        data = parsedMsg.getData()
-        self.assertEqual(str(data), "{}")
+        server_msg = ServerMessageParser.parse(msgStr)
+        msg_data = server_msg.getData()
+        self.assertTrue(msg_data.startswith("Zip-file name missing."))
 
     def test_invalid_json(self):
         msg_parts = []

@@ -38,7 +38,7 @@ class RemoteConnectionHandler(threading.Thread):
     # location, where all projects will be extracted and executed
     internalProjectFolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "received_projects")
 
-    def __init__(self, zmqConnection):
+    def __init__(self, zmqConnection, server_msg, zip_file):
         """
         Args:
             zmqConnection: Zero-MQ connection of the client.
@@ -46,105 +46,97 @@ class RemoteConnectionHandler(threading.Thread):
         if not zmqConnection:
             raise ValueError("No Zero-MQ connection was provided to RemoteConnectionHandler()")
         self.zmqConn = zmqConnection
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, target=self._execute, args=(server_msg, zip_file,))
         self.start()
 
-    def run(self):
-        self._execute()
+    def _execute(self, server_msg, zip_file):
+        """Executes a query with the Spine engine, and returns a response to the Zero-MQ client.
 
-    def _execute(self):
-        """Executes a query with the Spine engine, and returns a response to the Zero-MQ client."""
-        execStartTimeMs = round(time.time() * 1000.0)
-        # get message parts sent by the client
-        msgParts = self.zmqConn.get_message_parts()
-        # parse JSON message
-        if len(msgParts[0]) > 10:
-            try:
-                msgPart1 = msgParts[0].decode("utf-8")
-                # print("RemoteConnectionHandler._execute() Received JSON:\n %s"%msgPart1)
-                parsedMsg = ServerMessageParser.parse(msgPart1)
-                # print("parsed msg with command: %s"%parsedMsg.getCommand())
-                dataAsDict = parsedMsg.getData()
-                # print(f"RemoteConnectionHandler._execute():\n{dataAsDict}")
-                # dataAsDict = json.loads(dataAsDict)
-            except:
-                print("RemoteConnectionHandler._execute(): Error in parsing content, returning empty data")
-                retBytes = bytes("{}", "utf-8")
-                self.zmqConn.send_reply(retBytes)
-                return
-            if len(parsedMsg.getFileNames()) == 1 and len(msgParts) == 2:  # check for presence of 2 message parts
-                # save the file
-                try:
-                    # get a new local folder name based on project_dir
-                    local_folder = RemoteConnectionHandler.getFolderForProject(dataAsDict["project_dir"])
-                    # check for validity of the new folder
-                    if not local_folder:
-                        print(f"Creating project directory '{local_folder}' failed")
-                        self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
-                        return
-                    # create folder
-                    if not os.path.exists(local_folder):
-                        os.makedirs(local_folder)
-                    # save attached file to the location indicated in the project_dir-field of the JSON
-                    f = open(os.path.join(local_folder, parsedMsg.getFileNames()[0]), "wb")
-                    f.write(msgParts[1])
-                    f.close()
-                except Exception as e:
-                    print(
-                        "RemoteConnectionHandler._execute(): couldn't save the extracted file, "
-                        "returning empty response, reason: %s\n" % e
-                    )
-                    self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
-                    return
-                try:
-                    # extract the saved file
-                    print(
-                        f"RemoteConnectionHandler._execute(): Extracting received "
-                        f"file: {parsedMsg.getFileNames()[0]} to: {local_folder}"
-                    )
-                    FileExtractor.extract(os.path.join(local_folder, parsedMsg.getFileNames()[0]), local_folder)
-                except Exception as e:
-                    print("RemoteConnectionHandler._execute(): File extraction failed, returning empty response..")
-                    print(e)
-                    self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
-                    return
-                # execute DAG in the Spine engine
-                print("RemoteConnectionHandler._execute(): Executing the project")
-                spineEngineImpl = RemoteSpineServiceImpl()
-                # print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
-                # convertedData=self._convertTextDictToDicts(dataAsDict)
-                convertedData = self._convert_input(dataAsDict, local_folder)
-                # print("RemoteConnectionHandler._execute() passing data to spine engine impl: %s"%convertedData)
-                eventData = spineEngineImpl.execute(convertedData)
-                # NOTE! All execution event messages generated while running the DAG are collected into a single list.
-                # This list is sent back to Toolbox in a single message only after the whole DAG has finished execution
-                # in a single message. This means that Spine Toolbox cannot update the GUI (e.g. animations in Design
-                # View don't work, and the execution progress is not updated to Item Execution Log (or other Logs)
-                # until all items have finished.
+        Args:
+            server_msg (ServerMessage): Parsed ServerMessage
+            zip_file (bytes): zip-file
+        """
+        # execStartTimeMs = round(time.time() * 1000.0)
+        # Parse JSON message
+        cmd = server_msg.getCommand()
+        msg_id = server_msg.getId()
+        msg_data = server_msg.getData()
+        file_names = server_msg.getFileNames()
+        if not len(file_names) == 1:
+            # No file name included. TODO: What is this about?
+            print("Received msg contained no file name for the zip-file.")
+            self.zmqConn.send_error_reply(cmd, msg_id, "Zip-file name missing.")
+            return
+        # get a new local folder name based on project_dir
+        local_folder = RemoteConnectionHandler.getFolderForProject(msg_data["project_dir"])
+        # check for validity of the new folder
+        if not local_folder:
+            print(f"Solving a local project directory for extracting the file failed. '{local_folder}'")
+            self.zmqConn.send_error_reply(cmd, msg_id, f"Server failed in solving a project "
+                                                       f"directory for the received project '{local_folder}'")
+            return
+        if os.path.exists(local_folder):
+            print(f"Local folder: '{local_folder}' already exists.")
+            self.zmqConn.send_error_reply(cmd, msg_id, f"Server failed in creating a local project directory. "
+                                                       f"Local folder {local_folder} already exists. Please try again.")
+            return
+        # Create project directory
+        try:
+            os.makedirs(local_folder)
+        except OSError:
+            print(f"Creating project directory '{local_folder}' failed")
+            self.zmqConn.send_error_reply(cmd, msg_id, f"Server failed in creating a project "
+                                                       f"directory for the received project '{local_folder}'")
+            return
+        # Save the received zip file
+        save_file_path = os.path.join(local_folder, file_names[0])
+        try:
+            with open(os.path.join(local_folder, file_names[0]), "wb") as f:
+                f.write(zip_file)
+        except Exception as e:
+            print(f"Saving the received file to '{save_file_path}' failed")
+            self.zmqConn.send_error_reply(cmd, msg_id, f"Server failed in saving the received file "
+                                                       f"to '{save_file_path}'")
+            return
+        # Extract the saved file
+        print(f"Extracting received file: {file_names[0]} to: {local_folder}")
+        try:
+            FileExtractor.extract(os.path.join(local_folder, file_names[0]), local_folder)
+        except Exception as e:
+            print(f"File extraction failed: {type(e).__name__}: {e}")
+            self.zmqConn.send_error_reply(cmd, msg_id, f"{type(e).__name__}: {e}. - File extraction failed on Server")
+            return
+        # Execute DAG in the Spine engine
+        print("Executing the project")
+        spineEngineImpl = RemoteSpineServiceImpl()
+        # print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
+        # convertedData=self._convertTextDictToDicts(dataAsDict)
+        convertedData = self._convert_input(msg_data, local_folder)
+        # print("RemoteConnectionHandler._execute() passing data to spine engine impl: %s"%convertedData)
+        eventData = spineEngineImpl.execute(convertedData)
+        # NOTE! All execution event messages generated while running the DAG are collected into a single list.
+        # This list is sent back to Toolbox in a single message only after the whole DAG has finished execution
+        # in a single message. This means that Spine Toolbox cannot update the GUI (e.g. animations in Design
+        # View don't work, and the execution progress is not updated to Item Execution Log (or other Logs)
+        # until all items have finished.
 
-                # create a response message, parse and send it
-                print("RemoteConnectionHandler._execute(): Execution done. Sending a response to client")
-                jsonEventsData = EventDataConverter.convert(eventData)
-                # print(type(jsonEventsData))
-                replyMsg = ServerMessage(parsedMsg.getCommand(), parsedMsg.getId(), jsonEventsData, None)
-                replyAsJson = replyMsg.toJSON()
-                # print("RemoteConnectionHandler._execute() Reply to be sent: \n%s"%replyAsJson)
-                replyInBytes = bytes(replyAsJson, "utf-8")
-                # print("RemoteConnectionHandler._execute() Reply to be sent in bytes:%s"%replyInBytes)
-                self.zmqConn.send_reply(replyInBytes)
-                # delete extracted folder
-                # try:
-                #     time.sleep(4)
-                #     FileExtractor.deleteFolder(local_folder+"/")
-                #     print("RemoteConnectionHandler._execute(): Deleted folder %s"%local_folder+"/")
-                # except Exception as e:
-                #     print(f"RemoteConnectionHandler._execute(): Couldn't delete directory {local_folder}. Error:\n{e}")
-                # debugging
-                # execStopTimeMs=round(time.time()*1000.0)
-                # print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
-            else:
-                # print("RemoteConnectionHandler._execute(): no file name included, returning empty response..\n")
-                self._sendResponse(parsedMsg.getCommand(), parsedMsg.getId(), "{}")
+        # create a response message, parse and send it
+        print("Execution done. Sending a response to client")
+        jsonEventsData = EventDataConverter.convert(eventData)
+        replyMsg = ServerMessage(cmd, msg_id, jsonEventsData, None)
+        replyAsJson = replyMsg.toJSON()
+        replyInBytes = bytes(replyAsJson, "utf-8")
+        self.zmqConn.send_reply(replyInBytes)
+        # delete extracted folder
+        # try:
+        #     time.sleep(4)
+        #     FileExtractor.deleteFolder(local_folder+"/")
+        #     print("RemoteConnectionHandler._execute(): Deleted folder %s"%local_folder+"/")
+        # except Exception as e:
+        #     print(f"RemoteConnectionHandler._execute(): Couldn't delete directory {local_folder}. Error:\n{e}")
+        # debugging
+        # execStopTimeMs=round(time.time()*1000.0)
+        # print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
 
     @staticmethod
     def getFolderForProject(project_dir):
