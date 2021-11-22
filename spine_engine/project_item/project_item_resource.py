@@ -59,9 +59,9 @@ class ProjectItemResource:
         self.metadata = metadata if metadata is not None else dict()
 
     @contextmanager
-    def open(self, logger=None):
+    def open(self):
         if self.type_ == "database":
-            with closing_spine_db_server(self.url, logger=logger) as server_url:
+            with closing_spine_db_server(self.url) as server_url:
                 yield server_url
         else:
             yield self.path if self.hasfilepath else ""
