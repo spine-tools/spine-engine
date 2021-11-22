@@ -50,12 +50,10 @@ class RemoteConnectionHandler(threading.Thread):
         self.start()
 
     def run(self):
-        # print("RemoteConnectionHandler.run()")
         self._execute()
 
     def _execute(self):
         """Executes a query with the Spine engine, and returns a response to the Zero-MQ client."""
-        # debugging
         execStartTimeMs = round(time.time() * 1000.0)
         # get message parts sent by the client
         msgParts = self.zmqConn.getMessageParts()

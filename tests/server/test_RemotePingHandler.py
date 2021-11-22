@@ -11,82 +11,58 @@
 
 """
 Unit tests for RemotePingHandler class.
-:author: P. Pääkkönen (VTT)
+:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   13.09.2021
 """
-
 import unittest
 import zmq
-import time
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.start_server import RemoteSpineService
 from spine_engine.server.connectivity.zmq_server import ZMQSecurityModelState
 
 
-@unittest.skip("TODO")
 class TestRemotePingHandler(unittest.TestCase):
+
+    def setUp(self):
+        self.context = zmq.Context()
+        self.req_socket = self.context.socket(zmq.REQ)
+
+    def tearDown(self):
+        self.req_socket.close()
+        self.context.term()
+
     def test_ping_tcp(self):
         """Tests starting of a ZMQ server with tcp, and pinging it."""
-        remoteSpineService = RemoteSpineService("tcp", 7000, ZMQSecurityModelState.NONE, "")
-
+        server = RemoteSpineService("tcp", 50002, ZMQSecurityModelState.NONE, "")
         # connect to the server
-        # msg_parts=[]
-        context = zmq.Context()
-        socket = context.socket(zmq.REQ)
-        socket.connect("tcp://localhost:7000")
-        # time.sleep(1)
+        self.req_socket.connect("tcp://localhost:50002")
         i = 0
         while i < 10:
-            # startTimeMs=round(time.time()*1000.0)
             msg_parts = []
             pingMsg = ServerMessage("ping", str(i), "", None)
             pingAsJson = pingMsg.toJSON()
-            pingInBytes = bytes(pingAsJson, 'utf-8')
+            pingInBytes = bytes(pingAsJson, "utf-8")
             msg_parts.append(pingInBytes)
-            startTimeMs = round(time.time() * 1000.0)
-            socket.send_multipart(msg_parts)
-            # print("test_ping_tcp() msg parts sent.")
-            # time.sleep(1)
-            msg = socket.recv()
-            stopTimeMs = round(time.time() * 1000.0)
-            # print("test_ping_tcp() msg received: %s"%msg)
+            self.req_socket.send_multipart(msg_parts)
+            msg = self.req_socket.recv()
             msgStr = msg.decode("utf-8")
-            # print("test_ping_tcp() msg received: %s"%msgStr)
             self.assertEqual(msgStr, pingAsJson)  # check that echoed content is as expected
-            # time.sleep(0.1)
-            # stopTimeMs=round(time.time()*1000.0)
-            # print("test_ping_tcp(): ZMQ transfer time %d ms"%(stopTimeMs-startTimeMs))
             i = i + 1
-        socket.close()
-        remoteSpineService.close()
-        context.term()
+        server.close()
 
-    def test_noconnection(self):
-        """Tests connection failure at sending."""
-        context = zmq.Context()
-        socket = context.socket(zmq.REQ)
-        socket.setsockopt(zmq.LINGER, 1)
-        socket.connect("tcp://localhost:7002")
+    def test_no_connection(self):
+        """Tests pinging a non-existent server."""
+        self.req_socket.setsockopt(zmq.LINGER, 0)
+        self.req_socket.connect("tcp://localhost:7002")  # Connect socket somewhere that does not exist
         msg_parts = []
         pingMsg = ServerMessage("ping", "2", "", None)
         pingAsJson = pingMsg.toJSON()
-        pingInBytes = bytes(pingAsJson, 'utf-8')
+        pingInBytes = bytes(pingAsJson, "utf-8")
         msg_parts.append(pingInBytes)
-        startTimeMs = round(time.time() * 1000.0)
-        sendRet = socket.send_multipart(msg_parts, flags=zmq.NOBLOCK)
-        # print("send ret: %s"%sendRet)
-        event = socket.poll(timeout=1000)
-        if event == 0:
-            # print("test_noconnection(): timeout occurred, no reply will be listened to")
-            pass
-        else:
-            msg = socket.recv()
-            msgStr = msg.decode("utf-8")
-            print("test_noconnection(): message was received :%s" % msgStr)
+        sendRet = self.req_socket.send_multipart(msg_parts, flags=zmq.NOBLOCK)
+        event = self.req_socket.poll(timeout=1000)
         self.assertEqual(event, 0)
-        socket.close()
-        context.term()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
