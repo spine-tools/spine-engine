@@ -15,6 +15,9 @@ This class implements a Zero-MQ socket connection received from the ZMQServer.
 :date:   19.8.2021
 """
 
+from spine_engine.server.util.server_message import ServerMessage
+import json
+
 
 class ZMQConnection:
     """
@@ -31,7 +34,7 @@ class ZMQConnection:
         self._socket = socket
         self._msg_parts = msg_parts
 
-    def getMessageParts(self):
+    def get_message_parts(self):
         """Provides Zero-MQ message parts as a list of binary data.
 
         Returns:
@@ -39,10 +42,27 @@ class ZMQConnection:
         """
         return self._msg_parts
 
-    def sendReply(self, data):
+    def send_reply(self, data):
         """Sends a reply message to the recipient.
 
         Args:
             data: Binary data
         """
         self._socket.send(data)
+
+    def send_error_reply(self, cmd, msg_id, msg):
+        """Sends an error message to client. Given msg string must be converted
+        to JSON str (done by json.dumps() below) or parsing the msg on client
+        fails. Do not use \n in msg because it's now allowed in JSON.
+
+        Args:
+            cmd (str): Recognized commands are 'execute' or 'ping'
+            msg_id (str): Request message id
+            msg (str): Error message sent to client
+        """
+        err_msg_as_json = json.dumps(msg)
+        reply_msg = ServerMessage(cmd, msg_id, err_msg_as_json, [])
+        reply_as_json = reply_msg.toJSON()
+        reply_in_bytes = bytes(reply_as_json, "utf-8")
+        self.send_reply(reply_in_bytes)
+        print("\nClient has been notified. Moving on...")

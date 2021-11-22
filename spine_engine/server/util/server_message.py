@@ -17,21 +17,19 @@ Contains a helper class for JSON-based messages exchanged between server and cli
 
 
 class ServerMessage:
-    def __init__(self, command, id, data, files):
+    def __init__(self, command, msg_id, data, files):
         """
         Args:
             command (str): command to be executed at the server
-            id (str): identifier associated with the command
-            data (str): associated data
+            msg_id (str): identifier associated with the command
+            data (str): events+data (list of tuples) converted into a JSON str or an error msg (must be a JSON str)
             files (list[str], None): a list of file names to be associated with the message (optional)
         """
-        if command == None or id == None or data == None:
+        if command == None or msg_id == None or data == None:
             raise ValueError("invalid input to ServerMessage")
-        if len(command) == 0 or len(id) == 0:
-            raise ValueError("invalid input to ServerMessage, len data: %d" % len(data))
 
         self._command = command
-        self._id = id
+        self._id = msg_id
         self._data = data
         self._files = []
 

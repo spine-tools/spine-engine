@@ -27,10 +27,10 @@ from spine_engine.server.connectivity.zmq_connection import ZMQConnection
 class TestObserver(ZMQServerObserver):
     def receiveConnection(self, conn: ZMQConnection) -> None:
         # print("TestObserver.receiveConnection()")
-        # parts=conn.getMessageParts()
+        # parts=conn.get_message_parts()
         # print("TestObserver.receiveConnection(): parts received:")
         # print(parts)
-        conn.sendReply(conn.getMessageParts()[0])
+        conn.send_reply(conn.get_message_parts()[0])
 
 
 @unittest.skip("Not working")

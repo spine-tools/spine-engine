@@ -56,7 +56,7 @@ class RemoteConnectionHandler(threading.Thread):
         """Executes a query with the Spine engine, and returns a response to the Zero-MQ client."""
         execStartTimeMs = round(time.time() * 1000.0)
         # get message parts sent by the client
-        msgParts = self.zmqConn.getMessageParts()
+        msgParts = self.zmqConn.get_message_parts()
         # parse JSON message
         if len(msgParts[0]) > 10:
             try:
@@ -70,7 +70,7 @@ class RemoteConnectionHandler(threading.Thread):
             except:
                 print("RemoteConnectionHandler._execute(): Error in parsing content, returning empty data")
                 retBytes = bytes("{}", "utf-8")
-                self.zmqConn.sendReply(retBytes)
+                self.zmqConn.send_reply(retBytes)
                 return
             if len(parsedMsg.getFileNames()) == 1 and len(msgParts) == 2:  # check for presence of 2 message parts
                 # save the file
@@ -131,7 +131,7 @@ class RemoteConnectionHandler(threading.Thread):
                 # print("RemoteConnectionHandler._execute() Reply to be sent: \n%s"%replyAsJson)
                 replyInBytes = bytes(replyAsJson, "utf-8")
                 # print("RemoteConnectionHandler._execute() Reply to be sent in bytes:%s"%replyInBytes)
-                self.zmqConn.sendReply(replyInBytes)
+                self.zmqConn.send_reply(replyInBytes)
                 # delete extracted folder
                 # try:
                 #     time.sleep(4)
@@ -218,7 +218,7 @@ class RemoteConnectionHandler(threading.Thread):
         replyMsg = ServerMessage(msgCommand, msgId, data, None)
         replyAsJson = replyMsg.toJSON()
         replyInBytes = bytes(replyAsJson, "utf-8")
-        self.zmqConn.sendReply(replyInBytes)
+        self.zmqConn.send_reply(replyInBytes)
 
     def _convertTextDictToDicts(self, data):
         newData = dict()

@@ -20,17 +20,16 @@ import json
 
 
 class EventDataConverter:
-
-    """
-    Converts events+data
-    Args:
-        eventData(a list of tuples containing events and data)
-    Return:
-        JSON string
-    """
-
     @staticmethod
     def convert(eventData):
+        """Converts events+data in a JSON string
+
+        Args:
+            eventData (list(tuple)): List of tuples containing events and data
+
+        Returns:
+            str: JSON string
+        """
         itemCount = len(eventData)
         i = 0
         retStr = "{\n"
@@ -56,17 +55,17 @@ class EventDataConverter:
         retStr += "}\n"
         return retStr
 
-    """
-    Converts JSON to events+data
-    Args:
-        jsonStr(str): events+data as JSON
-        base64Data(Boolean):flag indicating, when data is encoded into Base64 
-    Return:
-        a list of tuples containing events and data
-    """
-
     @staticmethod
     def convertJSON(jsonStr, base64Data):
+        """Converts JSON string into events+data.
+
+        Args:
+            jsonStr (str): events+data as JSON
+            base64Data (bool): flag indicating, whether data is encoded into Base64
+
+        Returns:
+            (list(tuple)): List of tuples containing events and data
+        """
         parsedJSON = json.loads(jsonStr)
         # print(parsedJSON)
         itemsList = parsedJSON['items']

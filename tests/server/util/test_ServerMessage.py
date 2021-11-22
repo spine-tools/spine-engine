@@ -40,11 +40,6 @@ class TestServerMessage(unittest.TestCase):
         self.assertEqual("execute", msg.getCommand())
         self.assertEqual("4", msg.getId())
 
-    def test_msg_bad_input2(self):
-        listFiles = ["dffd.zip", "fdeef.zip"]
-        with self.assertRaises(ValueError):
-            msg = ServerMessage("execute", "", "[]", listFiles)
-
     def test_message_tojson1(self):
         listFiles = ["dffd.zip", "fdeef.zip"]
         msg = ServerMessage("execute", "4", "[]", listFiles)

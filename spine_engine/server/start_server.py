@@ -44,43 +44,33 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
 
     def receiveConnection(self, conn: ZMQConnection) -> None:
         # print("RemoteSpineService.receiveConnection()")
-
+        startTimeMs = round(time.time() * 1000.0)  # debugging
+        msg_parts = conn.get_message_parts()
         try:
-            startTimeMs = round(time.time() * 1000.0)  # debugging
-            msgParts = conn.getMessageParts()
-            # print("RemoteSpineService.receiveConnection() msg parts:")
-            # print(msgParts)
-            msgPart1 = msgParts[0].decode("utf-8")
-            # print("RemoteSpineService.receiveConnection() msg part 1: %s"%msgPart1)
-            parsedMsg = ServerMessageParser.parse(msgPart1)
-            # print("RemoteSpineService.receiveConnection() parsed msg with command: %s"%parsedMsg.getCommand())
-            cmd = parsedMsg.getCommand()
-            # handle pings
-            if cmd == "ping":
-                print("Ping command received")
-                RemotePingHandler.handlePing(parsedMsg, conn)
-            # handle project execution messages
-            elif cmd == "execute":
-                print("Execute command received")
-                self.conn = conn
-                self.connHandler = RemoteConnectionHandler(self.conn)
-                # print("RemoteSpineService.receiveConnection() RemoteConnectionHandler started.")
-            # unknown command
-            else:
-                print(f"Unknown command '{cmd}' received. Sending 'Unknown command' response'")
-                reply_msg = ServerMessage(cmd, parsedMsg.getId(), "Unknown command", None)
-                reply_as_json = reply_msg.toJSON()
-                reply_in_bytes = bytes(reply_as_json, "utf-8")
-                conn.sendReply(reply_in_bytes)
-            stopTimeMs = round(time.time() * 1000.0)
-            # print("RemoteSpineService.receiveConnection() msg processing time %d ms"%(stopTimeMs-startTimeMs))
+            msg_part1 = msg_parts[0].decode("utf-8")
+        except UnicodeDecodeError as e:
+            print(f"Decoding received msg '{msg_parts[0]} ' failed. \nUnicodeDecodeError: {e}")
+            conn.send_error_reply("", "", f"UnicodeDecodeError: {e}. - Malformed message sent to server.")
+            return
+        try:
+            parsed_msg = ServerMessageParser.parse(msg_part1)
         except Exception as e:
-            print(f"RemoteSpineService.receiveConnection(): {type(e).__name__}: {e}")
-            print(f"Parsing received message failed. Sending 'Message parsing failed' response.")
-            reply_msg = ServerMessage("", "", "Message parsing failed", [])
-            reply_as_json = reply_msg.toJSON()
-            reply_in_bytes = bytes(reply_as_json, "utf-8")
-            conn.sendReply(reply_in_bytes)
+            print(f"Parsing received msg '{msg_part1}' failed. \n{type(e).__name__}: {e}")
+            conn.send_error_reply("", "", f"{type(e).__name__}: {e}. - Server failed in parsing the message.")
+            return
+        cmd = parsed_msg.getCommand()
+        if cmd == "ping":  # Handle pings
+            print("Handling ping request")
+            RemotePingHandler.handlePing(parsed_msg, conn)
+        elif cmd == "execute":  # Handle execute messages
+            print("Handling execute request")
+            self.conn = conn
+            self.connHandler = RemoteConnectionHandler(self.conn)
+        else:  # Unknown command
+            print(f"Unknown command '{cmd}' received. Sending 'Unknown command' response'")
+            conn.send_error_reply("", "", "Unknown command '{cmd}'")
+        stopTimeMs = round(time.time() * 1000.0)
+        # print("RemoteSpineService.receiveConnection() msg processing time %d ms"%(stopTimeMs-startTimeMs))
 
     def close(self):
         """Closes the service."""

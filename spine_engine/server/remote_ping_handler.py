@@ -30,5 +30,5 @@ class RemotePingHandler:
         replyMsg = ServerMessage("ping", pingMessage.getId(), "", None)
         replyAsJson = replyMsg.toJSON()
         replyInBytes = bytes(replyAsJson, 'utf-8')
-        zmqConnection.sendReply(replyInBytes)
+        zmqConnection.send_reply(replyInBytes)
         # print("RemotePingHandler.handlePing() sent response: %s"%replyAsJson)

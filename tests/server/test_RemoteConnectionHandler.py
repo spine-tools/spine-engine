@@ -31,30 +31,29 @@ from spine_engine.server.util.event_data_converter import EventDataConverter
 from spine_engine.server.start_server import RemoteSpineService
 
 
-class TestObserver(ZMQServerObserver):
-    def __init__(self):
-        self.conn = None
-        self.conn_handler = None
-
-    def receiveConnection(self, conn: ZMQConnection) -> None:
-        self.conn = conn
-        self.conn_handler = RemoteConnectionHandler(conn)
-        # print("TestObserver.receiveConnection() RemoteConnectionHandler started.")
-
-    def getConnection(self):
-        return self.conn
+# class TestObserver(ZMQServerObserver):
+#     def __init__(self):
+#         self.conn = None
+#         self.conn_handler = None
+#
+#     def receiveConnection(self, conn: ZMQConnection) -> None:
+#         self.conn = conn
+#         self.conn_handler = RemoteConnectionHandler(conn)
+#         # print("TestObserver.receiveConnection() RemoteConnectionHandler started.")
+#
+#     def getConnection(self):
+#         return self.conn
 
 
 class TestRemoteConnectionHandler(unittest.TestCase):
     def setUp(self):
-        ob = TestObserver()
-        self._server = ZMQServer("tcp", 5559, ob, ZMQSecurityModelState.NONE, "")
+        self.service = RemoteSpineService("tcp", 5559, ZMQSecurityModelState.NONE, "")
         self.context = zmq.Context().instance()
         self.socket = self.context.socket(zmq.REQ)
         self.socket.connect("tcp://localhost:5559")
 
     def tearDown(self):
-        self._server.close()
+        self.service.close()
         if not self.socket.closed:
             self.socket.close()
         self.context.term()
@@ -88,15 +87,15 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             dict: Some data
         """
         item = dict()
-        item['items'] = items
-        item['specifications'] = specifications
-        item['connections'] = connections
-        item['jumps'] = jumps
-        item['node_successors'] = node_successors
-        item['execution_permits'] = execution_permits
-        item['items_module_name'] = items_module_name
-        item['settings'] = settings
-        item['project_dir'] = project_dir
+        item["items"] = items
+        item["specifications"] = specifications
+        item["connections"] = connections
+        item["jumps"] = jumps
+        item["node_successors"] = node_successors
+        item["execution_permits"] = execution_permits
+        item["items_module_name"] = items_module_name
+        item["settings"] = settings
+        item["project_dir"] = project_dir
         return item
 
     def test_init_error(self):
@@ -106,62 +105,62 @@ class TestRemoteConnectionHandler(unittest.TestCase):
     def test_init_complete(self):
         msg_parts = []
         dict_data2 = {
-            'items': {
-                'helloworld': {
-                    'type': 'Tool',
-                    'description': '',
-                    'x': -91.6640625,
-                    'y': -5.609375,
-                    'specification': 'helloworld2',
-                    'execute_in_work': False,
-                    'cmd_line_args': [],
+            "items": {
+                "helloworld": {
+                    "type": "Tool",
+                    "description": "",
+                    "x": -91.6640625,
+                    "y": -5.609375,
+                    "specification": "helloworld2",
+                    "execute_in_work": False,
+                    "cmd_line_args": [],
                 },
-                'Data Connection 1': {
-                    'type': 'Data Connection',
-                    'description': '',
-                    'x': 62.7109375,
-                    'y': 8.609375,
-                    'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}],
+                "Data Connection 1": {
+                    "type": "Data Connection",
+                    "description": "",
+                    "x": 62.7109375,
+                    "y": 8.609375,
+                    "references": [{"type": "path", "relative": True, "path": "input2.txt"}],
                 },
             },
-            'connections': [{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
-            'node_successors': {'Data Connection 1': ['helloworld'], 'helloworld': []},
-            'execution_permits': {'Data Connection 1': True, 'helloworld': True},
-            'project_dir': './helloworld',
-            'specifications': {
-                'Tool': [
+            "connections": [{"from": ["Data Connection 1", "left"], "to": ["helloworld", "right"]}],
+            "node_successors": {"Data Connection 1": ["helloworld"], "helloworld": []},
+            "execution_permits": {"Data Connection 1": True, "helloworld": True},
+            "project_dir": "./helloworld",
+            "specifications": {
+                "Tool": [
                     {
-                        'name': 'helloworld2',
-                        'tooltype': 'python',
-                        'includes': ['helloworld.py'],
-                        'description': '',
-                        'inputfiles': ['input2.txt'],
-                        'inputfiles_opt': [],
-                        'outputfiles': [],
-                        'cmdline_args': [],
-                        'execute_in_work': True,
-                        'includes_main_path': '../../..',
-                        'definition_file_path': './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json',
+                        "name": "helloworld2",
+                        "tooltype": "python",
+                        "includes": ["helloworld.py"],
+                        "description": "",
+                        "inputfiles": ["input2.txt"],
+                        "inputfiles_opt": [],
+                        "outputfiles": [],
+                        "cmdline_args": [],
+                        "execute_in_work": True,
+                        "includes_main_path": "../../..",
+                        "definition_file_path": "./helloworld/.spinetoolbox/specifications/Tool/helloworld2.json",
                     }
                 ]
             },
-            'settings': {},
-            'jumps': [],
-            'items_module_name': 'spine_items',
+            "settings": {},
+            "jumps": [],
+            "items_module_name": "spine_items",
         }
         msgDataJson = json.dumps(dict_data2)
         # print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
-        f = open(os.path.join(str(Path(__file__).parent), 'test_zipfile.zip'), 'rb')
+        f = open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb")
         data = f.read()
         f.close()
         listFiles = ["helloworld.zip"]
         msg = ServerMessage("execute", "1", msgDataJson, listFiles)
-        part1Bytes = bytes(msg.toJSON(), 'utf-8')
+        part1Bytes = bytes(msg.toJSON(), "utf-8")
         msg_parts.append(part1Bytes)
         msg_parts.append(data)
         self.socket.send_multipart(msg_parts)
         message = self.socket.recv()
-        msgStr = message.decode('utf-8')
+        msgStr = message.decode("utf-8")
         parsedMsg = ServerMessageParser.parse(msgStr)
         # get and decode events+data
         data = parsedMsg.getData()
@@ -279,64 +278,64 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         """project_dir is an empty string."""
         msg_parts = []
         dict_data2 = {
-            'items': {
-                'helloworld': {
-                    'type': 'Tool',
-                    'description': '',
-                    'x': -91.6640625,
-                    'y': -5.609375,
-                    'specification': 'helloworld2',
-                    'execute_in_work': False,
-                    'cmd_line_args': [],
+            "items": {
+                "helloworld": {
+                    "type": "Tool",
+                    "description": "",
+                    "x": -91.6640625,
+                    "y": -5.609375,
+                    "specification": "helloworld2",
+                    "execute_in_work": False,
+                    "cmd_line_args": [],
                 },
-                'Data Connection 1': {
-                    'type': 'Data Connection',
-                    'description': '',
-                    'x': 62.7109375,
-                    'y': 8.609375,
-                    'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}],
+                "Data Connection 1": {
+                    "type": "Data Connection",
+                    "description": "",
+                    "x": 62.7109375,
+                    "y": 8.609375,
+                    "references": [{"type": "path", "relative": True, "path": "input2.txt"}],
                 },
             },
-            'connections': [{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
-            'node_successors': {'Data Connection 1': ['helloworld'], 'helloworld': []},
-            'execution_permits': {'Data Connection 1': True, 'helloworld': True},
-            'project_dir': '',
-            'specifications': {
-                'Tool': [
+            "connections": [{"from": ["Data Connection 1", "left"], "to": ["helloworld", "right"]}],
+            "node_successors": {"Data Connection 1": ["helloworld"], "helloworld": []},
+            "execution_permits": {"Data Connection 1": True, "helloworld": True},
+            "project_dir": "",
+            "specifications": {
+                "Tool": [
                     {
-                        'name': 'helloworld2',
-                        'tooltype': 'python',
-                        'includes': ['helloworld.py'],
-                        'description': '',
-                        'inputfiles': ['input2.txt'],
-                        'inputfiles_opt': [],
-                        'outputfiles': [],
-                        'cmdline_args': [],
-                        'execute_in_work': True,
-                        'includes_main_path': '../../..',
-                        'definition_file_path': './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json',
+                        "name": "helloworld2",
+                        "tooltype": "python",
+                        "includes": ["helloworld.py"],
+                        "description": "",
+                        "inputfiles": ["input2.txt"],
+                        "inputfiles_opt": [],
+                        "outputfiles": [],
+                        "cmdline_args": [],
+                        "execute_in_work": True,
+                        "includes_main_path": "../../..",
+                        "definition_file_path": "./helloworld/.spinetoolbox/specifications/Tool/helloworld2.json",
                     }
                 ]
             },
-            'settings': {},
-            'jumps': [],
-            'items_module_name': 'spine_items',
+            "settings": {},
+            "jumps": [],
+            "items_module_name": "spine_items",
         }
         msgDataJson = json.dumps(dict_data2)
         # msgDataJson=json.dumps(msgDataJson)
         # print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
-        f = open(os.path.join(str(Path(__file__).parent), 'test_zipfile.zip'), 'rb')
+        f = open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb")
         data = f.read()
         f.close()
         listFiles = ["helloworld.zip"]
         msg = ServerMessage("execute", "1", msgDataJson, listFiles)
-        part1Bytes = bytes(msg.toJSON(), 'utf-8')
+        part1Bytes = bytes(msg.toJSON(), "utf-8")
         msg_parts.append(part1Bytes)
         msg_parts.append(data)
         self.socket.send_multipart(msg_parts)
         # print("test_init_complete(): listening to replies..")
         message = self.socket.recv()
-        msgStr = message.decode('utf-8')
+        msgStr = message.decode("utf-8")
         # print("test_invalid_project_folder():..Received reply (from network) %s" %msgStr)
         parsedMsg = ServerMessageParser.parse(msgStr)
         # print(parsedMsg)
@@ -347,71 +346,71 @@ class TestRemoteConnectionHandler(unittest.TestCase):
 
     def test_loop_calls(self):
         dict_data2 = {
-            'items': {
-                'helloworld': {
-                    'type': 'Tool',
-                    'description': '',
-                    'x': -91.6640625,
-                    'y': -5.609375,
-                    'specification': 'helloworld2',
-                    'execute_in_work': False,
-                    'cmd_line_args': [],
+            "items": {
+                "helloworld": {
+                    "type": "Tool",
+                    "description": "",
+                    "x": -91.6640625,
+                    "y": -5.609375,
+                    "specification": "helloworld2",
+                    "execute_in_work": False,
+                    "cmd_line_args": [],
                 },
-                'Data Connection 1': {
-                    'type': 'Data Connection',
-                    'description': '',
-                    'x': 62.7109375,
-                    'y': 8.609375,
-                    'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}],
+                "Data Connection 1": {
+                    "type": "Data Connection",
+                    "description": "",
+                    "x": 62.7109375,
+                    "y": 8.609375,
+                    "references": [{"type": "path", "relative": True, "path": "input2.txt"}],
                 },
             },
-            'connections': [{'from': ['Data Connection 1', 'left'], 'to': ['helloworld', 'right']}],
-            'node_successors': {'Data Connection 1': ['helloworld'], 'helloworld': []},
-            'execution_permits': {'Data Connection 1': True, 'helloworld': True},
-            'project_dir': './helloworld2',
-            'specifications': {
-                'Tool': [
+            "connections": [{"from": ["Data Connection 1", "left"], "to": ["helloworld", "right"]}],
+            "node_successors": {"Data Connection 1": ["helloworld"], "helloworld": []},
+            "execution_permits": {"Data Connection 1": True, "helloworld": True},
+            "project_dir": "./helloworld2",
+            "specifications": {
+                "Tool": [
                     {
-                        'name': 'helloworld2',
-                        'tooltype': 'python',
-                        'includes': ['helloworld.py'],
-                        'description': '',
-                        'inputfiles': ['input2.txt'],
-                        'inputfiles_opt': [],
-                        'outputfiles': [],
-                        'cmdline_args': [],
-                        'execute_in_work': True,
-                        'includes_main_path': '../../..',
-                        'definition_file_path': './helloworld/.spinetoolbox/specifications/Tool/helloworld2.json',
+                        "name": "helloworld2",
+                        "tooltype": "python",
+                        "includes": ["helloworld.py"],
+                        "description": "",
+                        "inputfiles": ["input2.txt"],
+                        "inputfiles_opt": [],
+                        "outputfiles": [],
+                        "cmdline_args": [],
+                        "execute_in_work": True,
+                        "includes_main_path": "../../..",
+                        "definition_file_path": "./helloworld/.spinetoolbox/specifications/Tool/helloworld2.json",
                     }
                 ]
             },
-            'settings': {},
-            'jumps': [],
-            'items_module_name': 'spine_items',
+            "settings": {},
+            "jumps": [],
+            "items_module_name": "spine_items",
         }
-        f = open(os.path.join(str(Path(__file__).parent), 'test_zipfile.zip'), 'rb')
+        f = open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb")
         data = f.read()
         f.close()
         listFiles = ["helloworld.zip"]
         i = 0
-        while i < 2:  # TODO: Works with 'while i < 2'. does not work with 'while i < 3'. Problem may be reaching the high-water mark?!
+        while i < 2:  # TODO: Works with "while i < 2". does not work with "while i < 3". Problem may be reaching the high-water mark?!
             msg_parts = []
-            dict_data2['project_dir'] = './helloworld' + str(i)
-            dict_data2['specifications']['Tool'][0]['definition_file_path'] = (
-                './helloworld' + str(i) + '/.spinetoolbox/specifications/Tool/helloworld2.json'
+            dict_data2["project_dir"] = "./helloworld" + str(i)
+            dict_data2["specifications"]["Tool"][0]["definition_file_path"] = (
+                "./helloworld" + str(i) + "/.spinetoolbox/specifications/Tool/helloworld2.json"
             )
             msgDataJson = json.dumps(dict_data2)
             # msgDataJson=json.dumps(msgDataJson)
             # print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
             msg = ServerMessage("execute", "1", msgDataJson, listFiles)
-            part1Bytes = bytes(msg.toJSON(), 'utf-8')
+            part1Bytes = bytes(msg.toJSON(), "utf-8")
             msg_parts.append(part1Bytes)
             msg_parts.append(data)
             send_ret = self.socket.send_multipart(msg_parts, track=True)
             # print("test_loop_calls(): listening to replies..%d"%i)
             message = self.socket.recv()
-            msgStr = message.decode('utf-8')
+            msgStr = message.decode("utf-8")
             # print("out recv()..Received reply %s" %msgStr)
             parsedMsg = ServerMessageParser.parse(msgStr)
             # get and decode events+data
@@ -428,18 +427,18 @@ class TestRemoteConnectionHandler(unittest.TestCase):
     def test_init_no_binarydata(self):
         """Send message with JSON, but no binary data."""
         msg_parts = []
-        f = open(os.path.join(str(Path(__file__).parent), 'msg_data1.txt'))
+        f = open(os.path.join(str(Path(__file__).parent), "msg_data1.txt"))
         msgData = f.read()
         f.close()
         msgDataJson = json.dumps(msgData)
         listFiles = ["helloworld.zip"]
         msg = ServerMessage("execute", "1", msgDataJson, listFiles)
-        part1Bytes = bytes(msg.toJSON(), 'utf-8')
+        part1Bytes = bytes(msg.toJSON(), "utf-8")
         msg_parts.append(part1Bytes)
         self.socket.send_multipart(msg_parts)
         message = self.socket.recv()
         # print("test_init_no_binarydata(): recv().. out")
-        msgStr = message.decode('utf-8')
+        msgStr = message.decode("utf-8")
         # print("test_init_no_binarydata(): out recv()..Received reply %s" %msgStr)
         parsedMsg = ServerMessageParser.parse(msgStr)
         data = parsedMsg.getData()
@@ -448,23 +447,22 @@ class TestRemoteConnectionHandler(unittest.TestCase):
 
     def test_no_filename(self):
         msg_parts = []
-        # fileArray=bytearray([1, 2, 3, 4, 5])
-        f = open(os.path.join(str(Path(__file__).parent), 'msg_data1.txt'))
+        f = open(os.path.join(str(Path(__file__).parent), "msg_data1.txt"))
         msgData = f.read()
         f.close()
         msgDataJson = json.dumps(msgData)
         # print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
-        f = open(os.path.join(str(Path(__file__).parent), 'test_zipfile.zip'), 'rb')
+        f = open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb")
         data = f.read()
         f.close()
         msg = ServerMessage("execute", "1", msgDataJson, None)
-        part1Bytes = bytes(msg.toJSON(), 'utf-8')
+        part1Bytes = bytes(msg.toJSON(), "utf-8")
         msg_parts.append(part1Bytes)
         msg_parts.append(data)
         self.socket.send_multipart(msg_parts)
         # print("test_no_filename(): listening to replies..")
         message = self.socket.recv()
-        msgStr = message.decode('utf-8')
+        msgStr = message.decode("utf-8")
         # print("out recv()..Received reply %s" %msgStr)
         parsedMsg = ServerMessageParser.parse(msgStr)
         # print(type(parsedMsg))
@@ -474,11 +472,11 @@ class TestRemoteConnectionHandler(unittest.TestCase):
 
     def test_invalid_json(self):
         msg_parts = []
-        f = open(os.path.join(str(Path(__file__).parent), 'msg_data2.txt'))
+        f = open(os.path.join(str(Path(__file__).parent), "msg_data2.txt"))
         msgData = f.read()
         f.close()
         # print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
-        f2 = open(os.path.join(str(Path(__file__).parent), 'test_zipfile.zip'), 'rb')
+        f2 = open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb")
         data = f2.read()
         f2.close()
         msg = ServerMessage("execute", "1", msgData, None)
@@ -486,35 +484,35 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         msg_parts.append(part1Bytes)
         msg_parts.append(data)
         self.socket.send_multipart(msg_parts)
-        # print("test_invalid_json(): listening to replies..")
         message = self.socket.recv()
-        msgStr = message.decode('utf-8')
-        # print("out recv()..Received reply %s" %msgStr)
-        self.assertEqual(msgStr, "{}")
+        msgStr = message.decode("utf-8")
+        server_msg = ServerMessageParser.parse(msgStr)
+        msg_data = server_msg.getData()
+        self.assertTrue(msg_data.startswith("JSONDecodeError:"))
 
     def test_local_folder_function(self):
-        p = './home/ubuntu/hellofolder'  # Linux relative
+        p = "./home/ubuntu/hellofolder"  # Linux relative
         ret = RemoteConnectionHandler.getFolderForProject(p)
         _, dir_name = os.path.split(ret)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 22)  # e.g. "hellofolder_wuivsntkbe"
-        p = './hellofolder'  # Linux relative
+        p = "./hellofolder"  # Linux relative
         ret = RemoteConnectionHandler.getFolderForProject(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 22)
-        p = '/home/ubuntu/hellofolder'  # Linux absolute
+        p = "/home/ubuntu/hellofolder"  # Linux absolute
         ret = RemoteConnectionHandler.getFolderForProject(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 22)
-        p = '.\\hellofolder'  # Windows relative
+        p = ".\\hellofolder"  # Windows relative
         ret = RemoteConnectionHandler.getFolderForProject(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 22)
-        p = 'c:\\data\\project\\hellofolder'  # Windows absolute
+        p = "c:\\data\\project\\hellofolder"  # Windows absolute
         ret = RemoteConnectionHandler.getFolderForProject(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
@@ -525,5 +523,5 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         self.assertEqual("", ret)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
