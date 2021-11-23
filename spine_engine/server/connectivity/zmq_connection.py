@@ -50,10 +50,17 @@ class ZMQConnection:
         """
         self._socket.send(data)
 
+    def send_response(self, cmd, msg_id, data):
+        """Sends reply back to client. Used after execution to send the events to client."""
+        reply_msg = ServerMessage(cmd, msg_id, data, None)
+        reply_as_json = reply_msg.toJSON()
+        reply_in_bytes = bytes(reply_as_json, "utf-8")
+        self.send_reply(reply_in_bytes)
+
     def send_error_reply(self, cmd, msg_id, msg):
         """Sends an error message to client. Given msg string must be converted
         to JSON str (done by json.dumps() below) or parsing the msg on client
-        fails. Do not use \n in msg because it's now allowed in JSON.
+        fails. Do not use \n in the reply because it's not allowed in JSON.
 
         Args:
             cmd (str): Recognized commands are 'execute' or 'ping'

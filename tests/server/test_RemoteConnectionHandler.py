@@ -317,7 +317,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         msgStr = message.decode("utf-8")
         server_msg = ServerMessageParser.parse(msgStr)
         msg_data = server_msg.getData()
-        self.assertTrue(msg_data.startswith("Server failed"))
+        self.assertTrue(msg_data.startswith("Problem in execute request."))
 
     def test_loop_calls(self):
         dict_data2 = {
@@ -437,7 +437,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         msgStr = message.decode("utf-8")
         server_msg = ServerMessageParser.parse(msgStr)
         msg_data = server_msg.getData()
-        self.assertTrue(msg_data.startswith("Zip-file name missing."))
+        self.assertTrue(msg_data.startswith("Zip-file name missing"))
 
     def test_invalid_json(self):
         msg_parts = []
@@ -459,37 +459,36 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         msg_data = server_msg.getData()
         self.assertTrue(msg_data.startswith("JSONDecodeError:"))
 
-    def test_local_folder_function(self):
+    def test_path_for_local_project_dir(self):
+        """In practice, given p for the tested method should always be an absolute path.
+        Also, p is never None or an empty string (must be checked before calling this
+        method)."""
         p = "./home/ubuntu/hellofolder"  # Linux relative
-        ret = RemoteConnectionHandler.getFolderForProject(p)
+        ret = RemoteConnectionHandler.path_for_local_project_dir(p)
         _, dir_name = os.path.split(ret)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
-        self.assertTrue(len(dir_name) == 22)  # e.g. "hellofolder_wuivsntkbe"
+        self.assertTrue(len(dir_name) == 45)  # e.g. "hellofolder__af724968e13b4fd782212921becafc47"
         p = "./hellofolder"  # Linux relative
-        ret = RemoteConnectionHandler.getFolderForProject(p)
+        ret = RemoteConnectionHandler.path_for_local_project_dir(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
-        self.assertTrue(len(dir_name) == 22)
+        self.assertTrue(len(dir_name) == 45)
         p = "/home/ubuntu/hellofolder"  # Linux absolute
-        ret = RemoteConnectionHandler.getFolderForProject(p)
+        ret = RemoteConnectionHandler.path_for_local_project_dir(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
-        self.assertTrue(len(dir_name) == 22)
+        self.assertTrue(len(dir_name) == 45)
         p = ".\\hellofolder"  # Windows relative
-        ret = RemoteConnectionHandler.getFolderForProject(p)
+        ret = RemoteConnectionHandler.path_for_local_project_dir(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
-        self.assertTrue(len(dir_name) == 22)
+        self.assertTrue(len(dir_name) == 45)
         p = "c:\\data\\project\\hellofolder"  # Windows absolute
-        ret = RemoteConnectionHandler.getFolderForProject(p)
+        ret = RemoteConnectionHandler.path_for_local_project_dir(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
-        self.assertTrue(len(dir_name) == 22)
-        ret = RemoteConnectionHandler.getFolderForProject("")
-        self.assertEqual("", ret)
-        ret = RemoteConnectionHandler.getFolderForProject(None)
-        self.assertEqual("", ret)
+        self.assertTrue(len(dir_name) == 45)
 
 
 if __name__ == "__main__":

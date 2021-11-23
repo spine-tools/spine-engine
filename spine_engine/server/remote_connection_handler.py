@@ -18,13 +18,10 @@ and running a DAG with Spine Engine. Only one DAG can be executed at a time.
 
 import time
 import threading
-import json
 import os
 import ast
-import random
-import string
 import pathlib
-from spine_engine.server.util.server_message_parser import ServerMessageParser
+import uuid
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.file_extractor import FileExtractor
 from spine_engine.server.remote_spine_service_impl import RemoteSpineServiceImpl
@@ -62,46 +59,39 @@ class RemoteConnectionHandler(threading.Thread):
         msg_id = server_msg.getId()
         msg_data = server_msg.getData()
         file_names = server_msg.getFileNames()
-        if not len(file_names) == 1:
-            # No file name included. TODO: What is this about?
+        if not len(file_names) == 1:  # No file name included
             print("Received msg contained no file name for the zip-file.")
-            self.zmqConn.send_error_reply(cmd, msg_id, "Zip-file name missing.")
+            self.zmqConn.send_error_reply(cmd, msg_id, "Zip-file name missing")
             return
-        # get a new local folder name based on project_dir
-        local_folder = RemoteConnectionHandler.getFolderForProject(msg_data["project_dir"])
-        # check for validity of the new folder
-        if not local_folder:
-            print(f"Solving a local project directory for extracting the file failed. '{local_folder}'")
-            self.zmqConn.send_error_reply(cmd, msg_id, f"Server failed in solving a project "
-                                                       f"directory for the received project '{local_folder}'")
+        if not msg_data["project_dir"]:
+            print("Key project_dir missing from received msg. Can not create a local project directory.")
+            self.zmqConn.send_error_reply(cmd, msg_id, "Problem in execute request. Key 'project_dir' was "
+                                                       "None or an empty string.")
             return
-        if os.path.exists(local_folder):
-            print(f"Local folder: '{local_folder}' already exists.")
-            self.zmqConn.send_error_reply(cmd, msg_id, f"Server failed in creating a local project directory. "
-                                                       f"Local folder {local_folder} already exists. Please try again.")
-            return
+        # Solve a new local directory name based on project_dir
+        local_project_dir = self.path_for_local_project_dir(msg_data["project_dir"])
         # Create project directory
         try:
-            os.makedirs(local_folder)
+            os.makedirs(local_project_dir)
         except OSError:
-            print(f"Creating project directory '{local_folder}' failed")
+            print(f"Creating project directory '{local_project_dir}' failed")
             self.zmqConn.send_error_reply(cmd, msg_id, f"Server failed in creating a project "
-                                                       f"directory for the received project '{local_folder}'")
+                                                       f"directory for the received project '{local_project_dir}'")
             return
         # Save the received zip file
-        save_file_path = os.path.join(local_folder, file_names[0])
+        save_file_path = os.path.join(local_project_dir, file_names[0])
         try:
-            with open(os.path.join(local_folder, file_names[0]), "wb") as f:
+            with open(os.path.join(local_project_dir, file_names[0]), "wb") as f:
                 f.write(zip_file)
         except Exception as e:
-            print(f"Saving the received file to '{save_file_path}' failed")
+            print(f"Saving the received file to '{save_file_path}' failed. [{type(e).__name__}: {e}")
             self.zmqConn.send_error_reply(cmd, msg_id, f"Server failed in saving the received file "
-                                                       f"to '{save_file_path}'")
+                                                       f"to '{save_file_path}' ({type(e).__name__} at server)")
             return
         # Extract the saved file
-        print(f"Extracting received file: {file_names[0]} to: {local_folder}")
+        print(f"Extracting received file: {file_names[0]} to: {local_project_dir}")
         try:
-            FileExtractor.extract(os.path.join(local_folder, file_names[0]), local_folder)
+            FileExtractor.extract(os.path.join(local_project_dir, file_names[0]), local_project_dir)
         except Exception as e:
             print(f"File extraction failed: {type(e).__name__}: {e}")
             self.zmqConn.send_error_reply(cmd, msg_id, f"{type(e).__name__}: {e}. - File extraction failed on Server")
@@ -111,45 +101,41 @@ class RemoteConnectionHandler(threading.Thread):
         spineEngineImpl = RemoteSpineServiceImpl()
         # print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
         # convertedData=self._convertTextDictToDicts(dataAsDict)
-        convertedData = self._convert_input(msg_data, local_folder)
+        converted_data = self.convert_input(msg_data, local_project_dir)
         # print("RemoteConnectionHandler._execute() passing data to spine engine impl: %s"%convertedData)
-        eventData = spineEngineImpl.execute(convertedData)
+        event_data = spineEngineImpl.execute(converted_data)
         # NOTE! All execution event messages generated while running the DAG are collected into a single list.
         # This list is sent back to Toolbox in a single message only after the whole DAG has finished execution
         # in a single message. This means that Spine Toolbox cannot update the GUI (e.g. animations in Design
         # View don't work, and the execution progress is not updated to Item Execution Log (or other Logs)
         # until all items have finished.
 
-        # create a response message, parse and send it
+        # Create a response message, send it
         print("Execution done. Sending a response to client")
-        jsonEventsData = EventDataConverter.convert(eventData)
-        replyMsg = ServerMessage(cmd, msg_id, jsonEventsData, None)
-        replyAsJson = replyMsg.toJSON()
-        replyInBytes = bytes(replyAsJson, "utf-8")
-        self.zmqConn.send_reply(replyInBytes)
-        # delete extracted folder
+        json_events_data = EventDataConverter.convert(event_data)
+        self.zmqConn.send_response(cmd, msg_id, json_events_data)
+        # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
         # try:
         #     time.sleep(4)
-        #     FileExtractor.deleteFolder(local_folder+"/")
-        #     print("RemoteConnectionHandler._execute(): Deleted folder %s"%local_folder+"/")
+        #     FileExtractor.deleteFolder(local_project_dir+"/")
+        #     print("RemoteConnectionHandler._execute(): Deleted folder %s"%local_project_dir+"/")
         # except Exception as e:
-        #     print(f"RemoteConnectionHandler._execute(): Couldn't delete directory {local_folder}. Error:\n{e}")
+        #     print(f"RemoteConnectionHandler._execute(): Couldn't delete directory {local_project_dir}. Error:\n{e}")
         # debugging
         # execStopTimeMs=round(time.time()*1000.0)
         # print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
 
+
     @staticmethod
-    def getFolderForProject(project_dir):
-        """Returns internal folder, where the project's ZIP-file will be extracted to.
+    def path_for_local_project_dir(project_dir):
+        """Returns a unique local project dir path, where the project's ZIP-file will be extracted to.
 
         Args:
-            project_dir: project directory received from the client (remote folder)
+            project_dir: Project directory in the execute request message. Absolute path to CLIENT project directory.
 
         Returns:
-            str: internal folder, empty string is returned for invalid input
+            str: Absolute path to a local (server) directory.
         """
-        if not project_dir:
-            return ""
         # Convert to path to OS specific PurePath and get the rightmost folder name
         if project_dir.startswith("/"):
             # It's a Posix absolute path
@@ -157,60 +143,49 @@ class RemoteConnectionHandler(threading.Thread):
         else:
             # It's a Windows absolute Path
             p = pathlib.PureWindowsPath(project_dir).stem
-        random_str = "".join(random.choices(string.ascii_lowercase, k=10))  # create a random string
-        return os.path.join(RemoteConnectionHandler.internalProjectFolder, p + "_" + random_str)
+        return os.path.join(RemoteConnectionHandler.internalProjectFolder, p + "__" + uuid.uuid4().hex)
 
-    def _convert_input(self, input_data, local_folder):
+    @staticmethod
+    def convert_input(input_data, local_project_dir):
         """Converts received input data for execution in a local folder.
 
         Args:
-            input_data (dict): input data as a dict.
-            local_folder (str): local folder to be used for DAG execution.
+            input_data (dict): Input data as a dict.
+            local_project_dir (str): Local (on server) project directory.
 
         Returns:
             dict: Converted input data
         """
-        # adjust project_dir to point to the local folder
+        # Adjust project_dir to point to the local folder
         remote_folder = input_data["project_dir"]  # Project directory on client
-        input_data["project_dir"] = local_folder  # Project directory on server
+        input_data["project_dir"] = local_project_dir  # Project directory on server
         # loop specs
         specsKeys = input_data["specifications"].keys()
         for specKey in specsKeys:
-            specItem = input_data["specifications"][specKey]
+            spec_item = input_data["specifications"][specKey]
             i = 0
-            for specItemInfo in specItem:
-                # adjust definition_file_path in specs to point to the server folder
+            for specItemInfo in spec_item:
+                # Adjust definition_file_path in specs to point to the server folder
                 if "definition_file_path" in specItemInfo:
                     original_def_file_path = specItemInfo["definition_file_path"]  # Absolute path on client machine
                     # Remove part of definition file path that references client machine path to get
                     # a relative definition file path
                     rel_def_file_path = os.path.relpath(original_def_file_path, remote_folder)
-                    modified = os.path.join(local_folder, rel_def_file_path)  # Absolute path on server machine
+                    modified = os.path.join(local_project_dir, rel_def_file_path)  # Absolute path on server machine
                     input_data["specifications"][specKey][i]["definition_file_path"] = modified
-                # force execute_in_work-field to False
+                # Force execute_in_work to False
                 if "execute_in_work" in specItemInfo:
-                    # print("RemoteConnectionHandler._convert_input(): spec item info contains execute_in_work")
+                    # print("RemoteConnectionHandler.convert_input(): spec item info contains execute_in_work")
                     input_data["specifications"][specKey][i]["execute_in_work"] = False
                 i += 1
-
         # loop items
         itemsKeys = input_data["items"].keys()
         for itemKey in itemsKeys:
             # force execute_in_work to False in items
             if "execute_in_work" in input_data["items"][itemKey]:
-                # print("RemoteConnectionHandler._convert_input() execute_in_work in an item")
+                # print("RemoteConnectionHandler.convert_input() execute_in_work in an item")
                 input_data["items"][itemKey]["execute_in_work"] = False
-
-        # print("RemoteConnectionHandler._convert_input(): converted data:")
-        # print(input_data)
-
         return input_data
-
-    def _sendResponse(self, msgCommand, msgId, data):
-        replyMsg = ServerMessage(msgCommand, msgId, data, None)
-        replyAsJson = replyMsg.toJSON()
-        replyInBytes = bytes(replyAsJson, "utf-8")
-        self.zmqConn.send_reply(replyInBytes)
 
     def _convertTextDictToDicts(self, data):
         newData = dict()

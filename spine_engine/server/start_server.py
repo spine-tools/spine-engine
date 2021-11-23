@@ -41,7 +41,12 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
         threading.Thread.__init__(self, name="RemoteSpineService")
         self.start()
 
-    def receiveConnection(self, conn: ZMQConnection) -> None:
+    def receiveConnection(self, conn):
+        """Handles incoming messages.
+
+        Args:
+            conn (ZMQConnection): Contains the message and the related socket
+        """
         startTimeMs = round(time.time() * 1000.0)  # debugging
         msg_parts = conn.get_message_parts()
         if len(msg_parts[0]) <= 10:  # Moved from RemoteConnectionHandler to here. TODO: What is this about?
@@ -70,8 +75,7 @@ class RemoteSpineService(ZMQServerObserver, threading.Thread):
                 conn.send_error_reply("", "", f"Message should have two parts. len(msg_parts): {len(msg_parts)}")
                 return
             print("Handling execute request")
-            self.conn = conn
-            self.connHandler = RemoteConnectionHandler(self.conn, parsed_msg, msg_parts[1])
+            RemoteConnectionHandler(conn, parsed_msg, msg_parts[1])
         else:  # Unknown command
             print(f"Unknown command '{cmd}' received. Sending 'Unknown command' response'")
             conn.send_error_reply("", "", "Unknown command '{cmd}'")

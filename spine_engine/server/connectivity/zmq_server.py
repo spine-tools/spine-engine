@@ -76,7 +76,7 @@ class ZMQServer(threading.Thread):
         # sockets except in the thread that created them.
         self._context = zmq.Context()
         self.ctrl_msg_sender = self._context.socket(zmq.PAIR)
-        self.ctrl_msg_sender.connect("inproc://ctrl_msg")
+        self.ctrl_msg_sender.bind("inproc://ctrl_msg")  # inproc:// transport requires a bind() before connect()
         # Start serving
         threading.Thread.__init__(self, target=self.serve)
         self.name = "Server Thread"
@@ -94,7 +94,7 @@ class ZMQServer(threading.Thread):
             client_msg_listener = self._context.socket(zmq.REP)
             # Socket for internal control input (i.e. killing the server)
             ctrl_msg_listener = self._context.socket(zmq.PAIR)
-            ctrl_msg_listener.bind("inproc://ctrl_msg")
+            ctrl_msg_listener.connect("inproc://ctrl_msg")
             auth = None
             if self._secModelState == ZMQSecurityModelState.STONEHOUSE:
                 # Start an authenticator for this context
