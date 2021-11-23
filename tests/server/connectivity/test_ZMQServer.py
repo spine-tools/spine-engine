@@ -14,7 +14,7 @@ Unit tests for ZMQServer class.
 :author: P. Pääkkönen (VTT)
 :date:   19.8.2021
 """
-
+import threading
 import unittest
 import zmq
 import time
@@ -218,51 +218,36 @@ class TestZMQServer(unittest.TestCase):
 
     def test_zmqserver_threading(self):
         """Tests thread, socket, and context states after server has been closed."""
-        ob=TestObserver()
+        ob = TestObserver()
         server = ZMQServer("tcp", 5555, ob, ZMQSecurityModelState.NONE, "")
         time.sleep(1)
         self.assertFalse(server.ctrl_msg_sender.closed)
         self.assertFalse(server._context.closed)
         self.assertTrue(server.is_alive())
         server.close()
-        self.assertTrue(server.ctrl_msg_sender.closed)  # PAIR socket is closed
-        self.assertTrue(server._context.closed)  # Context is closed
-        self.assertFalse(server.is_alive())
+        self.assertTrue(server.ctrl_msg_sender.closed)  # PAIR socket should be closed
+        self.assertTrue(server._context.closed)  # Context should be closed
+        self.assertFalse(server.is_alive())  # server thread should not be alive
 
-    #    def test_starting_duplicate_server_tcp(self):
-    #        """
-    #        Tests starting duplicate ZMQ servers with tcp
-    #        """
-    #        ob=TestObserver()
-    #        zmqServer=ZMQServer("tcp",5555,ob)
-    #        with self.assertRaises(ValueError):
-    #            zmqServer2=ZMQServer("tcp",5555,ob)
-    #        ret=zmqServer.close()
-    #        self.assertEqual(ret,0)
-    #        time.sleep(1)
-
-#    def test_multiple_data_items_sequentially_tcp(self):
-#       """
-#       Tests transfer of multiple data items sequentially within a connection (fails).
-#       """
-#       ob=TestObserver()
-#       zmqServer=ZMQServer("tcp",5557,ob)
-
-# connect to the server
-#       context = zmq.Context()
-#       socket = context.socket(zmq.REQ)
-#       socket.connect("tcp://localhost:5557")
-#       msg_parts=[]
-#       part1="feiofnoknfsdnoiknsmd"
-#       fileArray=bytearray([1, 2, 3, 4, 5])
-#       part1Bytes = bytes(part1, "utf-8")
-#       msg_parts.append(part1Bytes)
-#       msg_parts.append(fileArray)
-#       socket.send_multipart(msg_parts)
-#       with self.assertRaises(zmq.ZMQError):
-#           socket.send_multipart(msg_parts)
-#       socket.close()
-#       zmqServer.close()
+    def test_sequential_transmit_using_req_socket_fails(self):
+        """Tests that two sends in a row for a REQ socket fails. Allowed send/receive
+        pattern for REQ socket is send, receive, send, receive, etc."""
+        ob = TestObserver()
+        server = ZMQServer("tcp", 5557, ob, ZMQSecurityModelState.NONE, "")
+        socket = self.context.socket(zmq.REQ)
+        socket.connect("tcp://localhost:5557")
+        socket.setsockopt(zmq.LINGER, 1)
+        msg_parts = []
+        part1 = "feiofnoknfsdnoiknsmd"
+        fileArray = bytearray([1, 2, 3, 4, 5])
+        part1Bytes = bytes(part1, "utf-8")
+        msg_parts.append(part1Bytes)
+        msg_parts.append(fileArray)
+        socket.send_multipart(msg_parts)
+        with self.assertRaises(zmq.ZMQError):
+            socket.send_multipart(msg_parts)
+        socket.close()
+        server.close()
 
 
 if __name__ == "__main__":

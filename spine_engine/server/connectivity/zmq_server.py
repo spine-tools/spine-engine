@@ -157,7 +157,6 @@ class ZMQServer(threading.Thread):
         ctrl_msg_listener.close()
         client_msg_listener.close()
 
-
     @staticmethod
     def _read_end_points(config_file_location):
         """Reads all lines from a text file and returns them in a list. Empty strings are removed from the list.
