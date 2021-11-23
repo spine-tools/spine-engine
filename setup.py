@@ -31,6 +31,7 @@ install_requires = [
     "datapackage>=1.15.2, <1.16",
     "jupyter_client<7.0",
     "spinedb_api>=0.13.0",
+    "pyzmq<22",  # cx_Freeze has problems with pyzmq 22
 ]
 
 setup(
