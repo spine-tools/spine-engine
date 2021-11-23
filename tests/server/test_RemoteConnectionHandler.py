@@ -31,7 +31,7 @@ from spine_engine.server.start_server import RemoteSpineService
 class TestRemoteConnectionHandler(unittest.TestCase):
     def setUp(self):
         self.service = RemoteSpineService("tcp", 5559, ZMQSecurityModelState.NONE, "")
-        self.context = zmq.Context().instance()
+        self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
         self.socket.connect("tcp://localhost:5559")
 
@@ -39,7 +39,8 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         self.service.close()
         if not self.socket.closed:
             self.socket.close()
-        self.context.term()
+        if not self.context.closed:
+            self.context.term()
 
     @staticmethod
     def _dict_data(
