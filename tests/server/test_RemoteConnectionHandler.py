@@ -129,7 +129,6 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             "items_module_name": "spine_items",
         }
         msgDataJson = json.dumps(dict_data2)
-        # print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
         f = open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb")
         data = f.read()
         f.close()
@@ -302,18 +301,14 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             "items_module_name": "spine_items",
         }
         msgDataJson = json.dumps(dict_data2)
-        # msgDataJson=json.dumps(msgDataJson)
-        # print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
-        f = open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb")
-        data = f.read()
-        f.close()
+        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
+            data = f.read()
         listFiles = ["helloworld.zip"]
         msg = ServerMessage("execute", "1", msgDataJson, listFiles)
         part1Bytes = bytes(msg.toJSON(), "utf-8")
         msg_parts.append(part1Bytes)
         msg_parts.append(data)
         self.socket.send_multipart(msg_parts)
-        # print("test_init_complete(): listening to replies..")
         message = self.socket.recv()
         msgStr = message.decode("utf-8")
         server_msg = ServerMessageParser.parse(msgStr)
@@ -365,9 +360,8 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             "jumps": [],
             "items_module_name": "spine_items",
         }
-        f = open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb")
-        data = f.read()
-        f.close()
+        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
+            data = f.read()
         listFiles = ["helloworld.zip"]
         i = 0
         while i < 2:  # TODO: Works with "while i < 2". does not work with "while i < 3". Problem may be reaching the high-water mark?!
@@ -377,8 +371,6 @@ class TestRemoteConnectionHandler(unittest.TestCase):
                 "./helloworld" + str(i) + "/.spinetoolbox/specifications/Tool/helloworld2.json"
             )
             msgDataJson = json.dumps(dict_data2)
-            # msgDataJson=json.dumps(msgDataJson)
-            # print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
             msg = ServerMessage("execute", "1", msgDataJson, listFiles)
             part1Bytes = bytes(msg.toJSON(), "utf-8")
             msg_parts.append(part1Bytes)
@@ -391,13 +383,9 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             parsedMsg = ServerMessageParser.parse(msgStr)
             # get and decode events+data
             retData = parsedMsg.getData()
-            # print(type(data))
             jsonData = json.dumps(retData)
             dataEvents = EventDataConverter.convertJSON(jsonData, True)
-            # print("parsed events+data, items:%d\n"%len(dataEvents))
-            # self.assertEqual(len(dataEvents),34)
             self.assertEqual(dataEvents[len(dataEvents) - 1][1], "COMPLETED")
-            # print(dataEvents)
             i += 1
 
     def test_init_no_binarydata(self):
@@ -424,16 +412,13 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         msgData = f.read()
         f.close()
         msgDataJson = json.dumps(msgData)
-        # print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
-        f = open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb")
-        data = f.read()
-        f.close()
+        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
+            data = f.read()
         msg = ServerMessage("execute", "1", msgDataJson, None)
         part1Bytes = bytes(msg.toJSON(), "utf-8")
         msg_parts.append(part1Bytes)
         msg_parts.append(data)
         self.socket.send_multipart(msg_parts)
-        # print("test_no_filename(): listening to replies..")
         message = self.socket.recv()
         msgStr = message.decode("utf-8")
         server_msg = ServerMessageParser.parse(msgStr)
@@ -442,13 +427,10 @@ class TestRemoteConnectionHandler(unittest.TestCase):
 
     def test_invalid_json(self):
         msg_parts = []
-        f = open(os.path.join(str(Path(__file__).parent), "msg_data2.txt"))
-        msgData = f.read()
-        f.close()
-        # print("test_init_complete() msg JSON-encoded data::\n%s"%msgDataJson)
-        f2 = open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb")
-        data = f2.read()
-        f2.close()
+        with open(os.path.join(str(Path(__file__).parent), "msg_data2.txt")) as f:
+            msgData = f.read()
+        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f2:
+            data = f2.read()
         msg = ServerMessage("execute", "1", msgData, None)
         part1Bytes = bytes(msg.toJSON(), "utf-8")
         msg_parts.append(part1Bytes)
