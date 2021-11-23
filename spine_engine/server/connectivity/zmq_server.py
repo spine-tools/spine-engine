@@ -15,7 +15,6 @@ Contains ZMQServer class for running a Zero-MQ server with Spine Engine.
 :date:   19.08.2021
 """
 
-import sys
 import zmq
 import threading
 import time
@@ -33,7 +32,7 @@ class ZMQSecurityModelState(Enum):
 
 
 class ZMQServer(threading.Thread):
-    """A server implementation for receiving connections(ZMQConnection) from the Spine Toolbox."""
+    """A server implementation for receiving connections (ZMQConnection) from the Spine Toolbox."""
 
     def __init__(self, protocol, port, zmqServerObserver, secModel, secFolder):
         """
@@ -86,6 +85,8 @@ class ZMQServer(threading.Thread):
         """Closes the server by sending a KILL message to receiver thread using a 0MQ socket."""
         self.ctrl_msg_sender.send(b"KILL")
         self.ctrl_msg_sender.close()
+        self.join()
+        self._context.term()
 
     def serve(self):
         """Creates two sockets, which are both polled asynchronously. The REPLY socket handles messages
@@ -121,7 +122,6 @@ class ZMQServer(threading.Thread):
                         print("Invalid IP address in allowEndpoints.txt:'{ep}'")
                 allowed_str = "\n".join(allowed)
                 print(f"StoneHouse security activated. Allowed end points ({len(allowed)}):\n{allowed_str}")
-                # print("ZMQServer(): started authenticator.")
                 # Tell the authenticator how to handle CURVE requests
                 auth.configure_curve(domain='*', location=zmq.auth.CURVE_ALLOW_ANY)
                 server_secret_file = os.path.join(self.secret_keys_dir, "server.key_secret")
@@ -156,7 +156,7 @@ class ZMQServer(threading.Thread):
             time.sleep(0.2)  # TODO: Check if this is necessary
         ctrl_msg_listener.close()
         client_msg_listener.close()
-        self._context.term()
+
 
     @staticmethod
     def _read_end_points(config_file_location):
