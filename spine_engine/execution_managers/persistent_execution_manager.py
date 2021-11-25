@@ -34,6 +34,7 @@ from ..utils.execution_resources import persistent_process_semaphore
 from .execution_manager_base import ExecutionManagerBase
 
 if sys.platform == "win32":
+    import ctypes
     from subprocess import CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW
 
 
@@ -347,16 +348,12 @@ class PersistentManagerBase:
 
 
 def _send_ctrl_c(pid):
-    import ctypes
-    import sys
-    
     kernel = ctypes.windll.kernel32
     kernel.FreeConsole()
     kernel.AttachConsole(pid)
     kernel.SetConsoleCtrlHandler(None, 1)
     kernel.GenerateConsoleCtrlEvent(0, 0)
     sys.exit(0)
-
 
 
 class JuliaPersistentManager(PersistentManagerBase):
