@@ -311,15 +311,14 @@ class PersistentManagerBase:
     def interrupt_persistent(self):
         """Interrupts the persistent process."""
         threading.Thread(target=self._do_interrupt_persistent).start()
+        self._wait()
 
     def _do_interrupt_persistent(self):
         sig = signal.CTRL_C_EVENT if sys.platform == "win32" else signal.SIGINT
         persistent = self._persistent  # Make local copy; other threads may set self._persistent to None while sleeping.
         if persistent is None:
             return
-        for _ in range(3):
-            persistent.send_signal(sig)
-            time.sleep(1)
+        persistent.send_signal(sig)
         self.set_running_until_completion(False)
 
     def is_persistent_alive(self):
