@@ -27,7 +27,7 @@ import time
 from dataclasses import dataclass
 from itertools import chain
 from subprocess import Popen, PIPE
-from multiprocessing import Lock
+from multiprocessing import Process, Lock
 from queue import Queue
 from ..utils.helpers import Singleton
 from ..utils.execution_resources import persistent_process_semaphore
@@ -314,11 +314,15 @@ class PersistentManagerBase:
         self._wait()
 
     def _do_interrupt_persistent(self):
-        sig = signal.CTRL_C_EVENT if sys.platform == "win32" else signal.SIGINT
         persistent = self._persistent  # Make local copy; other threads may set self._persistent to None while sleeping.
         if persistent is None:
             return
-        persistent.send_signal(sig)
+        if sys.platform == "win32":
+            p = Process(target=_send_ctrl_c, args=(persistent.pid,))
+            p.start()
+            p.join()
+        else:
+            persistent.send_signal(signal.SIGINT)
         self.set_running_until_completion(False)
 
     def is_persistent_alive(self):
@@ -340,6 +344,19 @@ class PersistentManagerBase:
         self._persistent = None
         self.set_running_until_completion(False)
         persistent_process_semaphore.release()
+
+
+def _send_ctrl_c(pid):
+    import ctypes
+    import sys
+    
+    kernel = ctypes.windll.kernel32
+    kernel.FreeConsole()
+    kernel.AttachConsole(pid)
+    kernel.SetConsoleCtrlHandler(None, 1)
+    kernel.GenerateConsoleCtrlEvent(0, 0)
+    sys.exit(0)
+
 
 
 class JuliaPersistentManager(PersistentManagerBase):
