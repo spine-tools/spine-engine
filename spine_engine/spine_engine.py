@@ -177,6 +177,9 @@ class SpineEngine:
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
         self._forth_injectors = inverted(self._back_injectors)
+        # Let jumps advertise their resources backwards *in the backward sweep*
+        for jump in jumps:
+            self._back_injectors[self._solid_names[jump.source]] += self._solid_names[jump.destination]
         self._pipeline = self._make_pipeline()
         self._state = SpineEngineState.SLEEPING
         self._debug = debug
