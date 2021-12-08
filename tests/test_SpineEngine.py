@@ -767,10 +767,7 @@ class TestSpineEngine(unittest.TestCase):
             * [
                 [
                     [self._default_forward_url_resource("db:///fw_b", "b")],
-                    [
-                        self._default_backward_url_resource("db:///bw_d", "c", "d"),
-                        self._default_backward_url_resource("db:///bw_b", "c", "b"),
-                    ],
+                    [self._default_backward_url_resource("db:///bw_d", "c", "d")],
                 ]
             ],
         )
@@ -803,19 +800,11 @@ class TestSpineEngine(unittest.TestCase):
         expected = 4 * [
             [
                 [self._default_forward_url_resource("db:///fw_a", "a")],
-                [
-                    self._default_backward_url_resource("db:///bw_c", "b", "c"),
-                    self._default_backward_url_resource("db:///bw_b", "b", "b"),
-                ],
+                [self._default_backward_url_resource("db:///bw_c", "b", "c")],
             ]
         ]
         self._assert_resource_args(item_b.execute.call_args_list, expected)
-        expected = 2 * [
-            [
-                [self._default_forward_url_resource("db:///fw_b", "b")],
-                [self._default_backward_url_resource("db:///bw_a", "c", "a")],
-            ]
-        ]
+        expected = 2 * [[[self._default_forward_url_resource("db:///fw_b", "b")], []]]
         self._assert_resource_args(item_c.execute.call_args_list, expected)
 
     def _assert_resource_args(self, arg_packs, expected_packs):

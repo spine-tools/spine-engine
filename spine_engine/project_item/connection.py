@@ -16,14 +16,18 @@ Provides connection classes for linking project items.
 """
 import os
 import subprocess
-import sys
 import tempfile
-
+from contextlib import ExitStack
 from datapackage import Package
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
-from spine_engine.project_item.project_item_resource import file_resource
+from spine_engine.project_item.project_item_resource import (
+    file_resource,
+    cmd_line_arg_from_dict,
+    expand_cmd_line_args,
+    labelled_resource_args,
+)
 
 
 class ConnectionBase:
@@ -73,6 +77,12 @@ class ConnectionBase:
             dict: serialized Connection
         """
         return {"from": [self.source, self._source_position], "to": [self.destination, self._destination_position]}
+
+    def receive_resources_from_source(self, resources):
+        pass
+
+    def receive_resources_from_destination(self, resources):
+        pass
 
 
 class Connection(ConnectionBase):
@@ -290,7 +300,15 @@ class Connection(ConnectionBase):
 class Jump(ConnectionBase):
     """Represents a conditional jump between two project items."""
 
-    def __init__(self, source_name, source_position, destination_name, destination_position, condition="exit(1)"):
+    def __init__(
+        self,
+        source_name,
+        source_position,
+        destination_name,
+        destination_position,
+        condition="exit(1)",
+        cmd_line_args=(),
+    ):
         """
         Args:
             source_name (str): source project item's name
@@ -301,6 +319,17 @@ class Jump(ConnectionBase):
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
         self.condition = condition
+        self.resources = set()
+        self.cmd_line_args = list(cmd_line_args)
+
+    def update_cmd_line_args(self, cmd_line_args):
+        self.cmd_line_args = cmd_line_args
+
+    def receive_resources_from_source(self, resources):
+        self.resources.update(resources)
+
+    def receive_resources_from_destination(self, resources):
+        self.resources.update(resources)
 
     def is_condition_true(self, jump_counter):
         """Evaluates jump condition.
@@ -313,13 +342,17 @@ class Jump(ConnectionBase):
         """
         if not self.condition.strip():
             return False
-        with tempfile.TemporaryFile("w+", encoding="utf-8") as script:
-            script.write(self.condition)
-            script.seek(0)
-            result = subprocess.run(
-                ["python", "-", str(jump_counter)], encoding="utf-8", stdin=script, capture_output=True
-            )
-            return result.returncode == 0
+        with ExitStack() as stack:
+            labelled_args = labelled_resource_args(self.resources, stack)
+            expanded_args = expand_cmd_line_args(self.cmd_line_args, labelled_args, None)
+            expanded_args.append(str(jump_counter))
+            with tempfile.TemporaryFile("w+", encoding="utf-8") as script:
+                script.write(self.condition)
+                script.seek(0)
+                result = subprocess.run(
+                    ["python", "-", *expanded_args], encoding="utf-8", stdin=script, capture_output=True
+                )
+                return result.returncode == 0
 
     @staticmethod
     def from_dict(jump_dict):
@@ -334,7 +367,9 @@ class Jump(ConnectionBase):
         source_name, source_anchor = jump_dict["from"]
         destination_name, destination_anchor = jump_dict["to"]
         condition = jump_dict["condition"]["script"]
-        return Jump(source_name, source_anchor, destination_name, destination_anchor, condition)
+        cmd_line_args = jump_dict.get("cmd_line_args", [])
+        cmd_line_args = [cmd_line_arg_from_dict(arg) for arg in cmd_line_args]
+        return Jump(source_name, source_anchor, destination_name, destination_anchor, condition, cmd_line_args)
 
     def to_dict(self):
         """Returns a dictionary representation of this Jump.
@@ -344,4 +379,5 @@ class Jump(ConnectionBase):
         """
         d = super().to_dict()
         d["condition"] = {"type": "python-script", "script": self.condition}
+        d["cmd_line_args"] = [arg.to_dict() for arg in self.cmd_line_args]
         return d

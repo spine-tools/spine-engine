@@ -134,6 +134,42 @@ class ProjectItemResource:
         return self._url if self.type_ == "database" else self.path
 
 
+class CmdLineArg:
+    """Command line argument for items that execute shell commands."""
+
+    def __init__(self, arg):
+        """
+        Args:
+            arg (str): command line argument
+        """
+        self.arg = arg
+        self.missing = False
+
+    def __eq__(self, other):
+        if not isinstance(other, CmdLineArg):
+            return NotImplemented
+        return self.arg == other.arg
+
+    def __str__(self):
+        return self.arg
+
+    def to_dict(self):
+        """Serializes argument to JSON compatible dict.
+
+        Returns:
+            dict: serialized command line argument
+        """
+        return {"type": "literal", "arg": self.arg}
+
+
+class LabelArg(CmdLineArg):
+    """Command line argument that gets replaced by a project item's resource URL/file path."""
+
+    def to_dict(self):
+        """See base class."""
+        return {"type": "resource", "arg": self.arg}
+
+
 def database_resource(provider_name, url, label=None):
     """
     Constructs a database resource.
@@ -212,3 +248,67 @@ def extract_packs(resources):
         else:
             packs.setdefault(resource.label, list()).append(resource)
     return singles, packs
+
+
+def labelled_resource_filepaths(resources):
+    """Returns a dict mapping resource labels to file paths available in given resources.
+    The label acts as an identifier for a 'transient_file'.
+    """
+    return {resource.label: resource.path for resource in resources if resource.hasfilepath}
+
+
+def cmd_line_arg_from_dict(arg_dict):
+    """Deserializes argument from dictionary.
+
+    Args:
+        arg_dict (dict): serialized command line argument
+
+    Returns:
+        CmdLineArg: deserialized command line argument
+    """
+    type_ = arg_dict["type"]
+    construct = {"literal": CmdLineArg, "resource": LabelArg}[type_]
+    return construct(arg_dict["arg"])
+
+
+def labelled_resource_args(resources, stack):
+    """
+    Args:
+        resources (Iterable of ProjectItemResource): resources to process
+        stack (ExitStack)
+
+    Yields:
+        dict: mapping from resource label to resource args.
+    """
+    result = {}
+    single_resources, pack_resources = extract_packs(resources)
+    for resource in single_resources:
+        result[resource.label] = stack.enter_context(resource.open())
+    for label, resources_ in pack_resources.items():
+        result[label] = " ".join(stack.enter_context(r.open()) for r in resources_)
+    return result
+
+
+def expand_cmd_line_args(args, label_to_arg, logger):
+    """Expands command line arguments by replacing resource labels by URLs/paths.
+
+    Args:
+        args (list of CmdLineArg): command line arguments
+        label_to_arg (dict): a mapping from resource label to cmd line argument
+        logger (LoggerInterface): a logger
+
+    Returns:
+        list of str: command line arguments as strings
+    """
+    expanded_args = list()
+    for arg in args:
+        if not isinstance(arg, LabelArg):
+            expanded_args.append(str(arg))
+            continue
+        expanded = label_to_arg.get(str(arg))
+        if expanded is None:
+            logger.msg_warning.emit(f"No resources matching argument '{arg}'.")
+            continue
+        if expanded:
+            expanded_args.append(expanded)
+    return expanded_args

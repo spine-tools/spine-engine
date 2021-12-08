@@ -126,7 +126,8 @@ class SpineEngine:
             project_dir (str): Path to project directory.
             execution_permits (dict(str,bool)): A mapping from item name to a boolean value, False indicating that
                 the item is not executed, only its resources are collected.
-            node_successors (dict(str,list(str))): A mapping from item name to list of successor item names, dictating the dependencies.
+            node_successors (dict(str,list(str))): A mapping from item name to list of successor item names,
+                dictating the dependencies.
             debug (bool): Whether debug mode is active or not.
 
         Raises:
@@ -177,15 +178,14 @@ class SpineEngine:
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
         self._forth_injectors = inverted(self._back_injectors)
-        # Let jumps advertise their resources backwards *in the backward sweep*
-        for jump in jumps:
-            self._back_injectors[self._solid_names[jump.source]] += self._solid_names[jump.destination]
         self._pipeline = self._make_pipeline()
         self._state = SpineEngineState.SLEEPING
         self._debug = debug
         self._running_items = []
         self._prompt_queues = {}
         self._event_stream = self._get_event_stream()
+        self._backward_resources = {}
+        self._forward_resources = {}
 
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
         """Instantiates item specifications.
@@ -326,6 +326,8 @@ class SpineEngine:
                 loop_counter = loop_counters.get(chunk_index, 1)  # We've executed the jump at least once already.
                 loop_counter += 1
                 loop_counters[chunk_index] = loop_counter
+                chunk.jump.receive_resources_from_source(self._forward_resources.get(chunk.jump.source, []))
+                chunk.jump.receive_resources_from_destination(self._backward_resources.get(chunk.jump.destination, []))
                 if chunk.jump.is_condition_true(loop_counter):
                     for i, other_chunk in enumerate(self._chunks[: chunk_index + 1]):
                         if chunk.jump.destination in other_chunk.item_names:
@@ -466,7 +468,7 @@ class SpineEngine:
                 raise Failure()
             context.log.info(f"Item Name: {item_name}")
             item = self._make_item(item_name, ED.BACKWARD)
-            resources = item.output_resources(ED.BACKWARD)
+            self._backward_resources[item_name] = resources = item.output_resources(ED.BACKWARD)
             yield Output(value=resources, output_name=f"{ED.BACKWARD}_output")
 
         input_defs = []
@@ -504,6 +506,7 @@ class SpineEngine:
             output_resource_stacks, item_finish_state = self._execute_item(
                 context, item_name, forward_resource_stacks, backward_resources
             )
+            self._forward_resources[item_name] = [r for stack in output_resource_stacks for r in stack]
             yield AssetMaterialization(asset_key=str(item_finish_state))
             yield Output(value=output_resource_stacks, output_name=f"{ED.FORWARD}_output")
 
