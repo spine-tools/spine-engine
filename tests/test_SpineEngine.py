@@ -797,7 +797,7 @@ class TestSpineEngine(unittest.TestCase):
         self._run_engine(items, connections, successors, jumps=jumps)
         expected = 2 * [[[], [self._default_backward_url_resource("db:///bw_b", "a", "b")]]]
         self._assert_resource_args(item_a.execute.call_args_list, expected)
-        expected = 4 * [
+        expected = 3 * [
             [
                 [self._default_forward_url_resource("db:///fw_a", "a")],
                 [self._default_backward_url_resource("db:///bw_c", "b", "c")],
