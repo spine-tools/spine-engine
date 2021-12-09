@@ -323,7 +323,7 @@ class SpineEngine:
             if chunk.jump is None:
                 chunk_index += 1
             else:
-                loop_counter = loop_counters.get(chunk_index, 1)  # We've executed the jump at least once already.
+                loop_counter = loop_counters.get(chunk_index, 0)
                 loop_counter += 1
                 loop_counters[chunk_index] = loop_counter
                 chunk.jump.receive_resources_from_source(self._forward_resources.get(chunk.jump.source, []))

@@ -39,7 +39,7 @@ def _make_url_resource(url):
 
 
 class TestSpineEngine(unittest.TestCase):
-    _LOOP_TWICE = "\n".join(["import sys", "loop_counter = int(sys.argv[1])", "exit(0 if loop_counter < 3 else 1)"])
+    _LOOP_TWICE = "\n".join(["import sys", "loop_counter = int(sys.argv[1])", "exit(0 if loop_counter < 2 else 1)"])
 
     @staticmethod
     def _mock_item(
