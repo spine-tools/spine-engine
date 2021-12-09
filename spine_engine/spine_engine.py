@@ -328,7 +328,8 @@ class SpineEngine:
                 loop_counters[chunk_index] = loop_counter
                 chunk.jump.receive_resources_from_source(self._forward_resources.get(chunk.jump.source, []))
                 chunk.jump.receive_resources_from_destination(self._backward_resources.get(chunk.jump.destination, []))
-                if chunk.jump.is_condition_true(loop_counter):
+                logger = QueueLogger(self._queue, chunk.jump.name, None)
+                if chunk.jump.is_condition_true(loop_counter, logger):
                     for i, other_chunk in enumerate(self._chunks[: chunk_index + 1]):
                         if chunk.jump.destination in other_chunk.item_names:
                             chunk_index = i

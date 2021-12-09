@@ -28,6 +28,7 @@ from spine_engine.project_item.project_item_resource import (
     expand_cmd_line_args,
     labelled_resource_args,
 )
+from spine_engine.utils.helpers import resolve_python_interpreter
 
 
 class ConnectionBase:
@@ -274,8 +275,8 @@ class Connection(ConnectionBase):
             d["options"] = self.options.copy()
         return d
 
-    @staticmethod
-    def from_dict(connection_dict):
+    @classmethod
+    def from_dict(cls, connection_dict, **kwargs):
         """Restores a connection from dictionary.
 
         Args:
@@ -294,7 +295,9 @@ class Connection(ConnectionBase):
                     for id_ in ids:
                         resource_filters.setdefault(label, {}).setdefault(type_, {})[id_] = True
         options = connection_dict.get("options")
-        return Connection(source_name, source_anchor, destination_name, destination_anchor, resource_filters, options)
+        return cls(
+            source_name, source_anchor, destination_name, destination_anchor, resource_filters, options, **kwargs
+        )
 
 
 class Jump(ConnectionBase):
@@ -331,7 +334,7 @@ class Jump(ConnectionBase):
     def receive_resources_from_destination(self, resources):
         self.resources.update(resources)
 
-    def is_condition_true(self, jump_counter):
+    def is_condition_true(self, jump_counter, logger):
         """Evaluates jump condition.
 
         Args:
@@ -344,18 +347,23 @@ class Jump(ConnectionBase):
             return False
         with ExitStack() as stack:
             labelled_args = labelled_resource_args(self.resources, stack)
-            expanded_args = expand_cmd_line_args(self.cmd_line_args, labelled_args, None)
+            expanded_args = expand_cmd_line_args(self.cmd_line_args, labelled_args, logger)
             expanded_args.append(str(jump_counter))
             with tempfile.TemporaryFile("w+", encoding="utf-8") as script:
                 script.write(self.condition)
                 script.seek(0)
+                python = resolve_python_interpreter("")
                 result = subprocess.run(
-                    ["python", "-", *expanded_args], encoding="utf-8", stdin=script, capture_output=True
+                    [python, "-", *expanded_args], encoding="utf-8", stdin=script, capture_output=True
                 )
+                if result.stdout:
+                    logger.msg_proc.emit(result.stdout)
+                if result.stderr:
+                    logger.msg_proc_error.emit(result.stderr)
                 return result.returncode == 0
 
-    @staticmethod
-    def from_dict(jump_dict):
+    @classmethod
+    def from_dict(cls, jump_dict, **kwargs):
         """Restores a Jump from dictionary.
 
         Args:
@@ -369,7 +377,7 @@ class Jump(ConnectionBase):
         condition = jump_dict["condition"]["script"]
         cmd_line_args = jump_dict.get("cmd_line_args", [])
         cmd_line_args = [cmd_line_arg_from_dict(arg) for arg in cmd_line_args]
-        return Jump(source_name, source_anchor, destination_name, destination_anchor, condition, cmd_line_args)
+        return cls(source_name, source_anchor, destination_name, destination_anchor, condition, cmd_line_args, **kwargs)
 
     def to_dict(self):
         """Returns a dictionary representation of this Jump.

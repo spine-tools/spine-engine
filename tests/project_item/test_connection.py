@@ -104,16 +104,16 @@ class TestConnectionWithDatabase(unittest.TestCase):
 class TestJump(unittest.TestCase):
     def test_default_condition_prevents_jump(self):
         jump = Jump("source", "bottom", "destination", "top")
-        self.assertFalse(jump.is_condition_true(1))
+        self.assertFalse(jump.is_condition_true(1, None))
 
     def test_empty_condition_prevents_jump(self):
         jump = Jump("source", "bottom", "destination", "top", "")
-        self.assertFalse(jump.is_condition_true(1))
+        self.assertFalse(jump.is_condition_true(1, None))
 
     def test_counter_passed_to_condition(self):
         condition = "\n".join(("import sys", "counter = int(sys.argv[1])", "exit(0 if counter == 23 else 1)"))
         jump = Jump("source", "bottom", "destination", "top", condition)
-        self.assertTrue(jump.is_condition_true(23))
+        self.assertTrue(jump.is_condition_true(23, None))
 
     def test_dictionary(self):
         jump = Jump("source", "bottom", "destination", "top", "exit(23)")
