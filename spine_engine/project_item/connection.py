@@ -66,10 +66,20 @@ class ConnectionBase:
         """Anchor's position on destination item."""
         return self._destination_position
 
+    @destination_position.setter
+    def destination_position(self, destination_position):
+        """Set anchor's position on destination item."""
+        self._destination_position = destination_position
+
     @property
     def source_position(self):
         """Anchor's position on source item."""
         return self._source_position
+
+    @source_position.setter
+    def source_position(self, source_position):
+        """Set anchor's position on source item."""
+        self._source_position = source_position
 
     def to_dict(self):
         """Returns a dictionary representation of this connection.
