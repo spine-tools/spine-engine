@@ -186,6 +186,7 @@ class SpineEngine:
         self._event_stream = self._get_event_stream()
         self._backward_resources = {}
         self._forward_resources = {}
+        self._timestamp = None
 
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
         """Instantiates item specifications.
@@ -254,6 +255,7 @@ class SpineEngine:
 
     def run(self):
         """Runs this engine."""
+        self._timestamp = create_timestamp()
         if self._chunks is None:
             self._linear_run()
         else:
@@ -320,6 +322,8 @@ class SpineEngine:
                 self._pipeline, run_id, step_selection=forward_solids, run_config=run_config, instance=dagster_instance
             ):
                 self._process_event(event)
+            if self._state in (SpineEngineState.FAILED, SpineEngineState.USER_STOPPED):
+                break
             if chunk.jump is None:
                 chunk_index += 1
             else:
@@ -547,7 +551,7 @@ class SpineEngine:
         output_resources_list = []
         threads = []
         resources_iterator = self._filtered_resources_iterator(
-            item_name, forward_resource_stacks, backward_resources, create_timestamp()
+            item_name, forward_resource_stacks, backward_resources, self._timestamp
         )
         for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
             item = self._make_item(item_name, ED.FORWARD)
