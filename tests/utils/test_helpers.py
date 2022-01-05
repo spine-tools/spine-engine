@@ -16,7 +16,7 @@ Unit tests for chunk module.
 :date:    21.6.2021
 """
 import unittest
-from spine_engine.utils.helpers import make_dag
+from spine_engine.utils.helpers import make_dag, remove_credentials_from_url
 
 
 class TestMakeDAG(unittest.TestCase):
@@ -41,6 +41,16 @@ class TestMakeDAG(unittest.TestCase):
         dag = make_dag(node_successors)
         self.assertEqual(set(dag.nodes), {"a", "b", "c"})
         self.assertEqual(set(dag.edges), {("a", "b"), ("a", "c")})
+
+
+class TestRemoveCredentialsFromUrl(unittest.TestCase):
+    def test_no_credentials_in_url(self):
+        no_credentials = r"sqlite:///C:\data\db.sqlite"
+        self.assertEqual(remove_credentials_from_url(no_credentials), no_credentials)
+
+    def test_credentials_in_database_url(self):
+        with_credentials = "mysql+pymysql://username:password@remote.fi/database"
+        self.assertEqual(remove_credentials_from_url(with_credentials), "mysql+pymysql://remote.fi/database")
 
 
 if __name__ == '__main__':

@@ -28,13 +28,13 @@ class ResourceSemaphore:
         self._process_count_lock = threading.Lock()
 
     def acquire(self, timeout=None):
-        """Waits for process count to drop below MAX_PROCESSES.
+        """Waits for process count to drop below the limit.
 
         Args:
             timeout (float, optional): timeout in seconds
 
         Returns:
-            bool: True if semaphore was acquired, False if there were too many processes or a time out occurred
+            bool: True if semaphore was acquired, False if there were too many processes and a time out occurred
         """
         with self._process_count_lock:
             if self._max_processes == "unlimited":
@@ -47,7 +47,8 @@ class ResourceSemaphore:
         return self.acquire()
 
     def _check_and_update_process_count(self):
-        """Atomically checks if process count is less than MAX_PROCESSES and if so, increments it by one.
+        """Atomically checks if process count is less than the limit and if so, increments it by one.
+
         Returns:
             bool: True if process count was incremented, False otherwise
         """
