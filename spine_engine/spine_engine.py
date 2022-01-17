@@ -183,6 +183,7 @@ class SpineEngine:
         self._debug = debug
         self._running_items = []
         self._prompt_queues = {}
+        self._answered_prompts = {}
         self._event_stream = self._get_event_stream()
         self._backward_resources = {}
         self._forward_resources = {}
@@ -212,16 +213,16 @@ class SpineEngine:
         return item_specifications
 
     def _make_item(self, item_name, direction):
-        """Recreates item from project item dictionary. Note that all items are created twice.
-        One for the backward pipeline, the other one for the forward pipeline."""
+        """Recreates item from project item dictionary for a particular execution.
+        Note that this method is called multiple times for each item:
+        Once for the backward pipeline, and once for each filtered execution in the forward pipeline."""
         item_dict = self._items[item_name]
         item_type = item_dict["type"]
         executable_item_class = self._executable_item_classes[item_type]
-        if direction == ED.FORWARD:
-            prompt_queue = self._prompt_queues[item_name] = mp.Queue()
-            logger = QueueLogger(self._queue, item_name, prompt_queue)
-        else:
-            logger = None  # Prevent backward solid from logging
+        prompt_queue = self._prompt_queues[item_name] = mp.Queue()
+        logger = QueueLogger(
+            self._queue, item_name, prompt_queue, self._answered_prompts, silent=direction is ED.BACKWARD
+        )
         return executable_item_class.from_dict(
             item_dict, item_name, self._project_dir, self._settings, self._item_specifications, logger
         )
@@ -251,6 +252,7 @@ class SpineEngine:
                 break
 
     def answer_prompt(self, item_name, accepted):
+        """Answers the prompt for the specified item, either accepting or rejecting it."""
         self._prompt_queues[item_name].put(accepted)
 
     def run(self):
