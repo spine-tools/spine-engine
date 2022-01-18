@@ -92,6 +92,9 @@ class _ExecutionMessage:
 
 
 class SuppressedMessage:
+    def __init__(self, *args, **kwargs):
+        pass
+
     def emit(self, *args, **kwargs):
         """Don't emit anything"""
 
@@ -101,30 +104,28 @@ class QueueLogger:
 
     def __init__(self, queue, item_name, prompt_queue, answered_prompts, silent=False):
         self._silent = silent
-        self.msg = _Message(queue, "event_msg", "msg", item_name)
-        self.msg_success = _Message(queue, "event_msg", "msg_success", item_name)
-        self.msg_warning = _Message(queue, "event_msg", "msg_warning", item_name)
-        self.msg_error = _Message(queue, "event_msg", "msg_error", item_name)
-        self.msg_proc = _Message(queue, "process_msg", "msg", item_name)
-        self.msg_proc_error = _Message(queue, "process_msg", "msg_error", item_name)
-        self.msg_standard_execution = _ExecutionMessage(queue, "standard_execution_msg", item_name)
-        self.msg_persistent_execution = _ExecutionMessage(queue, "persistent_execution_msg", item_name)
-        self.msg_kernel_execution = _ExecutionMessage(queue, "kernel_execution_msg", item_name)
+        message = _Message if not silent else SuppressedMessage
+        execution_message = _ExecutionMessage if not silent else SuppressedMessage
+        self.msg = message(queue, "event_msg", "msg", item_name)
+        self.msg_success = message(queue, "event_msg", "msg_success", item_name)
+        self.msg_warning = message(queue, "event_msg", "msg_warning", item_name)
+        self.msg_error = message(queue, "event_msg", "msg_error", item_name)
+        self.msg_proc = message(queue, "process_msg", "msg", item_name)
+        self.msg_proc_error = message(queue, "process_msg", "msg_error", item_name)
+        self.msg_standard_execution = execution_message(queue, "standard_execution_msg", item_name)
+        self.msg_persistent_execution = execution_message(queue, "persistent_execution_msg", item_name)
+        self.msg_kernel_execution = execution_message(queue, "kernel_execution_msg", item_name)
         self.prompt = _Prompt(queue, item_name, prompt_queue, answered_prompts)
 
     def set_filter_id(self, filter_id):
-        self.msg.filter_id = filter_id
-        self.msg_success.filter_id = filter_id
-        self.msg_warning.filter_id = filter_id
-        self.msg_error.filter_id = filter_id
-        self.msg_proc.filter_id = filter_id
-        self.msg_proc_error.filter_id = filter_id
-        self.msg_standard_execution.filter_id = filter_id
-        self.msg_persistent_execution.filter_id = filter_id
-        self.msg_kernel_execution.filter_id = filter_id
+        if not self._silent:
+            self.msg.filter_id = filter_id
+            self.msg_success.filter_id = filter_id
+            self.msg_warning.filter_id = filter_id
+            self.msg_error.filter_id = filter_id
+            self.msg_proc.filter_id = filter_id
+            self.msg_proc_error.filter_id = filter_id
+            self.msg_standard_execution.filter_id = filter_id
+            self.msg_persistent_execution.filter_id = filter_id
+            self.msg_kernel_execution.filter_id = filter_id
         self.prompt.filter_id = filter_id
-
-    def __getattr__(self, name):
-        if self._silent and name != "prompt":
-            return SuppressedMessage()
-        return super().__getattr__(name)
