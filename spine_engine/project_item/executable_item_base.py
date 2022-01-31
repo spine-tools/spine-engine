@@ -24,7 +24,7 @@ from ..utils.helpers import shorten
 class ExecutableItemBase:
     """The part of a project item that is executed by the Spine Engine."""
 
-    def __init__(self, name, project_dir, logger):
+    def __init__(self, name, project_dir, logger, group_id=None):
         """
         Args:
             name (str): item's name
@@ -40,6 +40,7 @@ class ExecutableItemBase:
         log_dir.mkdir(parents=True, exist_ok=True)
         self._logs_dir = str(log_dir)
         self._logger = logger
+        self._group_id = name if group_id is None else group_id
         self._filter_id = ""
 
     @property
@@ -57,7 +58,7 @@ class ExecutableItemBase:
         Returns:
             str: item's id within an execution group
         """
-        return self._name + self._filter_id
+        return self._group_id + self._filter_id
 
     @property
     def filter_id(self):
