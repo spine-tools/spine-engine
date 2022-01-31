@@ -501,11 +501,11 @@ class _PersistentManagerFactory(metaclass=Singleton):
         return pm.get_completions(text)
 
     def get_persistent_history_item(self, key, index):
-        """Issues a command to a persistent process.
+        """Returns a history item.
 
         Args:
             key (tuple): persistent identifier
-            index (int): index of the history item, most recen first
+            index (int): index of the history item, most recent first
 
         Returns:
             str: history item or empty string if none

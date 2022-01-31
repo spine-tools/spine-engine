@@ -845,8 +845,6 @@ def validate_jumps(jumps, dag):
                 continue
             if other.source == jump.source and other.destination == jump.destination:
                 raise EngineInitFailed("Loops with same source and destination not supported.")
-        if jump.source == jump.destination:
-            continue
         if jump.source not in dag.nodes:
             raise EngineInitFailed(f"Loop source '{jump.source}' not found in DAG")
         if jump.source == jump.destination:
