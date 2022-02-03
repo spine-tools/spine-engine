@@ -319,7 +319,7 @@ class SpineEngine:
         while chunks_left:
             chunk = self._chunks[chunk_index]
             run_id = next(iter(dagster_instance.get_runs())).run_id
-            forward_solids = [f"{ED.FORWARD}_{self._solid_names[name]}" for name in chunk.item_names]
+            forward_solids = [f"{ED.FORWARD}_{self._solid_names[name]}" for name in chunk.items]
             for event in reexecute_pipeline_iterator(
                 self._pipeline, run_id, step_selection=forward_solids, run_config=run_config, instance=dagster_instance
             ):
@@ -337,7 +337,7 @@ class SpineEngine:
                 logger = QueueLogger(self._queue, chunk.jump.name, None, dict())
                 if chunk.jump.is_condition_true(loop_counter, logger):
                     for i, other_chunk in enumerate(self._chunks[: chunk_index + 1]):
-                        if chunk.jump.destination in other_chunk.item_names:
+                        if chunk.jump.destination in other_chunk.items:
                             chunk_index = i
                             break
                 else:

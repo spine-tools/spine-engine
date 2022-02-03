@@ -81,13 +81,20 @@ class ConnectionBase:
         """Set anchor's position on source item."""
         self._source_position = source_position
 
+    def __hash__(self):
+        return hash(str(self.to_dict()))
+
     def to_dict(self):
         """Returns a dictionary representation of this connection.
 
         Returns:
             dict: serialized Connection
         """
-        return {"from": [self.source, self._source_position], "to": [self.destination, self._destination_position]}
+        return {
+            "name": self.name,
+            "from": [self.source, self._source_position],
+            "to": [self.destination, self._destination_position],
+        }
 
     def receive_resources_from_source(self, resources):
         pass
