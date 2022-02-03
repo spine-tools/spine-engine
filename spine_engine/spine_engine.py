@@ -184,10 +184,10 @@ class SpineEngine:
         self._running_items = []
         self._prompt_queues = {}
         self._answered_prompts = {}
+        self._timestamp = create_timestamp()
         self._event_stream = self._get_event_stream()
         self._backward_resources = {}
         self._forward_resources = {}
-        self._timestamp = None
 
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
         """Instantiates item specifications.
@@ -257,7 +257,6 @@ class SpineEngine:
 
     def run(self):
         """Runs this engine."""
-        self._timestamp = create_timestamp()
         if self._chunks is None:
             self._linear_run()
         else:
@@ -341,7 +340,7 @@ class SpineEngine:
                             chunk_index = i
                             break
                 else:
-                    loop_counters[chunk_index] = 1
+                    loop_counters[chunk_index] = 0
                     chunk_index += 1
             chunks_left = len(self._chunks) != chunk_index
 
