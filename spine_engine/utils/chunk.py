@@ -86,43 +86,16 @@ def chunkify(dag, jumps):
     return tuple(chunks)
 
 
-def _connecting_items(dag, sources, sinks):
-    """Returns all item connecting sources and sinks in given dag.
+def _sort(dag, chunks, order):
+    """Sorts items within chunks and chunks within the list by given order.
 
     Args:
         dag (nx.DiGraph): directed acyclic graph
-        sources (Iterable of str)
-        sinks (Iterable of str)
-
-    Returns:
-        set of str
+        chunks (list of Chunk): chunks in DAG
     """
-    return {
-        item for source in sources for sink in sinks for path in nx.all_simple_paths(dag, source, sink) for item in path
-    }
-
-
-def _group_parallel(dag, chunks):
-    """Groups parallel chunks.
-
-    Args:
-        dag (nx.DiGraph): directed acyclic graph
-        chunks (list of Chunk)
-
-    Returns:
-        list of list: Each element in the outer list is a list of chunks that don't reach each other.
-    """
-    parallel_indexes = dict()
-    already_grouped = set()
-    for i, chunk in enumerate(chunks):
-        if i in already_grouped:
-            continue
-        parallel_indexes[i] = parallel = list()
-        for j in range(i + 1, len(chunks)):
-            if not any(nx.has_path(dag, a, b) or nx.has_path(dag, b, a) for a in chunk.items for b in chunks[j].items):
-                parallel.append(j)
-                already_grouped.add(j)
-    return [[chunks[i]] + [chunks[j] for j in parallel] for i, parallel in parallel_indexes.items()]
+    for chunk in chunks:
+        chunk.items.sort(key=lambda p: order[p])
+    chunks.sort(key=lambda chunk: order[chunk.items[0]])
 
 
 def _items_by_jump(dag, jumps):
@@ -164,16 +137,43 @@ def _nested_jumps(jumps, items_by_jump):
     return nested_jumps
 
 
-def _sort(dag, chunks, order):
-    """Sorts items within chunks and chunks within the list by given order.
+def _group_parallel(dag, chunks):
+    """Groups parallel chunks.
 
     Args:
         dag (nx.DiGraph): directed acyclic graph
-        chunks (list of Chunk): chunks in DAG
+        chunks (list of Chunk)
+
+    Returns:
+        list of list: Each element in the outer list is a list of chunks that don't reach each other.
     """
-    for chunk in chunks:
-        chunk.items.sort(key=lambda p: order[p])
-    chunks.sort(key=lambda chunk: order[chunk.items[0]])
+    parallel_indexes = dict()
+    already_grouped = set()
+    for i, chunk in enumerate(chunks):
+        if i in already_grouped:
+            continue
+        parallel_indexes[i] = parallel = list()
+        for j in range(i + 1, len(chunks)):
+            if not any(nx.has_path(dag, a, b) or nx.has_path(dag, b, a) for a in chunk.items for b in chunks[j].items):
+                parallel.append(j)
+                already_grouped.add(j)
+    return [[chunks[i]] + [chunks[j] for j in parallel] for i, parallel in parallel_indexes.items()]
+
+
+def _connecting_items(dag, sources, sinks):
+    """Returns all items connecting sources and sinks in a dag.
+
+    Args:
+        dag (nx.DiGraph): directed acyclic graph
+        sources (Iterable of str)
+        sinks (Iterable of str)
+
+    Returns:
+        set of str
+    """
+    return {
+        item for source in sources for sink in sinks for path in nx.all_simple_paths(dag, source, sink) for item in path
+    }
 
 
 def _split_nested(dag, chunks, nested_jumps):
