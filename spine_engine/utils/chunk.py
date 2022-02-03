@@ -47,11 +47,11 @@ def chunkify(dag, jumps):
     top_level_jumps = {jump for jump in jumps if not any(jump in nested for nested in nested_jumps.values())}
     loop_chunks = [Chunk(list(items_by_jump[jump]), jump) for jump in top_level_jumps]
     # Collect chunks in between loops, by moving from sources to successive 'bands' of parallel loops, to sinks
+    non_loop_chunks = []
     _sort(dag, loop_chunks, order)
     groups = _group_parallel(dag, loop_chunks)
-    non_loop_chunks = []
-    loop_items = set(item for items in items_by_jump.values() for item in items)
     sources = set(node for node in dag.nodes() if dag.in_degree(node) == 0)
+    loop_items = set(item for items in items_by_jump.values() for item in items)
     for group in groups:
         sinks = set(item for chunk in group for item in chunk.items)
         connecting_items = _connecting_items(dag, sources, sinks) - loop_items
