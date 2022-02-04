@@ -99,22 +99,22 @@ class TestSpineEngine(unittest.TestCase):
     def _run_engine(self, items, connections, successors, execution_permits=None, jumps=None):
         if execution_permits is None:
             execution_permits = {item_name: True for item_name in items}
-        engine = SpineEngine(
-            items=items,
-            connections=connections,
-            jumps=jumps,
-            node_successors=successors,
-            execution_permits=execution_permits,
-            items_module_name="items_module",
-        )
+        with patch("spine_engine.spine_engine.create_timestamp") as mock_create_timestamp:
+            mock_create_timestamp.return_value = "timestamp"
+            engine = SpineEngine(
+                items=items,
+                connections=connections,
+                jumps=jumps,
+                node_successors=successors,
+                execution_permits=execution_permits,
+                items_module_name="items_module",
+            )
         engine._make_item = (
             lambda name, direction: engine._items[name].pop(0)
             if direction == ExecutionDirection.FORWARD
             else engine._items[name][0]
         )
-        with patch("spine_engine.spine_engine.create_timestamp") as mock_create_timestamp:
-            mock_create_timestamp.return_value = "timestamp"
-            engine.run()
+        engine.run()
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     def setUp(self):
@@ -797,7 +797,7 @@ class TestSpineEngine(unittest.TestCase):
         self._run_engine(items, connections, successors, jumps=jumps)
         expected = 2 * [[[], [self._default_backward_url_resource("db:///bw_b", "a", "b")]]]
         self._assert_resource_args(item_a.execute.call_args_list, expected)
-        expected = 3 * [
+        expected = 4 * [
             [
                 [self._default_forward_url_resource("db:///fw_a", "a")],
                 [self._default_backward_url_resource("db:///bw_c", "b", "c")],
