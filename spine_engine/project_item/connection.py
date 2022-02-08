@@ -17,6 +17,7 @@ Provides connection classes for linking project items.
 import os
 import subprocess
 import tempfile
+import multiprocessing as mp
 from contextlib import ExitStack
 from datapackage import Package
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
@@ -29,6 +30,7 @@ from spine_engine.project_item.project_item_resource import (
     labelled_resource_args,
 )
 from spine_engine.utils.helpers import resolve_python_interpreter
+from spine_engine.utils.queue_logger import QueueLogger
 
 
 class ConnectionBase:
@@ -341,6 +343,11 @@ class Jump(ConnectionBase):
         self.condition = condition
         self.resources = set()
         self.cmd_line_args = list(cmd_line_args)
+        self._queue = mp.Queue()
+
+    def iterate_log(self):
+        while not self._queue.empty():
+            yield self._queue.get()
 
     def update_cmd_line_args(self, cmd_line_args):
         self.cmd_line_args = cmd_line_args
@@ -351,7 +358,7 @@ class Jump(ConnectionBase):
     def receive_resources_from_destination(self, resources):
         self.resources.update(resources)
 
-    def is_condition_true(self, jump_counter, logger):
+    def is_condition_true(self, jump_counter):
         """Evaluates jump condition.
 
         Args:
@@ -363,6 +370,7 @@ class Jump(ConnectionBase):
         if not self.condition.strip():
             return False
         with ExitStack() as stack:
+            logger = QueueLogger(self._queue, self.name, None, dict())
             labelled_args = labelled_resource_args(self.resources, stack)
             expanded_args = expand_cmd_line_args(self.cmd_line_args, labelled_args, logger)
             expanded_args.append(str(jump_counter))
@@ -374,9 +382,11 @@ class Jump(ConnectionBase):
                     [python, "-", *expanded_args], encoding="utf-8", stdin=script, capture_output=True
                 )
                 if result.stdout:
-                    logger.msg_proc.emit(result.stdout)
+                    # logger.msg_proc.emit(result.stdout)
+                    print(result.stdout)
                 if result.stderr:
-                    logger.msg_proc_error.emit(result.stderr)
+                    print(result.stderr)
+                    # logger.msg_proc_error.emit(result.stderr)
                 return result.returncode == 0
 
     @classmethod

@@ -34,8 +34,6 @@ from dagster import (
     DagsterEventType,
     default_executors,
     AssetMaterialization,
-    reexecute_pipeline_iterator,
-    DagsterInstance,
     execute_pipeline_iterator,
 )
 from spinedb_api import append_filter_config, name_from_dict
@@ -47,7 +45,6 @@ from .execution_managers.persistent_execution_manager import (
     disable_persistent_process_creation,
     enable_persistent_process_creation,
 )
-from .utils.chunk import chunkify
 from .utils.helpers import AppSettings, inverted, create_timestamp, make_dag
 from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
 from .utils.queue_logger import QueueLogger
@@ -93,6 +90,12 @@ class ItemExecutionFinishState(Enum):
 
     def __str__(self):
         return str(self.name)
+
+
+class _LoopPipelineDefinition(PipelineDefinition):
+    def __init__(self, *args, loops=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.loops = loops if loops is not None else []
 
 
 class SpineEngine:
@@ -158,22 +161,20 @@ class SpineEngine:
             specifications, project_item_loader, items_module_name
         )
         self._solid_names = {item_name: str(i) for i, item_name in enumerate(items)}
+        self._solid_names = {item_name: item_name.replace(" ", "_") for i, item_name in enumerate(items)}  # FIXME
         self._item_names = {solid_name: item_name for item_name, solid_name in self._solid_names.items()}
         if execution_permits is None:
             execution_permits = {}
         self._execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
         if node_successors is None:
             node_successors = {}
-        dag = make_dag(node_successors)
-        _validate_dag(dag)
+        self._dag = make_dag(node_successors)
+        _validate_dag(self._dag)
         if jumps is None:
             jumps = []
-        if not jumps:
-            self._chunks = None
-        else:
-            jumps = list(map(Jump.from_dict, jumps))
-            validate_jumps(jumps, dag)
-            self._chunks = chunkify(dag, jumps)
+
+        self._jumps = list(map(Jump.from_dict, jumps))
+        validate_jumps(self._jumps, self._dag)
         self._back_injectors = {
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
@@ -186,8 +187,6 @@ class SpineEngine:
         self._answered_prompts = {}
         self._timestamp = create_timestamp()
         self._event_stream = self._get_event_stream()
-        self._backward_resources = {}
-        self._forward_resources = {}
 
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
         """Instantiates item specifications.
@@ -257,92 +256,16 @@ class SpineEngine:
 
     def run(self):
         """Runs this engine."""
-        if self._chunks is None:
-            self._linear_run()
-        else:
-            self._chunked_run()
-
-    def _linear_run(self):
-        """Runs the engine without jumps and chunking."""
         self._state = SpineEngineState.RUNNING
-        run_config = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}, "execution": {"multithread": {}}}
+        run_config = {
+            "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},
+            "execution": {"multithread": {"config": {}}},
+        }
         for event in execute_pipeline_iterator(self._pipeline, run_config=run_config):
             self._process_event(event)
         if self._state == SpineEngineState.RUNNING:
             self._state = SpineEngineState.COMPLETED
         self._queue.put(("dag_exec_finished", str(self._state)))
-
-    def _chunked_run(self):
-        """Runs the engine with jumps and chunking."""
-        self._state = SpineEngineState.RUNNING
-        run_id = "root run"
-        dagster_instance = DagsterInstance.ephemeral()
-        try:
-            dagster_instance.create_run_for_pipeline(self._pipeline, run_id=run_id)
-            run_config = {
-                "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},
-                "execution": {"multithread": {}},
-            }
-            self._run_chunks_backward(dagster_instance, run_id, run_config)
-            self._run_chunks_forward(dagster_instance, run_config)
-            if self._state == SpineEngineState.RUNNING:
-                self._state = SpineEngineState.COMPLETED
-            self._queue.put(("dag_exec_finished", str(self._state)))
-        finally:
-            dagster_instance.dispose()
-
-    def _run_chunks_backward(self, dagster_instance, run_id, run_config):
-        """Executes all backward solids.
-
-        Args:
-            dagster_instance (DagsterInstance): dagster instance
-            run_id (str): root run id
-            run_config (dict): dagster's run config
-        """
-        backward_solids = [f"{ED.BACKWARD}_{name}" for name in self._solid_names.values()]
-        for event in reexecute_pipeline_iterator(
-            self._pipeline, run_id, step_selection=backward_solids, run_config=run_config, instance=dagster_instance
-        ):
-            self._process_event(event)
-
-    def _run_chunks_forward(self, dagster_instance, run_config):
-        """Executes forward solids in chunks.
-
-        Args:
-            dagster_instance (DagsterInstance): dagster instance
-            run_config (dict): dagster's run config
-        """
-        chunk_index = 0
-        chunks_left = True
-        loop_counters = dict()
-        while chunks_left:
-            chunk = self._chunks[chunk_index]
-            run_id = next(iter(dagster_instance.get_runs())).run_id
-            forward_solids = [f"{ED.FORWARD}_{self._solid_names[name]}" for name in chunk.items]
-            for event in reexecute_pipeline_iterator(
-                self._pipeline, run_id, step_selection=forward_solids, run_config=run_config, instance=dagster_instance
-            ):
-                self._process_event(event)
-            if self._state in (SpineEngineState.FAILED, SpineEngineState.USER_STOPPED):
-                break
-            if chunk.jump is None:
-                chunk_index += 1
-            else:
-                loop_counter = loop_counters.get(chunk_index, 0)
-                loop_counter += 1
-                loop_counters[chunk_index] = loop_counter
-                chunk.jump.receive_resources_from_source(self._forward_resources.get(chunk.jump.source, []))
-                chunk.jump.receive_resources_from_destination(self._backward_resources.get(chunk.jump.destination, []))
-                logger = QueueLogger(self._queue, chunk.jump.name, None, dict())
-                if chunk.jump.is_condition_true(loop_counter, logger):
-                    for i, other_chunk in enumerate(self._chunks[: chunk_index + 1]):
-                        if chunk.jump.destination in other_chunk.items:
-                            chunk_index = i
-                            break
-                else:
-                    loop_counters[chunk_index] = 0
-                    chunk_index += 1
-            chunks_left = len(self._chunks) != chunk_index
 
     def _process_event(self, event):
         """
@@ -440,10 +363,10 @@ class SpineEngine:
 
     def _make_pipeline(self):
         """
-        Returns a PipelineDefinition for executing this engine.
+        Returns a _LoopPipelineDefinition for executing this engine.
 
         Returns:
-            PipelineDefinition
+            _LoopPipelineDefinition
         """
         solid_defs = [
             make_solid_def(item_name)
@@ -457,9 +380,28 @@ class SpineEngine:
                 resource_defs={"io_manager": shared_memory_io_manager},
             )
         ]
-        return PipelineDefinition(
-            name="pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs
+        loops = self._make_loops()
+        return _LoopPipelineDefinition(
+            name="pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs, loops=loops
         )
+
+    def _make_loops(self):
+        """Returns a dictionary mapping Jump objects to a set of solid names corresponding to items within the loop.
+
+        Returns:
+            dict
+        """
+        loops = {}
+        for jump in self._jumps:
+            src, dst = jump.source, jump.destination
+            item_names = {dst, src}
+            for path in nx.all_simple_paths(self._dag, dst, src):
+                item_names.update(path)
+            solid_names = {f"{ED.FORWARD}_{self._solid_names[n]}" for n in item_names}
+            jump.source = f"{ED.FORWARD}_{self._solid_names[src]}"
+            jump.destination = f"{ED.BACKWARD}_{self._solid_names[dst]}"
+            loops[jump] = solid_names
+        return loops
 
     def _make_backward_solid_def(self, item_name):
         """Returns a SolidDefinition for executing the given item in the backward sweep.
@@ -474,7 +416,7 @@ class SpineEngine:
                 raise Failure()
             context.log.info(f"Item Name: {item_name}")
             item = self._make_item(item_name, ED.BACKWARD)
-            self._backward_resources[item_name] = resources = item.output_resources(ED.BACKWARD)
+            resources = item.output_resources(ED.BACKWARD)
             yield Output(value=resources, output_name=f"{ED.BACKWARD}_output")
 
         input_defs = []
@@ -512,7 +454,6 @@ class SpineEngine:
             output_resource_stacks, item_finish_state = self._execute_item(
                 context, item_name, forward_resource_stacks, backward_resources
             )
-            self._forward_resources[item_name] = [r for stack in output_resource_stacks for r in stack]
             yield AssetMaterialization(asset_key=str(item_finish_state))
             yield Output(value=output_resource_stacks, output_name=f"{ED.FORWARD}_output")
 
