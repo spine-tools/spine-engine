@@ -343,11 +343,10 @@ class Jump(ConnectionBase):
         self.condition = condition
         self.resources = set()
         self.cmd_line_args = list(cmd_line_args)
-        self._queue = mp.Queue()
+        self._logger = None
 
-    def iterate_log(self):
-        while not self._queue.empty():
-            yield self._queue.get()
+    def make_logger(self, queue):
+        self._logger = QueueLogger(queue, self.name, None, dict())
 
     def update_cmd_line_args(self, cmd_line_args):
         self.cmd_line_args = cmd_line_args
@@ -370,9 +369,8 @@ class Jump(ConnectionBase):
         if not self.condition.strip():
             return False
         with ExitStack() as stack:
-            logger = QueueLogger(self._queue, self.name, None, dict())
             labelled_args = labelled_resource_args(self.resources, stack)
-            expanded_args = expand_cmd_line_args(self.cmd_line_args, labelled_args, logger)
+            expanded_args = expand_cmd_line_args(self.cmd_line_args, labelled_args, self._logger)
             expanded_args.append(str(jump_counter))
             with tempfile.TemporaryFile("w+", encoding="utf-8") as script:
                 script.write(self.condition)
@@ -382,11 +380,9 @@ class Jump(ConnectionBase):
                     [python, "-", *expanded_args], encoding="utf-8", stdin=script, capture_output=True
                 )
                 if result.stdout:
-                    # logger.msg_proc.emit(result.stdout)
-                    print(result.stdout)
+                    self._logger.msg_proc.emit(result.stdout)
                 if result.stderr:
-                    print(result.stderr)
-                    # logger.msg_proc_error.emit(result.stderr)
+                    self._logger.msg_proc_error.emit(result.stderr)
                 return result.returncode == 0
 
     @classmethod

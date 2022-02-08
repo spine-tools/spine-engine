@@ -200,8 +200,6 @@ class MultithreadExecutor(Executor):
                             else:
                                 unfinished_jumps.remove(jump)
                                 del loop_iteration_counters[jump]
-                            for msg in jump.iterate_log():
-                                print(msg)
 
                         except ThreadCrashException:
                             serializable_error = serializable_error_info_from_exc_info(sys.exc_info())

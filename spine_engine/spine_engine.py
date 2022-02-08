@@ -172,9 +172,10 @@ class SpineEngine:
         _validate_dag(self._dag)
         if jumps is None:
             jumps = []
-
         self._jumps = list(map(Jump.from_dict, jumps))
         validate_jumps(self._jumps, self._dag)
+        for jump in self._jumps:
+            jump.make_logger(self._queue)
         self._back_injectors = {
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }

@@ -307,8 +307,7 @@ def expand_cmd_line_args(args, label_to_arg, logger):
             continue
         expanded = label_to_arg.get(str(arg))
         if expanded is None:
-            # logger.msg_warning.emit(f"No resources matching argument '{arg}'.")
-            print(f"No resources matching argument '{arg}'.")
+            logger.msg_warning.emit(f"No resources matching argument '{arg}'.")
             continue
         if expanded:
             expanded_args.append(expanded)
