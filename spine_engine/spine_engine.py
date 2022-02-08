@@ -161,7 +161,6 @@ class SpineEngine:
             specifications, project_item_loader, items_module_name
         )
         self._solid_names = {item_name: str(i) for i, item_name in enumerate(items)}
-        self._solid_names = {item_name: item_name.replace(" ", "_") for i, item_name in enumerate(items)}  # FIXME
         self._item_names = {solid_name: item_name for item_name, solid_name in self._solid_names.items()}
         if execution_permits is None:
             execution_permits = {}
