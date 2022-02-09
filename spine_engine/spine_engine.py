@@ -115,7 +115,6 @@ class SpineEngine:
         settings=None,
         project_dir=None,
         execution_permits=None,
-        node_successors=None,
         debug=False,
     ):
         """
@@ -129,8 +128,6 @@ class SpineEngine:
             project_dir (str): Path to project directory.
             execution_permits (dict(str,bool)): A mapping from item name to a boolean value, False indicating that
                 the item is not executed, only its resources are collected.
-            node_successors (dict(str,list(str))): A mapping from item name to list of successor item names,
-                dictating the dependencies.
             debug (bool): Whether debug mode is active or not.
 
         Raises:
@@ -146,9 +143,12 @@ class SpineEngine:
         self._connections = list(map(Connection.from_dict, connections))
         self._connections_by_source = dict()
         self._connections_by_destination = dict()
+        node_successors = {item_name: list() for item_name in self._items}
         for connection in self._connections:
-            self._connections_by_source.setdefault(connection.source, list()).append(connection)
-            self._connections_by_destination.setdefault(connection.destination, list()).append(connection)
+            source, destination = connection.source, connection.destination
+            self._connections_by_source.setdefault(source, list()).append(connection)
+            self._connections_by_destination.setdefault(destination, list()).append(connection)
+            node_successors[source].append(destination)
         self._settings = AppSettings(settings if settings is not None else {})
         _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
         enable_persistent_process_creation()
@@ -165,8 +165,6 @@ class SpineEngine:
         if execution_permits is None:
             execution_permits = {}
         self._execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
-        if node_successors is None:
-            node_successors = {}
         self._dag = make_dag(node_successors)
         _validate_dag(self._dag)
         if jumps is None:
