@@ -148,7 +148,9 @@ class SpineEngine:
             source, destination = connection.source, connection.destination
             self._connections_by_source.setdefault(source, list()).append(connection)
             self._connections_by_destination.setdefault(destination, list()).append(connection)
-            node_successors[source].append(destination)
+            sucessors = node_successors.get(source)
+            if sucessors is not None:
+                sucessors.append(destination)
         self._settings = AppSettings(settings if settings is not None else {})
         _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
         enable_persistent_process_creation()
