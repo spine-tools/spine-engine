@@ -17,7 +17,6 @@ Provides connection classes for linking project items.
 import os
 import subprocess
 import tempfile
-import multiprocessing as mp
 from contextlib import ExitStack
 from datapackage import Package
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
@@ -162,6 +161,10 @@ class Connection(ConnectionBase):
     def use_datapackage(self):
         return self.options.get("use_datapackage", False)
 
+    @property
+    def use_memory_db(self):
+        return self.options.get("use_memory_db", False)
+
     def id_to_name(self, id_, filter_type):
         """Map from scenario/tool database id to name"""
         return self._id_to_name_cache[filter_type][id_]
@@ -237,12 +240,23 @@ class Connection(ConnectionBase):
         for id_, online_ in online.items():
             current_ids[id_] = online_
 
-    def convert_resources(self, resources, override_provider_name=None):
+    def convert_backward_resources(self, resources):
+        """Called when advertising resources through this connection *in the BACKWARD direction*.
+        Takes the initial list of resources advertised by the destination item and returns a new list,
+        which is the one finally advertised.
+
+        Args:
+            resources (list of ProjectItemResource): Resources to convert
+
+        Returns:
+            list of ProjectItemResource
+        """
+        return self._apply_use_memory_db(resources)
+
+    def convert_forward_resources(self, resources):
         """Called when advertising resources through this connection *in the FORWARD direction*.
         Takes the initial list of resources advertised by the source item and returns a new list,
         which is the one finally advertised.
-
-        At the moment it only packs CSVs into datapackage (and again, it's only used in the FORWARD direction).
 
         Args:
             resources (list of ProjectItemResource): Resources to convert
@@ -251,6 +265,19 @@ class Connection(ConnectionBase):
         Returns:
             list of ProjectItemResource
         """
+        return self._apply_use_memory_db(self._apply_use_datapackage(resources))
+
+    def _apply_use_memory_db(self, resources):
+        if not self.use_memory_db:
+            return resources
+        final_resources = []
+        for r in resources:
+            if r.type_ == "database":
+                r = r.clone(additional_metadata={"memory": True})
+            final_resources.append(r)
+        return final_resources
+
+    def _apply_use_datapackage(self, resources):
         if not self.use_datapackage:
             return resources
         # Split CSVs from the rest of resources
@@ -270,7 +297,7 @@ class Connection(ConnectionBase):
             package.add_resource({"path": os.path.relpath(path, base_path)})
         package_path = os.path.join(base_path, "datapackage.json")
         package.save(package_path)
-        provider = self.source if override_provider_name is None else override_provider_name
+        provider = resources[0].provider_name
         package_resource = file_resource(provider, package_path, label=f"datapackage@{provider}")
         final_resources.append(package_resource)
         return final_resources

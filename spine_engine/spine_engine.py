@@ -594,6 +594,7 @@ class SpineEngine:
             self._expand_resource_stack(resource, resource_filter_stacks[(resource.provider_name, resource.label)])
             for resource in filterable_resources
         )
+        backward_resources = self._convert_backward_resources(item_name, backward_resources)
         for resources_or_lists in product(*non_filterable_resources.values(), *forward_resource_stacks_iterator):
             filtered_forward_resources = list()
             for item in resources_or_lists:
@@ -676,8 +677,30 @@ class SpineEngine:
             filter_configs_list.append(filter_configs)
         return list(product(*filter_configs_list))
 
+    def _convert_backward_resources(self, item_name, resources):
+        """Converts resources as they're being passed backwards to given item.
+        The conversion is dictated by the connection the resources traverse in order to reach the item.
+
+        Args:
+            item_name (str): receiving item's name
+            resources (Iterable of ProjectItemResource): resources to convert
+
+        Returns:
+            list of ProjectItemResource: converted resources
+        """
+        connections = self._connections_by_source.get(item_name, [])
+        resources_by_provider = {}
+        for r in resources:
+            resources_by_provider.setdefault(r.provider_name, list()).append(r)
+        for c in connections:
+            resources_from_destination = resources_by_provider.get(c.destination)
+            if resources_from_destination is None:
+                continue
+            resources_by_provider[c.destination] = c.convert_backward_resources(resources_from_destination)
+        return [r for resources in resources_by_provider.values() for r in resources]
+
     def _convert_forward_resources(self, item_name, resources):
-        """Converts resources as they're being forwarded to given item.
+        """Converts resources as they're being passed forwards to given item.
         The conversion is dictated by the connection the resources traverse in order to reach the item.
 
         Args:
@@ -695,7 +718,7 @@ class SpineEngine:
             resources_from_source = resources_by_provider.get(c.source)
             if resources_from_source is None:
                 continue
-            resources_by_provider[c.source] = c.convert_resources(resources_from_source)
+            resources_by_provider[c.source] = c.convert_forward_resources(resources_from_source)
         return [r for resources in resources_by_provider.values() for r in resources]
 
     def _make_dependencies(self):

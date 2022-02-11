@@ -61,7 +61,7 @@ class ProjectItemResource:
     @contextmanager
     def open(self):
         if self.type_ == "database":
-            with closing_spine_db_server(self.url) as server_url:
+            with closing_spine_db_server(self.url, memory=self.metadata.get("memory", False)) as server_url:
                 yield server_url
         else:
             yield self.path if self.hasfilepath else ""
