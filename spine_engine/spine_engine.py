@@ -801,13 +801,21 @@ def validate_jumps(jumps, dag):
         jumps (list of Jump): jumps
         dag (DiGraph): jumps' DAG
     """
-    jump_paths = dict()
+    items_by_jump = {
+        jump: {item for path in nx.all_simple_paths(dag, jump.destination, jump.source) for item in path}
+        for jump in jumps
+    }
     for jump in jumps:
         for other in jumps:
             if other is jump:
                 continue
-            if other.source == jump.source and other.destination == jump.destination:
-                raise EngineInitFailed("Loops with same source and destination not supported.")
+            if other.source == jump.source:
+                raise EngineInitFailed("Loops with same source not supported.")
+            jump_items = items_by_jump[jump]
+            other_items = items_by_jump[other]
+            intersection = jump_items & other_items
+            if intersection not in ({}, jump_items, other_items):
+                raise EngineInitFailed("Partially overlapping loops not supported.")
         if jump.source not in dag.nodes:
             raise EngineInitFailed(f"Loop source '{jump.source}' not found in DAG")
         if jump.source == jump.destination:
@@ -816,18 +824,6 @@ def validate_jumps(jumps, dag):
             raise EngineInitFailed("Cannot loop in forward direction.")
         if not nx.has_path(nx.reverse_view(dag), jump.source, jump.destination):
             raise EngineInitFailed("Cannot loop between DAG branches.")
-        source_overlapping_jumps = set()
-        destination_overlapping_jumps = set()
-        for id_, path in jump_paths.items():
-            if jump.source in path:
-                source_overlapping_jumps.add(id_)
-            if jump.destination in path:
-                destination_overlapping_jumps.add(id_)
-        if source_overlapping_jumps != destination_overlapping_jumps:
-            raise EngineInitFailed("Partially overlapping loops not supported.")
-        jump_paths[len(jump_paths)] = {
-            item for path in nx.all_simple_paths(dag, jump.destination, jump.source) for item in path
-        }
 
 
 def _set_resource_limits(settings, lock):
