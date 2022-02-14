@@ -78,6 +78,8 @@ function start_server(host, port)
 				write(sock, response * "\n")
 				flush(sock)
 			catch
+			finally
+				close(sock)
 			end
 		end
 	end
