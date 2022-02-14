@@ -132,6 +132,17 @@ class Connection(ConnectionBase):
         self.options = options if options is not None else dict()
         self._resources = set()
         self._id_to_name_cache = dict()
+        self._source_visited = False
+
+    def visit_source(self):
+        self._source_visited = True
+
+    def visit_destination(self):
+        if not self._source_visited:
+            # Can happen in loop execution
+            return
+        self._source_visited = False
+        self.emit_flash()
 
     def __eq__(self, other):
         if not isinstance(other, Connection):

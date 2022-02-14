@@ -443,6 +443,8 @@ class SpineEngine:
                 context.log.error(f"compute_fn() FAILURE with item: {item_name} stopped by the user")
                 raise Failure()
             context.log.info(f"Item Name: {item_name}")
+            for conn in self._connections_by_destination.get(item_name, []):
+                conn.visit_destination()
             # Split inputs into forward and backward resources based on prefix
             forward_resource_stacks = []
             backward_resources = []
@@ -456,6 +458,8 @@ class SpineEngine:
             )
             yield AssetMaterialization(asset_key=str(item_finish_state))
             yield Output(value=output_resource_stacks, output_name=f"{ED.FORWARD}_output")
+            for conn in self._connections_by_source.get(item_name, []):
+                conn.visit_source()
 
         input_defs = [
             InputDefinition(name=f"{ED.FORWARD}_input_from_{inj}")
@@ -715,7 +719,6 @@ class SpineEngine:
         for r in resources:
             resources_by_provider.setdefault(r.provider_name, list()).append(r)
         for c in connections:
-            c.emit_flash()
             resources_from_source = resources_by_provider.get(c.source)
             if resources_from_source is None:
                 continue
