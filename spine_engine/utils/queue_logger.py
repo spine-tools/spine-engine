@@ -47,6 +47,15 @@ class _Message:
         )
 
 
+class _Flash:
+    def __init__(self, queue, item_name):
+        self._queue = queue
+        self._item_name = item_name
+
+    def emit(self):
+        self._queue.put(("flash", {"item_name": self._item_name}))
+
+
 class _Prompt:
     def __init__(self, queue, item_name, prompt_queue, answered_prompts):
         self._queue = queue
@@ -106,6 +115,7 @@ class QueueLogger:
         self._silent = silent
         message = _Message if not silent else SuppressedMessage
         execution_message = _ExecutionMessage if not silent else SuppressedMessage
+        self.flash = _Flash(queue, item_name)
         self.msg = message(queue, "event_msg", "msg", item_name)
         self.msg_success = message(queue, "event_msg", "msg_success", item_name)
         self.msg_warning = message(queue, "event_msg", "msg_warning", item_name)

@@ -47,6 +47,7 @@ class ConnectionBase:
         self._source_position = source_position
         self.destination = destination_name
         self._destination_position = destination_position
+        self._logger = None
 
     def __eq__(self, other):
         if not isinstance(other, ConnectionBase):
@@ -102,6 +103,12 @@ class ConnectionBase:
 
     def receive_resources_from_destination(self, resources):
         pass
+
+    def make_logger(self, queue):
+        self._logger = QueueLogger(queue, self.name, None, dict())
+
+    def emit_flash(self):
+        self._logger.flash.emit()
 
 
 class Connection(ConnectionBase):
@@ -370,10 +377,6 @@ class Jump(ConnectionBase):
         self.condition = condition
         self.resources = set()
         self.cmd_line_args = list(cmd_line_args)
-        self._logger = None
-
-    def make_logger(self, queue):
-        self._logger = QueueLogger(queue, self.name, None, dict())
 
     def update_cmd_line_args(self, cmd_line_args):
         self.cmd_line_args = cmd_line_args
@@ -410,7 +413,10 @@ class Jump(ConnectionBase):
                     self._logger.msg_proc.emit(result.stdout)
                 if result.stderr:
                     self._logger.msg_proc_error.emit(result.stderr)
-                return result.returncode == 0
+                iterate = result.returncode == 0
+                if iterate:
+                    self.emit_flash()
+                return iterate
 
     @classmethod
     def from_dict(cls, jump_dict, **kwargs):
