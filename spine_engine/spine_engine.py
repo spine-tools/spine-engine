@@ -805,29 +805,63 @@ def validate_jumps(jumps, dag):
         jumps (list of Jump): jumps
         dag (DiGraph): jumps' DAG
     """
-    items_by_jump = {
-        jump: {item for path in nx.all_simple_paths(dag, jump.destination, jump.source) for item in path}
-        for jump in jumps
-    }
+    items_by_jump = _get_items_by_jump(jumps, dag)
     for jump in jumps:
-        for other in jumps:
-            if other is jump:
-                continue
-            if other.source == jump.source:
-                raise EngineInitFailed("Loops with same source not supported.")
-            jump_items = items_by_jump[jump]
-            other_items = items_by_jump[other]
-            intersection = jump_items & other_items
-            if intersection not in ({}, jump_items, other_items):
-                raise EngineInitFailed("Partially overlapping loops not supported.")
-        if jump.source not in dag.nodes:
-            raise EngineInitFailed(f"Loop source '{jump.source}' not found in DAG")
-        if jump.source == jump.destination:
+        validate_single_jump(jump, jumps, dag, items_by_jump)
+
+
+def validate_single_jump(jump, jumps, dag, items_by_jump=None):
+    """Raises an exception in case one jump is not valid.
+
+    Args:
+        jump (Jump): the jump to check
+        jumps (list of Jump): all jumps in dag
+        dag (DiGraph): jumps' DAG
+        items_by_jump (dict): mapping jumps to a set of items in between destination and source
+    """
+    if items_by_jump is None:
+        items_by_jump = _get_items_by_jump(jumps, dag)
+    for other in jumps:
+        if other is jump:
             continue
-        if nx.has_path(dag, jump.source, jump.destination):
-            raise EngineInitFailed("Cannot loop in forward direction.")
-        if not nx.has_path(nx.reverse_view(dag), jump.source, jump.destination):
-            raise EngineInitFailed("Cannot loop between DAG branches.")
+        if other.source == jump.source:
+            raise EngineInitFailed("{jump.name} cannot have the same source as {other.name}.")
+        jump_items = items_by_jump[jump]
+        other_items = items_by_jump[other]
+        intersection = jump_items & other_items
+        if intersection not in ({}, jump_items, other_items):
+            raise EngineInitFailed("{jump.name} cannot partially overlap {other.name}.")
+    if not dag.has_node(jump.destination):
+        raise EngineInitFailed(f"Loop destination '{jump.destination}' not found in DAG")
+    if not dag.has_node(jump.source):
+        raise EngineInitFailed(f"Loop source '{jump.source}' not found in DAG")
+    if jump.source == jump.destination:
+        return
+    if nx.has_path(dag, jump.source, jump.destination):
+        raise EngineInitFailed("Cannot loop in forward direction.")
+    if not nx.has_path(nx.reverse_view(dag), jump.source, jump.destination):
+        raise EngineInitFailed("Cannot loop between DAG branches.")
+
+
+def _get_items_by_jump(jumps, dag):
+    """Returns a dict mapping jumps to a set of items between destination and source.
+
+    Args:
+        jumps (list of Jump): all jumps in dag
+        dag (DiGraph): jumps' DAG
+
+    Returns:
+        dict
+    """
+    items_by_jump = {}
+    for jump in jumps:
+        try:
+            items_by_jump[jump] = {
+                item for path in nx.all_simple_paths(dag, jump.destination, jump.source) for item in path
+            }
+        except nx.NodeNotFound:
+            items_by_jump[jump] = set()
+    return items_by_jump
 
 
 def _set_resource_limits(settings, lock):
