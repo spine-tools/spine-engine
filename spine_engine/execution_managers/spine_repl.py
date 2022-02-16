@@ -83,7 +83,6 @@ def start_server(address):
     server_thread.start()
 
 
-def send_sentinel(host, port):
+def ping(host, port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((host, port))
-        s.sendall(b"sentinel")

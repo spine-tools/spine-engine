@@ -85,9 +85,8 @@ function start_server(host, port)
 	end
 end
 
-function send_sentinel(host, port)
+function ping(host, port)
 	s = connect(host, port)
-    write(s, "sentinel")
     close(s)
 end	
 

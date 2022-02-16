@@ -94,9 +94,8 @@ class PersistentManagerBase:
         raise NotImplementedError()
 
     @staticmethod
-    def _sentinel_command(host, port):
-        """Returns a command in the underlying language, that sends a sentinel to a socket listening on given
-        host/port.
+    def _ping_command(host, port):
+        """Returns a command in the underlying language, that connects to a socket listening on given host/port.
 
         Used to synchronize with the persistent process.
 
@@ -150,9 +149,6 @@ class PersistentManagerBase:
         Yields:
             dict: message
         """
-        if not self.is_persistent_alive():
-            yield {"type": "process_dead"}
-            return
         t = threading.Thread(target=self._issue_command_and_wait_for_idle, args=(cmd, add_history))
         t.start()
         while True:
@@ -213,7 +209,7 @@ class PersistentManagerBase:
     def _wait(self):
         """Waits for the persistent process to become idle.
 
-        This is implemented by writing the sentinel to stdin and waiting for the _SENTINEL to come out of stdout.
+        This is implemented by pinging a server and waiting for the server to receive the ping.
 
         Returns:
             bool
@@ -222,31 +218,36 @@ class PersistentManagerBase:
         with socketserver.TCPServer((host, 0), None) as s:
             port = s.server_address[1]
         queue = Queue()
-        thread = threading.Thread(target=self._listen_and_enqueue, args=(host, port, queue))
+        thread = threading.Thread(target=self._wait_ping, args=(host, port, queue))
         thread.start()
         queue.get()  # This blocks until the server is listening
-        sentinel = self._sentinel_command(host, port)
-        if not self._issue_command(sentinel):
+        ping = self._ping_command(host, port)
+        if not self._issue_command(ping):
             thread.join()
             return False
-        queue.get()
+        queue.get()  # This blocks until the server is done
         thread.join()
+        if not self.is_persistent_alive():
+            self._msg_queue.put({"type": "stdout", "data": "Kernel died (×_×)"})
+            return self._persistent.returncode == 0
         return True
 
-    @staticmethod
-    def _listen_and_enqueue(host, port, queue):
-        """Listens on the server and enqueues all data received."""
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind((host, port))
-            s.listen()
+    def _wait_ping(self, host, port, queue, timeout=1):
+        """Listens on a server until a connection is made (ping) or the underlying process is found dead.
+        Puts None in the queue when the server starts listening and when it's done."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+            server.settimeout(timeout)
+            server.bind((host, port))
+            server.listen()
             queue.put(None)
-            conn, _ = s.accept()
-            with conn:
-                while True:
-                    data = conn.recv(1024)
-                    queue.put(data.decode("UTF8", "replace"))
-                    if not data:
+            while True:
+                try:
+                    server.accept()
+                    break
+                except socket.timeout:
+                    if not self.is_persistent_alive():
                         break
+            queue.put(None)
 
     def _communicate(self, request, arg, receive=True):
         """
@@ -332,7 +333,7 @@ class PersistentManagerBase:
         Returns:
             bool
         """
-        return self._persistent is not None and self._persistent.returncode is None
+        return self._persistent is not None and self._persistent.poll() is None
 
     def kill_process(self):
         if self._persistent is None:
@@ -369,8 +370,8 @@ class JuliaPersistentManager(PersistentManagerBase):
         return ["-i", "-e", f'include("{path}"); SpineREPL.start_server("{host}", {port})']
 
     @staticmethod
-    def _sentinel_command(host, port):
-        return f'SpineREPL.send_sentinel("{host}", {port})'
+    def _ping_command(host, port):
+        return f'SpineREPL.ping("{host}", {port})'
 
 
 class PythonPersistentManager(PersistentManagerBase):
@@ -391,8 +392,8 @@ class PythonPersistentManager(PersistentManagerBase):
         ]
 
     @staticmethod
-    def _sentinel_command(host, port):
-        return f'spine_repl.send_sentinel("{host}", {port})'
+    def _ping_command(host, port):
+        return f'spine_repl.ping("{host}", {port})'
 
 
 class _PersistentManagerFactory(metaclass=Singleton):
@@ -642,6 +643,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         """See base class."""
         if self._persistent_manager is None:
             return -1
+        self._persistent_manager.set_running_until_completion(True)
         try:
             msg = dict(type="execution_started", args=" ".join(self._args))
             self._logger.msg_persistent_execution.emit(msg)
@@ -653,6 +655,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
                         self._logger.msg_persistent_execution.emit(msg)
                         if msg["type"] in ("stdout", "stderr"):
                             failed = self._fail_on_stderror and msg["type"] == "stderr"
+                self.killed = not self._persistent_manager.is_persistent_alive()
                 if not self._persistent_manager.command_successful:
                     return -1
             return -1 if failed else 0
