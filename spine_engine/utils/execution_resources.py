@@ -56,8 +56,7 @@ class ResourceSemaphore:
             if self._process_count < self._max_processes:
                 self._process_count += 1
                 return True
-            else:
-                return False
+            return False
 
     def release(self):
         """Decrements process count and notifies other threads."""
