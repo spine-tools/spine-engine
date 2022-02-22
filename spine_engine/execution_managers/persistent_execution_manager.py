@@ -482,7 +482,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         """
         pm = self.persistent_managers.get(key)
         if pm is None:
-            return
+            return ()
         for msg in pm.issue_command(cmd, add_history=True):
             yield msg
 

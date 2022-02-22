@@ -86,10 +86,10 @@ class MultithreadExecutor(Executor):
                 iterating = {}
                 iterating_active = set()
                 solid_names_by_jump = pipeline_context.pipeline.get_definition().loops
-                jumps_by_source = {}
-                jumps_by_solid_name = {}
+                jump_by_source = {}
+                jump_by_solid_name = {}
                 for jump, solid_names in solid_names_by_jump.items():
-                    jumps_by_source[jump.source] = jump
+                    jump_by_source[jump.source] = jump
                     non_nested_solid_names = set(solid_names)
                     for other_jump, other_solid_names in solid_names_by_jump.items():
                         if jump is other_jump:
@@ -98,7 +98,7 @@ class MultithreadExecutor(Executor):
                             continue
                         non_nested_solid_names -= other_solid_names
                     for solid_name in non_nested_solid_names:
-                        jumps_by_solid_name[solid_name] = jump
+                        jump_by_solid_name[solid_name] = jump
                 unfinished_jumps = set(solid_names_by_jump)
                 loop_iteration_counters = {}
                 steps_by_key = {}
@@ -123,16 +123,14 @@ class MultithreadExecutor(Executor):
                         executable_steps = []
                         for step in candidate_steps:
                             # Check if the step depends on any jumps that don't contain it
-                            problematic_jumps = (
+                            jumps = (
                                 jump
                                 for jump in unfinished_jumps
                                 if step.solid_name not in solid_names_by_jump.get(jump, ())
                             )
-                            problematic_solid_names = {
-                                item for jump in problematic_jumps for item in solid_names_by_jump[jump]
-                            }
+                            solid_names = {item for jump in jumps for item in solid_names_by_jump[jump]}
                             problematic_keys = {
-                                key for key, step in steps_by_key.items() if step.solid_name in problematic_solid_names
+                                key for key, step in steps_by_key.items() if step.solid_name in solid_names
                             }
                             dependency_keys = step.get_execution_dependency_keys()
                             if dependency_keys & problematic_keys:
@@ -173,33 +171,45 @@ class MultithreadExecutor(Executor):
                                 else:
                                     raise
                             # Handle loops
-                            if not event_or_none.is_step_success:
-                                continue
-                            iterating_active.discard(key)
-                            step = steps_by_key[key]
-                            jump = jumps_by_source.get(step.solid_name)
-                            if jump is None:
-                                continue
-                            forward_resources = self._forward_resources.get(jump.source, [])
-                            backward_resources = self._backward_resources.get(jump.destination, [])
-                            jump.receive_resources_from_source(forward_resources)
-                            jump.receive_resources_from_destination(backward_resources)
-                            iteration_counter = loop_iteration_counters.setdefault(jump, 1)
-                            if jump.is_condition_true(iteration_counter):
-                                # Put all jump steps in the iterating bucket
-                                for k, s in steps_by_key.items():
-                                    if s.solid_name in solid_names_by_jump[jump]:
-                                        iterating[k] = s
-                                # Mark all nested jumps unfinished again
-                                for solid_name in solid_names_by_jump[jump]:
-                                    nested_jump = jumps_by_solid_name.get(solid_name)
-                                    if nested_jump is not None:
-                                        unfinished_jumps.add(nested_jump)
+                            if event_or_none.is_step_failure:
+                                # Mark failed loops as finished
+                                iterating_active.discard(key)
+                                step = steps_by_key[key]
+                                failed_jump = jump_by_solid_name.get(step.solid_name)
+                                if failed_jump is None:
+                                    continue
+                                failed_solid_names = solid_names_by_jump[failed_jump]
+                                for jump, solid_names in solid_names_by_jump.items():
+                                    if solid_names & failed_solid_names:
+                                        unfinished_jumps.discard(jump)
+                                        loop_iteration_counters.pop(jump, None)
+                            elif event_or_none.is_step_success:
+                                # Process loop condition
+                                iterating_active.discard(key)
+                                step = steps_by_key[key]
+                                jump = jump_by_source.get(step.solid_name)
+                                if jump is None:
+                                    continue
+                                forward_resources = self._forward_resources.get(jump.source, [])
+                                backward_resources = self._backward_resources.get(jump.destination, [])
+                                jump.receive_resources_from_source(forward_resources)
+                                jump.receive_resources_from_destination(backward_resources)
+                                iteration_counter = loop_iteration_counters.setdefault(jump, 1)
+                                if jump.is_condition_true(iteration_counter):
+                                    # Put all jump steps in the iterating bucket
+                                    for k, s in steps_by_key.items():
+                                        if s.solid_name in solid_names_by_jump[jump]:
+                                            iterating[k] = s
+                                    # Mark all nested jumps unfinished again
+                                    for solid_name in solid_names_by_jump[jump]:
+                                        nested_jump = jump_by_solid_name.get(solid_name)
+                                        if nested_jump is not None:
+                                            unfinished_jumps.add(nested_jump)
 
-                                loop_iteration_counters[jump] += 1
-                            else:
-                                unfinished_jumps.remove(jump)
-                                del loop_iteration_counters[jump]
+                                    loop_iteration_counters[jump] += 1
+                                else:
+                                    unfinished_jumps.remove(jump)
+                                    del loop_iteration_counters[jump]
 
                         except ThreadCrashException:
                             serializable_error = serializable_error_info_from_exc_info(sys.exc_info())
