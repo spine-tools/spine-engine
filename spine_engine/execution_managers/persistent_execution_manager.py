@@ -367,7 +367,7 @@ class JuliaPersistentManager(PersistentManagerBase):
         """See base class."""
         path = os.path.join(os.path.dirname(__file__), "spine_repl.jl").replace(os.sep, "/")
         host, port = self._server_address
-        return ["-i", "-e", f'include("{path}"); SpineREPL.start_server("{host}", {port})']
+        return ["-i", "-e", f'include("{path}"); SpineREPL.start_server("{host}", {port})', "--color=yes"]
 
     @staticmethod
     def _ping_command(host, port):
