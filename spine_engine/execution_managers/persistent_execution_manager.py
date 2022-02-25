@@ -121,13 +121,13 @@ class PersistentManagerBase:
     def _log_stdout(self):
         """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
         for line in iter(self._persistent.stdout.readline, b''):
-            data = line.decode("UTF8", "replace").strip()
+            data = line.decode("UTF8", "replace").rstrip()
             self._msg_queue.put(dict(type="stdout", data=data))
 
     def _log_stderr(self):
         """Puts stderr from the process into the queue (it will be consumed by issue_command())."""
         for line in iter(self._persistent.stderr.readline, b''):
-            data = line.decode("UTF8", "replace").strip()
+            data = line.decode("UTF8", "replace").rstrip()
             self._msg_queue.put(dict(type="stderr", data=data))
 
     def _is_complete(self, cmd):
@@ -367,7 +367,13 @@ class JuliaPersistentManager(PersistentManagerBase):
         """See base class."""
         path = os.path.join(os.path.dirname(__file__), "spine_repl.jl").replace(os.sep, "/")
         host, port = self._server_address
-        return ["-i", "-e", f'include("{path}"); SpineREPL.start_server("{host}", {port})', "--color=yes"]
+        return [
+            "-i",
+            "-e",
+            f'include("{path}"); SpineREPL.start_server("{host}", {port})',
+            "--color=yes",
+            "--banner=yes",
+        ]
 
     @staticmethod
     def _ping_command(host, port):
@@ -647,7 +653,8 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         try:
             msg = dict(type="execution_started", args=" ".join(self._args))
             self._logger.msg_persistent_execution.emit(msg)
-            self._logger.msg_persistent_execution.emit(dict(type="stdin", data=self._alias.strip()))
+            fmt_alias = "\x1b[3m\x1b[37m" + "$ " + self._alias.rstrip() + "\x1b[39m\x1b[23m"
+            self._logger.msg_persistent_execution.emit(dict(type="stdout", data=fmt_alias))
             failed = False
             for cmd in self._commands:
                 for msg in self._persistent_manager.issue_command(cmd):
