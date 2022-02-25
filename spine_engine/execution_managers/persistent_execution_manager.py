@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from itertools import chain
 from subprocess import Popen, PIPE
 from multiprocessing import Process, Lock
-from queue import Queue
+from queue import Queue, Empty
 from ..utils.helpers import Singleton
 from ..utils.execution_resources import persistent_process_semaphore
 from .execution_manager_base import ExecutionManagerBase
@@ -59,6 +59,7 @@ class PersistentManagerBase:
         self._lock = Lock()
         self._persistent = None
         self._start_persistent()
+        self._wait()
 
     @property
     def language(self):
@@ -133,6 +134,13 @@ class PersistentManagerBase:
     def _is_complete(self, cmd):
         result = self._communicate("is_complete", cmd)
         return result.strip() == "true"
+
+    def drain_queue(self):
+        while True:
+            try:
+                yield self._msg_queue.get(timeout=0.02)
+            except Empty:
+                break
 
     def issue_command(self, cmd, add_history=False):
         """Issues cmd to the persistent process and yields stdout and stderr messages.
@@ -309,6 +317,8 @@ class PersistentManagerBase:
         self._persistent.stderr = os.devnull
         self.set_running_until_completion(False)
         self._start_persistent()
+        self._wait()
+        yield from self.drain_queue()
 
     def interrupt_persistent(self):
         """Interrupts the persistent process."""
@@ -452,6 +462,8 @@ class _PersistentManagerFactory(metaclass=Singleton):
                 pm = self.persistent_managers[key]
             msg = dict(type="persistent_started", key=key, language=pm.language)
             logger.msg_persistent_execution.emit(msg)
+            for msg in pm.drain_queue():
+                logger.msg_persistent_execution.emit(msg)
             return pm
 
     def restart_persistent(self, key):
@@ -459,11 +471,13 @@ class _PersistentManagerFactory(metaclass=Singleton):
 
         Args:
             key (tuple): persistent identifier
+        Returns:
+            generator: stdout and stderr messages (dictionaries with two keys: type, and data)
         """
         pm = self.persistent_managers.get(key)
         if pm is None:
-            return
-        pm.restart_persistent()
+            return ()
+        yield from pm.restart_persistent()
 
     def interrupt_persistent(self, key):
         """Interrupts a persistent process.
@@ -484,7 +498,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
             cmd (str): command to issue
 
         Returns:
-            generator: stdio and stderr messages (dictionaries with two keys: type, and data)
+            generator: stdin, stdout, and stderr messages (dictionaries with two keys: type, and data)
         """
         pm = self.persistent_managers.get(key)
         if pm is None:
@@ -547,7 +561,7 @@ _persistent_manager_factory = _PersistentManagerFactory()
 
 def restart_persistent(key):
     """See _PersistentManagerFactory."""
-    _persistent_manager_factory.restart_persistent(key)
+    yield from _persistent_manager_factory.restart_persistent(key)
 
 
 def interrupt_persistent(key):
@@ -653,8 +667,8 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         try:
             msg = dict(type="execution_started", args=" ".join(self._args))
             self._logger.msg_persistent_execution.emit(msg)
-            fmt_alias = "\x1b[3m\x1b[37m" + "\n$ " + self._alias.rstrip() + "\x1b[39m\x1b[23m"
-            self._logger.msg_persistent_execution.emit(dict(type="stdout", data=fmt_alias))
+            fmt_alias = "# Running " + self._alias.rstrip()
+            self._logger.msg_persistent_execution.emit(dict(type="stdin", data=fmt_alias))
             failed = False
             for cmd in self._commands:
                 for msg in self._persistent_manager.issue_command(cmd):
