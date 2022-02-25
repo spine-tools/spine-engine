@@ -653,7 +653,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         try:
             msg = dict(type="execution_started", args=" ".join(self._args))
             self._logger.msg_persistent_execution.emit(msg)
-            fmt_alias = "\x1b[3m\x1b[37m" + "$ " + self._alias.rstrip() + "\x1b[39m\x1b[23m"
+            fmt_alias = "\x1b[3m\x1b[37m" + "\n$ " + self._alias.rstrip() + "\x1b[39m\x1b[23m"
             self._logger.msg_persistent_execution.emit(dict(type="stdout", data=fmt_alias))
             failed = False
             for cmd in self._commands:
