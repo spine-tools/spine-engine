@@ -825,12 +825,12 @@ def validate_single_jump(jump, jumps, dag, items_by_jump=None):
         if other is jump:
             continue
         if other.source == jump.source:
-            raise EngineInitFailed("{jump.name} cannot have the same source as {other.name}.")
+            raise EngineInitFailed(f"{jump.name} cannot have the same source as {other.name}.")
         jump_items = items_by_jump[jump]
         other_items = items_by_jump[other]
         intersection = jump_items & other_items
         if intersection not in ({}, jump_items, other_items):
-            raise EngineInitFailed("{jump.name} cannot partially overlap {other.name}.")
+            raise EngineInitFailed(f"{jump.name} cannot partially overlap {other.name}.")
     if not dag.has_node(jump.destination):
         raise EngineInitFailed(f"Loop destination '{jump.destination}' not found in DAG")
     if not dag.has_node(jump.source):
