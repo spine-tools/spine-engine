@@ -131,7 +131,7 @@ class PersistentManagerBase:
             data = line.decode("UTF8", "replace").rstrip()
             self._msg_queue.put(dict(type="stderr", data=data))
 
-    def _is_complete(self, cmd):
+    def is_complete(self, cmd):
         result = self._communicate("is_complete", cmd)
         return result.strip() == "true"
 
@@ -183,7 +183,7 @@ class PersistentManagerBase:
             self._msg_queue.put({"type": "stdin", "data": cmd})
             self._command_buffer.append(cmd)
             complete_cmd = self._make_complete_command()
-            is_complete = self._is_complete(complete_cmd)
+            is_complete = self.is_complete(complete_cmd)
             self.command_successful = self._issue_command(cmd, is_complete, add_history)
             if self.command_successful and is_complete:
                 self.command_successful &= self._wait()
@@ -506,6 +506,21 @@ class _PersistentManagerFactory(metaclass=Singleton):
         for msg in pm.issue_command(cmd, add_history=True):
             yield msg
 
+    def is_persistent_command_complete(self, key, cmd):
+        """Checkes whether a command is complete.
+
+        Args:
+            key (tuple): persistent identifier
+            cmd (str): command to issue
+
+        Returns:
+            bool
+        """
+        pm = self.persistent_managers.get(key)
+        if pm is None:
+            return False
+        return pm.is_complete(cmd)
+
     def get_persistent_completions(self, key, text):
         """Returns a list of completion options.
 
@@ -591,6 +606,11 @@ def disable_persistent_process_creation():
 def issue_persistent_command(key, cmd):
     """See _PersistentManagerFactory."""
     yield from _persistent_manager_factory.issue_persistent_command(key, cmd)
+
+
+def is_persistent_command_complete(key, cmd):
+    """See _PersistentManagerFactory."""
+    return _persistent_manager_factory.is_persistent_command_complete(key, cmd)
 
 
 def get_persistent_completions(key, text):
