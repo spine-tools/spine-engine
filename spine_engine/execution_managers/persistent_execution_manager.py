@@ -45,7 +45,6 @@ class PersistentManagerBase:
             args (list): the arguments to launch the persistent process
         """
         self._args = args
-        self._command_buffer = []
         self._server_address = None
         self._msg_queue = Queue()
         self.command_successful = False
@@ -95,8 +94,21 @@ class PersistentManagerBase:
         raise NotImplementedError()
 
     @staticmethod
+    def _catch_exception_command(cmd):
+        """Returns an equivalent command that also recorders if an exception is raised.
+
+        Args:
+            cmd (str)
+
+        Returns:
+            str
+        """
+        raise NotImplementedError()
+
+    @staticmethod
     def _ping_command(host, port):
-        """Returns a command in the underlying language, that connects to a socket listening on given host/port.
+        """Returns a command in the underlying language that connects to a socket listening on given host/port,
+        and sends "ok" if no exception has been recorded.
 
         Used to synchronize with the persistent process.
 
@@ -157,20 +169,16 @@ class PersistentManagerBase:
         Yields:
             dict: message
         """
+        if not self.is_complete(cmd):
+            return
         t = threading.Thread(target=self._issue_command_and_wait_for_idle, args=(cmd, add_history))
         t.start()
         while True:
             msg = self._msg_queue.get()
-            yield msg
             if msg["type"] == "command_finished":
                 break
+            yield msg
         t.join()
-
-    def _make_complete_command(self):
-        complete_cmd = os.linesep.join(self._command_buffer)
-        if len(self._command_buffer) == 1:
-            complete_cmd += os.linesep
-        return complete_cmd
 
     def _issue_command_and_wait_for_idle(self, cmd, add_history):
         """Issues command and wait for idle.
@@ -181,35 +189,28 @@ class PersistentManagerBase:
         """
         with self._lock:
             self._msg_queue.put({"type": "stdin", "data": cmd})
-            self._command_buffer.append(cmd)
-            complete_cmd = self._make_complete_command()
-            is_complete = self.is_complete(complete_cmd)
-            self.command_successful = self._issue_command(cmd, is_complete, add_history)
-            if self.command_successful and is_complete:
+            self.command_successful = self._issue_command(cmd)
+            if self.command_successful:
+                if add_history:
+                    self._communicate("add_history", cmd, receive=False)
                 self.command_successful &= self._wait()
-                self._command_buffer.clear()
-        self._msg_queue.put({"type": "command_finished", "is_complete": is_complete})
+        self._msg_queue.put({"type": "command_finished"})
 
-    def _issue_command(self, cmd, is_complete=True, add_history=False):
+    def _issue_command(self, cmd, catch_exception=True):
         """Writes command to the process's stdin and flushes.
 
         Args:
             cmd (str): Command to pass to the persistent process
-            is_complete (bool): Whether or not the command is complete
-            add_history (bool): Whether or not to add the command to history
 
         Returns:
             bool: True if command was issued successfully, False otherwise
         """
+        if catch_exception:
+            cmd = self._catch_exception_command(cmd)
         cmd += os.linesep
-        if is_complete:
-            cmd += os.linesep
         self._persistent.stdin.write(cmd.encode("UTF8"))
         try:
             self._persistent.stdin.flush()
-            if is_complete and add_history:
-                complete_cmd = self._make_complete_command()
-                self._communicate("add_history", complete_cmd, receive=False)
             return True
         except BrokenPipeError:
             return False
@@ -230,15 +231,15 @@ class PersistentManagerBase:
         thread.start()
         queue.get()  # This blocks until the server is listening
         ping = self._ping_command(host, port)
-        if not self._issue_command(ping):
+        if not self._issue_command(ping, catch_exception=False):
             thread.join()
             return False
-        queue.get()  # This blocks until the server is done
+        result = queue.get()  # This blocks until the server is done
         thread.join()
         if not self.is_persistent_alive():
             self._msg_queue.put({"type": "stdout", "data": "Kernel died (×_×)"})
             return self._persistent.returncode == 0
-        return True
+        return result == "ok"
 
     def _wait_ping(self, host, port, queue, timeout=1):
         """Listens on a server until a connection is made (ping) or the underlying process is found dead.
@@ -250,12 +251,22 @@ class PersistentManagerBase:
             queue.put(None)
             while True:
                 try:
-                    server.accept()
+                    conn, _ = server.accept()
                     break
                 except socket.timeout:
                     if not self.is_persistent_alive():
+                        queue.put("error")
+                        return
+            conn.settimeout(timeout)
+            with conn:
+                while True:
+                    try:
+                        data = conn.recv(1024)
+                    except socket.timeout:
+                        continue
+                    queue.put(data.decode("UTF8", "replace"))
+                    if not data:
                         break
-            queue.put(None)
 
     def _communicate(self, request, arg, receive=True):
         """
@@ -386,6 +397,10 @@ class JuliaPersistentManager(PersistentManagerBase):
         ]
 
     @staticmethod
+    def _catch_exception_command(cmd):
+        return f"try SpineREPL.set_exception(false); {cmd} catch; SpineREPL.set_exception(true); rethrow() end"
+
+    @staticmethod
     def _ping_command(host, port):
         return f'SpineREPL.ping("{host}", {port})'
 
@@ -406,6 +421,16 @@ class PythonPersistentManager(PersistentManagerBase):
             f"import sys; sys.ps1 = sys.ps2 = ''; sys.path.append('{path}'); "
             f"import spine_repl; spine_repl.start_server({self._server_address})",
         ]
+
+    @staticmethod
+    def _catch_exception_command(cmd):
+        lines = ["try:"]
+        lines += ["  spine_repl.set_exception(False)"]
+        lines += [f"  {cmd.rstrip()}"]
+        lines += ["except:"]
+        lines += ["  spine_repl.set_exception(True)"]
+        lines += ["  raise"]
+        return os.linesep.join(lines) + os.linesep
 
     @staticmethod
     def _ping_command(host, port):
@@ -689,17 +714,14 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             self._logger.msg_persistent_execution.emit(msg)
             fmt_alias = "# Running " + self._alias.rstrip()
             self._logger.msg_persistent_execution.emit(dict(type="stdin", data=fmt_alias))
-            failed = False
             for cmd in self._commands:
                 for msg in self._persistent_manager.issue_command(cmd):
                     if msg["type"] != "stdin":
                         self._logger.msg_persistent_execution.emit(msg)
-                        if msg["type"] in ("stdout", "stderr"):
-                            failed = self._fail_on_stderror and msg["type"] == "stderr"
                 self.killed = not self._persistent_manager.is_persistent_alive()
                 if not self._persistent_manager.command_successful:
                     return -1
-            return -1 if failed else 0
+            return 0
         finally:
             self._persistent_manager.set_running_until_completion(False)
 

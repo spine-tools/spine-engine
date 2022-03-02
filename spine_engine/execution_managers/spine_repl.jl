@@ -17,12 +17,24 @@ using REPL.REPLCompletions
 using REPL.Terminals
 using REPL.LineEdit
 
+_exception = false
+
+function set_exception(value)
+	global _exception = value
+end
+
+function ping(host, port)
+	s = connect(host, port)
+    write(s, _exception ? "error" : "ok")
+    close(s)
+end	
+
 function completions(text)
 	text = string(text)
     join(completion_text.(REPLCompletions.completions(text, length(text))[1]), " ")
 end
 
-# Create MIState to work with history. This works with julia 1.0 to 1.6
+# Create MIState to work with history. This works with julia 1.0 to 1.6 at least
 term = TerminalBuffer(IOBuffer())
 repl = LineEditREPL(term, false)
 repl.history_file = true
@@ -84,11 +96,6 @@ function start_server(host, port)
 		end
 	end
 end
-
-function ping(host, port)
-	s = connect(host, port)
-    close(s)
-end	
 
 end  # module
 

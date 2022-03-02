@@ -83,6 +83,14 @@ def start_server(address):
     server_thread.start()
 
 
+_exception = [False]
+
+
+def set_exception(value):
+    _exception[0] = value
+
+
 def ping(host, port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((host, port))
+        s.sendall(b"error" if _exception[0] else b"ok")
