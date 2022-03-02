@@ -143,9 +143,15 @@ class PersistentManagerBase:
             data = line.decode("UTF8", "replace").rstrip()
             self._msg_queue.put(dict(type="stderr", data=data))
 
-    def is_complete(self, cmd):
+    def make_complete_command(self, cmd):
+        lines = cmd.splitlines()
+        cmd = os.linesep.join(lines)
+        if len(lines) == 1:
+            cmd += os.linesep
         result = self._communicate("is_complete", cmd)
-        return result.strip() == "true"
+        if result.strip() != "true":
+            return None
+        return cmd
 
     def drain_queue(self):
         while True:
@@ -154,7 +160,7 @@ class PersistentManagerBase:
             except Empty:
                 break
 
-    def issue_command(self, cmd, add_history=False):
+    def issue_command(self, cmd, add_history=False, catch_exception=True):
         """Issues cmd to the persistent process and yields stdout and stderr messages.
 
         Each message is a dictionary with two keys:
@@ -169,9 +175,10 @@ class PersistentManagerBase:
         Yields:
             dict: message
         """
-        if not self.is_complete(cmd):
+        cmd = self.make_complete_command(cmd)
+        if cmd is None:
             return
-        t = threading.Thread(target=self._issue_command_and_wait_for_idle, args=(cmd, add_history))
+        t = threading.Thread(target=self._issue_command_and_wait_for_idle, args=(cmd, add_history, catch_exception))
         t.start()
         while True:
             msg = self._msg_queue.get()
@@ -180,7 +187,7 @@ class PersistentManagerBase:
             yield msg
         t.join()
 
-    def _issue_command_and_wait_for_idle(self, cmd, add_history):
+    def _issue_command_and_wait_for_idle(self, cmd, add_history, catch_exception):
         """Issues command and wait for idle.
 
         Args:
@@ -398,7 +405,7 @@ class JuliaPersistentManager(PersistentManagerBase):
 
     @staticmethod
     def _catch_exception_command(cmd):
-        return f"try SpineREPL.set_exception(false); {cmd} catch; SpineREPL.set_exception(true); rethrow() end"
+        return f"try SpineREPL.set_exception(false); @eval {cmd} catch; SpineREPL.set_exception(true); rethrow() end"
 
     @staticmethod
     def _ping_command(host, port):
@@ -424,12 +431,15 @@ class PythonPersistentManager(PersistentManagerBase):
 
     @staticmethod
     def _catch_exception_command(cmd):
+        cmd_lines = cmd.splitlines()
+        indent = "\t" if any(l.startswith("\t") for l in cmd_lines) else "  "
         lines = ["try:"]
-        lines += ["  spine_repl.set_exception(False)"]
-        lines += [f"  {cmd.rstrip()}"]
+        lines += [indent + "spine_repl.set_exception(False)"]
+        for l in cmd_lines:
+            lines += [indent + l]
         lines += ["except:"]
-        lines += ["  spine_repl.set_exception(True)"]
-        lines += ["  raise"]
+        lines += [indent + "spine_repl.set_exception(True)"]
+        lines += [indent + "raise"]
         return os.linesep.join(lines) + os.linesep
 
     @staticmethod
@@ -528,7 +538,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         pm = self.persistent_managers.get(key)
         if pm is None:
             return ()
-        for msg in pm.issue_command(cmd, add_history=True):
+        for msg in pm.issue_command(cmd, add_history=True, catch_exception=False):
             yield msg
 
     def is_persistent_command_complete(self, key, cmd):
@@ -544,7 +554,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         pm = self.persistent_managers.get(key)
         if pm is None:
             return False
-        return pm.is_complete(cmd)
+        return pm.make_complete_command(cmd) is not None
 
     def get_persistent_completions(self, key, text):
         """Returns a list of completion options.
