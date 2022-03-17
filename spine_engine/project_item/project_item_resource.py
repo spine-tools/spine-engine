@@ -257,6 +257,16 @@ def labelled_resource_filepaths(resources):
     return {resource.label: resource.path for resource in resources if resource.hasfilepath}
 
 
+def get_labelled_sources(resources):
+    d = {}
+    for resource in resources:
+        if resource.type_ == "database":
+            d[resource.label] = resource.url
+        elif resource.hasfilepath:
+            d[resource.label] = resource.path
+    return d
+
+
 def cmd_line_arg_from_dict(arg_dict):
     """Deserializes argument from dictionary.
 
