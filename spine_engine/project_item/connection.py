@@ -317,6 +317,7 @@ class Connection(ConnectionBase):
         package.save(package_path)
         provider = resources[0].provider_name
         package_resource = file_resource(provider, package_path, label=f"datapackage@{provider}")
+        package_resource.metadata = resources[0].metadata
         final_resources.append(package_resource)
         return final_resources
 
