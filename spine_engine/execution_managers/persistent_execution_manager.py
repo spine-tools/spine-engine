@@ -213,7 +213,7 @@ class PersistentManagerBase:
             bool: True if command was issued successfully, False otherwise
         """
         if catch_exception:
-            cmd = self._catch_exception_command(cmd)
+            cmd = self._catch_exception_command(cmd) if cmd else ""
         cmd += os.linesep
         self._persistent.stdin.write(cmd.encode("UTF8"))
         try:
