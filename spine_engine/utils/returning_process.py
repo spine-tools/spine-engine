@@ -43,6 +43,7 @@ class ReturningProcess(mp.Process):
     def run(self):
         if not self._target:
             self._queue.put((False,))
+            return
         result = self._target(*self._args, **self._kwargs)
         self._queue.put(result)
 

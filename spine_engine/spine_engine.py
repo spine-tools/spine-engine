@@ -34,8 +34,6 @@ from dagster import (
     DagsterEventType,
     default_executors,
     AssetMaterialization,
-    reexecute_pipeline_iterator,
-    DagsterInstance,
     execute_pipeline_iterator,
 )
 from spinedb_api import append_filter_config, name_from_dict
@@ -47,7 +45,6 @@ from .execution_managers.persistent_execution_manager import (
     disable_persistent_process_creation,
     enable_persistent_process_creation,
 )
-from .utils.chunk import chunkify
 from .utils.helpers import AppSettings, inverted, create_timestamp, make_dag
 from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
 from .utils.queue_logger import QueueLogger
@@ -95,6 +92,12 @@ class ItemExecutionFinishState(Enum):
         return str(self.name)
 
 
+class _LoopPipelineDefinition(PipelineDefinition):
+    def __init__(self, *args, loops=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.loops = loops if loops is not None else []
+
+
 class SpineEngine:
     """
     An engine for executing a Spine Toolbox DAG-workflow.
@@ -112,7 +115,6 @@ class SpineEngine:
         settings=None,
         project_dir=None,
         execution_permits=None,
-        node_successors=None,
         debug=False,
     ):
         """
@@ -126,7 +128,6 @@ class SpineEngine:
             project_dir (str): Path to project directory.
             execution_permits (dict(str,bool)): A mapping from item name to a boolean value, False indicating that
                 the item is not executed, only its resources are collected.
-            node_successors (dict(str,list(str))): A mapping from item name to list of successor item names, dictating the dependencies.
             debug (bool): Whether debug mode is active or not.
 
         Raises:
@@ -142,9 +143,14 @@ class SpineEngine:
         self._connections = list(map(Connection.from_dict, connections))
         self._connections_by_source = dict()
         self._connections_by_destination = dict()
+        node_successors = {item_name: list() for item_name in self._items}
         for connection in self._connections:
-            self._connections_by_source.setdefault(connection.source, list()).append(connection)
-            self._connections_by_destination.setdefault(connection.destination, list()).append(connection)
+            source, destination = connection.source, connection.destination
+            self._connections_by_source.setdefault(source, list()).append(connection)
+            self._connections_by_destination.setdefault(destination, list()).append(connection)
+            sucessors = node_successors.get(source)
+            if sucessors is not None:
+                sucessors.append(destination)
         self._settings = AppSettings(settings if settings is not None else {})
         _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
         enable_persistent_process_creation()
@@ -161,18 +167,14 @@ class SpineEngine:
         if execution_permits is None:
             execution_permits = {}
         self._execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
-        if node_successors is None:
-            node_successors = {}
-        dag = make_dag(node_successors)
-        _validate_dag(dag)
+        self._dag = make_dag(node_successors)
+        _validate_dag(self._dag)
         if jumps is None:
             jumps = []
-        if not jumps:
-            self._chunks = None
-        else:
-            jumps = list(map(Jump.from_dict, jumps))
-            validate_jumps(jumps, dag)
-            self._chunks = chunkify(dag, jumps)
+        self._jumps = list(map(Jump.from_dict, jumps))
+        validate_jumps(self._jumps, self._dag)
+        for x in self._connections + self._jumps:
+            x.make_logger(self._queue)
         self._back_injectors = {
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
@@ -182,6 +184,8 @@ class SpineEngine:
         self._debug = debug
         self._running_items = []
         self._prompt_queues = {}
+        self._answered_prompts = {}
+        self._timestamp = create_timestamp()
         self._event_stream = self._get_event_stream()
 
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
@@ -208,16 +212,16 @@ class SpineEngine:
         return item_specifications
 
     def _make_item(self, item_name, direction):
-        """Recreates item from project item dictionary. Note that all items are created twice.
-        One for the backward pipeline, the other one for the forward pipeline."""
+        """Recreates item from project item dictionary for a particular execution.
+        Note that this method is called multiple times for each item:
+        Once for the backward pipeline, and once for each filtered execution in the forward pipeline."""
         item_dict = self._items[item_name]
         item_type = item_dict["type"]
         executable_item_class = self._executable_item_classes[item_type]
-        if direction == ED.FORWARD:
-            prompt_queue = self._prompt_queues[item_name] = mp.Queue()
-            logger = QueueLogger(self._queue, item_name, prompt_queue)
-        else:
-            logger = None  # Prevent backward solid from logging
+        prompt_queue = self._prompt_queues[item_name] = mp.Queue()
+        logger = QueueLogger(
+            self._queue, item_name, prompt_queue, self._answered_prompts, silent=direction is ED.BACKWARD
+        )
         return executable_item_class.from_dict(
             item_dict, item_name, self._project_dir, self._settings, self._item_specifications, logger
         )
@@ -247,91 +251,21 @@ class SpineEngine:
                 break
 
     def answer_prompt(self, item_name, accepted):
+        """Answers the prompt for the specified item, either accepting or rejecting it."""
         self._prompt_queues[item_name].put(accepted)
 
     def run(self):
         """Runs this engine."""
-        if self._chunks is None:
-            self._linear_run()
-        else:
-            self._chunked_run()
-
-    def _linear_run(self):
-        """Runs the engine without jumps and chunking."""
         self._state = SpineEngineState.RUNNING
-        run_config = {"loggers": {"console": {"config": {"log_level": "CRITICAL"}}}, "execution": {"multithread": {}}}
+        run_config = {
+            "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},
+            "execution": {"multithread": {"config": {}}},
+        }
         for event in execute_pipeline_iterator(self._pipeline, run_config=run_config):
             self._process_event(event)
         if self._state == SpineEngineState.RUNNING:
             self._state = SpineEngineState.COMPLETED
         self._queue.put(("dag_exec_finished", str(self._state)))
-
-    def _chunked_run(self):
-        """Runs the engine with jumps and chunking."""
-        self._state = SpineEngineState.RUNNING
-        run_id = "root run"
-        dagster_instance = DagsterInstance.ephemeral()
-        try:
-            dagster_instance.create_run_for_pipeline(self._pipeline, run_id=run_id)
-            run_config = {
-                "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},
-                "execution": {"multithread": {}},
-            }
-            self._run_chunks_backward(dagster_instance, run_id, run_config)
-            self._run_chunks_forward(dagster_instance, run_config)
-            if self._state == SpineEngineState.RUNNING:
-                self._state = SpineEngineState.COMPLETED
-            self._queue.put(("dag_exec_finished", str(self._state)))
-        finally:
-            dagster_instance.dispose()
-
-    def _run_chunks_backward(self, dagster_instance, run_id, run_config):
-        """Executes all backward solids.
-
-        Args:
-            dagster_instance (DagsterInstance): dagster instance
-            run_id (str): root run id
-            run_config (dict): dagster's run config
-        """
-        backward_solids = [f"{ED.BACKWARD}_{name}" for name in self._solid_names.values()]
-        for event in reexecute_pipeline_iterator(
-            self._pipeline, run_id, step_selection=backward_solids, run_config=run_config, instance=dagster_instance
-        ):
-            self._process_event(event)
-
-    def _run_chunks_forward(self, dagster_instance, run_config):
-        """Executes forward solids in chunks.
-
-        Args:
-            dagster_instance (DagsterInstance): dagster instance
-            run_config (dict): dagster's run config
-        """
-        chunk_index = 0
-        chunks_left = True
-        loop_counters = dict()
-        while chunks_left:
-            chunk = self._chunks[chunk_index]
-            run_id = next(iter(dagster_instance.get_runs())).run_id
-            forward_solids = [f"{ED.FORWARD}_{self._solid_names[name]}" for name in chunk.item_names]
-            for event in reexecute_pipeline_iterator(
-                self._pipeline, run_id, step_selection=forward_solids, run_config=run_config, instance=dagster_instance
-            ):
-                self._process_event(event)
-            if chunk.jump is None:
-                chunk_index += 1
-            else:
-                loop_counter = loop_counters.get(chunk_index, 1)  # We've executed the jump at least once already.
-                loop_counter += 1
-                loop_counters[chunk_index] = loop_counter
-                if chunk.jump.is_condition_true(loop_counter):
-                    for i, other_chunk in enumerate(self._chunks[: chunk_index + 1]):
-                        if chunk.jump.destination in other_chunk.item_names:
-                            chunk_index = i
-                            break
-                else:
-                    loop_counters[chunk_index] = 1
-                    chunk_index += 1
-            chunks_left = len(self._chunks) != chunk_index
 
     def _process_event(self, event):
         """
@@ -429,10 +363,10 @@ class SpineEngine:
 
     def _make_pipeline(self):
         """
-        Returns a PipelineDefinition for executing this engine.
+        Returns a _LoopPipelineDefinition for executing this engine.
 
         Returns:
-            PipelineDefinition
+            _LoopPipelineDefinition
         """
         solid_defs = [
             make_solid_def(item_name)
@@ -446,9 +380,28 @@ class SpineEngine:
                 resource_defs={"io_manager": shared_memory_io_manager},
             )
         ]
-        return PipelineDefinition(
-            name="pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs
+        loops = self._make_loops()
+        return _LoopPipelineDefinition(
+            name="pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs, loops=loops
         )
+
+    def _make_loops(self):
+        """Returns a dictionary mapping Jump objects to a set of solid names corresponding to items within the loop.
+
+        Returns:
+            dict
+        """
+        loops = {}
+        for jump in self._jumps:
+            src, dst = jump.source, jump.destination
+            item_names = {dst, src}
+            for path in nx.all_simple_paths(self._dag, dst, src):
+                item_names.update(path)
+            solid_names = {f"{ED.FORWARD}_{self._solid_names[n]}" for n in item_names}
+            jump.source = f"{ED.FORWARD}_{self._solid_names[src]}"
+            jump.destination = f"{ED.BACKWARD}_{self._solid_names[dst]}"
+            loops[jump] = solid_names
+        return loops
 
     def _make_backward_solid_def(self, item_name):
         """Returns a SolidDefinition for executing the given item in the backward sweep.
@@ -490,6 +443,8 @@ class SpineEngine:
                 context.log.error(f"compute_fn() FAILURE with item: {item_name} stopped by the user")
                 raise Failure()
             context.log.info(f"Item Name: {item_name}")
+            for conn in self._connections_by_destination.get(item_name, []):
+                conn.visit_destination()
             # Split inputs into forward and backward resources based on prefix
             forward_resource_stacks = []
             backward_resources = []
@@ -503,6 +458,8 @@ class SpineEngine:
             )
             yield AssetMaterialization(asset_key=str(item_finish_state))
             yield Output(value=output_resource_stacks, output_name=f"{ED.FORWARD}_output")
+            for conn in self._connections_by_source.get(item_name, []):
+                conn.visit_source()
 
         input_defs = [
             InputDefinition(name=f"{ED.FORWARD}_input_from_{inj}")
@@ -540,7 +497,7 @@ class SpineEngine:
         output_resources_list = []
         threads = []
         resources_iterator = self._filtered_resources_iterator(
-            item_name, forward_resource_stacks, backward_resources, create_timestamp()
+            item_name, forward_resource_stacks, backward_resources, self._timestamp
         )
         for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
             item = self._make_item(item_name, ED.FORWARD)
@@ -641,6 +598,7 @@ class SpineEngine:
             self._expand_resource_stack(resource, resource_filter_stacks[(resource.provider_name, resource.label)])
             for resource in filterable_resources
         )
+        backward_resources = self._convert_backward_resources(item_name, backward_resources)
         for resources_or_lists in product(*non_filterable_resources.values(), *forward_resource_stacks_iterator):
             filtered_forward_resources = list()
             for item in resources_or_lists:
@@ -723,8 +681,30 @@ class SpineEngine:
             filter_configs_list.append(filter_configs)
         return list(product(*filter_configs_list))
 
+    def _convert_backward_resources(self, item_name, resources):
+        """Converts resources as they're being passed backwards to given item.
+        The conversion is dictated by the connection the resources traverse in order to reach the item.
+
+        Args:
+            item_name (str): receiving item's name
+            resources (Iterable of ProjectItemResource): resources to convert
+
+        Returns:
+            list of ProjectItemResource: converted resources
+        """
+        connections = self._connections_by_source.get(item_name, [])
+        resources_by_provider = {}
+        for r in resources:
+            resources_by_provider.setdefault(r.provider_name, list()).append(r)
+        for c in connections:
+            resources_from_destination = resources_by_provider.get(c.destination)
+            if resources_from_destination is None:
+                continue
+            resources_by_provider[c.destination] = c.convert_backward_resources(resources_from_destination)
+        return [r for resources in resources_by_provider.values() for r in resources]
+
     def _convert_forward_resources(self, item_name, resources):
-        """Converts resources as they're being forwarded to given item.
+        """Converts resources as they're being passed forwards to given item.
         The conversion is dictated by the connection the resources traverse in order to reach the item.
 
         Args:
@@ -742,7 +722,7 @@ class SpineEngine:
             resources_from_source = resources_by_provider.get(c.source)
             if resources_from_source is None:
                 continue
-            resources_by_provider[c.source] = c.convert_resources(resources_from_source)
+            resources_by_provider[c.source] = c.convert_forward_resources(resources_from_source)
         return [r for resources in resources_by_provider.values() for r in resources]
 
     def _make_dependencies(self):
@@ -825,35 +805,63 @@ def validate_jumps(jumps, dag):
         jumps (list of Jump): jumps
         dag (DiGraph): jumps' DAG
     """
-    jump_paths = dict()
+    items_by_jump = _get_items_by_jump(jumps, dag)
     for jump in jumps:
-        for other in jumps:
-            if other is jump:
-                continue
-            if other.source == jump.source and other.destination == jump.destination:
-                raise EngineInitFailed("Loops with same source and destination not supported.")
-        if jump.source == jump.destination:
+        validate_single_jump(jump, jumps, dag, items_by_jump)
+
+
+def validate_single_jump(jump, jumps, dag, items_by_jump=None):
+    """Raises an exception in case one jump is not valid.
+
+    Args:
+        jump (Jump): the jump to check
+        jumps (list of Jump): all jumps in dag
+        dag (DiGraph): jumps' DAG
+        items_by_jump (dict): mapping jumps to a set of items in between destination and source
+    """
+    if items_by_jump is None:
+        items_by_jump = _get_items_by_jump(jumps, dag)
+    for other in jumps:
+        if other is jump:
             continue
-        if jump.source not in dag.nodes:
-            raise EngineInitFailed(f"Loop source '{jump.source}' not found in DAG")
-        if jump.source == jump.destination:
-            continue
-        if nx.has_path(dag, jump.source, jump.destination):
-            raise EngineInitFailed("Cannot loop in forward direction.")
-        if not nx.has_path(nx.reverse_view(dag), jump.source, jump.destination):
-            raise EngineInitFailed("Cannot loop between DAG branches.")
-        source_overlapping_jumps = set()
-        destination_overlapping_jumps = set()
-        for id_, path in jump_paths.items():
-            if jump.source in path:
-                source_overlapping_jumps.add(id_)
-            if jump.destination in path:
-                destination_overlapping_jumps.add(id_)
-        if source_overlapping_jumps != destination_overlapping_jumps:
-            raise EngineInitFailed("Partially overlapping loops not supported.")
-        jump_paths[len(jump_paths)] = {
-            item for path in nx.all_simple_paths(dag, jump.destination, jump.source) for item in path
-        }
+        if other.source == jump.source:
+            raise EngineInitFailed(f"{jump.name} cannot have the same source as {other.name}.")
+        jump_items = items_by_jump[jump]
+        other_items = items_by_jump[other]
+        intersection = jump_items & other_items
+        if intersection not in ({}, jump_items, other_items):
+            raise EngineInitFailed(f"{jump.name} cannot partially overlap {other.name}.")
+    if not dag.has_node(jump.destination):
+        raise EngineInitFailed(f"Loop destination '{jump.destination}' not found in DAG")
+    if not dag.has_node(jump.source):
+        raise EngineInitFailed(f"Loop source '{jump.source}' not found in DAG")
+    if jump.source == jump.destination:
+        return
+    if nx.has_path(dag, jump.source, jump.destination):
+        raise EngineInitFailed("Cannot loop in forward direction.")
+    if not nx.has_path(nx.reverse_view(dag), jump.source, jump.destination):
+        raise EngineInitFailed("Cannot loop between DAG branches.")
+
+
+def _get_items_by_jump(jumps, dag):
+    """Returns a dict mapping jumps to a set of items between destination and source.
+
+    Args:
+        jumps (list of Jump): all jumps in dag
+        dag (DiGraph): jumps' DAG
+
+    Returns:
+        dict
+    """
+    items_by_jump = {}
+    for jump in jumps:
+        try:
+            items_by_jump[jump] = {
+                item for path in nx.all_simple_paths(dag, jump.destination, jump.source) for item in path
+            }
+        except nx.NodeNotFound:
+            items_by_jump[jump] = set()
+    return items_by_jump
 
 
 def _set_resource_limits(settings, lock):

@@ -20,6 +20,7 @@ import sys
 import datetime
 import time
 import json
+from urllib.parse import urlparse, urlunparse
 from pathlib import Path
 
 import networkx
@@ -244,3 +245,18 @@ def write_filter_id_file(filter_id, path):
     """
     with Path(path, ".filter_id").open("w") as filter_id_file:
         filter_id_file.writelines([filter_id + "\n"])
+
+
+def remove_credentials_from_url(url):
+    """Removes username and password information from URLs.
+
+    Args:
+        url (str): URL
+
+    Returns:
+        str: sanitized URL
+    """
+    parsed = urlparse(url)
+    if parsed.username is None:
+        return url
+    return urlunparse(parsed._replace(netloc=parsed.netloc.partition("@")[-1]))

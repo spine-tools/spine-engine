@@ -27,6 +27,7 @@ class ExecutionManagerBase:
             logger (LoggerInterface): a logger instance
         """
         self._logger = logger
+        self.killed = False
 
     def run_until_complete(self):
         """Runs until completion.

@@ -19,7 +19,12 @@ Module contains MultithreadExecutor.
 import os
 import sys
 from dagster import check
-from dagster.core.execution.api import create_execution_plan, execute_plan_iterator
+from dagster.core.execution.api import (
+    create_execution_plan,
+    inner_plan_execution_iterator,
+    ExecuteRunWithPlanIterable,
+    PlanExecutionContextManager,
+)
 from dagster.core.executor.base import Executor
 from dagster.core.execution.retries import RetryMode
 from dagster.core.execution.context.system import PlanOrchestrationContext
@@ -29,9 +34,8 @@ from dagster.core.events import DagsterEvent, EngineEventData
 from dagster.core.errors import DagsterError
 from dagster.utils.timing import format_duration, time_execution_scope
 from dagster.utils.error import serializable_error_info_from_exc_info
-
-
 from .thread_executor import ThreadCrashException, ThreadEvent, ThreadSystemErrorEvent, execute_thread_command
+from ..spine_engine import ED
 
 DELEGATE_MARKER = "multithread_thread_init"
 
@@ -55,6 +59,8 @@ class MultithreadExecutor(Executor):
         self._retries = check.inst_param(retries, "retries", RetryMode)
         max_concurrent = max_concurrent if max_concurrent else 100  # TODO: How to determine a good amount?
         self.max_concurrent = check.int_param(max_concurrent, "max_concurrent")
+        self._forward_resources = {}
+        self._backward_resources = {}
 
     @property
     def retries(self):
@@ -76,20 +82,74 @@ class MultithreadExecutor(Executor):
             with execution_plan.start(retry_mode=self.retries) as active_execution:
                 active_iters = {}
                 errors = {}
+                waiting = {}
+                iterating = {}
+                iterating_active = set()
+                solid_names_by_jump = pipeline_context.pipeline.get_definition().loops
+                jump_by_source = {}
+                jump_by_solid_name = {}
+                for jump, solid_names in solid_names_by_jump.items():
+                    jump_by_source[jump.source] = jump
+                    non_nested_solid_names = set(solid_names)
+                    for other_jump, other_solid_names in solid_names_by_jump.items():
+                        if jump is other_jump:
+                            continue
+                        if other_solid_names > solid_names:
+                            continue
+                        non_nested_solid_names -= other_solid_names
+                    for solid_name in non_nested_solid_names:
+                        jump_by_solid_name[solid_name] = jump
+                unfinished_jumps = set(solid_names_by_jump)
+                loop_iteration_counters = {}
+                steps_by_key = {}
                 while not active_execution.is_complete or active_iters:
 
                     # start iterators
                     while len(active_iters) < limit:
-                        steps = active_execution.get_steps_to_execute(limit=(limit - len(active_iters)))
+                        candidate_steps = active_execution.get_steps_to_execute(limit=(limit - len(active_iters)))
+                        steps_by_key.update({step.key: step for step in candidate_steps})
+                        # Add all waiting steps
+                        candidate_steps += list(waiting.values())
+                        # Add iterating steps that don't depend on other pending iterating
+                        iterating_skipped = set()
+                        for key, step in iterating.items():
+                            dependency_keys = step.get_execution_dependency_keys()
+                            if dependency_keys & (iterating_active | iterating_skipped):
+                                iterating_skipped.add(key)
+                                continue
+                            iterating_active.add(key)
+                            candidate_steps.append(step)
 
-                        if not steps:
+                        executable_steps = []
+                        for step in candidate_steps:
+                            # Check if the step depends on any jumps that don't contain it
+                            jumps = (
+                                jump
+                                for jump in unfinished_jumps
+                                if step.solid_name not in solid_names_by_jump.get(jump, ())
+                            )
+                            solid_names = {item for jump in jumps for item in solid_names_by_jump[jump]}
+                            problematic_keys = {
+                                key for key, step in steps_by_key.items() if step.solid_name in solid_names
+                            }
+                            dependency_keys = step.get_execution_dependency_keys()
+                            if dependency_keys & problematic_keys:
+                                if step.key not in iterating:
+                                    waiting[step.key] = step
+                                continue
+                            waiting.pop(step.key, None)
+                            iterating.pop(step.key, None)
+                            executable_steps.append(step)
+
+                        if not executable_steps:
                             break
 
-                        for step in steps:
+                        for step in executable_steps:
                             step_context = pipeline_context.for_step(step)
                             active_iters[step.key] = self.execute_step_in_thread(
                                 pipeline_context.pipeline,
                                 step.key,
+                                step.solid_name,
                                 step_context,
                                 errors,
                                 active_execution.get_known_state(),
@@ -102,7 +162,54 @@ class MultithreadExecutor(Executor):
                             if event_or_none is None:
                                 continue
                             yield event_or_none
-                            active_execution.handle_event(event_or_none)
+                            try:
+                                active_execution.handle_event(event_or_none)
+                            except check.CheckError:
+                                # Bypass check erros on iterating steps
+                                if key in iterating_active:
+                                    pass
+                                else:
+                                    raise
+                            # Handle loops
+                            if event_or_none.is_step_failure:
+                                # Mark failed loops as finished
+                                iterating_active.discard(key)
+                                step = steps_by_key[key]
+                                failed_jump = jump_by_solid_name.get(step.solid_name)
+                                if failed_jump is None:
+                                    continue
+                                failed_solid_names = solid_names_by_jump[failed_jump]
+                                for jump, solid_names in solid_names_by_jump.items():
+                                    if solid_names & failed_solid_names:
+                                        unfinished_jumps.discard(jump)
+                                        loop_iteration_counters.pop(jump, None)
+                            elif event_or_none.is_step_success:
+                                # Process loop condition
+                                iterating_active.discard(key)
+                                step = steps_by_key[key]
+                                jump = jump_by_source.get(step.solid_name)
+                                if jump is None:
+                                    continue
+                                forward_resources = self._forward_resources.get(jump.source, [])
+                                backward_resources = self._backward_resources.get(jump.destination, [])
+                                jump.receive_resources_from_source(forward_resources)
+                                jump.receive_resources_from_destination(backward_resources)
+                                iteration_counter = loop_iteration_counters.setdefault(jump, 1)
+                                if jump.is_condition_true(iteration_counter):
+                                    # Put all jump steps in the iterating bucket
+                                    for k, s in steps_by_key.items():
+                                        if s.solid_name in solid_names_by_jump[jump]:
+                                            iterating[k] = s
+                                    # Mark all nested jumps unfinished again
+                                    for solid_name in solid_names_by_jump[jump]:
+                                        nested_jump = jump_by_solid_name.get(solid_name)
+                                        if nested_jump is not None:
+                                            unfinished_jumps.add(nested_jump)
+
+                                    loop_iteration_counters[jump] += 1
+                                else:
+                                    unfinished_jumps.remove(jump)
+                                    del loop_iteration_counters[jump]
 
                         except ThreadCrashException:
                             serializable_error = serializable_error_info_from_exc_info(sys.exc_info())
@@ -120,6 +227,7 @@ class MultithreadExecutor(Executor):
                             empty_iters.append(key)
                         except StopIteration:
                             empty_iters.append(key)
+                            # TODO: Anything about loops?
                     # clear and mark complete finished iterators
                     for key in empty_iters:
                         del active_iters[key]
@@ -151,7 +259,7 @@ class MultithreadExecutor(Executor):
             event_specific_data=EngineEventData.multiprocess(os.getpid()),
         )
 
-    def execute_step_in_thread(self, pipeline, step_key, step_context, errors, known_state):
+    def execute_step_in_thread(self, pipeline, step_key, solid_name, step_context, errors, known_state):
         yield DagsterEvent.engine_event(
             step_context, f"Spawning thread for {step_key}", EngineEventData(marker_start=DELEGATE_MARKER)
         )
@@ -167,6 +275,7 @@ class MultithreadExecutor(Executor):
         )
         for ret in execute_thread_command(command):
             if ret is None or isinstance(ret, DagsterEvent):
+                self._save_resources(command, solid_name)
                 yield ret
             elif isinstance(ret, ThreadEvent):
                 if isinstance(ret, ThreadSystemErrorEvent):
@@ -174,30 +283,39 @@ class MultithreadExecutor(Executor):
             else:
                 check.failed("Unexpected return value from thread {}".format(type(ret)))
 
+    def _save_resources(self, command, solid_name):
+        for output_handle, outputs in command.output_capture.items():
+            if output_handle.output_name == f"{ED.BACKWARD}_output":
+                self._backward_resources[solid_name] = outputs
+            elif output_handle.output_name == f"{ED.FORWARD}_output":
+                self._forward_resources[solid_name] = [r for stack in outputs for r in stack]
+
 
 class ThreadExecutorChildThreadCommand:
     def __init__(self, run_config, pipeline_run, step_key, instance, pipeline, retry_mode, known_state):
-        self.run_config = run_config
-        self.pipeline_run = pipeline_run
-        self.step_key = step_key
-        self.instance = instance
-        self.pipeline = pipeline
-        self.retry_mode = retry_mode
-        self.known_state = known_state
+        self.output_capture = {}
+        self._execution_plan = create_execution_plan(
+            pipeline=pipeline,
+            run_config=run_config,
+            mode=pipeline_run.mode,
+            step_keys_to_execute=[step_key],
+            known_state=known_state,
+        )
+        self._execution_context_manager = PlanExecutionContextManager(
+            pipeline=pipeline,
+            retry_mode=retry_mode,
+            execution_plan=self._execution_plan,
+            run_config=run_config,
+            pipeline_run=pipeline_run,
+            instance=instance,
+            output_capture=self.output_capture,
+        )
 
     def execute(self):
-        execution_plan = create_execution_plan(
-            pipeline=self.pipeline,
-            run_config=self.run_config,
-            mode=self.pipeline_run.mode,
-            step_keys_to_execute=[self.step_key],
-            known_state=self.known_state,
-        )
-        yield from execute_plan_iterator(
-            execution_plan,
-            self.pipeline,
-            self.pipeline_run,
-            run_config=self.run_config,
-            retry_mode=self.retry_mode.for_inner_plan(),
-            instance=self.instance,
+        return iter(
+            ExecuteRunWithPlanIterable(
+                execution_plan=self._execution_plan,
+                iterator=inner_plan_execution_iterator,
+                execution_context_manager=self._execution_context_manager,
+            )
         )

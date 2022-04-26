@@ -16,14 +16,20 @@ Provides connection classes for linking project items.
 """
 import os
 import subprocess
-import sys
 import tempfile
-
+from contextlib import ExitStack
 from datapackage import Package
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
-from spine_engine.project_item.project_item_resource import file_resource
+from spine_engine.project_item.project_item_resource import (
+    file_resource,
+    cmd_line_arg_from_dict,
+    expand_cmd_line_args,
+    labelled_resource_args,
+)
+from spine_engine.utils.helpers import resolve_python_interpreter
+from spine_engine.utils.queue_logger import QueueLogger
 
 
 class ConnectionBase:
@@ -41,6 +47,7 @@ class ConnectionBase:
         self._source_position = source_position
         self.destination = destination_name
         self._destination_position = destination_position
+        self._logger = None
 
     def __eq__(self, other):
         if not isinstance(other, ConnectionBase):
@@ -61,10 +68,23 @@ class ConnectionBase:
         """Anchor's position on destination item."""
         return self._destination_position
 
+    @destination_position.setter
+    def destination_position(self, destination_position):
+        """Set anchor's position on destination item."""
+        self._destination_position = destination_position
+
     @property
     def source_position(self):
         """Anchor's position on source item."""
         return self._source_position
+
+    @source_position.setter
+    def source_position(self, source_position):
+        """Set anchor's position on source item."""
+        self._source_position = source_position
+
+    def __hash__(self):
+        return hash(str(self.to_dict()))
 
     def to_dict(self):
         """Returns a dictionary representation of this connection.
@@ -72,7 +92,23 @@ class ConnectionBase:
         Returns:
             dict: serialized Connection
         """
-        return {"from": [self.source, self._source_position], "to": [self.destination, self._destination_position]}
+        return {
+            "name": self.name,
+            "from": [self.source, self._source_position],
+            "to": [self.destination, self._destination_position],
+        }
+
+    def receive_resources_from_source(self, resources):
+        pass
+
+    def receive_resources_from_destination(self, resources):
+        pass
+
+    def make_logger(self, queue):
+        self._logger = QueueLogger(queue, self.name, None, dict())
+
+    def emit_flash(self):
+        self._logger.flash.emit()
 
 
 class Connection(ConnectionBase):
@@ -96,6 +132,17 @@ class Connection(ConnectionBase):
         self.options = options if options is not None else dict()
         self._resources = set()
         self._id_to_name_cache = dict()
+        self._source_visited = False
+
+    def visit_source(self):
+        self._source_visited = True
+
+    def visit_destination(self):
+        if not self._source_visited:
+            # Can happen in loop execution
+            return
+        self._source_visited = False
+        self.emit_flash()
 
     def __eq__(self, other):
         if not isinstance(other, Connection):
@@ -131,6 +178,10 @@ class Connection(ConnectionBase):
     @property
     def use_datapackage(self):
         return self.options.get("use_datapackage", False)
+
+    @property
+    def use_memory_db(self):
+        return self.options.get("use_memory_db", False)
 
     def id_to_name(self, id_, filter_type):
         """Map from scenario/tool database id to name"""
@@ -207,12 +258,23 @@ class Connection(ConnectionBase):
         for id_, online_ in online.items():
             current_ids[id_] = online_
 
-    def convert_resources(self, resources, override_provider_name=None):
+    def convert_backward_resources(self, resources):
+        """Called when advertising resources through this connection *in the BACKWARD direction*.
+        Takes the initial list of resources advertised by the destination item and returns a new list,
+        which is the one finally advertised.
+
+        Args:
+            resources (list of ProjectItemResource): Resources to convert
+
+        Returns:
+            list of ProjectItemResource
+        """
+        return self._apply_use_memory_db(resources)
+
+    def convert_forward_resources(self, resources):
         """Called when advertising resources through this connection *in the FORWARD direction*.
         Takes the initial list of resources advertised by the source item and returns a new list,
         which is the one finally advertised.
-
-        At the moment it only packs CSVs into datapackage (and again, it's only used in the FORWARD direction).
 
         Args:
             resources (list of ProjectItemResource): Resources to convert
@@ -221,6 +283,19 @@ class Connection(ConnectionBase):
         Returns:
             list of ProjectItemResource
         """
+        return self._apply_use_memory_db(self._apply_use_datapackage(resources))
+
+    def _apply_use_memory_db(self, resources):
+        if not self.use_memory_db:
+            return resources
+        final_resources = []
+        for r in resources:
+            if r.type_ == "database":
+                r = r.clone(additional_metadata={"memory": True})
+            final_resources.append(r)
+        return final_resources
+
+    def _apply_use_datapackage(self, resources):
         if not self.use_datapackage:
             return resources
         # Split CSVs from the rest of resources
@@ -240,8 +315,9 @@ class Connection(ConnectionBase):
             package.add_resource({"path": os.path.relpath(path, base_path)})
         package_path = os.path.join(base_path, "datapackage.json")
         package.save(package_path)
-        provider = self.source if override_provider_name is None else override_provider_name
+        provider = resources[0].provider_name
         package_resource = file_resource(provider, package_path, label=f"datapackage@{provider}")
+        package_resource.metadata = resources[0].metadata
         final_resources.append(package_resource)
         return final_resources
 
@@ -264,8 +340,8 @@ class Connection(ConnectionBase):
             d["options"] = self.options.copy()
         return d
 
-    @staticmethod
-    def from_dict(connection_dict):
+    @classmethod
+    def from_dict(cls, connection_dict, **kwargs):
         """Restores a connection from dictionary.
 
         Args:
@@ -284,13 +360,23 @@ class Connection(ConnectionBase):
                     for id_ in ids:
                         resource_filters.setdefault(label, {}).setdefault(type_, {})[id_] = True
         options = connection_dict.get("options")
-        return Connection(source_name, source_anchor, destination_name, destination_anchor, resource_filters, options)
+        return cls(
+            source_name, source_anchor, destination_name, destination_anchor, resource_filters, options, **kwargs
+        )
 
 
 class Jump(ConnectionBase):
     """Represents a conditional jump between two project items."""
 
-    def __init__(self, source_name, source_position, destination_name, destination_position, condition="exit(1)"):
+    def __init__(
+        self,
+        source_name,
+        source_position,
+        destination_name,
+        destination_position,
+        condition="exit(1)",
+        cmd_line_args=(),
+    ):
         """
         Args:
             source_name (str): source project item's name
@@ -301,6 +387,17 @@ class Jump(ConnectionBase):
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
         self.condition = condition
+        self.resources = set()
+        self.cmd_line_args = list(cmd_line_args)
+
+    def update_cmd_line_args(self, cmd_line_args):
+        self.cmd_line_args = cmd_line_args
+
+    def receive_resources_from_source(self, resources):
+        self.resources.update(resources)
+
+    def receive_resources_from_destination(self, resources):
+        self.resources.update(resources)
 
     def is_condition_true(self, jump_counter):
         """Evaluates jump condition.
@@ -313,16 +410,28 @@ class Jump(ConnectionBase):
         """
         if not self.condition.strip():
             return False
-        with tempfile.TemporaryFile("w+", encoding="utf-8") as script:
-            script.write(self.condition)
-            script.seek(0)
-            result = subprocess.run(
-                ["python", "-", str(jump_counter)], encoding="utf-8", stdin=script, capture_output=True
-            )
-            return result.returncode == 0
+        with ExitStack() as stack:
+            labelled_args = labelled_resource_args(self.resources, stack)
+            expanded_args = expand_cmd_line_args(self.cmd_line_args, labelled_args, self._logger)
+            expanded_args.append(str(jump_counter))
+            with tempfile.TemporaryFile("w+", encoding="utf-8") as script:
+                script.write(self.condition)
+                script.seek(0)
+                python = resolve_python_interpreter("")
+                result = subprocess.run(
+                    [python, "-", *expanded_args], encoding="utf-8", stdin=script, capture_output=True
+                )
+                if result.stdout:
+                    self._logger.msg_proc.emit(result.stdout)
+                if result.stderr:
+                    self._logger.msg_proc_error.emit(result.stderr)
+                iterate = result.returncode == 0
+                if iterate:
+                    self.emit_flash()
+                return iterate
 
-    @staticmethod
-    def from_dict(jump_dict):
+    @classmethod
+    def from_dict(cls, jump_dict, **kwargs):
         """Restores a Jump from dictionary.
 
         Args:
@@ -334,7 +443,9 @@ class Jump(ConnectionBase):
         source_name, source_anchor = jump_dict["from"]
         destination_name, destination_anchor = jump_dict["to"]
         condition = jump_dict["condition"]["script"]
-        return Jump(source_name, source_anchor, destination_name, destination_anchor, condition)
+        cmd_line_args = jump_dict.get("cmd_line_args", [])
+        cmd_line_args = [cmd_line_arg_from_dict(arg) for arg in cmd_line_args]
+        return cls(source_name, source_anchor, destination_name, destination_anchor, condition, cmd_line_args, **kwargs)
 
     def to_dict(self):
         """Returns a dictionary representation of this Jump.
@@ -344,4 +455,5 @@ class Jump(ConnectionBase):
         """
         d = super().to_dict()
         d["condition"] = {"type": "python-script", "script": self.condition}
+        d["cmd_line_args"] = [arg.to_dict() for arg in self.cmd_line_args]
         return d

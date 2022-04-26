@@ -17,6 +17,7 @@ Uni tests for the ``connection`` module.
 import os.path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import Mock
 from spinedb_api import DiffDatabaseMapping, import_scenarios, import_tools
 from spine_engine.project_item.connection import Connection, Jump
 from spine_engine.project_item.project_item_resource import database_resource
@@ -113,6 +114,7 @@ class TestJump(unittest.TestCase):
     def test_counter_passed_to_condition(self):
         condition = "\n".join(("import sys", "counter = int(sys.argv[1])", "exit(0 if counter == 23 else 1)"))
         jump = Jump("source", "bottom", "destination", "top", condition)
+        jump.make_logger(Mock())
         self.assertTrue(jump.is_condition_true(23))
 
     def test_dictionary(self):
