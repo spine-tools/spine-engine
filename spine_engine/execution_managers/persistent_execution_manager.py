@@ -422,8 +422,8 @@ class PythonPersistentManager(PersistentManagerBase):
         """See base class."""
         path = os.path.dirname(__file__).replace(os.sep, "/")
         return [
-            "-q",
             "-i",
+            "-u",
             "-c",
             f"import sys; sys.ps1 = sys.ps2 = ''; sys.path.append('{path}'); "
             f"import spine_repl; spine_repl.start_server({self._server_address})",
