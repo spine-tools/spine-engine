@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Contains a helper class for converting received event/data information to JSON-based format
+Contains a helper static methods for converting event/data information to JSON-based format and
 :authors: P. Pääkkönen (VTT)
 :date:   27.08.2021
 """
@@ -57,7 +57,7 @@ class EventDataConverter:
 
     @staticmethod
     def convertJSON(jsonStr, base64Data):
-        """Converts JSON string into events+data.
+        """Converts JSON string into list of tuples. Tuples contain the event_type and the associated data.
 
         Args:
             jsonStr (str): events+data as JSON

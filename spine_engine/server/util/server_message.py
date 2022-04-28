@@ -25,14 +25,13 @@ class ServerMessage:
             data (str): events+data (list of tuples) converted into a JSON str or an error msg (must be a JSON str)
             files (list[str], None): a list of file names to be associated with the message (optional)
         """
-        if command == None or msg_id == None or data == None:
+        if not command or not msg_id:
+            print("Error in ServerMessage")
             raise ValueError("invalid input to ServerMessage")
-
         self._command = command
         self._id = msg_id
         self._data = data
         self._files = []
-
         if files != None:
             if len(files) > 0:
                 self._files.extend(files)

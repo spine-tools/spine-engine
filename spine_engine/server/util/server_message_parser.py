@@ -22,8 +22,8 @@ from spine_engine.server.util.server_message import ServerMessage
 class ServerMessageParser:
     @staticmethod
     def parse(message):
-        """Parses received message-
-        
+        """Parses received message
+
         Args:
             message: JSON-message as a string
 
