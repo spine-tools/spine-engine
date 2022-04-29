@@ -23,9 +23,9 @@ import uuid
 from enum import unique, Enum
 import zmq
 from zmq.auth.thread import ThreadAuthenticator
-from spine_engine.server.remote_connection_handler import RemoteConnectionHandler
 from spine_engine.server.connectivity.zmq_connection import ZMQConnection
-from spine_engine.server.util.server_message_parser import ServerMessageParser
+from spine_engine.server.remote_connection_handler import RemoteConnectionHandler
+from spine_engine.server.remote_ping_handler import RemotePingHandler
 
 
 @unique
@@ -155,20 +155,24 @@ class ZMQServer(threading.Thread):
                     if not connection:
                         print("Received request malformed. - continuing...")
                         continue
-                    else:
-                        print("Success so far")
-                        continue
-                    # TODO: Get command from connection and make a worker according to the command.
+                    # TODO: Make a worker according to the command.
                     worker_id = uuid.uuid4().hex
-                    worker = RemoteConnectionHandler(self._context)
-                    workers[worker_id] = worker
-                    backend.send_multipart(msg)
+                    if connection.get_cmd() == "execute":
+                        worker = RemoteConnectionHandler(self._context)
+                    elif connection.get_cmd() == "ping":
+                        worker = RemotePingHandler.handle_ping(connection)
+                    else:
+                        print(f"Unknown command {connection.get_cmd()} requested")
+                        connection.send_error_reply(f"Error message from server - Unknown command "
+                                                    f"'{connection.get_cmd()}' requested")
+                        continue
+                    # workers[worker_id] = worker
+                    # backend.send_multipart(msg)
                 if socks.get(backend) == zmq.POLLIN:
                     # Get reply message from backend and send it back to client
                     message = backend.recv_multipart()
                     frontend.send_multipart(message)
                     # TODO: Remove worker thread from list
-
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
                     # print("Closing down worker thread")
                     print(f"workers running:{len(workers)}")
@@ -181,7 +185,7 @@ class ZMQServer(threading.Thread):
         # Close sockets and connections
         if self._secModelState == ZMQSecurityModelState.STONEHOUSE:
             auth.stop()
-            time.sleep(0.2)  # wait a bit until authenticator has been closed # TODO: Is this necessary?
+            time.sleep(0.2)  # wait a bit until authenticator has been closed
         ctrl_msg_listener.close()
         frontend.close()
         backend.close()
@@ -192,39 +196,48 @@ class ZMQServer(threading.Thread):
     def handle_frontend_message_received(socket, msg):
         """Check received message integrity.
 
+        msg for ping is eg.
+        [b'\x00k\x8bEg', b'', b'{\n   "command": "ping",\n   "id":"4773735",\n   "data":"",\n   "files": {}\n}']
+        where,
+        msg[0] is the sender
+        msg[1] is empty
+        msg[2] is the request from client as a binary JSON string containing a server message dictionary
+
         Returns:
             None if something went wrong or a new ZMQConnection instance
         """
         print(f"msg:{msg} type:{type(msg)}")
-        if len(msg[0]) <= 10:  # Message size too small
+        b_json_str_server_msg = msg[2]
+        if len(b_json_str_server_msg) <= 10:  # Message size too small
             print(f"Received msg too small. len(msg[0]):{len(msg[0])}. msg:{msg}")
             ZMQConnection.send_init_failed_reply(socket, f"Received msg too small?! "
                                                          f"- Malformed message sent to server.")
             return None
         try:
-            msg_part1 = msg[0].decode("utf-8")
+            json_str_server_msg = b_json_str_server_msg.decode("utf-8")
         except UnicodeDecodeError as e:
-            print(f"Decoding received msg '{msg[0]} ' failed. \nUnicodeDecodeError: {e}")
+            print(f"Decoding received msg '{msg[2]} ' failed. \nUnicodeDecodeError: {e}")
             ZMQConnection.send_init_failed_reply(socket, f"UnicodeDecodeError: {e}. "
                                                          f"- Malformed message sent to server.")
             return None
-        print(f"msg_part1:{msg_part1} type:{type(msg_part1)}")
+        print(f"json_str_server_msg:{json_str_server_msg} type:{type(json_str_server_msg)}")
         # Load JSON string into dictionary
         try:
-            parsed_msg = json.loads(msg_part1)
+            server_msg = json.loads(json_str_server_msg)  # server_msg is a dictionary
         except json.decoder.JSONDecodeError as e:
             ZMQConnection.send_init_failed_reply(socket, f":json.decoder.JSONDecodeError: {e}. "
                                                          f"- Message parsing error at server.")
             return None
-        print(f"parsed_msg:{parsed_msg} type{type(parsed_msg)}")
-        data_str = parsed_msg["data"]  # Is this really a string
+        # server_msg is now a dict with keys: 'command', 'id', 'data', and 'files'
+        print(f"server_msg:{server_msg} type{type(server_msg)}")
+        data_str = server_msg["data"]  # String
         print(f"data_str:{data_str}, type:{type(data_str)}")
-        files = parsed_msg["files"]
+        files = server_msg["files"]  # Dictionary. TODO: Should this be a list?
         files_list = []
         if len(files) > 0:
             for f in files:
                 files_list.append(files[f])
-        connection = ZMQConnection(msg, socket, parsed_msg["command"], parsed_msg["id"], data_str, files_list)
+        connection = ZMQConnection(msg, socket, server_msg["command"], server_msg["id"], data_str, files_list)
         return connection
 
     @staticmethod

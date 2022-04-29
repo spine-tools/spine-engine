@@ -19,16 +19,17 @@ from spine_engine.server.util.server_message import ServerMessage
 
 
 class RemotePingHandler:
+
     @staticmethod
-    def handlePing(pingMessage, zmqConnection):
-        """Handles ping command.
+    def handle_ping(connection):
+        """Replies to a ping command.
 
         Args:
-            pingMessage (ServerMessage): ServerMessage received
-            zmqConnection (ZMQConnection): Zero-MQ connection
+            connection (ZMQConnection): Zero-MQ connection
         """
-        replyMsg = ServerMessage("ping", pingMessage.getId(), "", None)
-        replyAsJson = replyMsg.toJSON()
-        replyInBytes = bytes(replyAsJson, 'utf-8')
-        zmqConnection.send_reply(replyInBytes)
-        # print("RemotePingHandler.handlePing() sent response: %s"%replyAsJson)
+        rq_id = connection.get_id()
+        reply_msg = ServerMessage("ping", rq_id, "", None)
+        reply_as_json = reply_msg.toJSON()
+        reply_in_bytes = bytes(reply_as_json, "utf-8")
+        connection.send_reply(reply_in_bytes)
+        print(f"RemotePingHandler.handlePing() sent response: {reply_as_json}")
