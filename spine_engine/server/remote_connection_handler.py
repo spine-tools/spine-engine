@@ -126,7 +126,7 @@ class RemoteConnectionHandler:
         print(f"msg_data:{msg_data}")
         try:
             with open(os.path.join(local_project_dir, file_names[0]), "wb") as f:
-                f.write(zip_file)
+                f.write(self.connection.zip_file())
         except Exception as e:
             print(f"Saving the received file to '{save_file_path}' failed. [{type(e).__name__}: {e}")
             self.connection.send_error_reply(f"Server failed in saving the received file to "
@@ -157,11 +157,8 @@ class RemoteConnectionHandler:
         # Create a response message, send it
         print("Execution done")
         json_events_data = EventDataConverter.convert(event_data)
-        # self.zmqConn.send_response(cmd, msg_id, json_events_data)
-        reply_msg = ServerMessage(cmd, msg_id, json_events_data, None)
-        reply_as_json = reply_msg.toJSON()
-        reply_in_bytes = bytes(reply_as_json, "utf-8")
-        worker_socket.send_multipart([ident, reply_in_bytes])
+        print(json_events_data)
+        self.connection.send_response(json_events_data)
         print("Response sent to client")
 
         # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?

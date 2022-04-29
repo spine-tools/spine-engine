@@ -226,7 +226,7 @@ class ZMQServer(threading.Thread):
         try:
             server_msg = json.loads(json_str_server_msg)  # dictionary
         except json.decoder.JSONDecodeError as e:
-            ZMQConnection.send_init_failed_reply(socket, f":json.decoder.JSONDecodeError: {e}. "
+            ZMQConnection.send_init_failed_reply(socket, f"json.decoder.JSONDecodeError: {e}. "
                                                          f"- Message parsing error at server.")
             return None
         # server_msg is now a dict with keys: 'command', 'id', 'data', and 'files'

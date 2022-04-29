@@ -25,7 +25,8 @@ class ZMQConnection:
         """Init class.
 
         Args:
-            msg (list): List of three binary frames (conn id, empty frame and data frame)
+            msg (list): List of three or four binary frames (conn id, empty frame and user data frame,
+                and possibly zip-file)
             socket (ZMQSocket): Socket connected to the received message
             cmd (str): Command associated with the request
             rqst_id (str): Request id (assigned by ZMQ)
@@ -39,6 +40,9 @@ class ZMQConnection:
         self._data = data
         self._filenames = filenames
         self._connection_id = msg[0]  # Assigned by the ROUTER socket that received the message
+        self._zip_file = None
+        if len(msg) == 4:
+            self._zip_file = msg[3]
 
     def msg(self):
         """Returns a list containing three binary frames.
@@ -72,6 +76,11 @@ class ZMQConnection:
         """Returns the connection Id as binary string. Assigned by the ROUTER
         socket when the message was received at server."""
         return self._connection_id
+
+    def zip_file(self):
+        """Returns the binary zip file (zipped project dir) associated with the message
+        or None if the message did not contain a zip-file."""
+        return self._zip_file
 
     def send_reply(self, data):
         """Sends a one-part reply message to the recipient.
