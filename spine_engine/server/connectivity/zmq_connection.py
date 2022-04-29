@@ -16,7 +16,6 @@ This class implements a Zero-MQ socket connection received from the ZMQServer.
 """
 
 import json
-import threading
 from spine_engine.server.util.server_message import ServerMessage
 
 
@@ -26,47 +25,40 @@ class ZMQConnection:
         """Init class.
 
         Args:
-            msg (bytes?!): received (binary) message parts
-            socket (ZMQSocket?!): ZMQSocket for communication
+            msg (list): List of three binary frames (conn id, empty frame and data frame)
+            socket (ZMQSocket): Socket connected to the received message
             cmd (str): Command associated with the request
-            rqst_id (str?!): Request id (assigned by ZMQ)
+            rqst_id (str): Request id (assigned by ZMQ)
             data (bytes): Zip-file
             filenames (list): List of associated filenames
         """
         self._msg = msg
         self._socket = socket
         self._cmd = cmd
-        self._id = rqst_id
+        self._request_id = rqst_id
         self._data = data
         self._filenames = filenames
+        self._connection_id = msg[0]  # Assigned by the ROUTER socket that received the message
 
-    def get_msg(self):
-        """Provides Zero-MQ message parts as a list of binary data.
-
-        Returns:
-            list: List of binary data.
-        """
+    def msg(self):
+        """Returns a list containing three binary frames.
+         First frame is the connection id (added by the frontend ROUTER socket at receiver).
+         The second frame is empty (added by the frontend ROUTER socket at receiver).
+         The third frame contains the data sent by client."""
         return self._msg
 
-    def get_socket(self):
+    def socket(self):
         """Returns the socket associated to this connection."""
         return self._socket
 
-    def get_cmd(self):
-        """Returns the command (eg. 'execute' or 'ping' associated to this request.
-
-        Returns:
-            str: Command
-        """
+    def cmd(self):
+        """Returns the command as string (eg. 'execute' or 'ping' associated to this request)."""
         return self._cmd
 
-    def get_id(self):
-        """Returns the id associated to this request.
-
-        Returns:
-            str: Id that was assigned to this request by ZMQ
-        """
-        return self._id
+    def request_id(self):
+        """Returns the request id as string of the received ServerMessage.
+        Assigned by client when the request was made."""
+        return self._request_id
 
     def get_data(self):
         """Returns the parsed msg associated to this request."""
@@ -76,20 +68,36 @@ class ZMQConnection:
         """Returns associated filenames if any."""
         return self._filenames
 
+    def connection_id(self):
+        """Returns the connection Id as binary string. Assigned by the ROUTER
+        socket when the message was received at server."""
+        return self._connection_id
+
     def send_reply(self, data):
-        """Sends a reply message to the recipient.
+        """Sends a one-part reply message to the recipient.
+        Does not work with ROUTER sockets.
 
         Args:
-            data: Binary data
+            data (bytes): Binary string
         """
         self._socket.send(data)
 
+    def send_multipart_reply(self, data):
+        """Sends a multi-part (multi-frame) response.
+        Responding to clients from ROUTER sockets must use this method.
+
+        Args:
+            data (bytes): User data to be sent
+        """
+        frame = [self._connection_id, b"", data]
+        self._socket.send_multipart(frame)
+
     def send_response(self, response_data):
         """Sends reply back to client. Used after execution to send the events to client."""
-        reply_msg = ServerMessage(self._cmd, self._id, response_data, None)
+        reply_msg = ServerMessage(self._cmd, self._request_id, response_data, None)
         reply_as_json = reply_msg.toJSON()
         reply_in_bytes = bytes(reply_as_json, "utf-8")
-        self.send_reply(reply_in_bytes)
+        self.send_multipart_reply(reply_in_bytes)
 
     def send_error_reply(self, response_msg):
         """Sends an error message to client. Given msg string must be converted
@@ -101,10 +109,10 @@ class ZMQConnection:
         """
         print("send_error_reply")
         err_msg_as_json = json.dumps(response_msg)
-        reply_msg = ServerMessage(self._cmd, self._id, err_msg_as_json, [])
+        reply_msg = ServerMessage(self._cmd, self._request_id, err_msg_as_json, [])
         reply_as_json = reply_msg.toJSON()
         reply_in_bytes = bytes(reply_as_json, "utf-8")
-        self.send_reply(reply_in_bytes)
+        self.send_multipart_reply(reply_in_bytes)
         print("\nClient has been notified. Moving on...")
 
     @staticmethod
@@ -116,5 +124,5 @@ class ZMQConnection:
         reply_msg = ServerMessage("", "", err_msg_as_json, [])
         reply_as_json = reply_msg.toJSON()
         reply_in_bytes = bytes(reply_as_json, "utf-8")
-        socket.send_reply(reply_in_bytes)
+        socket.send_multipart_reply(reply_in_bytes)
         print("\nClient has been notified. Moving on...")

@@ -11,7 +11,7 @@
 
 """
 Handles remote pings received from the toolbox.
-:authors: P. Pääkkönen (VTT)
+:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   13.09.2021
 """
 
@@ -27,9 +27,9 @@ class RemotePingHandler:
         Args:
             connection (ZMQConnection): Zero-MQ connection
         """
-        rq_id = connection.get_id()
+        rq_id = connection.request_id()
         reply_msg = ServerMessage("ping", rq_id, "", None)
         reply_as_json = reply_msg.toJSON()
         reply_in_bytes = bytes(reply_as_json, "utf-8")
-        connection.send_reply(reply_in_bytes)
-        print(f"RemotePingHandler.handlePing() sent response: {reply_as_json}")
+        connection.send_multipart_reply(reply_in_bytes)
+        print(f"Replied to a Ping from {connection.connection_id()}")

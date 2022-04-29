@@ -156,15 +156,15 @@ class ZMQServer(threading.Thread):
                         print("Received request malformed. - continuing...")
                         continue
                     # TODO: Make a worker according to the command.
-                    worker_id = uuid.uuid4().hex
-                    if connection.get_cmd() == "execute":
+                    worker_id = uuid.uuid4().hex  # TODO: Use connection._connection_id instead
+                    if connection.cmd() == "execute":
                         worker = RemoteConnectionHandler(self._context)
-                    elif connection.get_cmd() == "ping":
+                    elif connection.cmd() == "ping":
                         worker = RemotePingHandler.handle_ping(connection)
                     else:
-                        print(f"Unknown command {connection.get_cmd()} requested")
+                        print(f"Unknown command {connection.cmd()} requested")
                         connection.send_error_reply(f"Error message from server - Unknown command "
-                                                    f"'{connection.get_cmd()}' requested")
+                                                    f"'{connection.cmd()}' requested")
                         continue
                     # workers[worker_id] = worker
                     # backend.send_multipart(msg)
@@ -199,9 +199,10 @@ class ZMQServer(threading.Thread):
         msg for ping is eg.
         [b'\x00k\x8bEg', b'', b'{\n   "command": "ping",\n   "id":"4773735",\n   "data":"",\n   "files": {}\n}']
         where,
-        msg[0] is the sender
-        msg[1] is empty
-        msg[2] is the request from client as a binary JSON string containing a server message dictionary
+        msg[0] - Frame 1, is the connection identity (or an address). Unique binary string handle to the connection.
+        msg[1] - Frame 2, empty delimiter frame.
+        msg[2] - Frame 3, data frame. This is the request from client as a binary
+            JSON string containing a server message dictionary
 
         Returns:
             None if something went wrong or a new ZMQConnection instance
@@ -209,8 +210,8 @@ class ZMQServer(threading.Thread):
         print(f"msg:{msg} type:{type(msg)}")
         b_json_str_server_msg = msg[2]
         if len(b_json_str_server_msg) <= 10:  # Message size too small
-            print(f"Received msg too small. len(msg[0]):{len(msg[0])}. msg:{msg}")
-            ZMQConnection.send_init_failed_reply(socket, f"Received msg too small?! "
+            print(f"User data frame too small [{len(msg[2])}]. msg:{msg}")
+            ZMQConnection.send_init_failed_reply(socket, f"User data frame too small "
                                                          f"- Malformed message sent to server.")
             return None
         try:
@@ -229,9 +230,7 @@ class ZMQServer(threading.Thread):
                                                          f"- Message parsing error at server.")
             return None
         # server_msg is now a dict with keys: 'command', 'id', 'data', and 'files'
-        print(f"server_msg:{server_msg} type{type(server_msg)}")
         data_str = server_msg["data"]  # String
-        print(f"data_str:{data_str}, type:{type(data_str)}")
         files = server_msg["files"]  # Dictionary. TODO: Should this be a list?
         files_list = []
         if len(files) > 0:
