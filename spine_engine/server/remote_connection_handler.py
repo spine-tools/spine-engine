@@ -22,7 +22,9 @@ import os
 import ast
 import pathlib
 import uuid
+import zmq
 from spine_engine.server.util.server_message import ServerMessage
+from spine_engine.server.util.server_message_parser import ServerMessageParser
 from spine_engine.server.util.file_extractor import FileExtractor
 from spine_engine.server.remote_spine_service_impl import RemoteSpineServiceImpl
 from spine_engine.server.util.event_data_converter import EventDataConverter
@@ -35,26 +37,77 @@ class RemoteConnectionHandler(threading.Thread):
     # location, where all projects will be extracted and executed
     internalProjectFolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "received_projects")
 
-    def __init__(self, zmqConnection, server_msg, zip_file):
+    def __init__(self, context):
         """
         Args:
-            zmqConnection: Zero-MQ connection of the client.
+            context (zmq.Context): Context for this handler.
         """
-        if not zmqConnection:
-            raise ValueError("No Zero-MQ connection was provided to RemoteConnectionHandler()")
-        self.zmqConn = zmqConnection
-        threading.Thread.__init__(self, target=self._execute, args=(server_msg, zip_file,))
+        self.context = context
+        threading.Thread.__init__(self, name="ExecutionWorker", target=self._execute)
         self.start()
 
-    def _execute(self, server_msg, zip_file):
-        """Executes a query with the Spine engine, and returns a response to the Zero-MQ client.
-
-        Args:
-            server_msg (ServerMessage): Parsed ServerMessage
-            zip_file (bytes): zip-file
-        """
+    def _execute(self):
+        """Executes a query with the Spine engine, and returns a response to the Zero-MQ client."""
         # execStartTimeMs = round(time.time() * 1000.0)
         # Parse JSON message
+        worker_socket = self.context.socket(zmq.DEALER)
+        worker_socket.connect("inproc://backend")
+        worker_ctrl_socket = self.context.socket(zmq.PAIR)
+        worker_ctrl_socket.connect("inproc://worker_ctrl")
+        poller = zmq.Poller()
+        print(f"_execute(): thread: {threading.current_thread()}")
+        poller.register(worker_socket, zmq.POLLIN)
+        poller.register(worker_ctrl_socket, zmq.POLLIN)
+        while True:
+            socks = dict(poller.poll())
+            if socks.get(worker_socket) == zmq.POLLIN:
+                print("backend receiving message")
+                ident, msg, zip_file = worker_socket.recv_multipart()
+                # Make some rudimentary checks before sending the message for processing
+                if not self.check_msg_integrity(message, frontend):
+                    continue
+                # Start a worker for processing the message
+                server_msg = ServerMessageParser.parse(message.decode("utf-8"))
+                cmd = server_msg.getCommand()
+                if cmd == "ping":  # Handle pings
+                    print("Handling ping request")
+                    RemotePingHandler.handlePing(parsed_msg, conn)  # TODO: Process Ping in a thread too?
+                elif cmd == "execute":  # Handle execute messages
+                    # if not len(message[1:]) == 2:  # Skip first part of the message (identity added by DEALER)
+                    #     print(f"Not enough parts in received msg. Should be 2.")
+                    #     self.send_error_reply(frontend, "", "",
+                    #                           f"Message should have two parts. len(message): {len(message)}")
+                    #     continue
+                    print("Handling execute request")
+                    backend.send_multipart([ident, message, zip_file])
+                else:  # Unknown command
+                    print(f"Unknown command '{cmd}' received. Sending 'Unknown command' response'")
+                    self.send_error_reply(frontend, "", "", "Unknown command '{cmd}'")
+                    continue
+
+                print(ident)
+                # Do execution
+                self.do_execution(ident, msg, zip_file, worker_socket)
+                break
+            if socks.get(worker_ctrl_socket) == zmq.POLLIN:
+                print("Killing worker thread")
+                # Kill worker thread
+                break
+        print("Closing worker sockets")
+        worker_socket.close()
+        worker_ctrl_socket.close()
+
+    def do_execution(self, ident, msg, zip_file, worker_socket):
+        # ident, empty_frame, msg, zip_file = multipart_msg  # With a REQ client socket
+        print("do_execution")
+        print(f"ident: {ident}")
+        # if not empty_frame:  # Must be b''
+        #     print("Empty frame received")
+        # else:
+        #     print(f"{empty_frame} is not empty")
+        # print(f"empty frame:'{empty_frame.decode('utf-8')}'")
+        msg_part1 = msg.decode("utf-8")
+        server_msg = ServerMessageParser.parse(msg_part1)
         cmd = server_msg.getCommand()
         msg_id = server_msg.getId()
         msg_data = server_msg.getData()
@@ -111,9 +164,15 @@ class RemoteConnectionHandler(threading.Thread):
         # until all items have finished.
 
         # Create a response message, send it
-        print("Execution done. Sending a response to client")
+        print("Execution done")
         json_events_data = EventDataConverter.convert(event_data)
-        self.zmqConn.send_response(cmd, msg_id, json_events_data)
+        # self.zmqConn.send_response(cmd, msg_id, json_events_data)
+        reply_msg = ServerMessage(cmd, msg_id, json_events_data, None)
+        reply_as_json = reply_msg.toJSON()
+        reply_in_bytes = bytes(reply_as_json, "utf-8")
+        worker_socket.send_multipart([ident, reply_in_bytes])
+        print("Response sent to client")
+
         # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
         # try:
         #     time.sleep(4)

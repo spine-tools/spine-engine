@@ -14,15 +14,18 @@ Contains ZMQServer class for running a Zero-MQ server with Spine Engine.
 :authors: P. Pääkkönen (VTT)
 :date:   19.08.2021
 """
-
-import zmq
-import threading
-import time
+import json.decoder
 import os
+import time
+import threading
 import ipaddress
+import uuid
 from enum import unique, Enum
+import zmq
 from zmq.auth.thread import ThreadAuthenticator
-from .zmq_connection import ZMQConnection
+from spine_engine.server.remote_connection_handler import RemoteConnectionHandler
+from spine_engine.server.connectivity.zmq_connection import ZMQConnection
+from spine_engine.server.util.server_message_parser import ServerMessageParser
 
 
 @unique
@@ -35,15 +38,14 @@ class ZMQServer(threading.Thread):
     """A server implementation for receiving connections (ZMQConnection) from the Spine Toolbox."""
 
     def __init__(self, protocol, port, zmqServerObserver, secModel, secFolder):
-        """
-        Initialises the server.
+        """Initialises the server.
+
         Args:
             protocol: protocol to be used by the server.
             port: port to bind the server to
             secModel: see: ZMQSecurityModelState 
             secFolder: folder, where security files have been stored.
         """
-
         if not zmqServerObserver:
             raise ValueError("Invalid input ZMQServer: No zmqServerObserver given")
         self._observer = zmqServerObserver
@@ -84,18 +86,22 @@ class ZMQServer(threading.Thread):
     def close(self):
         """Closes the server by sending a KILL message to receiver thread using a 0MQ socket."""
         self.ctrl_msg_sender.send(b"KILL")
+        print("Closing ctrl_msg_sender and context")
         self.ctrl_msg_sender.close()
-        self.join()
-        self._context.term()
 
     def serve(self):
         """Creates two sockets, which are both polled asynchronously. The REPLY socket handles messages
         from Spine Toolbox client, while the PAIR socket listens for 'server' internal control messages."""
         try:
-            client_msg_listener = self._context.socket(zmq.REP)
+            print(f"serve(): {threading.current_thread()}")
+            frontend = self._context.socket(zmq.ROUTER)  # frontend
+            backend = self._context.socket(zmq.DEALER)
+            backend.bind("inproc://backend")
             # Socket for internal control input (i.e. killing the server)
             ctrl_msg_listener = self._context.socket(zmq.PAIR)
             ctrl_msg_listener.connect("inproc://ctrl_msg")
+            worker_thread_killer = self._context.socket(zmq.PAIR)
+            worker_thread_killer.bind("inproc://worker_ctrl")
             auth = None
             if self._secModelState == ZMQSecurityModelState.STONEHOUSE:
                 # Start an authenticator for this context
@@ -126,24 +132,47 @@ class ZMQServer(threading.Thread):
                 auth.configure_curve(domain='*', location=zmq.auth.CURVE_ALLOW_ANY)
                 server_secret_file = os.path.join(self.secret_keys_dir, "server.key_secret")
                 server_public, server_secret = zmq.auth.load_certificate(server_secret_file)
-                client_msg_listener.curve_secretkey = server_secret
-                client_msg_listener.curve_publickey = server_public
-                client_msg_listener.curve_server = True  # must come before bind
-            client_msg_listener.bind(self.protocol + "://*:" + str(self.port))
+                frontend.curve_secretkey = server_secret
+                frontend.curve_publickey = server_public
+                frontend.curve_server = True  # must come before bind
+            frontend.bind(self.protocol + "://*:" + str(self.port))
             poller = zmq.Poller()
-            poller.register(client_msg_listener, zmq.POLLIN)
+            poller.register(frontend, zmq.POLLIN)
+            poller.register(backend, zmq.POLLIN)
             poller.register(ctrl_msg_listener, zmq.POLLIN)
         except Exception as e:
-            # print("ZMQServer couldn't be started due to exception: %s"%e)
-            raise ValueError("Invalid input ZMQServer._receive()")
+            raise ValueError(f"Initializing serve() failed due to exception: {e}")
+        workers = dict()
         while True:
             try:
                 socks = dict(poller.poll())
-                if socks.get(client_msg_listener) == zmq.POLLIN:
-                    msg_parts = client_msg_listener.recv_multipart()
-                    self._conn = ZMQConnection(client_msg_listener, msg_parts)
-                    self._observer.receiveConnection(self._conn)
+                # Broker
+                if socks.get(frontend) == zmq.POLLIN:
+                    # Frontend received a message, send it to backend for processing
+                    print("Frontend received a message")
+                    msg = frontend.recv_multipart()
+                    connection = self.handle_frontend_message_received(frontend, msg)
+                    if not connection:
+                        print("Received request malformed. - continuing...")
+                        continue
+                    else:
+                        print("Success so far")
+                        continue
+                    # TODO: Get command from connection and make a worker according to the command.
+                    worker_id = uuid.uuid4().hex
+                    worker = RemoteConnectionHandler(self._context)
+                    workers[worker_id] = worker
+                    backend.send_multipart(msg)
+                if socks.get(backend) == zmq.POLLIN:
+                    # Get reply message from backend and send it back to client
+                    message = backend.recv_multipart()
+                    frontend.send_multipart(message)
+                    # TODO: Remove worker thread from list
+
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
+                    # print("Closing down worker thread")
+                    print(f"workers running:{len(workers)}")
+                    # worker_thread_killer.send(b"KILL")
                     # No need to check the message content.
                     break
             except Exception as e:
@@ -152,10 +181,51 @@ class ZMQServer(threading.Thread):
         # Close sockets and connections
         if self._secModelState == ZMQSecurityModelState.STONEHOUSE:
             auth.stop()
-            # wait a bit until authenticator has been closed
-            time.sleep(0.2)  # TODO: Check if this is necessary
+            time.sleep(0.2)  # wait a bit until authenticator has been closed # TODO: Is this necessary?
         ctrl_msg_listener.close()
-        client_msg_listener.close()
+        frontend.close()
+        backend.close()
+        worker_thread_killer.close()
+        self._context.term()
+
+    @staticmethod
+    def handle_frontend_message_received(socket, msg):
+        """Check received message integrity.
+
+        Returns:
+            None if something went wrong or a new ZMQConnection instance
+        """
+        print(f"msg:{msg} type:{type(msg)}")
+        if len(msg[0]) <= 10:  # Message size too small
+            print(f"Received msg too small. len(msg[0]):{len(msg[0])}. msg:{msg}")
+            ZMQConnection.send_init_failed_reply(socket, f"Received msg too small?! "
+                                                         f"- Malformed message sent to server.")
+            return None
+        try:
+            msg_part1 = msg[0].decode("utf-8")
+        except UnicodeDecodeError as e:
+            print(f"Decoding received msg '{msg[0]} ' failed. \nUnicodeDecodeError: {e}")
+            ZMQConnection.send_init_failed_reply(socket, f"UnicodeDecodeError: {e}. "
+                                                         f"- Malformed message sent to server.")
+            return None
+        print(f"msg_part1:{msg_part1} type:{type(msg_part1)}")
+        # Load JSON string into dictionary
+        try:
+            parsed_msg = json.loads(msg_part1)
+        except json.decoder.JSONDecodeError as e:
+            ZMQConnection.send_init_failed_reply(socket, f":json.decoder.JSONDecodeError: {e}. "
+                                                         f"- Message parsing error at server.")
+            return None
+        print(f"parsed_msg:{parsed_msg} type{type(parsed_msg)}")
+        data_str = parsed_msg["data"]  # Is this really a string
+        print(f"data_str:{data_str}, type:{type(data_str)}")
+        files = parsed_msg["files"]
+        files_list = []
+        if len(files) > 0:
+            for f in files:
+                files_list.append(files[f])
+        connection = ZMQConnection(msg, socket, parsed_msg["command"], parsed_msg["id"], data_str, files_list)
+        return connection
 
     @staticmethod
     def _read_end_points(config_file_location):
@@ -171,3 +241,8 @@ class ZMQServer(threading.Thread):
             all_lines = f.read().splitlines()
             lines = [x for x in all_lines if x]
             return lines
+
+
+class BackendWorkerManager:
+    def __init__(self):
+        self._worker_threads = dict()

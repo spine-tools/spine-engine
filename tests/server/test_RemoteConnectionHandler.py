@@ -32,7 +32,8 @@ class TestRemoteConnectionHandler(unittest.TestCase):
     def setUp(self):
         self.service = RemoteSpineService("tcp", 5559, ZMQSecurityModelState.NONE, "")
         self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.REQ)
+        self.socket = self.context.socket(zmq.DEALER)
+        self.socket.identity = "Worker1".encode("ascii")
         self.socket.connect("tcp://localhost:5559")
 
     def tearDown(self):
@@ -364,7 +365,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
             data = f.read()
         listFiles = ["helloworld.zip"]
         i = 0
-        while i < 2:  # TODO: Works with "while i < 2". does not work with "while i < 3". Problem may be reaching the high-water mark?!
+        while i < 5:  # TODO: Works with "while i < 2". does not work with "while i < 3". Problem may be reaching the high-water mark?!
             msg_parts = []
             dict_data2["project_dir"] = "./helloworld" + str(i)
             dict_data2["specifications"]["Tool"][0]["definition_file_path"] = (
@@ -404,7 +405,7 @@ class TestRemoteConnectionHandler(unittest.TestCase):
         msgStr = message.decode("utf-8")
         server_msg = ServerMessageParser.parse(msgStr)
         msg_data = server_msg.getData()
-        self.assertTrue(msg_data.startswith("Message should have two parts."))
+        self.assertTrue(msg_data.startswith("Message should have two parts"))
 
     def test_no_filename(self):
         msg_parts = []
