@@ -196,6 +196,11 @@ class ZMQServer(threading.Thread):
             None if something went wrong or a new ZMQConnection instance
         """
         print(f"msg:{msg} type:{type(msg)}")
+        if len(msg[0]) <= 10:  # Message size too small
+            print(f"Received msg too small. len(msg[0]):{len(msg[0])}. msg:{msg}")
+            ZMQConnection.send_init_failed_reply(socket, f"Received msg too small?! "
+                                                         f"- Malformed message sent to server.")
+            return None
         try:
             msg_part1 = msg[0].decode("utf-8")
         except UnicodeDecodeError as e:
