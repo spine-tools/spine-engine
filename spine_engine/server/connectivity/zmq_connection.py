@@ -60,11 +60,11 @@ class ZMQConnection:
         Assigned by client when the request was made."""
         return self._request_id
 
-    def get_data(self):
+    def data(self):
         """Returns the parsed msg associated to this request."""
         return self._data
 
-    def get_filenames(self):
+    def filenames(self):
         """Returns associated filenames if any."""
         return self._filenames
 
