@@ -56,7 +56,7 @@ class EventDataConverter:
         return retStr
 
     @staticmethod
-    def convertJSON(jsonStr, base64Data):
+    def convertJSON(parsed_json, base64Data):
         """Converts JSON string into list of tuples. Tuples contain the event_type and the associated data.
 
         Args:
@@ -66,9 +66,9 @@ class EventDataConverter:
         Returns:
             (list(tuple)): List of tuples containing events and data
         """
-        parsedJSON = json.loads(jsonStr)
+        # parsedJSON = json.loads(jsonStr)
         # print(parsedJSON)
-        itemsList = parsedJSON['items']
+        itemsList = parsed_json['items']
         # print("parsed list of items:")
         # print(itemsList)
         retList = []

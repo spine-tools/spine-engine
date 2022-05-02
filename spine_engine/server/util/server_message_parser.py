@@ -11,7 +11,7 @@
 
 """
 Parser for JSON-based messages exchanged between server and clients.
-:authors: P. Pääkkönen (VTT)
+:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   25.08.2021
 """
 
@@ -22,25 +22,22 @@ from spine_engine.server.util.server_message import ServerMessage
 class ServerMessageParser:
     @staticmethod
     def parse(message):
-        """Parses received message
+        """Parses received message.
 
         Args:
-            message: JSON-message as a string
+            message (str): JSON message
 
         Returns:
             ServerMessage: Parsed message
         """
-        if not message:
-            raise ValueError("invalid input to ServerMessageParser.parse()")
-        # Load JSON string into dictionary
-        parsedMsg = json.loads(message)
-        fileNames = parsedMsg['files']
-        dataStr = parsedMsg['data']
-        parsedFileNames = []
-        if len(fileNames) > 0:
-            for f in fileNames:
-                parsedFileNames.append(fileNames[f])
-            msg = ServerMessage(parsedMsg['command'], parsedMsg['id'], dataStr, parsedFileNames)
+        parsed_msg = json.loads(message)  # Load JSON string into dictionary
+        file_names = parsed_msg["files"]  # dictionary
+        data_str = parsed_msg["data"]  # dictionary
+        parsedFileNames = list()
+        if len(file_names) > 0:
+            for f in file_names:
+                parsedFileNames.append(file_names[f])
+            msg = ServerMessage(parsed_msg['command'], parsed_msg['id'], data_str, parsedFileNames)
         else:
-            msg = ServerMessage(parsedMsg['command'], parsedMsg['id'], dataStr, None)
+            msg = ServerMessage(parsed_msg['command'], parsed_msg['id'], data_str, None)
         return msg
