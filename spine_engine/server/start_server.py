@@ -32,7 +32,7 @@ class RemoteSpineService(threading.Thread):
             zmq_sec_model_state: Zero-MQ security model (None, StoneHouse)
             sec_folder: Folder, where security files are stored at (if security mode StoneHouse is used)
         """
-        self.zmqServer = ZMQServer(protocol, port, self, zmq_sec_model_state, sec_folder)
+        self.zmqServer = ZMQServer(protocol, port, zmq_sec_model_state, sec_folder)
         self.serviceRunning = True
         threading.Thread.__init__(self, name="RemoteSpineService")
         self.start()

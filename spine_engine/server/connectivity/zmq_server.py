@@ -37,7 +37,7 @@ class ZMQSecurityModelState(Enum):
 class ZMQServer(threading.Thread):
     """A server implementation for receiving connections (ZMQConnection) from the Spine Toolbox."""
 
-    def __init__(self, protocol, port, zmqServerObserver, secModel, secFolder):
+    def __init__(self, protocol, port, secModel, secFolder):
         """Initialises the server.
 
         Args:
@@ -46,9 +46,6 @@ class ZMQServer(threading.Thread):
             secModel: see: ZMQSecurityModelState 
             secFolder: folder, where security files have been stored.
         """
-        if not zmqServerObserver:
-            raise ValueError("Invalid input ZMQServer: No zmqServerObserver given")
-        self._observer = zmqServerObserver
         try:
             if secModel == ZMQSecurityModelState.NONE:
                 self._secModelState = ZMQSecurityModelState.NONE
