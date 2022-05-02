@@ -21,7 +21,9 @@ from pathlib import Path
 import os
 from shutil import copyfile, rmtree
 from zipfile import ZipFile
-from spine_engine.server.remote_spine_service_impl import RemoteSpineServiceImpl
+# from spine_engine.server.remote_spine_service_impl import RemoteSpineServiceImpl
+
+# TODO: RemoteSpineServiceImpl() has been removed. See if there's something worth saving here.
 
 
 class TestRemoteSpineServiceImpl(unittest.TestCase):
@@ -111,6 +113,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
         item['project_dir'] = project_dir
         return item
 
+    @unittest.skip("Obsolete")
     def test_basic_service_call_succeeds(self):
         """Tests execution with all data items present"""
         dict_data2 = self._dict_data(
@@ -165,7 +168,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             items_module_name='spine_items',
         )
 
-        impl = RemoteSpineServiceImpl()
+        # impl = RemoteSpineServiceImpl()
         # print("test_basic_service_call_succeeds(): input data to spine engine impl:")
         # print(dict_data2)
         eventData = impl.execute(dict_data2)
@@ -186,6 +189,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             # print("event: %s"%i[0])
             # print("data: %s"%i[1])
 
+    @unittest.skip("Obsolete")
     def test_basic_service_call_succeeds_loop(self):
         """Tests execution with all data items present (in a loop)"""
         dict_data2 = self._dict_data(
@@ -240,7 +244,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             items_module_name='spine_items',
         )
 
-        impl = RemoteSpineServiceImpl()
+        # impl = RemoteSpineServiceImpl()
 
         # loop periodic calls to the service
         i = 0
@@ -265,6 +269,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
                 # print("event: %s"%i[0])
                 # print("data: %s"%i[1])
 
+    @unittest.skip("Obsolete")
     def test_missing_field_in_data(self):
         """Tests execution with a missing field in data (that an error is raised)"""
         dict_data = self._dict_data(
@@ -319,7 +324,7 @@ class TestRemoteSpineServiceImpl(unittest.TestCase):
             items_module_name='spine_items',
         )
 
-        impl = RemoteSpineServiceImpl()
+        # impl = RemoteSpineServiceImpl()
         with self.assertRaises(ValueError):
             impl.execute(dict_data)
 
