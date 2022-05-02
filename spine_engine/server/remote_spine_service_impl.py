@@ -21,8 +21,8 @@ from spine_engine import SpineEngine
 
 class RemoteSpineServiceImpl:
     """A service implementation for execution of DAGs with Spine Engine."""
-
-    def execute(self, data):
+    @staticmethod
+    def execute(data):
         """
         Execute a DAG with Spine Engine based on the provided data.
         A prerequisite is that associated data files(project directory) has been saved into a respective 
@@ -34,24 +34,6 @@ class RemoteSpineServiceImpl:
         Returns:
             list: A list of tuples containing event and data returned from the SpineEngine.
         """
-        # check for correct input
-        if (
-            data["items"] == None
-            or data["connections"] == None
-            or data["node_successors"] == None
-            or data["execution_permits"] == None
-            or data["specifications"] == None
-            or data["settings"] == None
-            or data["project_dir"] == None
-            or data["items"] == ""
-            or data["connections"] == ""
-            or data["node_successors"] == ""
-            or data["execution_permits"] == ""
-            or data["specifications"] == ""
-            or data["settings"] == ""
-            or data["project_dir"] == ""
-        ):
-            raise ValueError("invalid data content provided to RemoteSpineServiceImpl.execute()")
         engine = SpineEngine(
             items=data["items"],
             specifications=data["specifications"],

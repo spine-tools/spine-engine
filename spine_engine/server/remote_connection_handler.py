@@ -126,7 +126,7 @@ class RemoteConnectionHandler:
         print(f"msg_data:{msg_data}")
         try:
             with open(os.path.join(local_project_dir, file_names[0]), "wb") as f:
-                f.write(self.connection.zip_file())
+                f.write(self.connection.zip_file())  # TODO: Something goes wrong here with a project that has many empty folders
         except Exception as e:
             print(f"Saving the received file to '{save_file_path}' failed. [{type(e).__name__}: {e}")
             self.connection.send_error_reply(f"Server failed in saving the received file to "
@@ -142,12 +142,15 @@ class RemoteConnectionHandler:
             return
         # Execute DAG in the Spine engine
         print("Executing the project")
-        spineEngineImpl = RemoteSpineServiceImpl()
         # print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
         # convertedData=self._convertTextDictToDicts(dataAsDict)
         converted_data = self.convert_input(msg_data, local_project_dir)
-        # print("RemoteConnectionHandler._execute() passing data to spine engine impl: %s"%convertedData)
-        event_data = spineEngineImpl.execute(converted_data)
+        try:
+            event_data = RemoteSpineServiceImpl().execute(converted_data)
+        except Exception as e:
+            print(f"Execution failed: {type(e).__name__}: {e}")
+            self.connection.send_error_reply(f"{type(e).__name__}: {e}. - Project execution failedon Server")
+            return
         # NOTE! All execution event messages generated while running the DAG are collected into a single list.
         # This list is sent back to Toolbox in a single message only after the whole DAG has finished execution
         # in a single message. This means that Spine Toolbox cannot update the GUI (e.g. animations in Design
