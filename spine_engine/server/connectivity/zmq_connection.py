@@ -20,7 +20,7 @@ from spine_engine.server.util.server_message import ServerMessage
 
 
 class ZMQConnection:
-    """Implementation of a Zero-MQ socket connection."""
+    """Class for bundling the received message and ZMQ connection together."""
     def __init__(self, msg, socket, cmd, rqst_id, data, filenames):
         """Init class.
 

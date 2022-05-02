@@ -12,21 +12,17 @@
 """
 Contains RemoteConnectionHandler class for receiving control messages(with project content) from the Toolbox,
 and running a DAG with Spine Engine. Only one DAG can be executed at a time.
-:authors: P. Pääkkönen (VTT)
+:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   24.08.2021
 """
 
-import time
-import threading
 import os
 import ast
 import pathlib
 import uuid
 import zmq
-from spine_engine.server.util.server_message import ServerMessage
-from spine_engine.server.util.server_message_parser import ServerMessageParser
+from spine_engine import SpineEngine
 from spine_engine.server.util.file_extractor import FileExtractor
-from spine_engine.server.remote_spine_service_impl import RemoteSpineServiceImpl
 from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
@@ -97,7 +93,7 @@ class RemoteConnectionHandler:
     #     worker_socket.close()
     #     worker_ctrl_socket.close()
 
-    def do_execution(self):
+    def execute(self):
         connection_id = self.connection.connection_id()
         req_id = self.connection.request_id()
         msg_data = self.connection.data()
@@ -123,7 +119,6 @@ class RemoteConnectionHandler:
             return
         # Save the received zip file
         save_file_path = os.path.join(local_project_dir, file_names[0])
-        print(f"msg_data:{msg_data}")
         try:
             with open(os.path.join(local_project_dir, file_names[0]), "wb") as f:
                 f.write(self.connection.zip_file())  # TODO: Something goes wrong here with a project that has many empty folders
@@ -141,28 +136,33 @@ class RemoteConnectionHandler:
             self.connection.send_error_reply(f"{type(e).__name__}: {e}. - File extraction failed on Server")
             return
         # Execute DAG in the Spine engine
-        print("Executing the project")
-        # print("RemoteConnectionHandler._execute() Received data type :%s"%type(dataAsDict))
+        print("Executing project...")
         # convertedData=self._convertTextDictToDicts(dataAsDict)
         converted_data = self.convert_input(msg_data, local_project_dir)
         try:
-            event_data = RemoteSpineServiceImpl().execute(converted_data)
+            engine = SpineEngine(**converted_data)
+            # get events+data from the spine engine
+            event_data = []
+            while True:
+                # NOTE! All execution event messages generated while running the DAG are collected into a single list.
+                # This list is sent back to Toolbox in a single message only after the whole DAG has finished execution
+                # in a single message. This means that Spine Toolbox cannot update the GUI (e.g. animations in Design
+                # View don't work, and the execution progress is not updated to Item Execution Log (or other Logs)
+                # until all items have finished.
+                event_type, data = engine.get_event()
+                event_data.append((event_type, data))
+                if data == "COMPLETED" or data == "FAILED":
+                    break
         except Exception as e:
             print(f"Execution failed: {type(e).__name__}: {e}")
-            self.connection.send_error_reply(f"{type(e).__name__}: {e}. - Project execution failedon Server")
+            self.connection.send_error_reply(f"{type(e).__name__}: {e}. - Project execution failed on Server")
             return
-        # NOTE! All execution event messages generated while running the DAG are collected into a single list.
-        # This list is sent back to Toolbox in a single message only after the whole DAG has finished execution
-        # in a single message. This means that Spine Toolbox cannot update the GUI (e.g. animations in Design
-        # View don't work, and the execution progress is not updated to Item Execution Log (or other Logs)
-        # until all items have finished.
-
         # Create a response message, send it
         print("Execution done")
         json_events_data = EventDataConverter.convert(event_data)
         print(json_events_data)
         self.connection.send_response(json_events_data)
-        print("Response sent to client")
+        print(f"Response to request {req_id} sent to client {connection_id}")
 
         # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
         # try:

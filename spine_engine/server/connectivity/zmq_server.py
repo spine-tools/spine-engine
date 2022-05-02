@@ -159,7 +159,7 @@ class ZMQServer(threading.Thread):
                     worker_id = uuid.uuid4().hex  # TODO: Use connection._connection_id instead
                     if connection.cmd() == "execute":
                         worker = RemoteConnectionHandler(self._context, connection)
-                        worker.do_execution()
+                        worker.execute()
                     elif connection.cmd() == "ping":
                         worker = RemotePingHandler.handle_ping(connection)
                     else:
