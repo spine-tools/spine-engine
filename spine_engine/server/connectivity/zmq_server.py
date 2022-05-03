@@ -77,14 +77,14 @@ class ZMQServer(threading.Thread):
         self.ctrl_msg_sender.bind("inproc://ctrl_msg")  # inproc:// transport requires a bind() before connect()
         # Start serving
         threading.Thread.__init__(self, target=self.serve)
-        self.name = "Server Thread"
+        self.name = "ZMQServerThread"
         self.start()
 
     def close(self):
         """Closes the server by sending a KILL message to receiver thread using a 0MQ socket."""
         self.ctrl_msg_sender.send(b"KILL")
-        print("Closing ctrl_msg_sender and context")
         self.ctrl_msg_sender.close()
+        self._context.term()
 
     def serve(self):
         """Creates two sockets, which are both polled asynchronously. The REPLY socket handles messages
@@ -188,7 +188,6 @@ class ZMQServer(threading.Thread):
         frontend.close()
         backend.close()
         worker_thread_killer.close()
-        self._context.term()
 
     @staticmethod
     def handle_frontend_message_received(socket, msg):
