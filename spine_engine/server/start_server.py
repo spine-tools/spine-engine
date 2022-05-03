@@ -53,7 +53,7 @@ class RemoteSpineService(threading.Thread):
 
 def main(argv):
     """Spine Engine server main function."""
-    if len(argv) != 3 or len(argv) != 5:
+    if len(argv) != 3 and len(argv) != 5:
         print(f"Start server either by\n\npython {argv[0]} <protocol> <port>\n\n"
               f"or\n\npython {argv[0]} <protocol> <port> stonehouse <path_to_security_folder>\n\n"
               f"to enable security."
