@@ -38,7 +38,7 @@ class ZMQServer(threading.Thread):
     """A server implementation for receiving connections (ZMQConnection) from the Spine Toolbox."""
 
     def __init__(self, protocol, port, secModel, secFolder):
-        """Initialises the server.
+        """Initializes the server.
 
         Args:
             protocol: protocol to be used by the server.

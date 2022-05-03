@@ -27,14 +27,14 @@ class RemoteSpineService(threading.Thread):
     def __init__(self, protocol, port, zmq_sec_model_state, sec_folder):
         """
         Args: 
-            protocol: Zero-MQ protocol (string)
-            port: Zero-MQ port to listen at for incoming connections
-            zmq_sec_model_state: Zero-MQ security model (None, StoneHouse)
-            sec_folder: Folder, where security files are stored at (if security mode StoneHouse is used)
+            protocol (str): Zero-MQ protocol
+            port (int): Zero-MQ port to listen at for incoming connections
+            zmq_sec_model_state (ZMQSecurityModelState): Zero-MQ security model
+            sec_folder (str): Folder where security files are stored at (if security mode StoneHouse is used)
         """
+        super().__init__(name="RemoteSpineServiceThread")
         self.zmqServer = ZMQServer(protocol, port, zmq_sec_model_state, sec_folder)
         self.serviceRunning = True
-        threading.Thread.__init__(self, name="RemoteSpineService")
         self.start()
 
     def close(self):
@@ -53,31 +53,23 @@ class RemoteSpineService(threading.Thread):
 
 def main(argv):
     """Spine Engine server main function."""
-    if len(argv) < 4:
-        print(
-            "protocol, port, security model (None or StoneHouse) and security "
-            "folder (required with security) are required as parameters"
+    if len(argv) != 3 or len(argv) != 5:
+        print(f"Start server either by\n\npython {argv[0]} <protocol> <port>\n\n"
+              f"or\n\npython {argv[0]} <protocol> <port> stonehouse <path_to_security_folder>\n\n"
+              f"to enable security."
         )
-        return
-    if len(argv) != 5 and argv[3].lower() == "stonehouse":
-        print("security folder (required with security) is also required as a parameter")
-        return
-    if argv[3].lower() != "stonehouse" and argv[3].lower() != "none":
-        print("invalid security model, use None or StoneHouse")
         return
     service = None
     try:
         port = int(argv[2])
-        if len(argv) == 4 and argv[3].lower() == "none":
+        if len(argv) == 3:
             service = RemoteSpineService(argv[1], port, ZMQSecurityModelState.NONE, "")
-        elif len(argv) == 5 and argv[3].lower() == "stonehouse":
+        elif len(argv) == 5:
             service = RemoteSpineService(argv[1], port, ZMQSecurityModelState.STONEHOUSE, argv[4])
-        else:
-            return
     except Exception as e:
         print(f"start_server.main(): {type(e).__name__}: {e}")
     # Start listening for keyboard input
-    print("Press c to close the server")
+    print("Press c or Ctrl-c to close the server")
     print("\nListening...")
     kb_input = ""
     while kb_input != "c":
