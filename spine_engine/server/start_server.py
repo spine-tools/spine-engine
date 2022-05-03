@@ -54,8 +54,8 @@ class RemoteSpineService(threading.Thread):
 def main(argv):
     """Spine Engine server main function."""
     if len(argv) != 3 and len(argv) != 5:
-        print(f"Start server either by\n\npython {argv[0]} <protocol> <port>\n\n"
-              f"or\n\npython {argv[0]} <protocol> <port> stonehouse <path_to_security_folder>\n\n"
+        print(f"This is the start script for Spine Engine Server\nUsage:\n\tpython {argv[0]} <protocol> <port>\n\n"
+              f"or\n\tpython {argv[0]} <protocol> <port> stonehouse <path_to_security_folder>\n"
               f"to enable security."
         )
         return
@@ -68,6 +68,7 @@ def main(argv):
             service = RemoteSpineService(argv[1], port, ZMQSecurityModelState.STONEHOUSE, argv[4])
     except Exception as e:
         print(f"start_server.main(): {type(e).__name__}: {e}")
+        return
     # Start listening for keyboard input
     print("Press c or Ctrl-c to close the server")
     print("\nListening...")
