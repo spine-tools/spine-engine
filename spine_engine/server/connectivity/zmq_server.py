@@ -53,7 +53,6 @@ class ZMQServer(threading.Thread):
                 # implementation based on https://github.com/zeromq/pyzmq/blob/main/examples/security/stonehouse.py
                 if not secFolder:
                     raise ValueError("ZMQServer(): security folder input is missing.")
-                # print("beginning to configure security for stonehouse-model of ZMQ")
                 base_dir = secFolder
                 self.keys_dir = os.path.join(base_dir, 'certificates')
                 self.public_keys_dir = os.path.join(base_dir, 'public_keys')
@@ -76,8 +75,7 @@ class ZMQServer(threading.Thread):
         self.ctrl_msg_sender = self._context.socket(zmq.PAIR)
         self.ctrl_msg_sender.bind("inproc://ctrl_msg")  # inproc:// transport requires a bind() before connect()
         # Start serving
-        threading.Thread.__init__(self, target=self.serve)
-        self.name = "ZMQServerThread"
+        threading.Thread.__init__(self, target=self.serve, name="ZMQServerThread")
         self.start()
 
     def close(self):
