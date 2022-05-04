@@ -196,7 +196,7 @@ class PersistentManagerBase:
         """
         with self._lock:
             self._msg_queue.put({"type": "stdin", "data": cmd})
-            self.command_successful = self._issue_command(cmd)
+            self.command_successful = self._issue_command(cmd, catch_exception=catch_exception)
             if self.command_successful:
                 if add_history:
                     self._communicate("add_history", cmd, receive=False)
