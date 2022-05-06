@@ -18,6 +18,16 @@ using REPL.Terminals
 using REPL.LineEdit
 
 _exception = false
+# History related stuff. This works with julia 1.0 to 1.6 at least
+term = TerminalBuffer(IOBuffer())
+repl = LineEditREPL(term, false)
+repl.history_file = true
+interface = REPL.setup_interface(repl)
+mistate = LineEdit.init_state(term, interface)
+prompt_state = LineEdit.state(mistate)
+prompt = LineEdit.mode(prompt_state)
+hist = prompt.hist
+search_state = LineEdit.init_state(term, LineEdit.PrefixHistoryPrompt(hist, prompt))
 
 function set_exception(value)
 	global _exception = value
@@ -27,6 +37,7 @@ function ping(host, port)
 	s = connect(host, port)
     write(s, _exception ? "error" : "ok")
     close(s)
+    REPL.history_reset_state(hist)
 end	
 
 function completions(text)
@@ -34,18 +45,12 @@ function completions(text)
     join(completion_text.(REPLCompletions.completions(text, length(text))[1]), " ")
 end
 
-# Create MIState to work with history. This works with julia 1.0 to 1.6 at least
-term = TerminalBuffer(IOBuffer())
-repl = LineEditREPL(term, false)
-repl.history_file = true
-interface = REPL.setup_interface(repl)
-mistate = LineEdit.init_state(term, interface)
-prompt_state = LineEdit.state(mistate)
-hist = LineEdit.mode(mistate).hist
-
-function history_item(index)
-	index = parse(Int, index)
-	hist.history[end + 1 - index]
+function history_item(text, prefix, sense)
+	backwards = sense == "backwards"
+	take!(search_state.response_buffer)
+    write(search_state.response_buffer, text)
+	REPL.history_move_prefix(search_state, hist, prefix, backwards)
+	LineEdit.input_string(search_state)
 end
 
 function add_history(line)
@@ -74,18 +79,21 @@ function start_server(host, port)
 		"history_item" => history_item,
 		"is_complete" => is_complete
 	)
+	req_args_sep = '\u1f'  # Unit separator
+	args_sep = '\u91'  # Private Use 1
 	@async begin
 		server = listen(getaddrinfo(host), port)
 		while true
 			sock = accept(server)
 			data = String(readavailable(sock))
-			request, arg = split(data, ";;"; limit=2)			
+			request, args = split(data, req_args_sep; limit=2)
+			args = split(args, args_sep)	
 			handler = get(handlers, request, nothing)
 			if handler === nothing
 				close(sock)
 				continue
 			end
-			response = handler(arg)
+			response = handler(args...)
 			try
 				write(sock, response * "\n")
 				flush(sock)

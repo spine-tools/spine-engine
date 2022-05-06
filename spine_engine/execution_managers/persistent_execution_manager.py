@@ -275,19 +275,22 @@ class PersistentManagerBase:
                     if not data:
                         break
 
-    def _communicate(self, request, arg, receive=True):
+    def _communicate(self, request, *args, receive=True):
         """
         Sends a request to the persistent process with the given argument.
 
         Args:
             request (str): One of the supported requests
-            arg: Request argument
+            args: Request argument
             receive (bool, optional): If True (the default) also receives the response and returns it.
 
         Returns:
             str or NoneType: response, or None if the ``receive`` argument is False
         """
-        msg = f"{request};;{arg}"
+        req_args_sep = '\u001f'  # Unit separator
+        args_sep = '\u0091'  # Private Use 1
+        args = args_sep.join(args)
+        msg = f"{request}{req_args_sep}{args}"
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             while True:
                 try:
@@ -314,18 +317,19 @@ class PersistentManagerBase:
             return []
         return result.strip().split(" ")
 
-    def get_history_item(self, index):
+    def get_history_item(self, text, prefix, backwards):
         """Returns the history item given by index.
 
         Args:
-            index (int): Index to retrieve, one-based, 1 means most recent
+            text (str): text in the line edit when the search starts
+            prefix (str): return the next item that starts with this
+            backwards (bool): whether to move the history backwards or not
 
         Returns:
             str
         """
-        if index < 1:
-            return ""
-        return self._communicate("history_item", index).strip()
+        sense = "backwards" if backwards else "forward"
+        return self._communicate("history_item", text, prefix, sense).strip()
 
     def restart_persistent(self):
         """Restarts the persistent process."""
@@ -571,12 +575,11 @@ class _PersistentManagerFactory(metaclass=Singleton):
             return
         return pm.get_completions(text)
 
-    def get_persistent_history_item(self, key, index):
+    def get_persistent_history_item(self, key, text, prefix, backwards):
         """Returns a history item.
 
         Args:
             key (tuple): persistent identifier
-            index (int): index of the history item, most recent first
 
         Returns:
             str: history item or empty string if none
@@ -584,7 +587,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         pm = self.persistent_managers.get(key)
         if pm is None:
             return
-        return pm.get_history_item(index)
+        return pm.get_history_item(text, prefix, backwards)
 
     def kill_manager_processes(self):
         """Kills persistent managers' Popen instances."""
@@ -653,9 +656,9 @@ def get_persistent_completions(key, text):
     return _persistent_manager_factory.get_persistent_completions(key, text)
 
 
-def get_persistent_history_item(key, index):
+def get_persistent_history_item(key, text, prefix, backwards):
     """See _PersistentManagerFactory."""
-    return _persistent_manager_factory.get_persistent_history_item(key, index)
+    return _persistent_manager_factory.get_persistent_history_item(key, text, prefix, backwards)
 
 
 @contextlib.contextmanager
