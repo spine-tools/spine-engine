@@ -130,8 +130,7 @@ class RemoteConnectionHandler:
             return
 
         # Extract the saved file
-        print(f"Extracting received file [{os.path.getsize(zip_path)}B]: "
-              f"{file_names[0]} to: {local_project_dir}")
+        print(f"Extracting received file [{os.path.getsize(zip_path)} B]: {file_names[0]} to: {local_project_dir}")
         try:
             FileExtractor.extract(zip_path, local_project_dir)
         except Exception as e:
