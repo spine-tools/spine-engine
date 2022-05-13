@@ -24,24 +24,29 @@ class FileExtractor:
     """ZIP-file extractor in Spine Engine."""
 
     @staticmethod
-    def extract(zipFile, outputFolder):
+    def extract(zip_file, output_folder):
         """Extracts the content of a ZIP-file to the provided folder.
 
         Args:
-            zipFile (str): Absolute path to ZIP-file to be extracted.
-            outputFolder (str): Absolute path to folder where the contents are extracted to
+            zip_file (str): Absolute path to ZIP-file to be extracted.
+            output_folder (str): Absolute path to folder where the contents are extracted to
         """
-        if not zipFile or not outputFolder:
+        if not zip_file or not output_folder:
             raise ValueError('invalid input to FileExtractor.extract()')
-        zipfile_exists = os.path.exists(zipFile)
-        fileSize = os.path.getsize(zipFile)
+        zipfile_exists = os.path.exists(zip_file)
+        file_size = os.path.getsize(zip_file)
         if not zipfile_exists:
-            raise ValueError(f"zipfile '{zipFile}'does not exist")
-        if fileSize < 100:
-            raise ValueError(f"zipfile '{zipFile}' is too small. File size:{fileSize}")
-        with ZipFile(zipFile, "r") as zipObj:
+            raise ValueError(f"zipfile '{zip_file}'does not exist")
+        if file_size < 100:
+            raise ValueError(f"zipfile '{zip_file}' is too small. File size:{file_size}")
+        with ZipFile(zip_file, "r") as zip_obj:
             try:
-                zipObj.extractall(outputFolder)
+                zip_obj.printdir()
+                first_bad_file = zip_obj.testzip()
+                if not first_bad_file:
+                    zip_obj.extractall(output_folder)
+                else:
+                    print(f"first bad file: {first_bad_file}")
             except Exception as e:
                 raise e
 
