@@ -118,20 +118,22 @@ class RemoteConnectionHandler:
                                              f"directory for the received project '{local_project_dir}'")
             return
         # Save the received zip file
-        save_file_path = os.path.join(local_project_dir, file_names[0])
+        zip_path = os.path.join(local_project_dir, file_names[0])
         print(f"Received bytes string (zip-file) size:{len(self.connection.zip_file())}")
         try:
-            with open(os.path.join(local_project_dir, file_names[0]), "wb") as f:
+            with open(zip_path, "wb") as f:
                 f.write(self.connection.zip_file())  # TODO: Something goes wrong here with a project that has many empty folders
         except Exception as e:
-            print(f"Saving the received file to '{save_file_path}' failed. [{type(e).__name__}: {e}")
+            print(f"Saving the received file to '{zip_path}' failed. [{type(e).__name__}: {e}")
             self.connection.send_error_reply(f"Server failed in saving the received file to "
-                                             f"'{save_file_path}' ({type(e).__name__} at server)")
+                                             f"'{zip_path}' ({type(e).__name__} at server)")
             return
+
         # Extract the saved file
-        print(f"Extracting received file: {file_names[0]} to: {local_project_dir}")
+        print(f"Extracting received file [{os.path.getsize(zip_path)}B]: "
+              f"{file_names[0]} to: {local_project_dir}")
         try:
-            FileExtractor.extract(os.path.join(local_project_dir, file_names[0]), local_project_dir)
+            FileExtractor.extract(zip_path, local_project_dir)
         except Exception as e:
             print(f"File extraction failed: {type(e).__name__}: {e}")
             self.connection.send_error_reply(f"{type(e).__name__}: {e}. - File extraction failed on Server")
