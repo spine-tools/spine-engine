@@ -116,7 +116,6 @@ class ZMQConnection:
         Args:
             response_msg (str): Error message sent to client
         """
-        print("send_error_reply")
         err_msg_as_json = json.dumps(response_msg)
         reply_msg = ServerMessage(self._cmd, self._request_id, err_msg_as_json, [])
         reply_as_json = reply_msg.toJSON()
@@ -128,7 +127,6 @@ class ZMQConnection:
     def send_init_failed_reply(socket, response_msg):
         """Sends an error reply to client when there was something
         wrong in the received message."""
-        print("send_init_failed_reply")
         err_msg_as_json = json.dumps(response_msg)
         reply_msg = ServerMessage("", "", err_msg_as_json, [])
         reply_as_json = reply_msg.toJSON()

@@ -119,6 +119,7 @@ class RemoteConnectionHandler:
             return
         # Save the received zip file
         save_file_path = os.path.join(local_project_dir, file_names[0])
+        print(f"Received bytes string (zip-file) size:{len(self.connection.zip_file())}")
         try:
             with open(os.path.join(local_project_dir, file_names[0]), "wb") as f:
                 f.write(self.connection.zip_file())  # TODO: Something goes wrong here with a project that has many empty folders
