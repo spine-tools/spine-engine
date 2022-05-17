@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Contains RemoteConnectionHandler class for receiving control messages(with project content) from the Toolbox,
+Contains RemoteExecutionHandler class for receiving control messages(with project content) from the Toolbox,
 and running a DAG with Spine Engine. Only one DAG can be executed at a time.
 :authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   24.08.2021
@@ -26,7 +26,7 @@ from spine_engine.server.util.file_extractor import FileExtractor
 from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
-class RemoteConnectionHandler:
+class RemoteExecutionHandler:
     """Handles one remote connection at a time from Spine Toolbox,
     executes a DAG, and returns response to the client."""
 
@@ -99,13 +99,17 @@ class RemoteConnectionHandler:
         msg_data = self.connection.data()
         file_names = self.connection.filenames()
         if not len(file_names) == 1:  # No file name included
-            print("Received msg contained no file name for the zip-file.")
+            print("Received msg contained no file name for the zip-file")
             self.connection.send_error_reply("Zip-file name missing")
             return
         if not msg_data["project_dir"]:
             print("Key project_dir missing from received msg. Can not create a local project directory.")
             self.connection.send_error_reply("Problem in execute request. Key 'project_dir' was "
                                              "None or an empty string.")
+            return
+        if not self.connection.zip_file():
+            print("Project zip file missing from request")
+            self.connection.send_error_reply("Project zip-file missing from request")
             return
         # Solve a new local directory name based on project_dir
         local_project_dir = self.path_for_local_project_dir(msg_data["project_dir"])
@@ -122,7 +126,7 @@ class RemoteConnectionHandler:
         print(f"Received bytes string (zip-file) size:{len(self.connection.zip_file())}")
         try:
             with open(zip_path, "wb") as f:
-                f.write(self.connection.zip_file())  # TODO: Something goes wrong here with a project that has many empty folders
+                f.write(self.connection.zip_file())
         except Exception as e:
             print(f"Saving the received file to '{zip_path}' failed. [{type(e).__name__}: {e}")
             self.connection.send_error_reply(f"Server failed in saving the received file to "
@@ -163,7 +167,6 @@ class RemoteConnectionHandler:
         # Create a response message, send it
         print("Execution done")
         json_events_data = EventDataConverter.convert(event_data)
-        print(json_events_data)
         self.connection.send_response(json_events_data)
         print(f"Response to request {req_id} sent to client {connection_id}")
 
@@ -171,13 +174,12 @@ class RemoteConnectionHandler:
         # try:
         #     time.sleep(4)
         #     FileExtractor.deleteFolder(local_project_dir+"/")
-        #     print("RemoteConnectionHandler._execute(): Deleted folder %s"%local_project_dir+"/")
+        #     print("RemoteExecutionHandler._execute(): Deleted folder %s"%local_project_dir+"/")
         # except Exception as e:
-        #     print(f"RemoteConnectionHandler._execute(): Couldn't delete directory {local_project_dir}. Error:\n{e}")
+        #     print(f"RemoteExecutionHandler._execute(): Couldn't delete directory {local_project_dir}. Error:\n{e}")
         # debugging
         # execStopTimeMs=round(time.time()*1000.0)
-        # print("RemoteConnectionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
-
+        # print("RemoteExecutionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
 
     @staticmethod
     def path_for_local_project_dir(project_dir):
@@ -196,7 +198,7 @@ class RemoteConnectionHandler:
         else:
             # It's a Windows absolute Path
             p = pathlib.PureWindowsPath(project_dir).stem
-        return os.path.join(RemoteConnectionHandler.internalProjectFolder, p + "__" + uuid.uuid4().hex)
+        return os.path.join(RemoteExecutionHandler.internalProjectFolder, p + "__" + uuid.uuid4().hex)
 
     @staticmethod
     def convert_input(input_data, local_project_dir):
@@ -228,7 +230,7 @@ class RemoteConnectionHandler:
                     input_data["specifications"][specKey][i]["definition_file_path"] = modified
                 # Force execute_in_work to False
                 if "execute_in_work" in specItemInfo:
-                    # print("RemoteConnectionHandler.convert_input(): spec item info contains execute_in_work")
+                    # print("RemoteExecutionHandler.convert_input(): spec item info contains execute_in_work")
                     input_data["specifications"][specKey][i]["execute_in_work"] = False
                 i += 1
         # loop items
@@ -236,7 +238,7 @@ class RemoteConnectionHandler:
         for itemKey in itemsKeys:
             # force execute_in_work to False in items
             if "execute_in_work" in input_data["items"][itemKey]:
-                # print("RemoteConnectionHandler.convert_input() execute_in_work in an item")
+                # print("RemoteExecutionHandler.convert_input() execute_in_work in an item")
                 input_data["items"][itemKey]["execute_in_work"] = False
         return input_data
 

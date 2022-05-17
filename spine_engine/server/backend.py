@@ -25,7 +25,7 @@ from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.server_message_parser import ServerMessageParser
 from spine_engine.server.util.file_extractor import FileExtractor
 from spine_engine.server.util.event_data_converter import EventDataConverter
-from spine_engine.server.remote_connection_handler import RemoteConnectionHandler
+from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.remote_ping_handler import RemotePingHandler
 
 

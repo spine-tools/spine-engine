@@ -41,8 +41,7 @@ class FileExtractor:
             raise ValueError(f"zipfile '{zip_file}' is too small. File size:{file_size}")
         with ZipFile(zip_file, "r") as zip_obj:
             try:
-                zip_obj.printdir()
-                first_bad_file = zip_obj.testzip()
+                first_bad_file = zip_obj.testzip()  # debugging
                 if not first_bad_file:
                     zip_obj.extractall(output_folder)
                 else:

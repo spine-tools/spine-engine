@@ -24,7 +24,7 @@ from enum import unique, Enum
 import zmq
 from zmq.auth.thread import ThreadAuthenticator
 from spine_engine.server.connectivity.zmq_connection import ZMQConnection
-from spine_engine.server.remote_connection_handler import RemoteConnectionHandler
+from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.remote_ping_handler import RemotePingHandler
 
 
@@ -37,23 +37,22 @@ class ZMQSecurityModelState(Enum):
 class ZMQServer(threading.Thread):
     """A server implementation for receiving connections (ZMQConnection) from the Spine Toolbox."""
 
-    def __init__(self, protocol, port, secModel, secFolder):
+    def __init__(self, protocol, port, sec_model, sec_folder):
         """Initializes the server.
 
         Args:
-            protocol: protocol to be used by the server.
-            port: port to bind the server to
-            secModel: see: ZMQSecurityModelState 
-            secFolder: folder, where security files have been stored.
+            protocol (str): Protocol to be used by the server.
+            port (int): Port to bind the server to
+            sec_model (ZMQSecurityModelState): Security model state
+            sec_folder (str): Folder, where security files have been stored.
         """
         try:
-            if secModel == ZMQSecurityModelState.NONE:
-                self._secModelState = ZMQSecurityModelState.NONE
-            elif secModel == ZMQSecurityModelState.STONEHOUSE:
-                # implementation based on https://github.com/zeromq/pyzmq/blob/main/examples/security/stonehouse.py
-                if not secFolder:
+            if sec_model == ZMQSecurityModelState.NONE:
+                self._sec_model_state = ZMQSecurityModelState.NONE
+            elif sec_model == ZMQSecurityModelState.STONEHOUSE:
+                if not sec_folder:
                     raise ValueError("ZMQServer(): security folder input is missing.")
-                base_dir = secFolder
+                base_dir = sec_folder
                 self.keys_dir = os.path.join(base_dir, 'certificates')
                 self.public_keys_dir = os.path.join(base_dir, 'public_keys')
                 self.secret_keys_dir = os.path.join(base_dir, 'private_keys')
@@ -63,8 +62,8 @@ class ZMQServer(threading.Thread):
                     raise ValueError(f"Security folder: {self.public_keys_dir} does not exist")
                 elif not os.path.exists(self.secret_keys_dir):
                     raise ValueError(f"Security folder: {self.secret_keys_dir} does not exist")
-                self.secFolder = secFolder
-                self._secModelState = ZMQSecurityModelState.STONEHOUSE
+                self._sec_folder = sec_folder
+                self._sec_model_state = ZMQSecurityModelState.STONEHOUSE
         except Exception as e:
             raise ValueError(f"Invalid input. Error: {e}")
         self.protocol = protocol
@@ -79,7 +78,7 @@ class ZMQServer(threading.Thread):
         self.start()
 
     def close(self):
-        """Closes the server by sending a KILL message to receiver thread using a 0MQ socket."""
+        """Closes the server by sending a KILL message to this thread using a PAIR socket."""
         self.ctrl_msg_sender.send(b"KILL")
         self.ctrl_msg_sender.close()
         self._context.term()
@@ -88,7 +87,6 @@ class ZMQServer(threading.Thread):
         """Creates two sockets, which are both polled asynchronously. The REPLY socket handles messages
         from Spine Toolbox client, while the PAIR socket listens for 'server' internal control messages."""
         try:
-            print(f"serve(): {threading.current_thread()}")
             frontend = self._context.socket(zmq.ROUTER)  # frontend
             backend = self._context.socket(zmq.DEALER)
             backend.bind("inproc://backend")
@@ -98,38 +96,11 @@ class ZMQServer(threading.Thread):
             worker_thread_killer = self._context.socket(zmq.PAIR)
             worker_thread_killer.bind("inproc://worker_ctrl")
             auth = None
-            if self._secModelState == ZMQSecurityModelState.STONEHOUSE:
-                # Start an authenticator for this context
-                auth = ThreadAuthenticator(self._context)
-                auth.start()
-                endpoints_file = os.path.join(self.secFolder, "allowEndpoints.txt")
-                if not os.path.exists(endpoints_file):
-                    raise ValueError(
-                        f"File allowEndpoints.txt missing. Please create the file into directory: "
-                        f"{self.secFolder} and add allowed IP's there"
-                    )
-                endpoints = self._read_end_points(endpoints_file)  # read allowed endpoints from file
-                if not endpoints:
-                    raise ValueError("No end points configured. Please add allowed IP's into allowEndPoints.txt")
-                # allow configured endpoints
-                allowed = list()
-                for ep in endpoints:
-                    try:
-                        ep = ep.strip()
-                        ipaddress.ip_address(ep)
-                        auth.allow(ep)
-                        allowed.append(ep)  # Just for printing
-                    except:
-                        print("Invalid IP address in allowEndpoints.txt:'{ep}'")
-                allowed_str = "\n".join(allowed)
-                print(f"StoneHouse security activated. Allowed end points ({len(allowed)}):\n{allowed_str}")
-                # Tell the authenticator how to handle CURVE requests
-                auth.configure_curve(domain='*', location=zmq.auth.CURVE_ALLOW_ANY)
-                server_secret_file = os.path.join(self.secret_keys_dir, "server.key_secret")
-                server_public, server_secret = zmq.auth.load_certificate(server_secret_file)
-                frontend.curve_secretkey = server_secret
-                frontend.curve_publickey = server_public
-                frontend.curve_server = True  # must come before bind
+            if self._sec_model_state == ZMQSecurityModelState.STONEHOUSE:
+                try:
+                    auth = self.enable_stonehouse_security(frontend)
+                except ValueError:
+                    raise
             frontend.bind(self.protocol + "://*:" + str(self.port))
             poller = zmq.Poller()
             poller.register(frontend, zmq.POLLIN)
@@ -153,7 +124,7 @@ class ZMQServer(threading.Thread):
                     # TODO: Make a worker according to the command.
                     worker_id = uuid.uuid4().hex  # TODO: Use connection._connection_id instead
                     if connection.cmd() == "execute":
-                        worker = RemoteConnectionHandler(self._context, connection)
+                        worker = RemoteExecutionHandler(self._context, connection)
                         worker.execute()
                     elif connection.cmd() == "ping":
                         worker = RemotePingHandler.handle_ping(connection)
@@ -179,7 +150,7 @@ class ZMQServer(threading.Thread):
                 print(f"ZMQServer.serve() exception: {type(e)} serving failed, exception: {e}")
                 break
         # Close sockets and connections
-        if self._secModelState == ZMQSecurityModelState.STONEHOUSE:
+        if self._sec_model_state == ZMQSecurityModelState.STONEHOUSE:
             auth.stop()
             time.sleep(0.2)  # wait a bit until authenticator has been closed
         ctrl_msg_listener.close()
@@ -233,6 +204,47 @@ class ZMQServer(threading.Thread):
                 files_list.append(files[f])
         connection = ZMQConnection(msg, socket, server_msg["command"], server_msg["id"], data_str, files_list)
         return connection
+
+    def enable_stonehouse_security(self, frontend):
+        """Enables Stonehouse security by starting an authenticator and configuring
+        the frontend socket with authenticator.
+
+        implementation based on https://github.com/zeromq/pyzmq/blob/main/examples/security/stonehouse.py
+
+        Args:
+            frontend (zmq.Socket): Frontend socket
+        """
+        auth = ThreadAuthenticator(self._context)  # Start an authenticator for this context
+        auth.start()
+        endpoints_file = os.path.join(self._sec_folder, "allowEndpoints.txt")
+        if not os.path.exists(endpoints_file):
+            raise ValueError(
+                f"File allowEndpoints.txt missing. Please create the file into directory: "
+                f"{self._sec_folder} and add allowed IP's there"
+            )
+        endpoints = self._read_end_points(endpoints_file)
+        if not endpoints:
+            raise ValueError("No endpoints configured. Please add allowed IP's into allowEndPoints.txt")
+        # Allow configured endpoints
+        allowed = list()
+        for ep in endpoints:
+            try:
+                ep = ep.strip()
+                ipaddress.ip_address(ep)
+                auth.allow(ep)
+                allowed.append(ep)  # Just for printing
+            except:
+                raise ValueError(f"Invalid IP address in allowEndpoints.txt:'{ep}'")
+        allowed_str = "\n".join(allowed)
+        print(f"StoneHouse security activated. Allowed endpoints ({len(allowed)}):\n{allowed_str}")
+        # Tell the authenticator how to handle CURVE requests
+        auth.configure_curve(domain='*', location=zmq.auth.CURVE_ALLOW_ANY)
+        server_secret_file = os.path.join(self.secret_keys_dir, "server.key_secret")
+        server_public, server_secret = zmq.auth.load_certificate(server_secret_file)
+        frontend.curve_secretkey = server_secret
+        frontend.curve_publickey = server_public
+        frontend.curve_server = True  # must come before bind
+        return auth
 
     @staticmethod
     def _read_end_points(config_file_location):

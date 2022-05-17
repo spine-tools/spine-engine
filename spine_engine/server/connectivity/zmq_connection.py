@@ -39,7 +39,7 @@ class ZMQConnection:
         self._request_id = rqst_id
         self._data = data
         self._filenames = filenames
-        self._connection_id = msg[0]  # Assigned by the ROUTER socket that received the message
+        self._connection_id = msg[0]  # Assigned by the frontend (ROUTER) socket that received the message
         self._zip_file = None
         if len(msg) == 4:
             self._zip_file = msg[3]
@@ -103,7 +103,7 @@ class ZMQConnection:
 
     def send_response(self, response_data):
         """Sends reply back to client. Used after execution to send the events to client."""
-        reply_msg = ServerMessage(self._cmd, self._request_id, response_data, None)
+        reply_msg = ServerMessage(self._cmd, self._request_id, response_data, [])
         reply_as_json = reply_msg.toJSON()
         reply_in_bytes = bytes(reply_as_json, "utf-8")
         self.send_multipart_reply(reply_in_bytes)

@@ -11,7 +11,7 @@
 
 """
 Contains a helper class for JSON-based messages exchanged between server and clients.
-:authors: P. Pääkkönen (VTT)
+:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   23.08.2021
 """
 
@@ -23,7 +23,7 @@ class ServerMessage:
             command (str): command to be executed at the server
             msg_id (str): identifier associated with the command
             data (str): events+data (list of tuples) converted into a JSON str or an error msg (must be a JSON str)
-            files (list[str], None): a list of file names to be associated with the message (optional)
+            files (list[str], None): List of file names to be associated with the message (optional)
         """
         if not command or not msg_id:
             print("Error in ServerMessage")
@@ -31,10 +31,7 @@ class ServerMessage:
         self._command = command
         self._id = msg_id
         self._data = data
-        self._files = []
-        if files != None:
-            if len(files) > 0:
-                self._files.extend(files)
+        self._files = files  # Name for the file where zip-file is saved to. Does not need to be the same as original.
 
     def getCommand(self):
         return self._command
