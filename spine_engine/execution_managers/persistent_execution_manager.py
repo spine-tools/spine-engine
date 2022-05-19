@@ -225,7 +225,10 @@ class PersistentManagerBase:
     def _wait(self):
         """Waits for the persistent process to become idle.
 
-        This is implemented by pinging a server and waiting for the server to receive the ping.
+        This is implemented by running a socket server that waits for a ping on the current process,
+        and then issuing a command to the persistent process that pings that server.
+        The ping command will run on the persistent process when it becomes idle and we will catch that situation
+        in the server.
 
         Returns:
             bool
@@ -249,8 +252,6 @@ class PersistentManagerBase:
         return result == "ok"
 
     def _wait_ping(self, host, port, queue, timeout=1):
-        """Listens on a server until a connection is made (ping) or the underlying process is found dead.
-        Puts None in the queue when the server starts listening and when it's done."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
             server.settimeout(timeout)
             server.bind((host, port))
