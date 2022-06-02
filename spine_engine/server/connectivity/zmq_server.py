@@ -148,7 +148,7 @@ class ZMQServer(threading.Thread):
                     break
             except Exception as e:
                 print(f"ZMQServer.serve() exception: {type(e)} serving failed, exception: {e}")
-                continue
+                break
         # Close sockets and connections
         if self._sec_model_state == ZMQSecurityModelState.STONEHOUSE:
             auth.stop()
