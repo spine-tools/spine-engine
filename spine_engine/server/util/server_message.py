@@ -31,7 +31,10 @@ class ServerMessage:
         self._command = command
         self._id = msg_id
         self._data = data
-        self._files = files  # Name for the file where zip-file is saved to. Does not need to be the same as original.
+        if not files:
+            self._files = list()
+        else:
+            self._files = files  # Name of the file where zip-file is saved to. Does not need to be the same as original
 
     def getCommand(self):
         return self._command

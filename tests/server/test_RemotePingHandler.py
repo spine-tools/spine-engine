@@ -17,25 +17,25 @@ Unit tests for RemotePingHandler class.
 import unittest
 import zmq
 from spine_engine.server.util.server_message import ServerMessage
-from spine_engine.server.start_server import RemoteSpineService
-from spine_engine.server.connectivity.zmq_server import ZMQSecurityModelState
+from spine_engine.server.connectivity.zmq_server import ZMQServer, ZMQSecurityModelState
 
 
 class TestRemotePingHandler(unittest.TestCase):
 
     def setUp(self):
         self.context = zmq.Context()
-        self.req_socket = self.context.socket(zmq.REQ)
+        self.socket = self.context.socket(zmq.REQ)
 
     def tearDown(self):
-        self.req_socket.close()
-        self.context.term()
+        if not self.socket.closed:
+            self.socket.close()
+        if not self.context.closed:
+            self.context.term()
 
     def test_ping_tcp(self):
         """Tests starting of a ZMQ server with tcp, and pinging it."""
-        server = RemoteSpineService("tcp", 50002, ZMQSecurityModelState.NONE, "")
-        # connect to the server
-        self.req_socket.connect("tcp://localhost:50002")
+        service = ZMQServer("tcp", 5558, ZMQSecurityModelState.NONE, "")
+        self.socket.connect("tcp://localhost:5558")
         i = 0
         while i < 10:
             msg_parts = []
@@ -43,25 +43,25 @@ class TestRemotePingHandler(unittest.TestCase):
             pingAsJson = pingMsg.toJSON()
             pingInBytes = bytes(pingAsJson, "utf-8")
             msg_parts.append(pingInBytes)
-            self.req_socket.send_multipart(msg_parts)
-            msg = self.req_socket.recv()
+            self.socket.send_multipart(msg_parts)
+            msg = self.socket.recv()
             msgStr = msg.decode("utf-8")
             self.assertEqual(msgStr, pingAsJson)  # check that echoed content is as expected
             i = i + 1
-        server.close()
+        service.close()
 
     def test_no_connection(self):
         """Tests pinging a non-existent server."""
-        self.req_socket.setsockopt(zmq.LINGER, 0)
-        self.req_socket.connect("tcp://localhost:7002")  # Connect socket somewhere that does not exist
+        self.socket.setsockopt(zmq.LINGER, 0)
+        self.socket.connect("tcp://localhost:7002")  # Connect socket somewhere that does not exist
         msg_parts = []
         pingMsg = ServerMessage("ping", "2", "", None)
         pingAsJson = pingMsg.toJSON()
         pingInBytes = bytes(pingAsJson, "utf-8")
         msg_parts.append(pingInBytes)
-        sendRet = self.req_socket.send_multipart(msg_parts, flags=zmq.NOBLOCK)
-        event = self.req_socket.poll(timeout=1000)
-        self.assertEqual(event, 0)
+        sendRet = self.socket.send_multipart(msg_parts, flags=zmq.NOBLOCK)
+        event = self.socket.poll(timeout=1000)
+        self.assertEqual(0, event)
 
 
 if __name__ == "__main__":
