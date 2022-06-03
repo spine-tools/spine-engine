@@ -232,9 +232,10 @@ class RemoteExecutionHandler:
                     # a relative definition file path
                     rel_def_file_path = os.path.relpath(original_def_file_path, remote_folder)
                     modified = os.path.join(local_project_dir, rel_def_file_path)  # Absolute path on server machine
-                    print(f"original def_file_path: {original_def_file_path}")
+                    print(f"\noriginal def_file_path: {original_def_file_path}")
+                    print(f"remote_folder: {remote_folder}")
                     print(f"relative def_file_path: {rel_def_file_path}")
-                    print(f"updated def_file_path: {modified}")
+                    print(f"updated def_file_path: {modified}\n")
                     input_data["specifications"][specs_key][i]["definition_file_path"] = modified
                 # Force execute_in_work to False
                 if "execute_in_work" in specItemInfo:
