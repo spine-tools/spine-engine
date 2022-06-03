@@ -139,8 +139,6 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         parsed_msg = ServerMessageParser.parse(msg_str)  # Parse (JSON) string into a ServerMessage
         data = parsed_msg.getData()  # Get events+data in a dictionary
         data_events = EventDataConverter.convertJSON(data, True)
-        for t in data_events:
-            print(t)
         self.assertEqual("dag_exec_finished", data_events[-1][0])
         self.assertEqual("COMPLETED", data_events[-1][1])
 

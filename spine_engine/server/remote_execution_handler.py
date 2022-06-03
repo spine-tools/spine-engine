@@ -132,10 +132,8 @@ class RemoteExecutionHandler:
             self.connection.send_error_reply(f"Server failed in saving the received file to "
                                              f"'{zip_path}' ({type(e).__name__} at server)")
             return
-
         # Extract the saved file
-        print(f"Extracting received file [{os.path.getsize(zip_path)}B]: "
-              f"{file_names[0]} to: {local_project_dir}")
+        print(f"Extracting received file {file_names[0]} [{os.path.getsize(zip_path)}B] to: {local_project_dir}")
         try:
             FileExtractor.extract(zip_path, local_project_dir)
         except Exception as e:
@@ -143,9 +141,11 @@ class RemoteExecutionHandler:
             self.connection.send_error_reply(f"{type(e).__name__}: {e}. - File extraction failed on Server")
             return
         # Execute DAG in the Spine engine
-        print("Executing project...")
-        # convertedData=self._convertTextDictToDicts(dataAsDict)
+        print("Executing DAG...")
         converted_data = self.convert_input(msg_data, local_project_dir)
+        print(f"engine_data:")
+        for k in converted_data.keys():
+            print(f"[{k}]: {converted_data[k]}")
         try:
             engine = SpineEngine(**converted_data)
             # get events+data from the spine engine
@@ -214,10 +214,10 @@ class RemoteExecutionHandler:
         # Adjust project_dir to point to the local folder
         remote_folder = input_data["project_dir"]  # Project directory on client
         input_data["project_dir"] = local_project_dir  # Project directory on server
-        # loop specs
-        specsKeys = input_data["specifications"].keys()
-        for specKey in specsKeys:
-            spec_item = input_data["specifications"][specKey]
+        # Loop specs
+        specs_keys = input_data["specifications"].keys()
+        for specs_key in specs_keys:
+            spec_item = input_data["specifications"][specs_key]
             i = 0
             for specItemInfo in spec_item:
                 # Adjust definition_file_path in specs to point to the server folder
@@ -227,30 +227,17 @@ class RemoteExecutionHandler:
                     # a relative definition file path
                     rel_def_file_path = os.path.relpath(original_def_file_path, remote_folder)
                     modified = os.path.join(local_project_dir, rel_def_file_path)  # Absolute path on server machine
-                    input_data["specifications"][specKey][i]["definition_file_path"] = modified
+                    input_data["specifications"][specs_key][i]["definition_file_path"] = modified
                 # Force execute_in_work to False
                 if "execute_in_work" in specItemInfo:
                     # print("RemoteExecutionHandler.convert_input(): spec item info contains execute_in_work")
-                    input_data["specifications"][specKey][i]["execute_in_work"] = False
+                    input_data["specifications"][specs_key][i]["execute_in_work"] = False
                 i += 1
-        # loop items
-        itemsKeys = input_data["items"].keys()
-        for itemKey in itemsKeys:
+        # Loop items
+        items_keys = input_data["items"].keys()
+        for items_key in items_keys:
             # force execute_in_work to False in items
-            if "execute_in_work" in input_data["items"][itemKey]:
+            if "execute_in_work" in input_data["items"][items_key]:
                 # print("RemoteExecutionHandler.convert_input() execute_in_work in an item")
-                input_data["items"][itemKey]["execute_in_work"] = False
+                input_data["items"][items_key]["execute_in_work"] = False
         return input_data
-
-    def _convertTextDictToDicts(self, data):
-        newData = dict()
-        # print("_convertTextDictToDicts() items: %s"%type(data["items"]))
-        newData["items"] = ast.literal_eval(data["items"])
-        newData["connections"] = ast.literal_eval(data["connections"])
-        newData["specifications"] = ast.literal_eval(data["specifications"])
-        newData["node_successors"] = ast.literal_eval(data["node_successors"])
-        newData["execution_permits"] = ast.literal_eval(data["execution_permits"])
-        newData["settings"] = ast.literal_eval(data["settings"])
-        newData["settings"] = ast.literal_eval(data["settings"])
-        newData["project_dir"] = data["project_dir"]
-        return newData
