@@ -228,6 +228,8 @@ class RemoteExecutionHandler:
                 # Adjust definition_file_path in specs to point to the server folder
                 if "definition_file_path" in specItemInfo:
                     original_def_file_path = specItemInfo["definition_file_path"]  # Absolute path on client machine
+                    # Make sure path separators match the OS separator
+                    original_def_file_path = original_def_file_path.replace("\\", os.path.sep)
                     # Remove part of definition file path that references client machine path to get
                     # a relative definition file path. Note: os.path.relpath() does not work because the output
                     # depends on OS. Note2: '/' must be added to remote folder here.
