@@ -173,7 +173,6 @@ class ZMQServer(threading.Thread):
         Returns:
             None if something went wrong or a new ZMQConnection instance
         """
-        print(f"len(msg):{len(msg)}")
         b_json_str_server_msg = msg[2]  # binary string
         if len(b_json_str_server_msg) <= 10:  # Message size too small
             print(f"User data frame too small [{len(msg[2])}]. msg:{msg}")
@@ -195,7 +194,6 @@ class ZMQServer(threading.Thread):
                                                          f"- Message parsing error at server.")
             return None
         # server_msg is now a dict with keys: 'command', 'id', 'data', and 'files'
-        print(f"server_msg keys:{server_msg.keys()}")
         data_str = server_msg["data"]  # String
         files = server_msg["files"]  # Dictionary. TODO: Should this be a list?
         files_list = []

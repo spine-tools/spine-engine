@@ -123,7 +123,6 @@ class RemoteExecutionHandler:
             return
         # Save the received zip file
         zip_path = os.path.join(local_project_dir, file_names[0])
-        print(f"Received bytes string (zip-file) size:{len(self.connection.zip_file())}")
         try:
             with open(zip_path, "wb") as f:
                 f.write(self.connection.zip_file())
@@ -132,8 +131,12 @@ class RemoteExecutionHandler:
             self.connection.send_error_reply(f"Server failed in saving the received file to "
                                              f"'{zip_path}' ({type(e).__name__} at server)")
             return
+        # Check that the size of received bytes and the saved zip-file match
+        if not len(self.connection.zip_file()) == os.path.getsize(zip_path):
+            print(f"Error: Size mismatch in saving zip-file. Received bytes:{len(self.connection.zip_file())}. "
+                  f"Zip-file size:{os.path.getsize(zip_path)}")
         # Extract the saved file
-        print(f"Extracting received file {file_names[0]} [{os.path.getsize(zip_path)}B] to: {local_project_dir}")
+        print(f"Extracting project file {file_names[0]} [{os.path.getsize(zip_path)}B] to: {local_project_dir}")
         try:
             FileExtractor.extract(zip_path, local_project_dir)
         except Exception as e:
@@ -143,9 +146,12 @@ class RemoteExecutionHandler:
         # Execute DAG in the Spine engine
         print("Executing DAG...")
         converted_data = self.convert_input(msg_data, local_project_dir)
-        print(f"engine_data:")
-        for k in converted_data.keys():
-            print(f"[{k}]: {converted_data[k]}")
+        print(f"converted_engine_data")
+        print(f"[items]: {converted_data['items']}")
+        print(f"[specifications]: {converted_data['specifications']}")
+        print(f"[connections]: {converted_data['connections']}")
+        print(f"[execution_permits]: {converted_data['execution_permits']}")
+        print(f"[project_dir]: {converted_data['project_dir']}")
         try:
             engine = SpineEngine(**converted_data)
             # get events+data from the spine engine
@@ -169,7 +175,6 @@ class RemoteExecutionHandler:
         json_events_data = EventDataConverter.convert(event_data)
         self.connection.send_response(json_events_data)
         print(f"Response to request {req_id} sent to client {connection_id}")
-
         # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
         # try:
         #     time.sleep(4)
@@ -227,6 +232,9 @@ class RemoteExecutionHandler:
                     # a relative definition file path
                     rel_def_file_path = os.path.relpath(original_def_file_path, remote_folder)
                     modified = os.path.join(local_project_dir, rel_def_file_path)  # Absolute path on server machine
+                    print(f"original def_file_path: {original_def_file_path}")
+                    print(f"relative def_file_path: {rel_def_file_path}")
+                    print(f"updated def_file_path: {modified}")
                     input_data["specifications"][specs_key][i]["definition_file_path"] = modified
                 # Force execute_in_work to False
                 if "execute_in_work" in specItemInfo:
