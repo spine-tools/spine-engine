@@ -21,14 +21,14 @@ from spine_engine.server.util.server_message import ServerMessage
 
 class ZMQConnection:
     """Class for bundling the received message and ZMQ connection together."""
-    def __init__(self, msg, socket, cmd, rqst_id, data, filenames):
+    def __init__(self, msg, cmd, rqst_id, data, filenames):
         """Init class.
 
         Args:
             msg (list): List of three or four binary frames (conn id, empty frame and user data frame,
                 and possibly zip-file)
             cmd (str): Command associated with the request
-            rqst_id (str): Request id (assigned by ZMQ)
+            rqst_id (str): Request Id. Assigned by client who made the request.
             data (bytes): Zip-file
             filenames (list): List of associated filenames
         """

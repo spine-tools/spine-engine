@@ -10,29 +10,37 @@
 ######################################################################################################################
 
 """
-Handles remote pings received from the toolbox.
+Contains a class for handling ping requests.
 :authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   13.09.2021
 """
 
+import threading
 import zmq
 from spine_engine.server.util.server_message import ServerMessage
 
 
-class RemotePingHandler:
-
-    @staticmethod
-    def handle_ping(context, connection):
-        """Replies to a ping command.
+class RemotePingHandler(threading.Thread):
+    """Class for handling ping requests."""
+    def __init__(self, context, request):
+        """Initializes instance.
 
         Args:
-            context (ZMQContext): Server context
-            connection (ZMQConnection): Zero-MQ connection
+            context (zmq.Context): Server context
+            request (ZMQConnection): Zero-MQ connection
         """
-        # TODO: Do this in a thread
-        ping_socket = context.socket(zmq.DEALER)  # Backend socket
-        ping_socket.connect("inproc://backend")
-        rq_id = connection.request_id()
-        reply_msg = ServerMessage("ping", rq_id, "", None)
-        connection.send_multipart_reply(ping_socket, connection.connection_id(), reply_msg.to_bytes())
-        print(f"Replied to a Ping from {connection.connection_id()}")
+        super().__init__(name="PingHandlerThread")
+        self.context = context
+        self.req = request
+        self.ping_socket = self.context.socket(zmq.DEALER)  # Backend socket
+
+    def run(self):
+        """Replies to a ping command."""
+        self.ping_socket.connect("inproc://backend")
+        reply_msg = ServerMessage("ping", self.req.request_id(), "", None)
+        self.req.send_multipart_reply(self.ping_socket, self.req.connection_id(), reply_msg.to_bytes())
+        print(f"Replied to a Ping from {self.req.connection_id()}")
+
+    def close(self):
+        """Closes socket and cleans up."""
+        self.ping_socket.close()

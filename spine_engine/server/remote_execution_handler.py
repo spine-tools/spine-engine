@@ -18,6 +18,7 @@ and running a DAG with Spine Engine. Only one DAG can be executed at a time.
 
 import os
 import pathlib
+import threading
 import uuid
 import zmq
 from spine_engine import SpineEngine
@@ -25,7 +26,7 @@ from spine_engine.server.util.file_extractor import FileExtractor
 from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
-class RemoteExecutionHandler:
+class RemoteExecutionHandler(threading.Thread):
     """Handles one remote connection at a time from Spine Toolbox,
     executes a DAG, and returns response to the client."""
 
@@ -38,80 +39,28 @@ class RemoteExecutionHandler:
             context (zmq.Context): Context for this handler.
             connection (ZMQConnection): Socket and message bundled together
         """
+        super().__init__(name="ExecutionHandlerThread")
         self.context = context
+        self.worker_socket = self.context.socket(zmq.DEALER)
         self.connection = connection
 
-    # def _execute(self):
-    #     """Executes a query with the Spine engine, and returns a response to the Zero-MQ client."""
-    #     # execStartTimeMs = round(time.time() * 1000.0)
-    #     # Parse JSON message
-    #     worker_socket = self.context.socket(zmq.DEALER)
-    #     worker_socket.connect("inproc://backend")
-    #     worker_ctrl_socket = self.context.socket(zmq.PAIR)
-    #     worker_ctrl_socket.connect("inproc://worker_ctrl")
-    #     poller = zmq.Poller()
-    #     print(f"_execute(): thread: {threading.current_thread()}")
-    #     poller.register(worker_socket, zmq.POLLIN)
-    #     poller.register(worker_ctrl_socket, zmq.POLLIN)
-    #     while True:
-    #         socks = dict(poller.poll())
-    #         if socks.get(worker_socket) == zmq.POLLIN:
-    #             print("backend receiving message")
-    #             ident, msg, zip_file = worker_socket.recv_multipart()
-    #             # Make some rudimentary checks before sending the message for processing
-    #             if not self.check_msg_integrity(message, frontend):
-    #                 continue
-    #             # Start a worker for processing the message
-    #             server_msg = ServerMessageParser.parse(message.decode("utf-8"))
-    #             cmd = server_msg.getCommand()
-    #             if cmd == "ping":  # Handle pings
-    #                 print("Handling ping request")
-    #                 RemotePingHandler.handlePing(parsed_msg, conn)
-    #             elif cmd == "execute":  # Handle execute messages
-    #                 # if not len(message[1:]) == 2:  # Skip first part of the message (identity added by DEALER)
-    #                 #     print(f"Not enough parts in received msg. Should be 2.")
-    #                 #     self.send_error_reply(frontend, "", "",
-    #                 #                           f"Message should have two parts. len(message): {len(message)}")
-    #                 #     continue
-    #                 print("Handling execute request")
-    #                 backend.send_multipart([ident, message, zip_file])
-    #             else:  # Unknown command
-    #                 print(f"Unknown command '{cmd}' received. Sending 'Unknown command' response'")
-    #                 self.send_error_reply(frontend, "", "", "Unknown command '{cmd}'")
-    #                 continue
-    #
-    #             print(ident)
-    #             # Do execution
-    #             self.do_execution(ident, msg, zip_file, worker_socket)
-    #             break
-    #         if socks.get(worker_ctrl_socket) == zmq.POLLIN:
-    #             print("Killing worker thread")
-    #             # Kill worker thread
-    #             break
-    #     print("Closing worker sockets")
-    #     worker_socket.close()
-    #     worker_ctrl_socket.close()
-
-    def execute(self):
+    def run(self):
         """Handles an execute DAG request."""
-        worker_socket = self.context.socket(zmq.DEALER)
-        worker_socket.connect("inproc://backend")
-        connection_id = self.connection.connection_id()
-        req_id = self.connection.request_id()
+        self.worker_socket.connect("inproc://backend")
         msg_data = self.connection.data()
         file_names = self.connection.filenames()
         if not len(file_names) == 1:  # No file name included
             print("Received msg contained no file name for the zip-file")
-            self.connection.send_error_reply(worker_socket, "Zip-file name missing")
+            self.connection.send_error_reply(self.worker_socket, "Zip-file name missing")
             return
         if not msg_data["project_dir"]:
             print("Key project_dir missing from received msg. Can not create a local project directory.")
-            self.connection.send_error_reply(worker_socket, "Problem in execute request. Key 'project_dir' was "
+            self.connection.send_error_reply(self.worker_socket, "Problem in execute request. Key 'project_dir' was "
                                              "None or an empty string.")
             return
         if not self.connection.zip_file():
-            print("Project zip file missing from request")
-            self.connection.send_error_reply(worker_socket, "Project zip-file missing from request")
+            print("Project zip-file missing from request")
+            self.connection.send_error_reply(self.worker_socket, "Project zip-file missing from request")
             return
         # Solve a new local directory name based on project_dir
         local_project_dir = self.path_for_local_project_dir(msg_data["project_dir"])
@@ -120,7 +69,7 @@ class RemoteExecutionHandler:
             os.makedirs(local_project_dir)
         except OSError:
             print(f"Creating project directory '{local_project_dir}' failed")
-            self.connection.send_error_reply(worker_socket, f"Server failed in creating a project "
+            self.connection.send_error_reply(self.worker_socket, f"Server failed in creating a project "
                                              f"directory for the received project '{local_project_dir}'")
             return
         # Save the received zip file
@@ -130,7 +79,7 @@ class RemoteExecutionHandler:
                 f.write(self.connection.zip_file())
         except Exception as e:
             print(f"Saving the received file to '{zip_path}' failed. [{type(e).__name__}: {e}")
-            self.connection.send_error_reply(worker_socket, f"Server failed in saving the received file to "
+            self.connection.send_error_reply(self.worker_socket, f"Server failed in saving the received file to "
                                              f"'{zip_path}' ({type(e).__name__} at server)")
             return
         # Check that the size of received bytes and the saved zip-file match
@@ -143,8 +92,8 @@ class RemoteExecutionHandler:
             FileExtractor.extract(zip_path, local_project_dir)
         except Exception as e:
             print(f"File extraction failed: {type(e).__name__}: {e}")
-            self.connection.send_error_reply(worker_socket, f"{type(e).__name__}: {e}. - "
-                                                            f"File extraction failed on Server")
+            self.connection.send_error_reply(self.worker_socket, f"{type(e).__name__}: {e}. - "
+                                                                 f"File extraction failed on Server")
             return
         # Execute DAG in the Spine engine
         print("Executing DAG...")
@@ -171,13 +120,13 @@ class RemoteExecutionHandler:
                     break
         except Exception as e:
             print(f"Execution failed: {type(e).__name__}: {e}")
-            self.connection.send_error_reply(worker_socket, f"{type(e).__name__}: {e}. - "
-                                                            f"Project execution failed on Server")
+            self.connection.send_error_reply(self.worker_socket, f"{type(e).__name__}: {e}. - "
+                                                                 f"Project execution failed on Server")
             return
         # Create a response message, send it back to frontend
         print("Execution done")
         json_events_data = EventDataConverter.convert(event_data)
-        self.connection.send_response(worker_socket, json_events_data)
+        self.connection.send_response(self.worker_socket, json_events_data)
         # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
         # try:
         #     time.sleep(4)
@@ -188,6 +137,11 @@ class RemoteExecutionHandler:
         # debugging
         # execStopTimeMs=round(time.time()*1000.0)
         # print("RemoteExecutionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
+
+    def close(self):
+        """Cleans up after execution."""
+        print(f"Closing worker {self.connection.connection_id()}")
+        self.worker_socket.close()
 
     @staticmethod
     def path_for_local_project_dir(project_dir):

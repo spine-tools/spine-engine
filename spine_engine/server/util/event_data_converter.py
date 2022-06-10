@@ -10,19 +10,18 @@
 ######################################################################################################################
 
 """
-Contains a helper static methods for converting event/data information to JSON-based format and
+Contains helper static methods for converting event/data information to JSON-based format and back.
 :authors: P. Pääkkönen (VTT)
 :date:   27.08.2021
 """
 
 import base64
-import json
 
 
 class EventDataConverter:
     @staticmethod
     def convert(eventData):
-        """Converts events+data in a JSON string
+        """Converts events+data into a JSON string
 
         Args:
             eventData (list(tuple)): List of tuples containing events and data
@@ -35,19 +34,13 @@ class EventDataConverter:
         retStr = "{\n"
         retStr += "    \"items\": [\n"
         for ed in eventData:
-            # print(ed)
-            # convert data to Base64
+            # Encode data to Base64
             msgBytes = str(ed[1]).encode('ascii')
             base64Bytes = base64.b64encode(msgBytes)
             base64Data = base64Bytes.decode('ascii')
-
             retStr += "    {\n        \"event_type\": \"" + ed[0] + "\",\n"
             if (i + 1) < itemCount:
                 retStr += "        \"data\": \"" + base64Data + "\"\n    },\n"
-                # print("orig dict:")
-                # print(ed[1])
-                # print("modified to str:")
-                # print(str(ed[1]))
             else:
                 retStr += "        \"data\": \"" + base64Data + "\"\n    }\n"
             i += 1
@@ -57,24 +50,19 @@ class EventDataConverter:
 
     @staticmethod
     def convertJSON(parsed_json, base64Data):
-        """Converts JSON string into list of tuples. Tuples contain the event_type and the associated data.
+        """Converts base64 encoded events to plain text in a list of tuples.
+        Tuples contain the event_type and the associated data.
 
         Args:
-            jsonStr (str): events+data as JSON
+            parsed_json (dict): events+data in dictionary
             base64Data (bool): flag indicating, whether data is encoded into Base64
 
         Returns:
             (list(tuple)): List of tuples containing events and data
         """
-        # parsedJSON = json.loads(jsonStr)
-        # print(parsedJSON)
         itemsList = parsed_json['items']
-        # print("parsed list of items:")
-        # print(itemsList)
         retList = []
         for item in itemsList:
-            # print(item['event_type'])
-            # print(item['data'])
             if base64Data == False:
                 retList.append((item['event_type'], item['data']))
             else:  # decode Base64

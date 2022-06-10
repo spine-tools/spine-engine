@@ -17,10 +17,11 @@ Unit tests for ZMQServer class.
 import threading
 import unittest
 import zmq
-import time
 import os
 import pathlib
 from spine_engine.server.connectivity.zmq_server import ZMQServer, ZMQSecurityModelState
+from spine_engine.server.util.server_message import ServerMessage
+from spine_engine.server.util.server_message_parser import ServerMessageParser
 
 base_dir = os.path.join(str(pathlib.Path(__file__).parent), "secfolder")
 
@@ -37,7 +38,6 @@ class TestZMQServer(unittest.TestCase):
         self.client_context = zmq.Context()
         self.req_socket = self.client_context.socket(zmq.REQ)
         self.base_dir = base_dir
-        # self.req_socket.connect("tcp://localhost:5559")
 
     def tearDown(self):
         """Closes client socket and context if open."""
@@ -54,15 +54,28 @@ class TestZMQServer(unittest.TestCase):
         self.assertIsNone(server)
 
     def test_invalid_secfolder(self):
-        """Tests the starting/stopping of the ZMQ server without proper sec folder."""
+        """Tests the starting the ZMQ server without a proper sec folder."""
         server = None
         with self.assertRaises(ValueError):
             server = ZMQServer("tcp", 6003, ZMQSecurityModelState.STONEHOUSE, "/fwhkjfnsefkjnselk")
         self.assertIsNone(server)
 
+    def test_starting_server(self):
+        """Tests starting a tcp ZMQ server without security and pinging it."""
+        server = ZMQServer("tcp", 5556, ZMQSecurityModelState.NONE, "")
+        self.req_socket.connect("tcp://localhost:5556")
+        # Ping the server
+        ping_msg = ServerMessage("ping", "123", "", None)
+        self.req_socket.send_multipart([ping_msg.to_bytes()])
+        response = self.req_socket.recv()
+        response_str = response.decode("utf-8")
+        ping_as_json = ping_msg.toJSON()
+        self.assertEqual(response_str, ping_as_json)  # check that echoed content is as expected
+        server.close()
+
     @unittest.skipIf(not _security_folder_exists(), "Test requires a security folder")
-    def test_starting_server_connection_with_security_tcp(self):
-        """Tests starting a ZMQ server with tcp, and reception of a connection and message parts (with security)."""
+    def test_starting_server_with_security(self):
+        """Tests starting a tcp ZMQ server with StoneHouse Security and pinging it."""
         zmq_server = ZMQServer("tcp", 6006, ZMQSecurityModelState.STONEHOUSE, base_dir)
         # Configure client security
         secret_keys_dir = os.path.join(base_dir, "private_keys")
@@ -78,21 +91,17 @@ class TestZMQServer(unittest.TestCase):
         # The client must know the server's public key to make a CURVE connection.
         self.req_socket.curve_serverkey = server_public
         self.req_socket.connect("tcp://localhost:6006")
-        msg_parts = []
-        part1 = "feiofnoknfsdnoiknsmd"
-        fileArray = bytearray([1, 2, 3, 4, 5])
-        part1Bytes = bytes(part1, "utf-8")
-        msg_parts.append(part1Bytes)
-        msg_parts.append(fileArray)
-        self.req_socket.send_multipart(msg_parts)  # We are sending a msg and expecting the same msg to come back
-        msg = self.req_socket.recv()
-        msg_decoded = msg.decode("utf-8")
-        self.assertEqual(msg, part1Bytes)  # Check that transmitted and received bytes objects are equal
-        self.assertEqual(part1, msg_decoded)  # Check that transmitted and received strings are equal
+        # Ping the server
+        ping_msg = ServerMessage("ping", "123", "", None)
+        self.req_socket.send_multipart([ping_msg.to_bytes()])
+        response = self.req_socket.recv()
+        response_str = response.decode("utf-8")
+        ping_as_json = ping_msg.toJSON()
+        self.assertEqual(response_str, ping_as_json)  # check that echoed content is as expected
         zmq_server.close()
 
-    def test_starting_server_connection_established_tcp(self):
-        """Tests starting of a ZMQ server with tcp, and reception of a connection and message parts."""
+    def test_malformed_server_message(self):
+        """Tests what happens when the sent request is not valid."""
         server = ZMQServer("tcp", 5556, ZMQSecurityModelState.NONE, "")
         self.req_socket.connect("tcp://localhost:5556")
         msg_parts = []
@@ -104,31 +113,12 @@ class TestZMQServer(unittest.TestCase):
         self.req_socket.send_multipart(msg_parts)
         msg = self.req_socket.recv()
         msg_decoded = msg.decode("utf-8")
-        self.assertEqual(msg, part1Bytes)  # Check that transmitted and received bytes objects are equal
-        self.assertEqual(part1, msg_decoded)  # Check that transmitted and received strings are equal
+        parsed_msg = ServerMessageParser.parse(msg_decoded)  # Parse (JSON) string into a ServerMessage
+        self.assertTrue(parsed_msg.getData().startswith("json.decoder.JSONDecodeError:"))
         server.close()
 
-    def test_multiple_data_items_tcp(self):
-        """Tests transfer of multiple data items within a connection."""
-        server = ZMQServer("tcp", 6000, ZMQSecurityModelState.NONE, "")
-        # Connect to the server
-        self.req_socket.connect("tcp://localhost:6000")
-        msg_parts = []
-        part1 = "feiofnoknfsdnoiknsmd"
-        fileArray = bytearray([1, 2, 3, 4, 5])
-        part1Bytes = bytes(part1, "utf-8")
-        msg_parts.append(part1Bytes)
-        msg_parts.append(fileArray)
-        j = 0
-        while j < 100:
-            self.req_socket.send_multipart(msg_parts)
-            msg = self.req_socket.recv()
-            self.assertEqual(msg, part1Bytes)  # check that echoed content is as expected
-            j += 1
-        server.close()
-
-    def test_multiple_sockets_tcp(self):
-        """Tests multiple sockets over TCP."""
+    def test_multiple_client_sockets_sync(self):
+        """Tests multiple client sockets pinging the server synchronously (sequentially)."""
         server = ZMQServer("tcp", 5558, ZMQSecurityModelState.NONE, "")
         socket1 = self.client_context.socket(zmq.REQ)
         socket2 = self.client_context.socket(zmq.REQ)
@@ -136,29 +126,25 @@ class TestZMQServer(unittest.TestCase):
         socket1.connect("tcp://localhost:5558")
         socket2.connect("tcp://localhost:5558")
         socket3.connect("tcp://localhost:5558")
-        msg_parts = []
-        part1 = "feiofnoknfsdnoiknsmd"
-        fileArray = bytearray([1, 2, 3, 4, 5])
-        part1Bytes = bytes(part1, "utf-8")
-        msg_parts.append(part1Bytes)
-        msg_parts.append(fileArray)
-        # Send over multiple sockets
-        socket1.send_multipart(msg_parts)
-        msg = socket1.recv()
-        self.assertEqual(msg, part1Bytes)  # check that echoed content is as expected
-        socket2.send_multipart(msg_parts)
-        msg = socket2.recv()
-        self.assertEqual(msg, part1Bytes)  # check that echoed content is as expected
-        socket3.send_multipart(msg_parts)
-        msg = socket3.recv()
-        self.assertEqual(msg, part1Bytes)  # check that echoed content is as expected
+        ping_msg1 = ServerMessage("ping", "1", "", None).to_bytes()
+        ping_msg2 = ServerMessage("ping", "2", "", None).to_bytes()
+        ping_msg3 = ServerMessage("ping", "3", "", None).to_bytes()
+        socket1.send_multipart([ping_msg1])
+        response1 = socket1.recv()
+        self.assertEqual(response1, ping_msg1)
+        socket2.send_multipart([ping_msg2])
+        response2 = socket2.recv()
+        self.assertEqual(response2, ping_msg2)
+        socket3.send_multipart([ping_msg3])
+        response3 = socket3.recv()
+        self.assertEqual(response3, ping_msg3)
         socket1.close()
         socket2.close()
         socket3.close()
         server.close()
 
-    def test_multiple_sockets_seq_transfer_tcp(self):
-        """Tests multiple sockets over TCP."""
+    def test_multiple_client_sockets_async(self):
+        """Tests multiple client sockets pinging the server asynchronously."""
         server = ZMQServer("tcp", 5559, ZMQSecurityModelState.NONE, "")
         socket1 = self.client_context.socket(zmq.REQ)
         socket2 = self.client_context.socket(zmq.REQ)
@@ -166,34 +152,24 @@ class TestZMQServer(unittest.TestCase):
         socket1.connect("tcp://localhost:5559")
         socket2.connect("tcp://localhost:5559")
         socket3.connect("tcp://localhost:5559")
-        msg_parts = []
-        part1 = "feiofnoknfsdnoiknsmd"
-        fileArray = bytearray([1, 2, 3, 4, 5])
-        part1Bytes = bytes(part1, "utf-8")
-        msg_parts.append(part1Bytes)
-        msg_parts.append(fileArray)
-        # send over multiple sockets
-        socket1.send_multipart(msg_parts)
-        # print("test_multiple_sockets_seq_transfer_tcp() msg on socket 1 sent.")
-        socket2.send_multipart(msg_parts)
-        # print("test_multiple_sockets_seq_transfer_tcp() msg on socket 2 sent.")
-        socket3.send_multipart(msg_parts)
-        # print("test_multiple_sockets_seq_transfer_tcp() msg on socket 3 sent.")
-        msg = socket1.recv()
-        # print("test_multiple_sockets_seq_transfer_tcp() msg received: %s"%msg)
-        self.assertEqual(msg, part1Bytes)  # check that echoed content is as expected
-        msg = socket2.recv()
-        # print("test_multiple_sockets_seq_transfer_tcp() msg received: %s"%msg)
-        self.assertEqual(msg, part1Bytes)  # check that echoed content is as expected
-        msg = socket3.recv()
-        # print("test_multiple_sockets_seq_transfer_tcp() msg received: %s"%msg)
-        self.assertEqual(msg, part1Bytes)  # check that echoed content is as expected
+        ping_msg1 = ServerMessage("ping", "1", "", None).to_bytes()
+        ping_msg2 = ServerMessage("ping", "2", "", None).to_bytes()
+        ping_msg3 = ServerMessage("ping", "3", "", None).to_bytes()
+        socket1.send_multipart([ping_msg1])
+        socket2.send_multipart([ping_msg2])
+        socket3.send_multipart([ping_msg3])
+        response1 = socket1.recv()
+        response2 = socket2.recv()
+        response3 = socket3.recv()
+        self.assertEqual(response1, ping_msg1)
+        self.assertEqual(response2, ping_msg2)
+        self.assertEqual(response3, ping_msg3)
         socket1.close()
         socket2.close()
         socket3.close()
         server.close()
 
-    def test_zmqserver_threading(self):
+    def test_zmqserver_close(self):
         """Tests thread, socket, and context states after server has been closed."""
         server = ZMQServer("tcp", 5555, ZMQSecurityModelState.NONE, "")
         self.assertFalse(server.ctrl_msg_sender.closed)
@@ -205,22 +181,17 @@ class TestZMQServer(unittest.TestCase):
         self.assertFalse(server.is_alive())  # server thread should not be alive
         self.assertEqual(threading.active_count(), 1)  # Only one thread running after close
 
-    def test_sequential_transmit_using_req_socket_fails(self):
+    def test_send_twice_using_req_socket_fails(self):
         """Tests that two sends in a row for a REQ socket fails. Allowed send/receive
         pattern for REQ socket is send, receive, send, receive, etc."""
         server = ZMQServer("tcp", 5557, ZMQSecurityModelState.NONE, "")
         socket = self.client_context.socket(zmq.REQ)
         socket.connect("tcp://localhost:5557")
         socket.setsockopt(zmq.LINGER, 1)
-        msg_parts = []
-        part1 = "feiofnoknfsdnoiknsmd"
-        fileArray = bytearray([1, 2, 3, 4, 5])
-        part1Bytes = bytes(part1, "utf-8")
-        msg_parts.append(part1Bytes)
-        msg_parts.append(fileArray)
-        socket.send_multipart(msg_parts)
+        ping_msg = ServerMessage("ping", "123", "", None)
+        socket.send_multipart([ping_msg.to_bytes()])
         with self.assertRaises(zmq.ZMQError):
-            socket.send_multipart(msg_parts)
+            socket.send_multipart([ping_msg.to_bytes()])
         socket.close()
         server.close()
 

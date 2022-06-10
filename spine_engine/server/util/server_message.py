@@ -17,19 +17,21 @@ Contains a helper class for JSON-based messages exchanged between server and cli
 
 
 class ServerMessage:
-    def __init__(self, command, msg_id, data, files):
+    """Class for communicating requests and replies between the client and the server."""
+    def __init__(self, command, req_id, data, files):
         """
+        Class constructor.
+
         Args:
-            command (str): command to be executed at the server
-            msg_id (str): identifier associated with the command
-            data (str): events+data (list of tuples) converted into a JSON str or an error msg (must be a JSON str)
+            command (str): Command to be executed at the server
+            req_id (str): Identifier associated with the command
+            data (str): Data associated to the command. In an execute request, this is the engine
+            data as a JSON string. In an execute reply, this is the execution events list of tuples.
+            If execution fails, this is an error msg JSON str.
             files (list[str], None): List of file names to be associated with the message (optional)
         """
-        if not command or not msg_id:
-            print("Error in ServerMessage")
-            raise ValueError("invalid input to ServerMessage")
         self._command = command
-        self._id = msg_id
+        self._id = req_id
         self._data = data
         if not files:
             self._files = list()
@@ -49,12 +51,12 @@ class ServerMessage:
         return self._files
 
     def toJSON(self):
-        """
+        """Converts this instance into a JSON string.
+
         Returns:
-            the class as a JSON string
+            str: The instance as a JSON string
         """
         jsonFileNames = self._getJSONFileNames()
-        # print("ServerMessage.toJSON(): %s"%jsonFileNames)
         retStr = ""
         retStr += "{\n"
         retStr += "   \"command\": \"" + self._command + "\",\n"

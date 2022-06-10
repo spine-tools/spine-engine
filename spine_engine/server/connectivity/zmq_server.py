@@ -69,6 +69,7 @@ class ZMQServer(threading.Thread):
             raise ValueError(f"Invalid input. Error: {e}")
         self.protocol = protocol
         self.port = port
+        self.auth = None
         # NOTE: Contexts are thread-safe! Sockets are NOT!. Do not use or close
         # sockets except in the thread that created them.
         self._context = zmq.Context()
@@ -80,6 +81,9 @@ class ZMQServer(threading.Thread):
 
     def close(self):
         """Closes the server by sending a KILL message to this thread using a PAIR socket."""
+        if self.auth is not None:
+            self.auth.stop()
+            time.sleep(0.2)  # wait a bit until authenticator has been closed
         self.ctrl_msg_sender.send(b"KILL")
         self.ctrl_msg_sender.close()
         self._context.term()
@@ -97,10 +101,10 @@ class ZMQServer(threading.Thread):
             ctrl_msg_listener.connect("inproc://ctrl_msg")
             worker_thread_killer = self._context.socket(zmq.PAIR)
             worker_thread_killer.bind("inproc://worker_ctrl")
-            auth = None
+
             if self._sec_model_state == ZMQSecurityModelState.STONEHOUSE:
                 try:
-                    auth = self.enable_stonehouse_security(frontend)
+                    self.auth = self.enable_stonehouse_security(frontend)
                 except ValueError:
                     raise
             frontend.bind(self.protocol + "://*:" + str(self.port))
@@ -123,39 +127,33 @@ class ZMQServer(threading.Thread):
                     if not connection:
                         print("Received request malformed. - continuing...")
                         continue
-                    # TODO: Make a worker according to the command.
-                    worker_id = uuid.uuid4().hex  # TODO: Use connection._connection_id instead
+                    # worker_id = uuid.uuid4().hex  # TODO: Use this if problems with connection_id
                     if connection.cmd() == "execute":
                         worker = RemoteExecutionHandler(self._context, connection)
-                        worker.execute()
                     elif connection.cmd() == "ping":
-                        worker = RemotePingHandler.handle_ping(self._context, connection)
+                        worker = RemotePingHandler(self._context, connection)
                     else:
                         print(f"Unknown command {connection.cmd()} requested")
                         connection.send_error_reply(frontend, f"Error message from server - Unknown command "
                                                     f"'{connection.cmd()}' requested")
                         continue
-                    # workers[worker_id] = worker
-                    # backend.send_multipart(msg)
+                    worker.start()
+                    workers[connection.connection_id()] = worker
                 if socks.get(backend) == zmq.POLLIN:
-                    # Get reply message from backend and send it back to client
+                    # Worker has finished execution. Relay reply from backend back to client using the frontend socket
                     message = backend.recv_multipart()
                     print(f"Sending response to client {message[0]}")
                     frontend.send_multipart(message)
-                    # TODO: Remove worker thread from list
+                    # Close and delete finished worker
+                    finished_worker = workers.pop(message[0])
+                    finished_worker.close()
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
-                    # print("Closing down worker thread")
                     print(f"workers running:{len(workers)}")
-                    # worker_thread_killer.send(b"KILL")
-                    # No need to check the message content.
                     break
             except Exception as e:
                 print(f"ZMQServer.serve() exception: {type(e)} serving failed, exception: {e}")
                 break
-        # Close sockets and connections
-        if self._sec_model_state == ZMQSecurityModelState.STONEHOUSE:
-            auth.stop()
-            time.sleep(0.2)  # wait a bit until authenticator has been closed
+        # Close sockets
         ctrl_msg_listener.close()
         frontend.close()
         backend.close()
@@ -202,7 +200,7 @@ class ZMQServer(threading.Thread):
         if len(files) > 0:
             for f in files:
                 files_list.append(files[f])
-        connection = ZMQConnection(msg, socket, server_msg["command"], server_msg["id"], data_str, files_list)
+        connection = ZMQConnection(msg, server_msg["command"], server_msg["id"], data_str, files_list)
         return connection
 
     @staticmethod

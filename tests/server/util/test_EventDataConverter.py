@@ -11,7 +11,7 @@
 
 """
 Unit tests for EventDataConverter class.
-:author: P. Pääkkönen (VTT)
+:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   27.8.2021
 """
 
@@ -34,14 +34,13 @@ class TestEventDataConverter(unittest.TestCase):
     def test_converting_basic(self):
         eventData = self._createEventData()
         jsonStr = EventDataConverter.convert(eventData)
-        # print(jsonStr)
-        json.loads(jsonStr)
+        converted_events = json.loads(jsonStr)
+        self.assertEqual(20, len(converted_events["items"]))
 
     def test_2converts_basic(self):
         eventData = self._createEventData()
         jsonStr = EventDataConverter.convert(eventData)
-        eventsData2 = EventDataConverter.convertJSON(jsonStr, True)
-        # print(eventsData2)
+        eventsData2 = EventDataConverter.convertJSON(json.loads(jsonStr), True)
         jsonStr2 = EventDataConverter.convert(eventsData2)
         self.assertEqual(jsonStr, jsonStr2)
 

@@ -11,14 +11,13 @@
 
 """
 Starts Spine Engine Server
-:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
+:author: P. Savolainen (VTT)
 :date:   01.09.2021
 """
 
 import sys
 import time
-from spine_engine.server.connectivity.zmq_server import ZMQServer
-from spine_engine.server.connectivity.zmq_server import ZMQSecurityModelState
+from spine_engine.server.connectivity.zmq_server import ZMQServer, ZMQSecurityModelState
 
 
 def main(argv):

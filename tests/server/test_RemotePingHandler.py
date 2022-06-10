@@ -38,14 +38,12 @@ class TestRemotePingHandler(unittest.TestCase):
         self.socket.connect("tcp://localhost:5558")
         i = 0
         while i < 10:
-            msg_parts = []
             ping_msg = ServerMessage("ping", str(i), "", None)
-            msg_parts.append(ping_msg.to_bytes())
-            self.socket.send_multipart(msg_parts)
-            msg = self.socket.recv()
-            msgStr = msg.decode("utf-8")
-            pingAsJson = ping_msg.toJSON()
-            self.assertEqual(msgStr, pingAsJson)  # check that echoed content is as expected
+            self.socket.send_multipart([ping_msg.to_bytes()])
+            response = self.socket.recv()
+            response_str = response.decode("utf-8")
+            ping_as_json = ping_msg.toJSON()
+            self.assertEqual(response_str, ping_as_json)  # check that echoed content is as expected
             i = i + 1
         service.close()
 
