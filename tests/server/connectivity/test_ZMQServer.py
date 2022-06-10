@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Unit tests for ZMQServer class.
+Unit tests for EngineServer class.
 :author: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   19.8.2021
 """
@@ -19,7 +19,7 @@ import unittest
 import zmq
 import os
 import pathlib
-from spine_engine.server.zmq_server import ZMQServer, ZMQSecurityModelState
+from spine_engine.server.engine_server import EngineServer, ZMQSecurityModelState
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.server_message_parser import ServerMessageParser
 
@@ -32,7 +32,7 @@ def _security_folder_exists():
     return os.path.exists(base_dir) and os.path.exists(endpointfile)
 
 
-class TestZMQServer(unittest.TestCase):
+class TestEngineServer(unittest.TestCase):
     def setUp(self):
         """Sets up client context and socket."""
         self.client_context = zmq.Context()
@@ -50,19 +50,19 @@ class TestZMQServer(unittest.TestCase):
         """Tests the starting/stopping of the ZMQ server without proper sec folder"""
         server = None
         with self.assertRaises(ValueError):
-            server = ZMQServer("tcp", 6002, ZMQSecurityModelState.STONEHOUSE, "")
+            server = EngineServer("tcp", 6002, ZMQSecurityModelState.STONEHOUSE, "")
         self.assertIsNone(server)
 
     def test_invalid_secfolder(self):
         """Tests the starting the ZMQ server without a proper sec folder."""
         server = None
         with self.assertRaises(ValueError):
-            server = ZMQServer("tcp", 6003, ZMQSecurityModelState.STONEHOUSE, "/fwhkjfnsefkjnselk")
+            server = EngineServer("tcp", 6003, ZMQSecurityModelState.STONEHOUSE, "/fwhkjfnsefkjnselk")
         self.assertIsNone(server)
 
     def test_starting_server(self):
         """Tests starting a tcp ZMQ server without security and pinging it."""
-        server = ZMQServer("tcp", 5556, ZMQSecurityModelState.NONE, "")
+        server = EngineServer("tcp", 5556, ZMQSecurityModelState.NONE, "")
         self.req_socket.connect("tcp://localhost:5556")
         # Ping the server
         ping_msg = ServerMessage("ping", "123", "", None)
@@ -76,7 +76,7 @@ class TestZMQServer(unittest.TestCase):
     @unittest.skipIf(not _security_folder_exists(), "Test requires a security folder")
     def test_starting_server_with_security(self):
         """Tests starting a tcp ZMQ server with StoneHouse Security and pinging it."""
-        zmq_server = ZMQServer("tcp", 6006, ZMQSecurityModelState.STONEHOUSE, base_dir)
+        zmq_server = EngineServer("tcp", 6006, ZMQSecurityModelState.STONEHOUSE, base_dir)
         # Configure client security
         secret_keys_dir = os.path.join(base_dir, "private_keys")
         keys_dir = os.path.join(base_dir, "certificates")
@@ -102,7 +102,7 @@ class TestZMQServer(unittest.TestCase):
 
     def test_malformed_server_message(self):
         """Tests what happens when the sent request is not valid."""
-        server = ZMQServer("tcp", 5556, ZMQSecurityModelState.NONE, "")
+        server = EngineServer("tcp", 5556, ZMQSecurityModelState.NONE, "")
         self.req_socket.connect("tcp://localhost:5556")
         msg_parts = []
         part1 = "feiofnoknfsdnoiknsmd"
@@ -119,7 +119,7 @@ class TestZMQServer(unittest.TestCase):
 
     def test_multiple_client_sockets_sync(self):
         """Tests multiple client sockets pinging the server synchronously (sequentially)."""
-        server = ZMQServer("tcp", 5558, ZMQSecurityModelState.NONE, "")
+        server = EngineServer("tcp", 5558, ZMQSecurityModelState.NONE, "")
         socket1 = self.client_context.socket(zmq.REQ)
         socket2 = self.client_context.socket(zmq.REQ)
         socket3 = self.client_context.socket(zmq.REQ)
@@ -145,7 +145,7 @@ class TestZMQServer(unittest.TestCase):
 
     def test_multiple_client_sockets_async(self):
         """Tests multiple client sockets pinging the server asynchronously."""
-        server = ZMQServer("tcp", 5559, ZMQSecurityModelState.NONE, "")
+        server = EngineServer("tcp", 5559, ZMQSecurityModelState.NONE, "")
         socket1 = self.client_context.socket(zmq.REQ)
         socket2 = self.client_context.socket(zmq.REQ)
         socket3 = self.client_context.socket(zmq.REQ)
@@ -169,9 +169,9 @@ class TestZMQServer(unittest.TestCase):
         socket3.close()
         server.close()
 
-    def test_zmqserver_close(self):
+    def test_engineserver_close(self):
         """Tests thread, socket, and context states after server has been closed."""
-        server = ZMQServer("tcp", 5555, ZMQSecurityModelState.NONE, "")
+        server = EngineServer("tcp", 5555, ZMQSecurityModelState.NONE, "")
         self.assertFalse(server.ctrl_msg_sender.closed)
         self.assertFalse(server._context.closed)
         self.assertTrue(server.is_alive())
@@ -184,7 +184,7 @@ class TestZMQServer(unittest.TestCase):
     def test_send_twice_using_req_socket_fails(self):
         """Tests that two sends in a row for a REQ socket fails. Allowed send/receive
         pattern for REQ socket is send, receive, send, receive, etc."""
-        server = ZMQServer("tcp", 5557, ZMQSecurityModelState.NONE, "")
+        server = EngineServer("tcp", 5557, ZMQSecurityModelState.NONE, "")
         socket = self.client_context.socket(zmq.REQ)
         socket.connect("tcp://localhost:5557")
         socket.setsockopt(zmq.LINGER, 1)

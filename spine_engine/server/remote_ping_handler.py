@@ -27,7 +27,7 @@ class RemotePingHandler(threading.Thread):
 
         Args:
             context (zmq.Context): Server context
-            request (ZMQConnection): Zero-MQ connection
+            request (Request): Client request
         """
         super().__init__(name="PingHandlerThread")
         self.context = context
@@ -39,7 +39,6 @@ class RemotePingHandler(threading.Thread):
         self.ping_socket.connect("inproc://backend")
         reply_msg = ServerMessage("ping", self.req.request_id(), "", None)
         self.req.send_multipart_reply(self.ping_socket, self.req.connection_id(), reply_msg.to_bytes())
-        print(f"Replied to a Ping from {self.req.connection_id()}")
 
     def close(self):
         """Closes socket and cleans up."""

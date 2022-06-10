@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Contains ZMQServer class for running a Zero-MQ server with Spine Engine.
+Contains EngineServer class for running a Zero-MQ server with Spine Engine.
 :authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   19.08.2021
 """
@@ -23,7 +23,7 @@ from enum import unique, Enum
 import zmq
 from zmq.auth.thread import ThreadAuthenticator
 from spine_engine.server.util.server_message import ServerMessage
-from spine_engine.server.zmq_connection import ZMQConnection
+from spine_engine.server.request import Request
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.remote_ping_handler import RemotePingHandler
 
@@ -34,7 +34,7 @@ class ZMQSecurityModelState(Enum):
     STONEHOUSE = 1
 
 
-class ZMQServer(threading.Thread):
+class EngineServer(threading.Thread):
     """A server for receiving execution requests from Spine Toolbox."""
 
     def __init__(self, protocol, port, sec_model, sec_folder):
@@ -51,7 +51,7 @@ class ZMQServer(threading.Thread):
                 self._sec_model_state = ZMQSecurityModelState.NONE
             elif sec_model == ZMQSecurityModelState.STONEHOUSE:
                 if not sec_folder:
-                    raise ValueError("ZMQServer(): security folder input is missing.")
+                    raise ValueError("EngineServer(): security folder input is missing.")
                 base_dir = sec_folder
                 self.keys_dir = os.path.join(base_dir, 'certificates')
                 self.public_keys_dir = os.path.join(base_dir, 'public_keys')
@@ -75,7 +75,7 @@ class ZMQServer(threading.Thread):
         self.ctrl_msg_sender = self._context.socket(zmq.PAIR)
         self.ctrl_msg_sender.bind("inproc://ctrl_msg")  # inproc:// transport requires a bind() before connect()
         # Start serving
-        threading.Thread.__init__(self, target=self.serve, name="ZMQServerThread")
+        threading.Thread.__init__(self, target=self.serve, name="EngineServerThread")
         self.start()
 
     def close(self):
@@ -120,24 +120,24 @@ class ZMQServer(threading.Thread):
                 # Broker
                 if socks.get(frontend) == zmq.POLLIN:
                     # Frontend received a message, send it to backend for processing
-                    print("Frontend received a message")
                     msg = frontend.recv_multipart()
-                    connection = self.handle_frontend_message_received(frontend, msg)
-                    if not connection:
+                    request = self.handle_frontend_message_received(frontend, msg)
+                    if not request:
                         print("Received request malformed. - continuing...")
                         continue
+                    print(f"New request from client {request.connection_id()}")
                     # worker_id = uuid.uuid4().hex  # TODO: Use this if problems with connection_id
-                    if connection.cmd() == "execute":
-                        worker = RemoteExecutionHandler(self._context, connection)
-                    elif connection.cmd() == "ping":
-                        worker = RemotePingHandler(self._context, connection)
+                    if request.cmd() == "execute":
+                        worker = RemoteExecutionHandler(self._context, request)
+                    elif request.cmd() == "ping":
+                        worker = RemotePingHandler(self._context, request)
                     else:
-                        print(f"Unknown command {connection.cmd()} requested")
-                        connection.send_error_reply(frontend, f"Error message from server - Unknown command "
-                                                    f"'{connection.cmd()}' requested")
+                        print(f"Unknown command {request.cmd()} requested")
+                        request.send_error_reply(frontend, f"Error message from server - Unknown command "
+                                                           f"'{request.cmd()}' requested")
                         continue
                     worker.start()
-                    workers[connection.connection_id()] = worker
+                    workers[request.connection_id()] = worker
                 if socks.get(backend) == zmq.POLLIN:
                     # Worker has finished execution. Relay reply from backend back to client using the frontend socket
                     message = backend.recv_multipart()
@@ -147,10 +147,11 @@ class ZMQServer(threading.Thread):
                     finished_worker = workers.pop(message[0])
                     finished_worker.close()
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
-                    print(f"workers running:{len(workers)}")
+                    if len(workers) > 0:
+                        print(f"WARNING: Some workers still running:{workers.keys()}")
                     break
             except Exception as e:
-                print(f"ZMQServer.serve() exception: {type(e)} serving failed, exception: {e}")
+                print(f"EngineServer.serve() exception: {type(e)} serving failed, exception: {e}")
                 break
         # Close sockets
         ctrl_msg_listener.close()
@@ -170,7 +171,7 @@ class ZMQServer(threading.Thread):
             JSON string containing a server message dictionary
 
         Returns:
-            None if something went wrong or a new ZMQConnection instance
+            None if something went wrong or a new Request instance
         """
         b_json_str_server_msg = msg[2]  # binary string
         if len(b_json_str_server_msg) <= 10:  # Message size too small
@@ -199,8 +200,7 @@ class ZMQServer(threading.Thread):
         if len(files) > 0:
             for f in files:
                 files_list.append(files[f])
-        connection = ZMQConnection(msg, server_msg["command"], server_msg["id"], data_str, files_list)
-        return connection
+        return Request(msg, server_msg["command"], server_msg["id"], data_str, files_list)
 
     @staticmethod
     def send_init_failed_reply(socket, connection_id, error_msg):

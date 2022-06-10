@@ -10,14 +10,15 @@
 ######################################################################################################################
 
 """
-Starts Spine Engine Server
+Starts Spine Engine Server.
+
 :author: P. Savolainen (VTT)
 :date:   01.09.2021
 """
 
 import sys
 import time
-from spine_engine.server.zmq_server import ZMQServer, ZMQSecurityModelState
+from spine_engine.server.engine_server import EngineServer, ZMQSecurityModelState
 
 
 def main(argv):
@@ -32,9 +33,9 @@ def main(argv):
     try:
         port = int(argv[2])
         if len(argv) == 3:
-            zmq_server = ZMQServer(argv[1], port, ZMQSecurityModelState.NONE, "")
+            zmq_server = EngineServer(argv[1], port, ZMQSecurityModelState.NONE, "")
         elif len(argv) == 5:
-            zmq_server = ZMQServer(argv[1], port, ZMQSecurityModelState.STONEHOUSE, argv[4])
+            zmq_server = EngineServer(argv[1], port, ZMQSecurityModelState.STONEHOUSE, argv[4])
     except Exception as e:
         print(f"start_server.main(): {type(e).__name__}: {e}")
         return
@@ -51,7 +52,7 @@ def main(argv):
             try:
                 zmq_server.close()
             except Exception as e:
-                print(f"ZMQServer.close(): {type(e).__name__}: {e}")
+                print(f"EngineServer.close(): {type(e).__name__}: {e}")
             break
         else:
             time.sleep(0.1)

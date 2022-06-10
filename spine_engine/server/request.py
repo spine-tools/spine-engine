@@ -10,8 +10,8 @@
 ######################################################################################################################
 
 """
-This class implements a Zero-MQ socket connection received from the ZMQServer.
-:author: P. Pääkkönen (VTT)
+Contains a class for client requests received at server.
+:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   19.8.2021
 """
 
@@ -19,8 +19,8 @@ import json
 from spine_engine.server.util.server_message import ServerMessage
 
 
-class ZMQConnection:
-    """Class for bundling the received message and ZMQ connection together."""
+class Request:
+    """Class for bundling the received request and associated data together."""
     def __init__(self, msg, cmd, rqst_id, data, filenames):
         """Init class.
 
