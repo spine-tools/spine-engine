@@ -17,6 +17,9 @@ import code
 try:
     import readline
     import itertools
+
+    _history_offset = -1
+    _history_saved_line = ""
 except ModuleNotFoundError:
     readline = None
 
@@ -28,7 +31,10 @@ class SpineDBServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 class _RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         data = self.request.recv(1024).decode("UTF8")
-        request, _, arg = data.partition(";;")
+        req_args_sep = '\u001f'  # Unit separator
+        args_sep = '\u0091'  # Private Use 1
+        request, args = data.split(req_args_sep)
+        args = args.split(args_sep)
         handler = {
             "completions": completions,
             "add_history": add_history,
@@ -37,7 +43,7 @@ class _RequestHandler(socketserver.BaseRequestHandler):
         }.get(request)
         if handler is None:
             return
-        response = handler(arg)
+        response = handler(*args)
         try:
             self.request.sendall(bytes(response, "UTF8"))
         except:
@@ -56,11 +62,23 @@ def add_history(line):
     readline.add_history(line)
 
 
-def history_item(index):
+def history_item(text, prefix, sense):
     if not readline:
         return ""
-    index = int(index)
-    return readline.get_history_item(readline.get_current_history_length() + 1 - index)
+    global _history_offset  # pylint: disable=global-statement
+    global _history_saved_line  # pylint: disable=global-statement
+    if _history_offset == -1:
+        _history_saved_line = text
+    step = 1 if sense == "backwards" else -1
+    cur_len = readline.get_current_history_length()
+    while -1 <= _history_offset + step < cur_len:
+        _history_offset += step
+        if _history_offset == -1:
+            return _history_saved_line
+        item = readline.get_history_item(cur_len - _history_offset)
+        if item.startswith(prefix):
+            return item
+    return ""
 
 
 def is_complete(cmd):
@@ -94,3 +112,5 @@ def ping(host, port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((host, port))
         s.sendall(b"error" if _exception[0] else b"ok")
+    global _history_offset  # pylint: disable=global-statement
+    _history_offset = -1
