@@ -19,12 +19,11 @@ import os
 import time
 import threading
 import ipaddress
-import uuid
 from enum import unique, Enum
 import zmq
 from zmq.auth.thread import ThreadAuthenticator
 from spine_engine.server.util.server_message import ServerMessage
-from spine_engine.server.connectivity.zmq_connection import ZMQConnection
+from spine_engine.server.zmq_connection import ZMQConnection
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.remote_ping_handler import RemotePingHandler
 

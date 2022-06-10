@@ -17,7 +17,7 @@ Starts Spine Engine Server
 
 import sys
 import time
-from spine_engine.server.connectivity.zmq_server import ZMQServer, ZMQSecurityModelState
+from spine_engine.server.zmq_server import ZMQServer, ZMQSecurityModelState
 
 
 def main(argv):

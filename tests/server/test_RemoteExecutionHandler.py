@@ -22,7 +22,7 @@ import os
 import random
 from pathlib import Path
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
-from spine_engine.server.connectivity.zmq_server import ZMQServer, ZMQSecurityModelState
+from spine_engine.server.zmq_server import ZMQServer, ZMQSecurityModelState
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.server_message_parser import ServerMessageParser
 from spine_engine.server.util.event_data_converter import EventDataConverter

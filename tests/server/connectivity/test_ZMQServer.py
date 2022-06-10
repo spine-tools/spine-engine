@@ -19,7 +19,7 @@ import unittest
 import zmq
 import os
 import pathlib
-from spine_engine.server.connectivity.zmq_server import ZMQServer, ZMQSecurityModelState
+from spine_engine.server.zmq_server import ZMQServer, ZMQSecurityModelState
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.server_message_parser import ServerMessageParser
 
