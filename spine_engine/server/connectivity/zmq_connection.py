@@ -27,14 +27,12 @@ class ZMQConnection:
         Args:
             msg (list): List of three or four binary frames (conn id, empty frame and user data frame,
                 and possibly zip-file)
-            socket (ZMQSocket): Socket connected to the received message
             cmd (str): Command associated with the request
             rqst_id (str): Request id (assigned by ZMQ)
             data (bytes): Zip-file
             filenames (list): List of associated filenames
         """
         self._msg = msg
-        self._socket = socket
         self._cmd = cmd
         self._request_id = rqst_id
         self._data = data
@@ -50,10 +48,6 @@ class ZMQConnection:
          The second frame is empty (added by the frontend ROUTER socket at receiver).
          The third frame contains the data sent by client."""
         return self._msg
-
-    def socket(self):
-        """Returns the socket associated to this connection."""
-        return self._socket
 
     def cmd(self):
         """Returns the command as string (eg. 'execute' or 'ping' associated to this request)."""
@@ -73,8 +67,8 @@ class ZMQConnection:
         return self._filenames
 
     def connection_id(self):
-        """Returns the connection Id as binary string. Assigned by the ROUTER
-        socket when the message was received at server."""
+        """Returns the connection Id as binary string. Assigned by the frontend
+        ROUTER socket when the message was received at server."""
         return self._connection_id
 
     def zip_file(self):
@@ -82,54 +76,33 @@ class ZMQConnection:
         or None if the message did not contain a zip-file."""
         return self._zip_file
 
-    def send_reply(self, data):
-        """Sends a one-part reply message to the recipient.
-        Does not work with ROUTER sockets.
-
-        Args:
-            data (bytes): Binary string
-        """
-        self._socket.send(data)
-
-    def send_multipart_reply(self, data):
-        """Sends a multi-part (multi-frame) response.
-        Responding to clients from ROUTER sockets must use this method.
-
-        Args:
-            data (bytes): User data to be sent
-        """
-        frame = [self._connection_id, b"", data]
-        self._socket.send_multipart(frame)
-
-    def send_response(self, response_data):
+    def send_response(self, socket, response_data):
         """Sends reply back to client. Used after execution to send the events to client."""
         reply_msg = ServerMessage(self._cmd, self._request_id, response_data, [])
-        reply_as_json = reply_msg.toJSON()
-        reply_in_bytes = bytes(reply_as_json, "utf-8")
-        self.send_multipart_reply(reply_in_bytes)
+        self.send_multipart_reply(socket, self.connection_id(), reply_msg.to_bytes())
 
-    def send_error_reply(self, response_msg):
+    def send_error_reply(self, socket, error_msg):
         """Sends an error message to client. Given msg string must be converted
         to JSON str (done by json.dumps() below) or parsing the msg on client
         fails. Do not use \n in the reply because it's not allowed in JSON.
 
         Args:
-            response_msg (str): Error message sent to client
+            socket (ZMQSocket): Socket for sending the reply
+            error_msg (str): Error message to client
         """
-        err_msg_as_json = json.dumps(response_msg)
+        err_msg_as_json = json.dumps(error_msg)
         reply_msg = ServerMessage(self._cmd, self._request_id, err_msg_as_json, [])
-        reply_as_json = reply_msg.toJSON()
-        reply_in_bytes = bytes(reply_as_json, "utf-8")
-        self.send_multipart_reply(reply_in_bytes)
+        self.send_multipart_reply(socket, self.connection_id(), reply_msg.to_bytes())
         print("\nClient has been notified. Moving on...")
 
     @staticmethod
-    def send_init_failed_reply(socket, response_msg):
-        """Sends an error reply to client when there was something
-        wrong in the received message."""
-        err_msg_as_json = json.dumps(response_msg)
-        reply_msg = ServerMessage("", "", err_msg_as_json, [])
-        reply_as_json = reply_msg.toJSON()
-        reply_in_bytes = bytes(reply_as_json, "utf-8")
-        socket.send_multipart_reply(reply_in_bytes)
-        print("\nClient has been notified. Moving on...")
+    def send_multipart_reply(socket, connection_id, data):
+        """Sends a multi-part (multi-frame) response.
+
+        Args:
+            socket (ZMQSocket): Socket for sending the reply
+            connection_id (bytes): Client Id. Assigned by the frontend ROUTER socket when a request is received.
+            data (bytes): User data to be sent
+        """
+        frame = [connection_id, b"", data]
+        socket.send_multipart(frame)

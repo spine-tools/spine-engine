@@ -23,6 +23,7 @@ import uuid
 from enum import unique, Enum
 import zmq
 from zmq.auth.thread import ThreadAuthenticator
+from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.connectivity.zmq_connection import ZMQConnection
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.remote_ping_handler import RemotePingHandler
@@ -30,12 +31,12 @@ from spine_engine.server.remote_ping_handler import RemotePingHandler
 
 @unique
 class ZMQSecurityModelState(Enum):
-    NONE = 0  # ZMQ can be executed without security
-    STONEHOUSE = 1  # stonehouse-security model of Zero-MQ
+    NONE = 0
+    STONEHOUSE = 1
 
 
 class ZMQServer(threading.Thread):
-    """A server implementation for receiving connections (ZMQConnection) from the Spine Toolbox."""
+    """A server for receiving execution requests from Spine Toolbox."""
 
     def __init__(self, protocol, port, sec_model, sec_folder):
         """Initializes the server.
@@ -84,10 +85,11 @@ class ZMQServer(threading.Thread):
         self._context.term()
 
     def serve(self):
-        """Creates two sockets, which are both polled asynchronously. The REPLY socket handles messages
-        from Spine Toolbox client, while the PAIR socket listens for 'server' internal control messages."""
+        """Creates the required sockets, which are polled asynchronously. The ROUTER socket handles communicating
+        with clients, DEALER sockets are for communicating with the backend processes and PAIR sockets are for
+        internal server control messages."""
         try:
-            frontend = self._context.socket(zmq.ROUTER)  # frontend
+            frontend = self._context.socket(zmq.ROUTER)
             backend = self._context.socket(zmq.DEALER)
             backend.bind("inproc://backend")
             # Socket for internal control input (i.e. killing the server)
@@ -127,10 +129,10 @@ class ZMQServer(threading.Thread):
                         worker = RemoteExecutionHandler(self._context, connection)
                         worker.execute()
                     elif connection.cmd() == "ping":
-                        worker = RemotePingHandler.handle_ping(connection)
+                        worker = RemotePingHandler.handle_ping(self._context, connection)
                     else:
                         print(f"Unknown command {connection.cmd()} requested")
-                        connection.send_error_reply(f"Error message from server - Unknown command "
+                        connection.send_error_reply(frontend, f"Error message from server - Unknown command "
                                                     f"'{connection.cmd()}' requested")
                         continue
                     # workers[worker_id] = worker
@@ -138,6 +140,7 @@ class ZMQServer(threading.Thread):
                 if socks.get(backend) == zmq.POLLIN:
                     # Get reply message from backend and send it back to client
                     message = backend.recv_multipart()
+                    print(f"Sending response to client {message[0]}")
                     frontend.send_multipart(message)
                     # TODO: Remove worker thread from list
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
@@ -158,8 +161,7 @@ class ZMQServer(threading.Thread):
         backend.close()
         worker_thread_killer.close()
 
-    @staticmethod
-    def handle_frontend_message_received(socket, msg):
+    def handle_frontend_message_received(self, socket, msg):
         """Check received message integrity.
 
         msg for ping is eg.
@@ -176,22 +178,22 @@ class ZMQServer(threading.Thread):
         b_json_str_server_msg = msg[2]  # binary string
         if len(b_json_str_server_msg) <= 10:  # Message size too small
             print(f"User data frame too small [{len(msg[2])}]. msg:{msg}")
-            ZMQConnection.send_init_failed_reply(socket, f"User data frame too small "
-                                                         f"- Malformed message sent to server.")
+            self.send_init_failed_reply(socket, msg[0], f"User data frame too small "
+                                                        f"- Malformed message sent to server.")
             return None
         try:
             json_str_server_msg = b_json_str_server_msg.decode("utf-8")  # json string
         except UnicodeDecodeError as e:
             print(f"Decoding received msg '{msg[2]} ' failed. \nUnicodeDecodeError: {e}")
-            ZMQConnection.send_init_failed_reply(socket, f"UnicodeDecodeError: {e}. "
-                                                         f"- Malformed message sent to server.")
+            self.send_init_failed_reply(socket, msg[0], f"UnicodeDecodeError: {e}. "
+                                                        f"- Malformed message sent to server.")
             return None
         # Load JSON string into dictionary
         try:
             server_msg = json.loads(json_str_server_msg)  # dictionary
         except json.decoder.JSONDecodeError as e:
-            ZMQConnection.send_init_failed_reply(socket, f"json.decoder.JSONDecodeError: {e}. "
-                                                         f"- Message parsing error at server.")
+            self.send_init_failed_reply(socket, msg[0], f"json.decoder.JSONDecodeError: {e}. "
+                                                        f"- Message parsing error at server.")
             return None
         # server_msg is now a dict with keys: 'command', 'id', 'data', and 'files'
         data_str = server_msg["data"]  # String
@@ -202,6 +204,21 @@ class ZMQServer(threading.Thread):
                 files_list.append(files[f])
         connection = ZMQConnection(msg, socket, server_msg["command"], server_msg["id"], data_str, files_list)
         return connection
+
+    @staticmethod
+    def send_init_failed_reply(socket, connection_id, error_msg):
+        """Sends an error reply to client when initialisation fails for some reason.
+
+        Args:
+            socket (ZMQSocket): Socket for sending the reply
+            connection_id (bytes): Client Id. Assigned by the frontend ROUTER socket when a request is received.
+            error_msg (str): Error message to client
+        """
+        err_msg_as_json = json.dumps(error_msg)
+        reply_msg = ServerMessage("", "", err_msg_as_json, [])
+        frame = [connection_id, b"", reply_msg.to_bytes()]
+        socket.send_multipart(frame)
+        print("\nClient has been notified. Moving on...")
 
     def enable_stonehouse_security(self, frontend):
         """Enables Stonehouse security by starting an authenticator and configuring

@@ -17,7 +17,6 @@ and running a DAG with Spine Engine. Only one DAG can be executed at a time.
 """
 
 import os
-import ast
 import pathlib
 import uuid
 import zmq
@@ -94,22 +93,25 @@ class RemoteExecutionHandler:
     #     worker_ctrl_socket.close()
 
     def execute(self):
+        """Handles an execute DAG request."""
+        worker_socket = self.context.socket(zmq.DEALER)
+        worker_socket.connect("inproc://backend")
         connection_id = self.connection.connection_id()
         req_id = self.connection.request_id()
         msg_data = self.connection.data()
         file_names = self.connection.filenames()
         if not len(file_names) == 1:  # No file name included
             print("Received msg contained no file name for the zip-file")
-            self.connection.send_error_reply("Zip-file name missing")
+            self.connection.send_error_reply(worker_socket, "Zip-file name missing")
             return
         if not msg_data["project_dir"]:
             print("Key project_dir missing from received msg. Can not create a local project directory.")
-            self.connection.send_error_reply("Problem in execute request. Key 'project_dir' was "
+            self.connection.send_error_reply(worker_socket, "Problem in execute request. Key 'project_dir' was "
                                              "None or an empty string.")
             return
         if not self.connection.zip_file():
             print("Project zip file missing from request")
-            self.connection.send_error_reply("Project zip-file missing from request")
+            self.connection.send_error_reply(worker_socket, "Project zip-file missing from request")
             return
         # Solve a new local directory name based on project_dir
         local_project_dir = self.path_for_local_project_dir(msg_data["project_dir"])
@@ -118,7 +120,7 @@ class RemoteExecutionHandler:
             os.makedirs(local_project_dir)
         except OSError:
             print(f"Creating project directory '{local_project_dir}' failed")
-            self.connection.send_error_reply(f"Server failed in creating a project "
+            self.connection.send_error_reply(worker_socket, f"Server failed in creating a project "
                                              f"directory for the received project '{local_project_dir}'")
             return
         # Save the received zip file
@@ -128,7 +130,7 @@ class RemoteExecutionHandler:
                 f.write(self.connection.zip_file())
         except Exception as e:
             print(f"Saving the received file to '{zip_path}' failed. [{type(e).__name__}: {e}")
-            self.connection.send_error_reply(f"Server failed in saving the received file to "
+            self.connection.send_error_reply(worker_socket, f"Server failed in saving the received file to "
                                              f"'{zip_path}' ({type(e).__name__} at server)")
             return
         # Check that the size of received bytes and the saved zip-file match
@@ -141,7 +143,8 @@ class RemoteExecutionHandler:
             FileExtractor.extract(zip_path, local_project_dir)
         except Exception as e:
             print(f"File extraction failed: {type(e).__name__}: {e}")
-            self.connection.send_error_reply(f"{type(e).__name__}: {e}. - File extraction failed on Server")
+            self.connection.send_error_reply(worker_socket, f"{type(e).__name__}: {e}. - "
+                                                            f"File extraction failed on Server")
             return
         # Execute DAG in the Spine engine
         print("Executing DAG...")
@@ -168,13 +171,13 @@ class RemoteExecutionHandler:
                     break
         except Exception as e:
             print(f"Execution failed: {type(e).__name__}: {e}")
-            self.connection.send_error_reply(f"{type(e).__name__}: {e}. - Project execution failed on Server")
+            self.connection.send_error_reply(worker_socket, f"{type(e).__name__}: {e}. - "
+                                                            f"Project execution failed on Server")
             return
-        # Create a response message, send it
+        # Create a response message, send it back to frontend
         print("Execution done")
         json_events_data = EventDataConverter.convert(event_data)
-        self.connection.send_response(json_events_data)
-        print(f"Response to request {req_id} sent to client {connection_id}")
+        self.connection.send_response(worker_socket, json_events_data)
         # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
         # try:
         #     time.sleep(4)

@@ -82,3 +82,12 @@ class ServerMessage:
             i += 1
         retStr = retStr + "    }\n"
         return retStr
+
+    def to_bytes(self):
+        """Converts this ServerMessage instance to a JSON and then to a bytes string.
+
+        Returns:
+            bytes: ServerMessage instance as a UTF-8 bytes JSON string.
+        """
+        as_json = self.toJSON()
+        return bytes(as_json, "utf-8")

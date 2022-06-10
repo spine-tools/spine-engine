@@ -39,13 +39,12 @@ class TestRemotePingHandler(unittest.TestCase):
         i = 0
         while i < 10:
             msg_parts = []
-            pingMsg = ServerMessage("ping", str(i), "", None)
-            pingAsJson = pingMsg.toJSON()
-            pingInBytes = bytes(pingAsJson, "utf-8")
-            msg_parts.append(pingInBytes)
+            ping_msg = ServerMessage("ping", str(i), "", None)
+            msg_parts.append(ping_msg.to_bytes())
             self.socket.send_multipart(msg_parts)
             msg = self.socket.recv()
             msgStr = msg.decode("utf-8")
+            pingAsJson = ping_msg.toJSON()
             self.assertEqual(msgStr, pingAsJson)  # check that echoed content is as expected
             i = i + 1
         service.close()
@@ -55,10 +54,8 @@ class TestRemotePingHandler(unittest.TestCase):
         self.socket.setsockopt(zmq.LINGER, 0)
         self.socket.connect("tcp://localhost:7002")  # Connect socket somewhere that does not exist
         msg_parts = []
-        pingMsg = ServerMessage("ping", "2", "", None)
-        pingAsJson = pingMsg.toJSON()
-        pingInBytes = bytes(pingAsJson, "utf-8")
-        msg_parts.append(pingInBytes)
+        ping_msg = ServerMessage("ping", "2", "", None)
+        msg_parts.append(ping_msg.to_bytes())
         sendRet = self.socket.send_multipart(msg_parts, flags=zmq.NOBLOCK)
         event = self.socket.poll(timeout=1000)
         self.assertEqual(0, event)
