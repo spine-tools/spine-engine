@@ -18,7 +18,7 @@ Starts Spine Engine Server.
 
 import sys
 import time
-from spine_engine.server.engine_server import EngineServer, ZMQSecurityModelState
+from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 
 
 def main(argv):
@@ -33,9 +33,9 @@ def main(argv):
     try:
         port = int(argv[2])
         if len(argv) == 3:
-            zmq_server = EngineServer(argv[1], port, ZMQSecurityModelState.NONE, "")
+            zmq_server = EngineServer(argv[1], port, ServerSecurityModel.NONE, "")
         elif len(argv) == 5:
-            zmq_server = EngineServer(argv[1], port, ZMQSecurityModelState.STONEHOUSE, argv[4])
+            zmq_server = EngineServer(argv[1], port, ServerSecurityModel.STONEHOUSE, argv[4])
     except Exception as e:
         print(f"start_server.main(): {type(e).__name__}: {e}")
         return

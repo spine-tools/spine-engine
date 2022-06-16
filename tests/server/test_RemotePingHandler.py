@@ -17,7 +17,7 @@ Unit tests for RemotePingHandler class.
 import unittest
 import zmq
 from spine_engine.server.util.server_message import ServerMessage
-from spine_engine.server.engine_server import EngineServer, ZMQSecurityModelState
+from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 
 
 class TestRemotePingHandler(unittest.TestCase):
@@ -34,7 +34,7 @@ class TestRemotePingHandler(unittest.TestCase):
 
     def test_ping_tcp(self):
         """Tests starting of a ZMQ server with tcp, and pinging it."""
-        service = EngineServer("tcp", 5558, ZMQSecurityModelState.NONE, "")
+        service = EngineServer("tcp", 5558, ServerSecurityModel.NONE, "")
         self.socket.connect("tcp://localhost:5558")
         i = 0
         while i < 10:

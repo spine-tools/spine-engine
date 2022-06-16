@@ -19,7 +19,7 @@ import os
 import time
 import threading
 import ipaddress
-from enum import unique, Enum
+import enum
 import zmq
 from zmq.auth.thread import ThreadAuthenticator
 from spine_engine.server.util.server_message import ServerMessage
@@ -28,8 +28,7 @@ from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.remote_ping_handler import RemotePingHandler
 
 
-@unique
-class ZMQSecurityModelState(Enum):
+class ServerSecurityModel(enum.Enum):
     NONE = 0
     STONEHOUSE = 1
 
@@ -43,13 +42,13 @@ class EngineServer(threading.Thread):
         Args:
             protocol (str): Protocol to be used by the server.
             port (int): Port to bind the server to
-            sec_model (ZMQSecurityModelState): Security model state
+            sec_model (ServerSecurityModel): Security model state
             sec_folder (str): Folder, where security files have been stored.
         """
         try:
-            if sec_model == ZMQSecurityModelState.NONE:
-                self._sec_model_state = ZMQSecurityModelState.NONE
-            elif sec_model == ZMQSecurityModelState.STONEHOUSE:
+            if sec_model == ServerSecurityModel.NONE:
+                self._sec_model_state = ServerSecurityModel.NONE
+            elif sec_model == ServerSecurityModel.STONEHOUSE:
                 if not sec_folder:
                     raise ValueError("EngineServer(): security folder input is missing.")
                 base_dir = sec_folder
@@ -63,7 +62,7 @@ class EngineServer(threading.Thread):
                 elif not os.path.exists(self.secret_keys_dir):
                     raise ValueError(f"Security folder: {self.secret_keys_dir} does not exist")
                 self._sec_folder = sec_folder
-                self._sec_model_state = ZMQSecurityModelState.STONEHOUSE
+                self._sec_model_state = ServerSecurityModel.STONEHOUSE
         except Exception as e:
             raise ValueError(f"Invalid input. Error: {e}")
         self.protocol = protocol
@@ -101,7 +100,7 @@ class EngineServer(threading.Thread):
             worker_thread_killer = self._context.socket(zmq.PAIR)
             worker_thread_killer.bind("inproc://worker_ctrl")
 
-            if self._sec_model_state == ZMQSecurityModelState.STONEHOUSE:
+            if self._sec_model_state == ServerSecurityModel.STONEHOUSE:
                 try:
                     self.auth = self.enable_stonehouse_security(frontend)
                 except ValueError:

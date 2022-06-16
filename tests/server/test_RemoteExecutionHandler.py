@@ -22,7 +22,7 @@ import os
 import random
 from pathlib import Path
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
-from spine_engine.server.engine_server import EngineServer, ZMQSecurityModelState
+from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.server_message_parser import ServerMessageParser
 from spine_engine.server.util.event_data_converter import EventDataConverter
@@ -30,7 +30,7 @@ from spine_engine.server.util.event_data_converter import EventDataConverter
 
 class TestRemoteExecutionHandler(unittest.TestCase):
     def setUp(self):
-        self.service = EngineServer("tcp", 5559, ZMQSecurityModelState.NONE, "")
+        self.service = EngineServer("tcp", 5559, ServerSecurityModel.NONE, "")
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
         self.socket.identity = "Worker1".encode("ascii")
