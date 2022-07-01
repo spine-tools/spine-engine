@@ -137,17 +137,17 @@ class CondaKernelSpecManager(KernelSpecManager):
                 # mechanism for non-ASCII characters. So it is always
                 # valid to decode here as 'ascii', since the JSON loads()
                 # method will recover any original Unicode for us.
-                blackhole = open(os.devnull, 'w')  # for stderr of the subprocess. Remove for debugging.
                 p = subprocess.check_output(
-                    [self._conda_executable, "info", "--json"], stderr=blackhole, shell=shell
-                ).decode('ascii')
-                conda_info = json.loads(p)
-            except Exception:
-                # Handle in CondaKernelSpecManager
-                raise
+                    [self._conda_executable, "info", "--json"], shell=shell
+                ).decode("ascii")
+                ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+                result = ansi_escape.sub('', p)  # Remove ANSI Escape Sequences, such as ESC[0m
+                conda_info = json.loads(result)
+            except Exception as err:
+                conda_info = None
+                self.log.error("Obtaining 'conda info --json' failed")
             self._conda_info_cache = conda_info
             self._conda_info_cache_expiry = time.time() + CACHE_TIMEOUT
-
         return self._conda_info_cache
 
     def _all_envs(self):
@@ -303,9 +303,7 @@ class CondaKernelSpecManager(KernelSpecManager):
 
     @property
     def _conda_kspecs(self):
-        """ Get (or refresh) the cache of conda kernels
-        """
-        # print("_conda_kspecs")
+        """Get (or refresh) the cache of conda kernels."""
         if self._conda_info is None:
             return {}
 
