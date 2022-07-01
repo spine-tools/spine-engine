@@ -387,17 +387,22 @@ class Jump(ConnectionBase):
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
         self.condition = condition
-        self.resources = set()
+        self._resources_from_source = set()
+        self._resources_from_destination = set()
         self.cmd_line_args = list(cmd_line_args)
+
+    @property
+    def resources(self):
+        return self._resources_from_source | self._resources_from_destination
 
     def update_cmd_line_args(self, cmd_line_args):
         self.cmd_line_args = cmd_line_args
 
     def receive_resources_from_source(self, resources):
-        self.resources.update(resources)
+        self._resources_from_source = set(resources)
 
     def receive_resources_from_destination(self, resources):
-        self.resources.update(resources)
+        self._resources_from_destination = set(resources)
 
     def is_condition_true(self, jump_counter):
         """Evaluates jump condition.

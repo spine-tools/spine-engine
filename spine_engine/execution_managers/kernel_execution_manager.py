@@ -194,6 +194,8 @@ class KernelExecutionManager(ExecutionManagerBase):
         except RuntimeError as e:
             msg = dict(type="execution_failed_to_start", error=str(e), **self._msg_head)
             self._logger.msg_kernel_execution.emit(msg)
+            self._kernel_client.stop_channels()
+            self._kernel_manager.shutdown_kernel(now=True)
             return False
         msg = dict(type="execution_started", **self._msg_head)
         self._logger.msg_kernel_execution.emit(msg)
