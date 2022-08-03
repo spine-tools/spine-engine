@@ -137,9 +137,7 @@ class CondaKernelSpecManager(KernelSpecManager):
                 # mechanism for non-ASCII characters. So it is always
                 # valid to decode here as 'ascii', since the JSON loads()
                 # method will recover any original Unicode for us.
-                p = subprocess.check_output(
-                    [self._conda_executable, "info", "--json"], shell=shell
-                ).decode("ascii")
+                p = subprocess.check_output([self._conda_executable, "info", "--json"], shell=shell).decode("ascii")
                 ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
                 result = ansi_escape.sub('', p)  # Remove ANSI Escape Sequences, such as ESC[0m
                 conda_info = json.loads(result)
@@ -197,7 +195,7 @@ class CondaKernelSpecManager(KernelSpecManager):
             all_envs[env_name] = env_path
         return all_envs
 
-    def _all_specs(self):
+    def all_specs(self):
         """ Find the all kernel specs in all environments.
 
             Returns a dict with unique env names as keys, and the kernel.json
@@ -312,7 +310,7 @@ class CondaKernelSpecManager(KernelSpecManager):
             return self._conda_kernels_cache
 
         kspecs = {}
-        for name, info in self._all_specs().items():
+        for name, info in self.all_specs().items():
             kspecs[name] = KernelSpec(**info)
 
         self._conda_kernels_cache_expiry = time.time() + CACHE_TIMEOUT
