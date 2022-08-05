@@ -260,3 +260,43 @@ def remove_credentials_from_url(url):
     if parsed.username is None:
         return url
     return urlunparse(parsed._replace(netloc=parsed.netloc.partition("@")[-1]))
+
+
+def gather_leaf_data(input_dict, paths, pop=False):
+    """Gathers data defined by 'paths' of keys from nested dicts.
+
+    Args:
+        input_dict (dict): dict to pop from
+        paths (list of tuple): 'paths' of dict keys to leaf entries
+        pop (bool): if True, pops the leaf data modifying ''input_dict''
+
+    Returns:
+        dict: popped data
+    """
+
+    def travel_to_leaf(dict_to_travel, path_to_leaf):
+        traveller = dict_to_travel
+        for part in path_to_leaf[:-1]:
+            traveller = traveller.get(part)
+            if traveller is None:
+                return None
+        return traveller
+
+    def build_to_leaf(base_dict, path_to_leaf):
+        builder = base_dict
+        for part in path_to_leaf[:-1]:
+            builder = builder.setdefault(part, {})
+        return builder
+
+    gather = "pop" if pop else "get"
+    output_dict = {}
+    for prefix in paths:
+        leaf_dict = travel_to_leaf(input_dict, prefix)
+        if leaf_dict is None:
+            continue
+        value = getattr(leaf_dict, gather)(prefix[-1], None)
+        if value is None:
+            continue
+        leaf_dict = build_to_leaf(output_dict, prefix)
+        leaf_dict[prefix[-1]] = value
+    return output_dict

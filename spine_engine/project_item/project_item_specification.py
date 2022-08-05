@@ -17,7 +17,7 @@ Contains project item specification class.
 """
 import json
 
-from spine_engine.utils.helpers import shorten
+from spine_engine.utils.helpers import shorten, gather_leaf_data
 
 
 class ProjectItemSpecification:
@@ -71,16 +71,14 @@ class ProjectItemSpecification:
         Writes the specification to the path given by ``self.definition_file_path``
 
         Returns:
-            bool: True if the operation was successful, False otherwise
+            dict: definition's local entries
         """
         definition = self.to_dict()
+        local_entries = self._definition_local_entries()
+        popped = gather_leaf_data(definition, local_entries, pop=True)
         with open(self.definition_file_path, "w") as fp:
-            try:
-                json.dump(definition, fp, indent=4)
-            except ValueError:
-                return False
-            else:
-                return True
+            json.dump(definition, fp, indent=4)
+        return popped
 
     def to_dict(self):
         """
@@ -90,6 +88,31 @@ class ProjectItemSpecification:
             dict: specification dict
         """
         raise NotImplementedError()
+
+    def local_data(self):
+        """Makes a dict out of specification's local data.
+
+        Returns:
+            dict: local data
+        """
+        return gather_leaf_data(self.to_dict(), self._definition_local_entries())
+
+    def may_have_local_data(self):
+        """Tests if specification could have project specific local data.
+
+        Returns:
+            bool: True if specification may have local data, False otherwise
+        """
+        return bool(self._definition_local_entries())
+
+    @staticmethod
+    def _definition_local_entries():
+        """Returns entries or 'paths' in specification dict that should be stored in project's local data directory.
+
+        Returns:
+            list of tuple of str: local data item dict entries
+        """
+        return []
 
     def is_equivalent(self, other):
         """
