@@ -15,6 +15,8 @@ Contains project item specification class.
 :authors: M. Marin (KTH)
 :date:    7.5.2020
 """
+import json
+
 from spine_engine.utils.helpers import shorten
 
 
@@ -71,7 +73,14 @@ class ProjectItemSpecification:
         Returns:
             bool: True if the operation was successful, False otherwise
         """
-        raise NotImplementedError()
+        definition = self.to_dict()
+        with open(self.definition_file_path, "w") as fp:
+            try:
+                json.dump(definition, fp, indent=4)
+            except ValueError:
+                return False
+            else:
+                return True
 
     def to_dict(self):
         """
