@@ -258,12 +258,20 @@ def labelled_resource_filepaths(resources):
 
 
 def get_labelled_sources(resources):
+    """Organizes resources into URLs or file paths keyed by resource label.
+
+    Args:
+        resources (Iterable of ProjectItemResource): resources to organize
+
+    Returns:
+        dict: a mapping from resource label to list of URLs or file paths
+    """
     d = {}
     for resource in resources:
         if resource.type_ == "database":
-            d[resource.label] = resource.url
+            d.setdefault(resource.label, []).append(resource.url)
         elif resource.hasfilepath:
-            d[resource.label] = resource.path
+            d.setdefault(resource.label, []).append(resource.path)
     return d
 
 
