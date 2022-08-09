@@ -137,9 +137,7 @@ class CondaKernelSpecManager(KernelSpecManager):
                 # mechanism for non-ASCII characters. So it is always
                 # valid to decode here as 'ascii', since the JSON loads()
                 # method will recover any original Unicode for us.
-                p = subprocess.check_output(
-                    [self._conda_executable, "info", "--json"], shell=shell
-                ).decode("ascii")
+                p = subprocess.check_output([self._conda_executable, "info", "--json"], shell=shell).decode("ascii")
                 ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
                 result = ansi_escape.sub('', p)  # Remove ANSI Escape Sequences, such as ESC[0m
                 conda_info = json.loads(result)

@@ -16,7 +16,7 @@ Unit tests for chunk module.
 :date:    21.6.2021
 """
 import unittest
-from spine_engine.utils.helpers import make_dag, remove_credentials_from_url
+from spine_engine.utils.helpers import make_dag, remove_credentials_from_url, gather_leaf_data
 
 
 class TestMakeDAG(unittest.TestCase):
@@ -51,6 +51,41 @@ class TestRemoveCredentialsFromUrl(unittest.TestCase):
     def test_credentials_in_database_url(self):
         with_credentials = "mysql+pymysql://username:password@remote.fi/database"
         self.assertEqual(remove_credentials_from_url(with_credentials), "mysql+pymysql://remote.fi/database")
+
+
+class TestGatherLeafData(unittest.TestCase):
+    def test_empty_inputs_give_empty_output(self):
+        self.assertEqual(gather_leaf_data({}, []), {})
+
+    def test_popping_non_existent_path_pop_nothing(self):
+        input_dict = {"a": 1}
+        popped = gather_leaf_data(input_dict, [("b",)], pop=True)
+        self.assertEqual(popped, {})
+        self.assertEqual(input_dict, {"a": 1})
+
+    def test_gathers_shallow_value(self):
+        input_dict = {"a": 1}
+        popped = gather_leaf_data(input_dict, [("a",)])
+        self.assertEqual(popped, {"a": 1})
+        self.assertEqual(input_dict, {"a": 1})
+
+    def test_pops_shallow_value(self):
+        input_dict = {"a": 1}
+        popped = gather_leaf_data(input_dict, [("a",)], pop=True)
+        self.assertEqual(popped, {"a": 1})
+        self.assertEqual(input_dict, {})
+
+    def test_gathers_leaf_of_deep_input_dict(self):
+        input_dict = {"a": {"b": 1, "c": 2}}
+        popped = gather_leaf_data(input_dict, [("a", "c")])
+        self.assertEqual(popped, {"a": {"c": 2}})
+        self.assertEqual(input_dict, {"a": {"b": 1, "c": 2}})
+
+    def test_pops_leaf_of_deep_input_dict(self):
+        input_dict = {"a": {"b": 1, "c": 2}}
+        popped = gather_leaf_data(input_dict, [("a", "c")], pop=True)
+        self.assertEqual(popped, {"a": {"c": 2}})
+        self.assertEqual(input_dict, {"a": {"b": 1}})
 
 
 if __name__ == '__main__':

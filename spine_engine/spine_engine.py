@@ -778,6 +778,14 @@ def _make_filter_id(resource_filter_stack):
 
 
 def _filter_names_from_stack(stack):
+    """Yields filter names from filter stack.
+
+    Args:
+        stack (Iterable of dict): filter stack
+
+    Yields:
+        str: filter name
+    """
     for config in stack:
         if not config:
             continue
