@@ -99,10 +99,20 @@ class ConnectionBase:
         }
 
     def receive_resources_from_source(self, resources):
-        pass
+        """
+        Receives resources from source item.
+
+        Args:
+            resources (Iterable of ProjectItemResource): source item's resources
+        """
 
     def receive_resources_from_destination(self, resources):
-        pass
+        """
+        Receives resources from destination item.
+
+        Args:
+            resources (Iterable of ProjectItemResource): destination item's resources
+        """
 
     def make_logger(self, queue):
         self._logger = QueueLogger(queue, self.name, None, dict())
@@ -188,12 +198,7 @@ class Connection(ConnectionBase):
         return self._id_to_name_cache[filter_type][id_]
 
     def receive_resources_from_source(self, resources):
-        """
-        Receives resources from source item.
-
-        Args:
-            resources (Iterable of ProjectItemResource): source item's resources
-        """
+        """See base class."""
         self._resources = {r for r in resources if r.type_ == "database"}
 
     def replace_resources_from_source(self, old, new):
@@ -278,7 +283,6 @@ class Connection(ConnectionBase):
 
         Args:
             resources (list of ProjectItemResource): Resources to convert
-            override_provider_name (str, optional): set converted resources provider name to this; use source if None
 
         Returns:
             list of ProjectItemResource
@@ -346,6 +350,7 @@ class Connection(ConnectionBase):
 
         Args:
             connection_dict (dict): connection dictionary
+            **kwargs: keyword arguments that are redirected to Connection's constructor
 
         Returns:
             Connection: restored connection
@@ -399,9 +404,11 @@ class Jump(ConnectionBase):
         self.cmd_line_args = cmd_line_args
 
     def receive_resources_from_source(self, resources):
+        """See base class."""
         self._resources_from_source = set(resources)
 
     def receive_resources_from_destination(self, resources):
+        """See base class."""
         self._resources_from_destination = set(resources)
 
     def is_condition_true(self, jump_counter):
@@ -441,6 +448,7 @@ class Jump(ConnectionBase):
 
         Args:
             jump_dict (dict): serialized jump
+            **kwargs: keyword arguments that are redirected to Jump's constructor
 
         Returns:
             Jump: restored jump
