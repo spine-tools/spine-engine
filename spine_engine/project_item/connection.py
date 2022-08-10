@@ -84,7 +84,7 @@ class ConnectionBase:
         self._source_position = source_position
 
     def __hash__(self):
-        return hash(str(self.to_dict()))
+        return hash((self.source, self._source_position, self.destination, self._destination_position))
 
     def to_dict(self):
         """Returns a dictionary representation of this connection.
@@ -96,6 +96,25 @@ class ConnectionBase:
             "name": self.name,
             "from": [self.source, self._source_position],
             "to": [self.destination, self._destination_position],
+        }
+
+    @staticmethod
+    def _constructor_args_from_dict(connection_dict):
+        """Parses __init__() arguments from serialized connection.
+
+        Args:
+            connection_dict (dict): serialized ConnectionBase
+
+        Returns:
+            dict: keyword arguments suitable for constructing ConnectionBase
+        """
+        source_name, source_anchor = connection_dict["from"]
+        destination_name, destination_anchor = connection_dict["to"]
+        return {
+            "source_name": source_name,
+            "source_position": source_anchor,
+            "destination_name": destination_name,
+            "destination_position": destination_anchor,
         }
 
     def receive_resources_from_source(self, resources):
@@ -121,11 +140,15 @@ class ConnectionBase:
         self._logger.flash.emit()
 
 
-class Connection(ConnectionBase):
-    """Represents a connection between two project items."""
-
+class ResourceConvertingConnection(ConnectionBase):
     def __init__(
-        self, source_name, source_position, destination_name, destination_position, resource_filters=None, options=None
+        self,
+        source_name,
+        source_position,
+        destination_name,
+        destination_position,
+        options=None,
+        disabled_filter_names=None,
     ):
         """
         Args:
@@ -133,135 +156,49 @@ class Connection(ConnectionBase):
             source_position (str): source anchor's position
             destination_name (str): destination project item's name
             destination_position (str): destination anchor's position
-            resource_filters (dict, optional): mapping from resource labels and filter types to
-                database ids and activity flags
-            options (dict, optional): any options, at the moment only has "use_datapackage"
+            options (dict, optional): any additional options
+            disabled_filter_names (dict, optional): mapping from resource labels and filter types
+                to offline filter names
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
-        self._resource_filters = resource_filters if resource_filters is not None else dict()
+        self._disabled_filter_names = disabled_filter_names if disabled_filter_names is not None else {}
         self.options = options if options is not None else dict()
         self._resources = set()
-        self._id_to_name_cache = dict()
-        self._source_visited = False
-
-    def visit_source(self):
-        self._source_visited = True
-
-    def visit_destination(self):
-        if not self._source_visited:
-            # Can happen in loop execution
-            return
-        self._source_visited = False
-        self.emit_flash()
 
     def __eq__(self, other):
-        if not isinstance(other, Connection):
+        if not isinstance(other, ResourceConvertingConnection):
             return NotImplemented
         return (
             super().__eq__(other)
-            and self._resource_filters == other._resource_filters
+            and self._disabled_filter_names == other._disabled_filter_names
             and self.options == other.options
         )
 
     @property
-    def database_resources(self):
-        """Connection's database resources"""
-        return self._resources
-
-    def has_filters(self):
-        """Return True if connection has filters.
-
-        Returns:
-            bool: True if connection has filters, False otherwise
-        """
-        for ids_by_type in self._resource_filters.values():
-            for ids in ids_by_type.values():
-                if any(ids.values()):
-                    return True
-        return False
-
-    @property
-    def resource_filters(self):
-        """Connection's resource filters."""
-        return self._resource_filters
-
-    @property
     def use_datapackage(self):
+        """True if datapackage is used, False otherwise"""
         return self.options.get("use_datapackage", False)
 
     @property
     def use_memory_db(self):
+        """True if in-memory database is used, False otherwise"""
         return self.options.get("use_memory_db", False)
 
-    def id_to_name(self, id_, filter_type):
-        """Map from scenario/tool database id to name"""
-        return self._id_to_name_cache[filter_type][id_]
+    def _has_disabled_filters(self):
+        """Return True if connection has disabled filters.
+
+        Returns:
+            bool: True if connection has disabled filters, False otherwise
+        """
+        for names_by_filter_type in self._disabled_filter_names.values():
+            for names in names_by_filter_type.values():
+                if names:
+                    return True
+        return False
 
     def receive_resources_from_source(self, resources):
         """See base class."""
         self._resources = {r for r in resources if r.type_ == "database"}
-
-    def replace_resources_from_source(self, old, new):
-        """Replaces existing resources by new ones.
-
-        Args:
-            old (list of ProjectItemResource): old resources
-            new (list of ProjectItemResource): new resources
-        """
-        for old_resource, new_resource in zip(old, new):
-            self._resources.discard(old_resource)
-            old_filters = self._resource_filters.pop(old_resource.label, None)
-            if new_resource.type_ == "database":
-                self._resources.add(new_resource)
-                if old_filters is not None:
-                    self._resource_filters[new_resource.label] = old_filters
-
-    def fetch_database_items(self):
-        """Reads filter information from database."""
-        resource_filters = dict()
-        id_to_name_cache = dict()
-
-        def update_filters(label, filter_type, db_row):
-            filters_by_type = self._resource_filters.get(label)
-            is_on = False
-            if filters_by_type is not None:
-                ids = filters_by_type.get(filter_type)
-                if ids is not None:
-                    currently_on = ids.get(db_row.id)
-                    if currently_on is not None:
-                        is_on = currently_on
-            resource_filters.setdefault(label, dict()).setdefault(filter_type, dict())[db_row.id] = is_on
-            id_to_name_cache.setdefault(filter_type, dict())[db_row.id] = db_row.name
-
-        for resource in self._resources:
-            url = resource.url
-            if not url:
-                continue
-            try:
-                db_map = DatabaseMapping(url)
-            except (SpineDBAPIError, SpineDBVersionError):
-                continue
-            try:
-                for scenario_row in db_map.query(db_map.scenario_sq):
-                    update_filters(resource.label, SCENARIO_FILTER_TYPE, scenario_row)
-                for tool_row in db_map.query(db_map.tool_sq):
-                    update_filters(resource.label, TOOL_FILTER_TYPE, tool_row)
-            finally:
-                db_map.connection.close()
-        self._resource_filters = resource_filters
-        self._id_to_name_cache = id_to_name_cache
-
-    def set_online(self, resource, filter_type, online):
-        """Sets the given filters online or offline.
-
-        Args:
-            resource (str): Resource label
-            filter_type (str): Either SCENARIO_FILTER_TYPE or TOOL_FILTER_TYPE, for now.
-            online (dict): mapping from scenario/tool id to online flag
-        """
-        current_ids = self._resource_filters[resource][filter_type]
-        for id_, online_ in online.items():
-            current_ids[id_] = online_
 
     def convert_backward_resources(self, resources):
         """Called when advertising resources through this connection *in the BACKWARD direction*.
@@ -288,6 +225,42 @@ class Connection(ConnectionBase):
             list of ProjectItemResource
         """
         return self._apply_use_memory_db(self._apply_use_datapackage(resources))
+
+    def _mask_unavailable_disabled_filters(self):
+        """Cross-checks disabled filters with source databases.
+
+        Returns:
+            dict: disabled filter names containing only names that exist in source databases
+        """
+        available_disabled_filter_names = {}
+        for resource in self._resources:
+            url = resource.url
+            if not url:
+                continue
+            try:
+                db_map = DatabaseMapping(url)
+            except (SpineDBAPIError, SpineDBVersionError):
+                continue
+            try:
+                disabled_scenarios = set(
+                    self._disabled_filter_names.get(resource.label, {}).get(SCENARIO_FILTER_TYPE, set())
+                )
+                available_scenarios = {row.name for row in db_map.query(db_map.scenario_sq)}
+                available_disabled_scenarios = disabled_scenarios & available_scenarios
+                if available_disabled_scenarios:
+                    available_disabled_filter_names.setdefault(resource.label, {})[SCENARIO_FILTER_TYPE] = sorted(
+                        list(available_disabled_scenarios)
+                    )
+                disabled_tools = set(self._disabled_filter_names.get(resource.label, {}).get(TOOL_FILTER_TYPE, set()))
+                available_tools = {row.name for row in db_map.query(db_map.tool_sq)}
+                available_disabled_tools = disabled_tools & available_tools
+                if available_disabled_tools:
+                    available_disabled_filter_names.setdefault(resource.label, {})[TOOL_FILTER_TYPE] = sorted(
+                        list(available_disabled_tools)
+                    )
+            finally:
+                db_map.connection.close()
+        return available_disabled_filter_names
 
     def _apply_use_memory_db(self, resources):
         if not self.use_memory_db:
@@ -332,42 +305,117 @@ class Connection(ConnectionBase):
             dict: serialized Connection
         """
         d = super().to_dict()
-        if self.has_filters():
-            online_ids_only = dict()
-            for label, by_type in self._resource_filters.items():
-                for type_, ids in by_type.items():
-                    online = [id_ for id_, is_on in ids.items() if is_on]
-                    if online:
-                        online_ids_only.setdefault(label, {})[type_] = online
-            d["resource_filters"] = online_ids_only
         if self.options:
             d["options"] = self.options.copy()
+        if self._has_disabled_filters():
+            available_disabled_filters = self._mask_unavailable_disabled_filters()
+            if available_disabled_filters:
+                d["disabled_filters"] = available_disabled_filters
         return d
 
+    @staticmethod
+    def _constructor_args_from_dict(connection_dict):
+        """See base class."""
+        kw_args = ConnectionBase._constructor_args_from_dict(connection_dict)
+        kw_args["options"] = connection_dict.get("options")
+        kw_args["disabled_filter_names"] = connection_dict.get("disabled_filters")
+        return kw_args
+
+
+class Connection(ResourceConvertingConnection):
+    """Represents a connection between two project items."""
+
+    def __init__(
+        self,
+        source_name,
+        source_position,
+        destination_name,
+        destination_position,
+        options=None,
+        disabled_filter_names=None,
+    ):
+        """
+        Args:
+            source_name (str): source project item's name
+            source_position (str): source anchor's position
+            destination_name (str): destination project item's name
+            destination_position (str): destination anchor's position
+            options (dict, optional): any additional options
+            disabled_filter_names (dict, optional): mapping from resource labels and filter types
+                to offline filter names
+        """
+        super().__init__(
+            source_name, source_position, destination_name, destination_position, options, disabled_filter_names
+        )
+        self._enabled_filter_names = None
+        self._source_visited = False
+
+    def visit_source(self):
+        self._source_visited = True
+
+    def visit_destination(self):
+        if not self._source_visited:
+            # Can happen in loop execution
+            return
+        self._source_visited = False
+        self.emit_flash()
+
+    def enabled_filters(self, resource_label):
+        """Returns enabled filter names for given resource label.
+
+        Args:
+            resource_label (str): resource label
+
+        Returns:
+            dict: mapping from filter type to list of online filter names
+        """
+        if self._enabled_filter_names is None:
+            self._prepare_enabled_filter_names()
+        return self._enabled_filter_names.get(resource_label)
+
+    def _prepare_enabled_filter_names(self):
+        """Reads filter information from database."""
+        self._enabled_filter_names = {}
+        for resource in self._resources:
+            url = resource.url
+            if not url:
+                continue
+            try:
+                db_map = DatabaseMapping(url)
+            except (SpineDBAPIError, SpineDBVersionError):
+                continue
+            try:
+                disabled_scenarios = set(
+                    self._disabled_filter_names.get(resource.label, {}).get(SCENARIO_FILTER_TYPE, [])
+                )
+                available_scenarios = {row.name for row in db_map.query(db_map.scenario_sq)}
+                enabled_scenarios = available_scenarios - disabled_scenarios
+                if enabled_scenarios:
+                    self._enabled_filter_names.setdefault(resource.label, {})[SCENARIO_FILTER_TYPE] = sorted(
+                        list(enabled_scenarios)
+                    )
+                disabled_tools = set(self._disabled_filter_names.get(resource.label, {}).get(TOOL_FILTER_TYPE, []))
+                available_tools = {row.name for row in db_map.query(db_map.tool_sq)}
+                enabled_tools = available_tools - disabled_tools
+                if enabled_tools:
+                    self._enabled_filter_names.setdefault(resource.label, {})[TOOL_FILTER_TYPE] = sorted(
+                        list(enabled_tools)
+                    )
+            finally:
+                db_map.connection.close()
+
     @classmethod
-    def from_dict(cls, connection_dict, **kwargs):
+    def from_dict(cls, connection_dict):
         """Restores a connection from dictionary.
 
         Args:
             connection_dict (dict): connection dictionary
-            **kwargs: keyword arguments that are redirected to Connection's constructor
 
         Returns:
             Connection: restored connection
         """
-        source_name, source_anchor = connection_dict["from"]
-        destination_name, destination_anchor = connection_dict["to"]
-        resource_filters_dict = connection_dict.get("resource_filters")
-        resource_filters = dict()
-        if resource_filters_dict is not None:
-            for label, filters_by_type in resource_filters_dict.items():
-                for type_, ids in filters_by_type.items():
-                    for id_ in ids:
-                        resource_filters.setdefault(label, {}).setdefault(type_, {})[id_] = True
-        options = connection_dict.get("options")
-        return cls(
-            source_name, source_anchor, destination_name, destination_anchor, resource_filters, options, **kwargs
-        )
+        kw_args_from_dict = cls._constructor_args_from_dict(connection_dict)
+        return cls(**kw_args_from_dict)
 
 
 class Jump(ConnectionBase):
@@ -443,22 +491,20 @@ class Jump(ConnectionBase):
                 return iterate
 
     @classmethod
-    def from_dict(cls, jump_dict, **kwargs):
+    def from_dict(cls, jump_dict):
         """Restores a Jump from dictionary.
 
         Args:
             jump_dict (dict): serialized jump
-            **kwargs: keyword arguments that are redirected to Jump's constructor
 
         Returns:
             Jump: restored jump
         """
-        source_name, source_anchor = jump_dict["from"]
-        destination_name, destination_anchor = jump_dict["to"]
+        super_kw_ags = cls._constructor_args_from_dict(jump_dict)
         condition = jump_dict["condition"]["script"]
         cmd_line_args = jump_dict.get("cmd_line_args", [])
         cmd_line_args = [cmd_line_arg_from_dict(arg) for arg in cmd_line_args]
-        return cls(source_name, source_anchor, destination_name, destination_anchor, condition, cmd_line_args, **kwargs)
+        return cls(condition=condition, cmd_line_args=cmd_line_args, **super_kw_ags)
 
     def to_dict(self):
         """Returns a dictionary representation of this Jump.

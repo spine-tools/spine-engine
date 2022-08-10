@@ -523,8 +523,6 @@ class SpineEngine:
         for resources in output_resources_list:
             for connection in self._connections_by_source.get(item_name, []):
                 connection.receive_resources_from_source(resources)
-                if connection.has_filters():
-                    connection.fetch_database_items()
         return output_resources_list, success[0]
 
     def _execute_item_filtered(
@@ -666,16 +664,12 @@ class SpineEngine:
                 break
         if connection is None:
             raise RuntimeError("Logic error: no connection from resource provider")
-        filters = connection.resource_filters.get(resource_label)
+        filters = connection.enabled_filters(resource_label)
         if filters is None:
             return []
         filter_configs_list = []
-        for filter_type, ids in filters.items():
-            filter_configs = [
-                filter_config(filter_type, connection.id_to_name(id_, filter_type))
-                for id_, is_on in ids.items()
-                if is_on
-            ]
+        for filter_type, names in filters.items():
+            filter_configs = [filter_config(filter_type, name) for name in names]
             if not filter_configs:
                 continue
             filter_configs_list.append(filter_configs)
