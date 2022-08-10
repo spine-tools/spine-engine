@@ -29,13 +29,13 @@ def main(argv):
               f"to enable security."
         )
         return
-    zmq_server = None
+    server = None
     try:
         port = int(argv[2])
         if len(argv) == 3:
-            zmq_server = EngineServer(argv[1], port, ServerSecurityModel.NONE, "")
+            server = EngineServer(argv[1], port, ServerSecurityModel.NONE, "")
         elif len(argv) == 5:
-            zmq_server = EngineServer(argv[1], port, ServerSecurityModel.STONEHOUSE, argv[4])
+            server = EngineServer(argv[1], port, ServerSecurityModel.STONEHOUSE, argv[4])
     except Exception as e:
         print(f"start_server.main(): {type(e).__name__}: {e}")
         return
@@ -50,7 +50,7 @@ def main(argv):
             kb_input = "c"
         if kb_input == "c":
             try:
-                zmq_server.close()
+                server.close()
             except Exception as e:
                 print(f"EngineServer.close(): {type(e).__name__}: {e}")
             break

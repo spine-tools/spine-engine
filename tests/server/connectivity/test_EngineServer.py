@@ -76,7 +76,7 @@ class TestEngineServer(unittest.TestCase):
     @unittest.skipIf(not _security_folder_exists(), "Test requires a security folder")
     def test_starting_server_with_security(self):
         """Tests starting a tcp ZMQ server with StoneHouse Security and pinging it."""
-        zmq_server = EngineServer("tcp", 6006, ServerSecurityModel.STONEHOUSE, base_dir)
+        server = EngineServer("tcp", 6006, ServerSecurityModel.STONEHOUSE, base_dir)
         # Configure client security
         secret_keys_dir = os.path.join(base_dir, "private_keys")
         keys_dir = os.path.join(base_dir, "certificates")
@@ -98,7 +98,7 @@ class TestEngineServer(unittest.TestCase):
         response_str = response.decode("utf-8")
         ping_as_json = ping_msg.toJSON()
         self.assertEqual(response_str, ping_as_json)  # check that echoed content is as expected
-        zmq_server.close()
+        server.close()
 
     def test_malformed_server_message(self):
         """Tests what happens when the sent request is not valid."""
