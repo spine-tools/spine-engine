@@ -58,12 +58,12 @@ class TestConnectionWithDatabase(unittest.TestCase):
         self.assertEqual(restored.destination, "destination")
         self.assertEqual(restored.destination_position, "top")
         self.assertEqual(restored.options, {})
-        self.assertEqual(restored._disabled_filter_names, {"my_database": {"scenario_filter": ["my_scenario"]}})
+        self.assertEqual(restored._disabled_filter_names, {"my_database": {"scenario_filter": {"my_scenario"}}})
 
     def test_enabled_scenarios(self):
         import_scenarios(self._db_map, ("scenario_1", "scenario_2"))
         self._db_map.commit_session("Add test data.")
-        disabled_filters = {"my_database": {"scenario_filter": ["scenario_1"]}}
+        disabled_filters = {"my_database": {"scenario_filter": {"scenario_1"}}}
         connection = Connection("source", "bottom", "destination", "top", disabled_filter_names=disabled_filters)
         resources = [database_resource("unit_test", self._url, "my_database")]
         connection.receive_resources_from_source(resources)
@@ -72,7 +72,7 @@ class TestConnectionWithDatabase(unittest.TestCase):
     def test_enabled_tools(self):
         import_tools(self._db_map, ("tool_1", "tool_2"))
         self._db_map.commit_session("Add test data.")
-        disabled_filters = {"my_database": {"tool_filter": ["tool_1"]}}
+        disabled_filters = {"my_database": {"tool_filter": {"tool_1"}}}
         connection = Connection("source", "bottom", "destination", "top", disabled_filter_names=disabled_filters)
         resources = [database_resource("unit_test", self._url, "my_database")]
         connection.receive_resources_from_source(resources)

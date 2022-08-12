@@ -226,42 +226,6 @@ class ResourceConvertingConnection(ConnectionBase):
         """
         return self._apply_use_memory_db(self._apply_use_datapackage(resources))
 
-    def _mask_unavailable_disabled_filters(self):
-        """Cross-checks disabled filters with source databases.
-
-        Returns:
-            dict: disabled filter names containing only names that exist in source databases
-        """
-        available_disabled_filter_names = {}
-        for resource in self._resources:
-            url = resource.url
-            if not url:
-                continue
-            try:
-                db_map = DatabaseMapping(url)
-            except (SpineDBAPIError, SpineDBVersionError):
-                continue
-            try:
-                disabled_scenarios = set(
-                    self._disabled_filter_names.get(resource.label, {}).get(SCENARIO_FILTER_TYPE, set())
-                )
-                available_scenarios = {row.name for row in db_map.query(db_map.scenario_sq)}
-                available_disabled_scenarios = disabled_scenarios & available_scenarios
-                if available_disabled_scenarios:
-                    available_disabled_filter_names.setdefault(resource.label, {})[SCENARIO_FILTER_TYPE] = sorted(
-                        list(available_disabled_scenarios)
-                    )
-                disabled_tools = set(self._disabled_filter_names.get(resource.label, {}).get(TOOL_FILTER_TYPE, set()))
-                available_tools = {row.name for row in db_map.query(db_map.tool_sq)}
-                available_disabled_tools = disabled_tools & available_tools
-                if available_disabled_tools:
-                    available_disabled_filter_names.setdefault(resource.label, {})[TOOL_FILTER_TYPE] = sorted(
-                        list(available_disabled_tools)
-                    )
-            finally:
-                db_map.connection.close()
-        return available_disabled_filter_names
-
     def _apply_use_memory_db(self, resources):
         if not self.use_memory_db:
             return resources
@@ -308,9 +272,7 @@ class ResourceConvertingConnection(ConnectionBase):
         if self.options:
             d["options"] = self.options.copy()
         if self._has_disabled_filters():
-            available_disabled_filters = self._mask_unavailable_disabled_filters()
-            if available_disabled_filters:
-                d["disabled_filters"] = available_disabled_filters
+            d["disabled_filters"] = _sets_to_lists(self._disabled_filter_names)
         return d
 
     @staticmethod
@@ -318,7 +280,8 @@ class ResourceConvertingConnection(ConnectionBase):
         """See base class."""
         kw_args = ConnectionBase._constructor_args_from_dict(connection_dict)
         kw_args["options"] = connection_dict.get("options")
-        kw_args["disabled_filter_names"] = connection_dict.get("disabled_filters")
+        disabled_names = connection_dict.get("disabled_filters")
+        kw_args["disabled_filter_names"] = _lists_to_sets(disabled_names) if disabled_names is not None else None
         return kw_args
 
 
@@ -385,8 +348,8 @@ class Connection(ResourceConvertingConnection):
             except (SpineDBAPIError, SpineDBVersionError):
                 continue
             try:
-                disabled_scenarios = set(
-                    self._disabled_filter_names.get(resource.label, {}).get(SCENARIO_FILTER_TYPE, [])
+                disabled_scenarios = self._disabled_filter_names.get(resource.label, {}).get(
+                    SCENARIO_FILTER_TYPE, set()
                 )
                 available_scenarios = {row.name for row in db_map.query(db_map.scenario_sq)}
                 enabled_scenarios = available_scenarios - disabled_scenarios
@@ -394,7 +357,7 @@ class Connection(ResourceConvertingConnection):
                     self._enabled_filter_names.setdefault(resource.label, {})[SCENARIO_FILTER_TYPE] = sorted(
                         list(enabled_scenarios)
                     )
-                disabled_tools = set(self._disabled_filter_names.get(resource.label, {}).get(TOOL_FILTER_TYPE, []))
+                disabled_tools = set(self._disabled_filter_names.get(resource.label, {}).get(TOOL_FILTER_TYPE, set()))
                 available_tools = {row.name for row in db_map.query(db_map.tool_sq)}
                 enabled_tools = available_tools - disabled_tools
                 if enabled_tools:
@@ -516,3 +479,37 @@ class Jump(ConnectionBase):
         d["condition"] = {"type": "python-script", "script": self.condition}
         d["cmd_line_args"] = [arg.to_dict() for arg in self.cmd_line_args]
         return d
+
+
+def _sets_to_lists(disabled_filter_names):
+    """Converts name sets to sorted name lists.
+
+    Args:
+        disabled_filter_names (dict): connection's disabled filter names
+
+    Returns:
+        dict: converted disabled filter names
+    """
+    converted = {}
+    for label, names_by_type in disabled_filter_names.items():
+        converted_names_by_type = converted.setdefault(label, {})
+        for filter_type, names in names_by_type.items():
+            converted_names_by_type[filter_type] = sorted(list(names))
+    return converted
+
+
+def _lists_to_sets(disabled_filter_names):
+    """Converts name lists to name sets.
+
+    Args:
+        disabled_filter_names (dict): disabled filter names with names stored as lists
+
+    Returns:
+        dict: converted disabled filter names
+    """
+    converted = {}
+    for label, names_by_type in disabled_filter_names.items():
+        converted_names_by_type = converted.setdefault(label, {})
+        for filter_type, names in names_by_type.items():
+            converted_names_by_type[filter_type] = set(names)
+    return converted
