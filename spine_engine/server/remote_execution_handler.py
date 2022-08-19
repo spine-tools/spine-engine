@@ -119,8 +119,8 @@ class RemoteExecutionHandler(threading.Thread):
         # Execute DAG in the Spine engine
         print("Executing DAG...")
         # Send message to client with the queue job Id that execution has started on server
-        start_str = "started_" + self.q_job_id
-        self.request.send_response(self.worker_socket, ("remote_execution_event", start_str), (self.job_id, "started"))
+        self.request.send_response(
+            self.worker_socket, ("remote_execution_started", self.q_job_id), (self.job_id, "started"))
         converted_data = self.convert_input(msg_data, local_project_dir)
         try:
             engine = SpineEngine(**converted_data)

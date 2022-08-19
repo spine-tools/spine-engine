@@ -57,9 +57,8 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         self.socket.send_multipart([msg_as_bytes, file_data])
         response = self.socket.recv()
         response_dict = json.loads(response.decode("utf-8"))  # Decode to get JSON str, then load into dictionary
-        self.assertEqual("remote_execution_event", response_dict["data"][0])
-        self.assertTrue(response_dict["data"][1].startswith("started_"))
-        job_id = response_dict["data"][1][8:]
+        self.assertEqual("remote_execution_started", response_dict["data"][0])
+        job_id = response_dict["data"][1]
         self.query_events(0.2, job_id)  # Query events until execution is done
 
     def test_remote_execution2(self):
@@ -73,9 +72,8 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         self.socket.send_multipart([msg_as_bytes, data])
         response = self.socket.recv()
         response_dict = json.loads(response.decode("utf-8"))
-        self.assertEqual("remote_execution_event", response_dict["data"][0])
-        self.assertTrue(response_dict["data"][1].startswith("started_"))
-        job_id = response_dict["data"][1][8:]
+        self.assertEqual("remote_execution_started", response_dict["data"][0])
+        job_id = response_dict["data"][1]
         self.query_events(0.2, job_id)  # Query events until execution is done
 
     def test_loop_calls(self):
@@ -95,9 +93,8 @@ class TestRemoteExecutionHandler(unittest.TestCase):
             self.socket.send_multipart([msg.to_bytes(), data_file])
             response = self.socket.recv()
             response_dict = json.loads(response.decode("utf-8"))
-            self.assertEqual("remote_execution_event", response_dict["data"][0])
-            self.assertTrue(response_dict["data"][1].startswith("started_"))
-            job_id = response_dict["data"][1][8:]
+            self.assertEqual("remote_execution_started", response_dict["data"][0])
+            job_id = response_dict["data"][1]
             self.query_events(0.2, job_id)  # Query events until execution is done
             i += 1
 
