@@ -21,11 +21,14 @@ import threading
 import ipaddress
 import enum
 import zmq
+import queue
+import uuid
 from zmq.auth.thread import ThreadAuthenticator
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.request import Request
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.remote_ping_handler import RemotePingHandler
+from spine_engine.server.remote_event_query_handler import RemoteEventQueryHandler
 
 
 class ServerSecurityModel(enum.Enum):
@@ -99,7 +102,6 @@ class EngineServer(threading.Thread):
             ctrl_msg_listener.connect("inproc://ctrl_msg")
             worker_thread_killer = self._context.socket(zmq.PAIR)
             worker_thread_killer.bind("inproc://worker_ctrl")
-
             if self._sec_model_state == ServerSecurityModel.STONEHOUSE:
                 try:
                     self.auth = self.enable_stonehouse_security(frontend)
@@ -113,6 +115,7 @@ class EngineServer(threading.Thread):
         except Exception as e:
             raise ValueError(f"Initializing serve() failed due to exception: {e}")
         workers = dict()
+        event_queues = dict()
         while True:
             try:
                 socks = dict(poller.poll())
@@ -124,35 +127,57 @@ class EngineServer(threading.Thread):
                     if not request:
                         print("Received request malformed. - continuing...")
                         continue
-                    print(f"New request from client {request.connection_id()}")
-                    # worker_id = uuid.uuid4().hex  # TODO: Use this if problems with connection_id
+                    print(f"New {request.cmd()} request from client {request.connection_id()}")
+                    job_id = uuid.uuid4().hex  # Job Id for execution worker
                     if request.cmd() == "execute":
-                        worker = RemoteExecutionHandler(self._context, request)
+                        q_job_id = uuid.uuid4().hex  # Job Id for event queue
+                        event_q = queue.Queue()
+                        event_queues[q_job_id] = event_q
+                        worker = RemoteExecutionHandler(self._context, request, event_q, q_job_id, job_id)
                     elif request.cmd() == "ping":
-                        worker = RemotePingHandler(self._context, request)
+                        worker = RemotePingHandler(self._context, request, job_id)
+                    elif request.cmd() == "query":
+                        q = event_queues[request.request_id()]  # Find queue based on request Id
+                        worker = RemoteEventQueryHandler(self._context, request, q, job_id)
                     else:
                         print(f"Unknown command {request.cmd()} requested")
-                        request.send_error_reply(frontend, f"Error message from server - Unknown command "
-                                                           f"'{request.cmd()}' requested")
+                        self.send_init_failed_reply(frontend, request.connection_id(),
+                                                    f"Error at server - Unknown command '{request.cmd()}' requested")
                         continue
                     worker.start()
-                    workers[request.connection_id()] = worker
+                    workers[job_id] = worker
                 if socks.get(backend) == zmq.POLLIN:
                     # Worker has finished execution. Relay reply from backend back to client using the frontend socket
                     message = backend.recv_multipart()
-                    print(f"Sending response to client {message[0]}")
-                    frontend.send_multipart(message)
-                    # Close and delete finished worker
-                    finished_worker = workers.pop(message[0])
+                    internal_msg = json.loads(message.pop(3).decode("utf-8"))
+                    if internal_msg[1] == "started":
+                        print(f"Sending response: {message}")
+                        frontend.send_multipart(message)
+                        continue
+                    elif internal_msg[1] == "completed":  # Note: This is not sent to clients
+                        print(f"Execution worker completed. Deleting worker.")
+                        finished_worker = workers.pop(internal_msg[0])
+                        finished_worker.close()
+                        continue
+                    elif internal_msg[1].startswith("queue_exhausted_"):
+                        q_job_id = internal_msg[1][16:]
+                        print(f"EventQuery worker finished. Deleting worker {internal_msg[0]} and queue: {q_job_id}")
+                        event_queues.pop(q_job_id)
+                    finished_worker = workers.pop(internal_msg[0])
                     finished_worker.close()
+                    print(f"Sending response: {message}")
+                    frontend.send_multipart(message)
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
                     if len(workers) > 0:
                         print(f"WARNING: Some workers still running:{workers.keys()}")
+                    if len(event_queues) > 0:
+                        print(f"WARNING: Some Event queues still available:{event_queues.keys()}")
                     break
             except Exception as e:
-                print(f"EngineServer.serve() exception: {type(e)} serving failed, exception: {e}")
+                print(f"[DEBUG] EngineServer.serve() exception: {type(e)} serving failed, exception: {e}")
                 break
         # Close sockets
+        print("Closing server...")
         ctrl_msg_listener.close()
         frontend.close()
         backend.close()
@@ -210,7 +235,8 @@ class EngineServer(threading.Thread):
             connection_id (bytes): Client Id. Assigned by the frontend ROUTER socket when a request is received.
             error_msg (str): Error message to client
         """
-        err_msg_as_json = json.dumps(error_msg)
+        error_msg_tuple = ("server_init_failed", error_msg)
+        err_msg_as_json = json.dumps(error_msg_tuple)
         reply_msg = ServerMessage("", "", err_msg_as_json, [])
         frame = [connection_id, b"", reply_msg.to_bytes()]
         socket.send_multipart(frame)
@@ -271,8 +297,3 @@ class EngineServer(threading.Thread):
             all_lines = f.read().splitlines()
             lines = [x for x in all_lines if x]
             return lines
-
-
-class BackendWorkerManager:
-    def __init__(self):
-        self._worker_threads = dict()

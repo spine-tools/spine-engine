@@ -21,20 +21,20 @@ from spine_engine.server.util.server_message import ServerMessage
 
 class Request:
     """Class for bundling the received request and associated data together."""
-    def __init__(self, msg, cmd, rqst_id, data, filenames):
+    def __init__(self, msg, cmd, request_id, data, filenames):
         """Init class.
 
         Args:
             msg (list): List of three or four binary frames (conn id, empty frame and user data frame,
                 and possibly zip-file)
             cmd (str): Command associated with the request
-            rqst_id (str): Request Id. Assigned by client who made the request.
+            request_id (str): Client request Id
             data (bytes): Zip-file
             filenames (list): List of associated filenames
         """
         self._msg = msg
         self._cmd = cmd
-        self._request_id = rqst_id
+        self._request_id = request_id
         self._data = data
         self._filenames = filenames
         self._connection_id = msg[0]  # Assigned by the frontend (ROUTER) socket that received the message
@@ -76,33 +76,29 @@ class Request:
         or None if the message did not contain a zip-file."""
         return self._zip_file
 
-    def send_response(self, socket, response_data):
-        """Sends reply back to client. Used after execution to send the events to client."""
-        reply_msg = ServerMessage(self._cmd, self._request_id, response_data, [])
-        self.send_multipart_reply(socket, self.connection_id(), reply_msg.to_bytes())
-
-    def send_error_reply(self, socket, error_msg):
-        """Sends an error message to client. Given msg string must be converted
-        to JSON str (done by json.dumps() below) or parsing the msg on client
-        fails. Do not use \n in the reply because it's not allowed in JSON.
+    def send_response(self, socket, info, internal_msg, dump_to_json=True):
+        """Sends a response message to client. Do not use \n in the (not allowed in JSON).
 
         Args:
             socket (ZMQSocket): Socket for sending the reply
-            error_msg (str): Error message to client
+            info (tuple): Message (data) tuple for client [event_type, msg]
+            internal_msg (tuple): Internal server message, [job_id, msg]
+            dump_to_json (bool): If True, info is dumped to a JSON str. When False, info must be a JSON str already.
         """
-        err_msg_as_json = json.dumps(error_msg)
-        reply_msg = ServerMessage(self._cmd, self._request_id, err_msg_as_json, [])
-        self.send_multipart_reply(socket, self.connection_id(), reply_msg.to_bytes())
-        print("\nClient has been notified. Moving on...")
+        internal_msg_json = json.dumps(internal_msg)
+        info_as_json = json.dumps(info) if dump_to_json else info
+        reply_msg = ServerMessage(self._cmd, self._request_id, info_as_json, [])
+        self.send_multipart_reply(socket, self.connection_id(), reply_msg.to_bytes(), internal_msg_json)
 
     @staticmethod
-    def send_multipart_reply(socket, connection_id, data):
+    def send_multipart_reply(socket, connection_id, data, internal_msg):
         """Sends a multi-part (multi-frame) response.
 
         Args:
             socket (ZMQSocket): Socket for sending the reply
             connection_id (bytes): Client Id. Assigned by the frontend ROUTER socket when a request is received.
             data (bytes): User data to be sent
+            internal_msg (str): Internal server message as JSON string
         """
-        frame = [connection_id, b"", data]
+        frame = [connection_id, b"", data, internal_msg.encode("utf-8")]
         socket.send_multipart(frame)

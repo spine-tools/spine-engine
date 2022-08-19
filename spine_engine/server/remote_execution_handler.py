@@ -23,7 +23,6 @@ import uuid
 import zmq
 from spine_engine import SpineEngine
 from spine_engine.server.util.file_extractor import FileExtractor
-from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
 class RemoteExecutionHandler(threading.Thread):
@@ -33,16 +32,22 @@ class RemoteExecutionHandler(threading.Thread):
     # location, where all projects will be extracted and executed
     internalProjectFolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "received_projects")
 
-    def __init__(self, context, request):
+    def __init__(self, context, request, event_q, q_job_id, job_id):
         """
         Args:
             context (zmq.Context): Context for this handler.
-            request (Request): Request from client
+            request (Request): Client request
+            event_q (Queue): Queue for storing execution events
+            q_job_id (str): Id of the queue where the events from this execution are stored
+            job_id (str): Worker thread Id
         """
         super().__init__(name="ExecutionHandlerThread")
         self.context = context
         self.worker_socket = self.context.socket(zmq.DEALER)
         self.request = request
+        self.event_queue = event_q
+        self.q_job_id = q_job_id
+        self.job_id = job_id
 
     def run(self):
         """Handles an execute DAG request."""
@@ -51,16 +56,21 @@ class RemoteExecutionHandler(threading.Thread):
         file_names = self.request.filenames()
         if not len(file_names) == 1:  # No file name included
             print("Received msg contained no file name for the zip-file")
-            self.request.send_error_reply(self.worker_socket, "Zip-file name missing")
+            self.request.send_response(
+                self.worker_socket, ("remote_execution_event", "Zip-file name missing"), (self.job_id, ""))
             return
         if not msg_data["project_dir"]:
             print("Key project_dir missing from received msg. Can not create a local project directory.")
-            self.request.send_error_reply(self.worker_socket, "Problem in execute request. Key 'project_dir' was "
-                                             "None or an empty string.")
+            self.request.send_response(
+                self.worker_socket, ("remote_execution_event", "Problem in execute request. Key 'project_dir' "
+                                                               "was None or an empty string."),
+                (self.job_id, "")
+            )
             return
         if not self.request.zip_file():
             print("Project zip-file missing from request")
-            self.request.send_error_reply(self.worker_socket, "Project zip-file missing from request")
+            self.request.send_response(
+                self.worker_socket, ("remote_execution_event", "Project zip-file missing"), (self.job_id, ""))
             return
         # Solve a new local directory name based on project_dir
         local_project_dir = self.path_for_local_project_dir(msg_data["project_dir"])
@@ -69,8 +79,12 @@ class RemoteExecutionHandler(threading.Thread):
             os.makedirs(local_project_dir)
         except OSError:
             print(f"Creating project directory '{local_project_dir}' failed")
-            self.request.send_error_reply(self.worker_socket, f"Server failed in creating a project "
-                                             f"directory for the received project '{local_project_dir}'")
+            self.request.send_response(
+                self.worker_socket,
+                ("remote_execution_event", f"Server failed in creating a project directory "
+                                           f"for the received project '{local_project_dir}'"),
+                (self.job_id, "")
+            )
             return
         # Save the received zip file
         zip_path = os.path.join(local_project_dir, file_names[0])
@@ -79,8 +93,12 @@ class RemoteExecutionHandler(threading.Thread):
                 f.write(self.request.zip_file())
         except Exception as e:
             print(f"Saving the received file to '{zip_path}' failed. [{type(e).__name__}: {e}")
-            self.request.send_error_reply(self.worker_socket, f"Server failed in saving the received file to "
-                                             f"'{zip_path}' ({type(e).__name__} at server)")
+            self.request.send_response(
+                self.worker_socket,
+                ("remote_execution_event", f"Server failed in saving the received file "
+                                           f"to '{zip_path}' ({type(e).__name__} at server)"),
+                (self.job_id, "")
+            )
             return
         # Check that the size of received bytes and the saved zip-file match
         if not len(self.request.zip_file()) == os.path.getsize(zip_path):
@@ -92,35 +110,38 @@ class RemoteExecutionHandler(threading.Thread):
             FileExtractor.extract(zip_path, local_project_dir)
         except Exception as e:
             print(f"File extraction failed: {type(e).__name__}: {e}")
-            self.request.send_error_reply(self.worker_socket, f"{type(e).__name__}: {e}. - "
-                                                                 f"File extraction failed on Server")
+            self.request.send_response(
+                self.worker_socket,
+                ("remote_execution_event", f"{type(e).__name__}: {e}. - File extraction failed on Server"),
+                (self.job_id, "")
+            )
             return
         # Execute DAG in the Spine engine
         print("Executing DAG...")
+        # Send message to client with the queue job Id that execution has started on server
+        start_str = "started_" + self.q_job_id
+        self.request.send_response(self.worker_socket, ("remote_execution_event", start_str), (self.job_id, "started"))
         converted_data = self.convert_input(msg_data, local_project_dir)
         try:
             engine = SpineEngine(**converted_data)
-            # get events+data from the spine engine
-            event_data = []
+            # Get events+data from the spine engine
             while True:
-                # NOTE! All execution event messages generated while running the DAG are collected into a single list.
-                # This list is sent back to Toolbox in a single message only after the whole DAG has finished execution
-                # in a single message. This means that Spine Toolbox cannot update the GUI (e.g. animations in Design
-                # View don't work, and the execution progress is not updated to Item Execution Log (or other Logs)
-                # until all items have finished.
+                # Put events into a queue, which the client can read with subsequent 'query' requests
                 event_type, data = engine.get_event()
-                event_data.append((event_type, data))
+                self.event_queue.put_nowait((event_type, data))
                 if data == "COMPLETED" or data == "FAILED":
                     break
         except Exception as e:
             print(f"Execution failed: {type(e).__name__}: {e}")
-            self.request.send_error_reply(self.worker_socket, f"{type(e).__name__}: {e}. - "
-                                                                 f"Project execution failed on Server")
+            self.request.send_response(
+                self.worker_socket,
+                ("remote_execution_event", f"{type(e).__name__}: {e}. - Project execution failed on Server"),
+                (self.job_id, "")
+            )
             return
-        # Create a response message, send it back to frontend
+        self.request.send_response(
+            self.worker_socket, ("remote_execution_event", "completed"), (self.job_id, "completed"))
         print("Execution done")
-        json_events_data = EventDataConverter.convert(event_data)
-        self.request.send_response(self.worker_socket, json_events_data)
         # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
         # try:
         #     time.sleep(4)
@@ -134,7 +155,6 @@ class RemoteExecutionHandler(threading.Thread):
 
     def close(self):
         """Cleans up after execution."""
-        print(f"Closing worker {self.request.connection_id()}")
         self.worker_socket.close()
 
     @staticmethod
@@ -186,10 +206,10 @@ class RemoteExecutionHandler(threading.Thread):
                     # depends on OS. Note2: '/' must be added to remote folder here.
                     rel_def_file_path = original_def_file_path.replace(remote_folder + "/", "")
                     modified = os.path.join(local_project_dir, rel_def_file_path)  # Absolute path on server machine
-                    print(f"\noriginal def_file_path: {original_def_file_path}")
-                    print(f"remote_folder: {remote_folder}")
-                    print(f"relative def_file_path: {rel_def_file_path}")
-                    print(f"updated def_file_path: {modified}\n")
+                    # print(f"\noriginal def_file_path: {original_def_file_path}")
+                    # print(f"remote_folder: {remote_folder}")
+                    # print(f"relative def_file_path: {rel_def_file_path}")
+                    # print(f"updated def_file_path: {modified}\n")
                     input_data["specifications"][specs_key][i]["definition_file_path"] = modified
                 # Force execute_in_work to False
                 if "execute_in_work" in specItemInfo:

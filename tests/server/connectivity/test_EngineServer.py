@@ -14,6 +14,7 @@ Unit tests for EngineServer class.
 :author: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   19.8.2021
 """
+
 import threading
 import unittest
 import zmq
@@ -104,17 +105,18 @@ class TestEngineServer(unittest.TestCase):
         """Tests what happens when the sent request is not valid."""
         server = EngineServer("tcp", 5556, ServerSecurityModel.NONE, "")
         self.req_socket.connect("tcp://localhost:5556")
-        msg_parts = []
-        part1 = "feiofnoknfsdnoiknsmd"
+        msg_parts = list()
         fileArray = bytearray([1, 2, 3, 4, 5])
-        part1Bytes = bytes(part1, "utf-8")
+        part1Bytes = bytes("feiofnoknfsdnoiknsmd", "utf-8")
         msg_parts.append(part1Bytes)
         msg_parts.append(fileArray)
         self.req_socket.send_multipart(msg_parts)
-        msg = self.req_socket.recv()
-        msg_decoded = msg.decode("utf-8")
-        parsed_msg = ServerMessageParser.parse(msg_decoded)  # Parse (JSON) string into a ServerMessage
-        self.assertTrue(parsed_msg.getData().startswith("json.decoder.JSONDecodeError:"))
+        response = self.req_socket.recv()
+        response = response.decode("utf-8")
+        server_msg = ServerMessageParser.parse(response)
+        msg_data = server_msg.getData()
+        self.assertEqual("server_init_failed", msg_data[0])
+        self.assertTrue(msg_data[1].startswith("json.decoder.JSONDecodeError:"))
         server.close()
 
     def test_multiple_client_sockets_sync(self):

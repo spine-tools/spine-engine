@@ -14,6 +14,7 @@ Unit tests for RemotePingHandler class.
 :author: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   13.09.2021
 """
+
 import unittest
 import zmq
 from spine_engine.server.util.server_message import ServerMessage

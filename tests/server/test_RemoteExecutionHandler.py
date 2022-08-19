@@ -20,6 +20,7 @@ import zmq
 import json
 import os
 import random
+import time
 from pathlib import Path
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
@@ -52,18 +53,14 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         # File name used at server to save the transmitted project zip file. Does not need to be the same as original.
         zip_file_name = ["testi_zipu_file.zip"]
         msg = ServerMessage("execute", "1", msg_data_json, zip_file_name)
-        part_one_bytes = bytes(msg.toJSON(), "utf-8")
-        msg_parts = list()
-        msg_parts.append(part_one_bytes)
-        msg_parts.append(file_data)
-        self.socket.send_multipart(msg_parts)
-        message = self.socket.recv()
-        msg_str = message.decode("utf-8")  # Decode received bytes to get (JSON) string
-        parsed_msg = ServerMessageParser.parse(msg_str)  # Parse (JSON) string into a ServerMessage
-        data = parsed_msg.getData()  # Get events+data in a dictionary
-        data_events = EventDataConverter.convertJSON(data, True)
-        self.assertEqual("dag_exec_finished", data_events[-1][0])
-        self.assertEqual("COMPLETED", data_events[-1][1])
+        msg_as_bytes = bytes(msg.toJSON(), "utf-8")
+        self.socket.send_multipart([msg_as_bytes, file_data])
+        response = self.socket.recv()
+        response_dict = json.loads(response.decode("utf-8"))  # Decode to get JSON str, then load into dictionary
+        self.assertEqual("remote_execution_event", response_dict["data"][0])
+        self.assertTrue(response_dict["data"][1].startswith("started_"))
+        job_id = response_dict["data"][1][8:]
+        self.query_events(0.2, job_id)  # Query events until execution is done
 
     def test_remote_execution2(self):
         """Tests executing a project with 3 items (1 Dc, 2 Tools, and 2 Tool specs)."""
@@ -72,18 +69,14 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         with open(os.path.join(str(Path(__file__).parent), "project_package.zip"), "rb") as f:
             data = f.read()
         msg = ServerMessage("execute", "1", msg_data_json, ["project_package.zip"])
-        part_one_bytes = bytes(msg.toJSON(), "utf-8")
-        msg_parts = list()
-        msg_parts.append(part_one_bytes)
-        msg_parts.append(data)
-        self.socket.send_multipart(msg_parts)
-        message = self.socket.recv()
-        msgStr = message.decode("utf-8")
-        parsedMsg = ServerMessageParser.parse(msgStr)
-        data = parsedMsg.getData()
-        data_events = EventDataConverter.convertJSON(data, True)
-        self.assertEqual("dag_exec_finished", data_events[-1][0])
-        self.assertEqual("COMPLETED", data_events[-1][1])
+        msg_as_bytes = bytes(msg.toJSON(), "utf-8")
+        self.socket.send_multipart([msg_as_bytes, data])
+        response = self.socket.recv()
+        response_dict = json.loads(response.decode("utf-8"))
+        self.assertEqual("remote_execution_event", response_dict["data"][0])
+        self.assertTrue(response_dict["data"][1].startswith("started_"))
+        job_id = response_dict["data"][1][8:]
+        self.query_events(0.2, job_id)  # Query events until execution is done
 
     def test_loop_calls(self):
         """Tests executing a DC -> Python Tool DAG five times in a row."""
@@ -98,18 +91,14 @@ class TestRemoteExecutionHandler(unittest.TestCase):
                 "./helloworld" + str(i) + "/.spinetoolbox/specifications/Tool/helloworld2.json"
             )
             msg_data_json = json.dumps(engine_data)
-            msg = ServerMessage("execute", "1", msg_data_json, ["test_zipfile.zip"])
-            msg_parts = list()
-            msg_parts.append(msg.to_bytes())
-            msg_parts.append(data_file)
-            self.socket.send_multipart(msg_parts)
-            message = self.socket.recv()
-            msg_str = message.decode("utf-8")
-            parsedMsg = ServerMessageParser.parse(msg_str)
-            # get and decode events+data
-            ret_data = parsedMsg.getData()
-            dataEvents = EventDataConverter.convertJSON(ret_data, True)
-            self.assertEqual(dataEvents[len(dataEvents) - 1][1], "COMPLETED")
+            msg = ServerMessage("execute", str(i), msg_data_json, ["test_zipfile.zip"])
+            self.socket.send_multipart([msg.to_bytes(), data_file])
+            response = self.socket.recv()
+            response_dict = json.loads(response.decode("utf-8"))
+            self.assertEqual("remote_execution_event", response_dict["data"][0])
+            self.assertTrue(response_dict["data"][1].startswith("started_"))
+            job_id = response_dict["data"][1][8:]
+            self.query_events(0.2, job_id)  # Query events until execution is done
             i += 1
 
     def test_invalid_project_folder(self):
@@ -120,29 +109,16 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
             data_file = f.read()
         msg = ServerMessage("execute", "1", msg_data_json, ["helloworld.zip"])
-        msg_parts = list()
-        msg_parts.append(msg.to_bytes())
-        msg_parts.append(data_file)
-        self.socket.send_multipart(msg_parts)
-        message = self.socket.recv()
-        msg_str = message.decode("utf-8")
-        server_msg = ServerMessageParser.parse(msg_str)
-        msg_data = server_msg.getData()
-        self.assertTrue(msg_data.startswith("Problem in execute request."))
+        self.socket.send_multipart([msg.to_bytes(), data_file])
+        self.assert_error_response("remote_execution_event", "Problem in execute request.")
 
     def test_init_no_binarydata(self):
         """Try to execute a DC -> Tool DAG, but forget to send the project zip-file."""
         engine_data = self.make_engine_data_for_test_zipfile_project()
         msg_data_json = json.dumps(engine_data)
         msg = ServerMessage("execute", "1", msg_data_json, ["helloworld.zip"])
-        msg_parts = list()
-        msg_parts.append(msg.to_bytes())
-        self.socket.send_multipart(msg_parts)
-        message = self.socket.recv()
-        response_str = message.decode("utf-8")
-        server_msg = ServerMessageParser.parse(response_str)
-        msg_data = server_msg.getData()
-        self.assertTrue(msg_data.startswith("Project zip-file missing from request"))
+        self.socket.send_multipart([msg.to_bytes()])
+        self.assert_error_response("remote_execution_event", "Project zip-file missing")
 
     def test_no_filename(self):
         """Try to execute a DC->Tool DAG, but forget to include a zip-file name. """
@@ -151,30 +127,16 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
             data = f.read()
         msg = ServerMessage("execute", "1", msg_data_json, None)  # Note: files == None
-        msg_parts = list()
-        msg_parts.append(msg.to_bytes())
-        msg_parts.append(data)
-        self.socket.send_multipart(msg_parts)
-        message = self.socket.recv()
-        msgStr = message.decode("utf-8")
-        server_msg = ServerMessageParser.parse(msgStr)
-        msg_data = server_msg.getData()
-        self.assertTrue(msg_data.startswith("Zip-file name missing"))
+        self.socket.send_multipart([msg.to_bytes(), data])
+        self.assert_error_response("remote_execution_event", "Zip-file name missing")
 
     def test_invalid_json(self):
         with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f2:
             data = f2.read()
         msg_data = '{"abc": "value:"123""}'  # Invalid JSON string (json.loads() should fail on server)
         msg = ServerMessage("execute", "1", msg_data, None)
-        msg_parts = list()
-        msg_parts.append(msg.to_bytes())
-        msg_parts.append(data)
-        self.socket.send_multipart(msg_parts)
-        message = self.socket.recv()
-        msg_str = message.decode("utf-8")
-        server_msg = ServerMessageParser.parse(msg_str)
-        ret_msg_data = server_msg.getData()
-        self.assertTrue(ret_msg_data.startswith("json.decoder.JSONDecodeError:"))
+        self.socket.send_multipart([msg.to_bytes(), data])
+        self.assert_error_response("server_init_failed", "json.decoder.JSONDecodeError:")
 
     def test_path_for_local_project_dir(self):
         """In practice, given p for the tested method should always be an absolute path.
@@ -206,6 +168,34 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 45)
+
+    def query_events(self, sleep_time, request_id):
+        """Queries events from server until DAG execution has finished."""
+        data_events = list()
+        while True:
+            time.sleep(sleep_time)
+            query_msg = ServerMessage("query", request_id, "", None)
+            query_msg_bytes = bytes(query_msg.toJSON(), "utf-8")
+            self.socket.send(query_msg_bytes)
+            rcv_msg = self.socket.recv()
+            parsed_msg = ServerMessageParser.parse(rcv_msg.decode("utf-8"))  # Parse (JSON) string into a ServerMessage
+            data = parsed_msg.getData()  # Get events+data in a dictionary
+            if data == "":
+                continue
+            else:
+                data_events = EventDataConverter.convertJSON(data, True)
+            if data_events[-1][0] == "dag_exec_finished":
+                break
+        self.assertEqual("COMPLETED", data_events[-1][1])
+
+    def assert_error_response(self, expected_event_type, expected_start_of_error_msg):
+        """Waits for a response from server and checks that the error msg is as expected."""
+        response = self.socket.recv()
+        response = response.decode("utf-8")
+        server_msg = ServerMessageParser.parse(response)
+        msg_data = server_msg.getData()
+        self.assertEqual(expected_event_type, msg_data[0])
+        self.assertTrue(msg_data[1].startswith(expected_start_of_error_msg))
 
     def make_default_item_dict(self, item_type):
         """Keep up-to-date with spinetoolbox.project_item.project_item.item_dict()."""

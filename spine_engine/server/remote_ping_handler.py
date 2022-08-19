@@ -16,29 +16,33 @@ Contains a class for handling ping requests.
 """
 
 import threading
+import json
 import zmq
 from spine_engine.server.util.server_message import ServerMessage
 
 
 class RemotePingHandler(threading.Thread):
     """Class for handling ping requests."""
-    def __init__(self, context, request):
+    def __init__(self, context, request, job_id):
         """Initializes instance.
 
         Args:
             context (zmq.Context): Server context
             request (Request): Client request
+            job_id (str): Worker thread Id
         """
         super().__init__(name="PingHandlerThread")
         self.context = context
         self.req = request
+        self.job_id = job_id
         self.ping_socket = self.context.socket(zmq.DEALER)  # Backend socket
 
     def run(self):
         """Replies to a ping command."""
         self.ping_socket.connect("inproc://backend")
         reply_msg = ServerMessage("ping", self.req.request_id(), "", None)
-        self.req.send_multipart_reply(self.ping_socket, self.req.connection_id(), reply_msg.to_bytes())
+        internal_msg = json.dumps((self.job_id, ""))
+        self.req.send_multipart_reply(self.ping_socket, self.req.connection_id(), reply_msg.to_bytes(), internal_msg)
 
     def close(self):
         """Closes socket and cleans up."""
