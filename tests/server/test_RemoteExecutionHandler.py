@@ -183,7 +183,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
             if data == "":
                 continue
             else:
-                data_events = EventDataConverter.convertJSON(data, True)
+                data_events = EventDataConverter.deconvert(data, True)
             if data_events[-1][0] == "dag_exec_finished":
                 break
         self.assertEqual("COMPLETED", data_events[-1][1])
