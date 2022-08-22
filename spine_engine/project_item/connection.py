@@ -454,11 +454,12 @@ class Jump(ConnectionBase):
                 return iterate
 
     @classmethod
-    def from_dict(cls, jump_dict):
+    def from_dict(cls, jump_dict, **kwargs):
         """Restores a Jump from dictionary.
 
         Args:
             jump_dict (dict): serialized jump
+            **kwargs: extra keyword arguments passed to constructor
 
         Returns:
             Jump: restored jump
@@ -467,7 +468,7 @@ class Jump(ConnectionBase):
         condition = jump_dict["condition"]["script"]
         cmd_line_args = jump_dict.get("cmd_line_args", [])
         cmd_line_args = [cmd_line_arg_from_dict(arg) for arg in cmd_line_args]
-        return cls(condition=condition, cmd_line_args=cmd_line_args, **super_kw_ags)
+        return cls(condition=condition, cmd_line_args=cmd_line_args, **super_kw_ags, **kwargs)
 
     def to_dict(self):
         """Returns a dictionary representation of this Jump.
