@@ -23,6 +23,7 @@ import uuid
 import zmq
 from spine_engine import SpineEngine
 from spine_engine.server.util.file_extractor import FileExtractor
+from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
 class RemoteExecutionHandler(threading.Thread):
@@ -32,26 +33,24 @@ class RemoteExecutionHandler(threading.Thread):
     # location, where all projects will be extracted and executed
     internalProjectFolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "received_projects")
 
-    def __init__(self, context, request, event_q, q_job_id, job_id):
+    def __init__(self, context, request, job_id):
         """
         Args:
             context (zmq.Context): Context for this handler.
             request (Request): Client request
-            event_q (Queue): Queue for storing execution events
-            q_job_id (str): Id of the queue where the events from this execution are stored
             job_id (str): Worker thread Id
         """
         super().__init__(name="ExecutionHandlerThread")
         self.context = context
         self.worker_socket = self.context.socket(zmq.DEALER)
+        self.pub_socket = self.context.socket(zmq.PUB)
         self.request = request
-        self.event_queue = event_q
-        self.q_job_id = q_job_id
         self.job_id = job_id
 
     def run(self):
         """Handles an execute DAG request."""
         self.worker_socket.connect("inproc://backend")
+        pub_port = self.pub_socket.bind_to_random_port("tcp://*")
         msg_data = self.request.data()
         file_names = self.request.filenames()
         if not len(file_names) == 1:  # No file name included
@@ -118,17 +117,18 @@ class RemoteExecutionHandler(threading.Thread):
             return
         # Execute DAG in the Spine engine
         print("Executing DAG...")
-        # Send message to client with the queue job Id that execution has started on server
+        # Send execution started message to client with the publish socket port
         self.request.send_response(
-            self.worker_socket, ("remote_execution_started", self.q_job_id), (self.job_id, "started"))
+            self.worker_socket, ("remote_execution_started", str(pub_port)), (self.job_id, "started"))
         converted_data = self.convert_input(msg_data, local_project_dir)
         try:
             engine = SpineEngine(**converted_data)
-            # Get events+data from the spine engine
             while True:
-                # Put events into a queue, which the client can read with subsequent 'query' requests
+                # Get event and associated data from the spine engine
                 event_type, data = engine.get_event()
-                self.event_queue.put_nowait((event_type, data))
+                json_event = EventDataConverter.convert_single(event_type, data)
+                # Send events using a publish socket
+                self.pub_socket.send_multipart([b"EVENTS", json_event.encode("utf-8")])
                 if data == "COMPLETED" or data == "FAILED":
                     break
         except Exception as e:
@@ -156,6 +156,7 @@ class RemoteExecutionHandler(threading.Thread):
     def close(self):
         """Cleans up after execution."""
         self.worker_socket.close()
+        self.pub_socket.close()
 
     @staticmethod
     def path_for_local_project_dir(project_dir):

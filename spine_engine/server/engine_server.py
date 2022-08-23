@@ -130,10 +130,7 @@ class EngineServer(threading.Thread):
                     print(f"New {request.cmd()} request from client {request.connection_id()}")
                     job_id = uuid.uuid4().hex  # Job Id for execution worker
                     if request.cmd() == "execute":
-                        q_job_id = uuid.uuid4().hex  # Job Id for event queue
-                        event_q = queue.Queue()
-                        event_queues[q_job_id] = event_q
-                        worker = RemoteExecutionHandler(self._context, request, event_q, q_job_id, job_id)
+                        worker = RemoteExecutionHandler(self._context, request, job_id)
                     elif request.cmd() == "ping":
                         worker = RemotePingHandler(self._context, request, job_id)
                     elif request.cmd() == "query":

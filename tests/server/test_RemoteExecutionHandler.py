@@ -20,7 +20,6 @@ import zmq
 import json
 import os
 import random
-import time
 from pathlib import Path
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
@@ -36,11 +35,13 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         self.socket = self.context.socket(zmq.REQ)
         self.socket.identity = "Worker1".encode("ascii")
         self.socket.connect("tcp://localhost:5559")
+        self.sub_socket = self.context.socket(zmq.SUB)
 
     def tearDown(self):
         self.service.close()
         if not self.socket.closed:
             self.socket.close()
+            self.sub_socket.close()
         if not self.context.closed:
             self.context.term()
 
@@ -58,8 +59,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         response = self.socket.recv()
         response_dict = json.loads(response.decode("utf-8"))  # Decode to get JSON str, then load into dictionary
         self.assertEqual("remote_execution_started", response_dict["data"][0])
-        job_id = response_dict["data"][1]
-        self.query_events(0.2, job_id)  # Query events until execution is done
+        self.assertTrue(self.receive_events(response_dict["data"][1]))
 
     def test_remote_execution2(self):
         """Tests executing a project with 3 items (1 Dc, 2 Tools, and 2 Tool specs)."""
@@ -73,8 +73,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         response = self.socket.recv()
         response_dict = json.loads(response.decode("utf-8"))
         self.assertEqual("remote_execution_started", response_dict["data"][0])
-        job_id = response_dict["data"][1]
-        self.query_events(0.2, job_id)  # Query events until execution is done
+        self.assertTrue(self.receive_events(response_dict["data"][1]))
 
     def test_loop_calls(self):
         """Tests executing a DC -> Python Tool DAG five times in a row."""
@@ -94,8 +93,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
             response = self.socket.recv()
             response_dict = json.loads(response.decode("utf-8"))
             self.assertEqual("remote_execution_started", response_dict["data"][0])
-            job_id = response_dict["data"][1]
-            self.query_events(0.2, job_id)  # Query events until execution is done
+            self.assertTrue(self.receive_events(response_dict["data"][1]))
             i += 1
 
     def test_invalid_project_folder(self):
@@ -166,24 +164,27 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 45)
 
-    def query_events(self, sleep_time, request_id):
-        """Queries events from server until DAG execution has finished."""
-        data_events = list()
+    def receive_events(self, publish_port):
+        """Receives events from server until DAG execution has finished.
+
+        Args:
+            publish_port (str): Publish socket port
+
+        Returns:
+            bool: True if execution succeeds, False otherwise.
+        """
+        self.sub_socket.connect("tcp://localhost:" + publish_port)
+        self.sub_socket.setsockopt(zmq.SUBSCRIBE, b"EVENTS")
+        retval = False
         while True:
-            time.sleep(sleep_time)
-            query_msg = ServerMessage("query", request_id, "", None)
-            query_msg_bytes = bytes(query_msg.toJSON(), "utf-8")
-            self.socket.send(query_msg_bytes)
-            rcv_msg = self.socket.recv()
-            parsed_msg = ServerMessageParser.parse(rcv_msg.decode("utf-8"))  # Parse (JSON) string into a ServerMessage
-            data = parsed_msg.getData()  # Get events+data in a dictionary
-            if data == "":
-                continue
-            else:
-                data_events = EventDataConverter.deconvert(data, True)
-            if data_events[-1][0] == "dag_exec_finished":
+            rcv = self.sub_socket.recv_multipart()
+            event = json.loads(rcv[1])
+            event_deconverted = EventDataConverter.deconvert_single(event, True)
+            if event_deconverted[0] == "dag_exec_finished":
+                if event_deconverted[1] == "COMPLETED":
+                    retval = True
                 break
-        self.assertEqual("COMPLETED", data_events[-1][1])
+        return retval
 
     def assert_error_response(self, expected_event_type, expected_start_of_error_msg):
         """Waits for a response from server and checks that the error msg is as expected."""
