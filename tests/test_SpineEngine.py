@@ -293,7 +293,7 @@ class TestSpineEngine(unittest.TestCase):
                 {
                     "from": ("item_a", "right"),
                     "to": ("item_b", "left"),
-                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                    "disabled_filters": {url_a_fw.label: {"scenario_filter": [], "tool_filter": []}},
                 },
                 {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
             ]
@@ -413,7 +413,7 @@ class TestSpineEngine(unittest.TestCase):
                 {
                     "from": ("item_a", "right"),
                     "to": ("item_b", "left"),
-                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                    "disabled_filters": {url_a_fw.label: {"scenario_filter": [], "tool_filter": []}},
                 },
                 {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
             ]
@@ -495,12 +495,12 @@ class TestSpineEngine(unittest.TestCase):
                 {
                     "from": ("item_a", "right"),
                     "to": ("item_c", "left"),
-                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                    "disabled_filters": {url_a_fw.label: {"scenario_filter": [], "tool_filter": []}},
                 },
                 {
                     "from": ("item_b", "right"),
                     "to": ("item_c", "left"),
-                    "resource_filters": {url_b_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                    "disabled_filters": {url_b_fw.label: {"scenario_filter": [], "tool_filter": []}},
                 },
             ]
             self._run_engine(items, connections)
