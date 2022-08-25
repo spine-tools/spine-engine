@@ -66,7 +66,7 @@ class TestEventDataConverter(unittest.TestCase):
         self.assertEqual(16, len(converted_events["items"]))
         deconverted_events = EventDataConverter.deconvert(converted_events, True)
         output_list = list()
-        # NOTE: This is from spine_toolbox.spine_engine_manager.RemoteEngineEventGetter
+        # NOTE: This is from spine_toolbox.spine_engine_manager.RemoteSpineEngineManager
         for event in deconverted_events:
             try:
                 # Handle execution state transformation, see returned data from SpineEngine._process_event()
@@ -81,7 +81,7 @@ class TestEventDataConverter(unittest.TestCase):
                 output_list.append((event[0], event[1]))
         self.assertEqual(event_data, output_list)
 
-    # NOTE: This is from spine_toolbox.spine_engine_manager.RemoteEngineEventGetter
+    # NOTE: This is from spine_toolbox.spine_engine_manager.RemoteSpineEngineManager
     @staticmethod
     def transform_execution_state(state):
         """Transforms state string into an ItemExecutionFinishState enum.
@@ -101,7 +101,7 @@ class TestEventDataConverter(unittest.TestCase):
         states["<ItemExecutionFinishState.NEVER_FINISHED: 1>"] = ItemExecutionFinishState.NEVER_FINISHED
         return states.get(state, None)
 
-    # NOTE: This is from spine_toolbox.spine_engine_manager.RemoteEngineEventGetter
+    # NOTE: This is from spine_toolbox.spine_engine_manager.RemoteSpineEngineManager
     @staticmethod
     def _add_quotes_to_state_str(s):
         """Makes string ready for ast.literal_eval() by adding quotes around item_state value.

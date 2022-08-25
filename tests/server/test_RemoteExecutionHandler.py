@@ -58,7 +58,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         self.socket.send_multipart([msg_as_bytes, file_data])
         response = self.socket.recv()
         response_dict = json.loads(response.decode("utf-8"))  # Decode to get JSON str, then load into dictionary
-        self.assertEqual("remote_execution_started", response_dict["data"][0])
+        self.assertEqual("remote_execution_starting", response_dict["data"][0])
         self.assertTrue(self.receive_events(response_dict["data"][1]))
 
     def test_remote_execution2(self):
@@ -72,7 +72,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         self.socket.send_multipart([msg_as_bytes, data])
         response = self.socket.recv()
         response_dict = json.loads(response.decode("utf-8"))
-        self.assertEqual("remote_execution_started", response_dict["data"][0])
+        self.assertEqual("remote_execution_starting", response_dict["data"][0])
         self.assertTrue(self.receive_events(response_dict["data"][1]))
 
     def test_loop_calls(self):
@@ -92,7 +92,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
             self.socket.send_multipart([msg.to_bytes(), data_file])
             response = self.socket.recv()
             response_dict = json.loads(response.decode("utf-8"))
-            self.assertEqual("remote_execution_started", response_dict["data"][0])
+            self.assertEqual("remote_execution_starting", response_dict["data"][0])
             self.assertTrue(self.receive_events(response_dict["data"][1]))
             i += 1
 

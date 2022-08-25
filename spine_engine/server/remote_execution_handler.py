@@ -105,6 +105,9 @@ class RemoteExecutionHandler(threading.Thread):
                   f"Zip-file size:{os.path.getsize(zip_path)}")
         # Extract the saved file
         print(f"Extracting project file {file_names[0]} [{os.path.getsize(zip_path)}B] to: {local_project_dir}")
+        # Send execution starting message to client with the publish socket port
+        self.request.send_response(
+            self.worker_socket, ("remote_execution_starting", str(pub_port)), (self.job_id, "started"))
         try:
             FileExtractor.extract(zip_path, local_project_dir)
         except Exception as e:
@@ -117,9 +120,6 @@ class RemoteExecutionHandler(threading.Thread):
             return
         # Execute DAG in the Spine engine
         print("Executing DAG...")
-        # Send execution started message to client with the publish socket port
-        self.request.send_response(
-            self.worker_socket, ("remote_execution_started", str(pub_port)), (self.job_id, "started"))
         converted_data = self.convert_input(msg_data, local_project_dir)
         try:
             engine = SpineEngine(**converted_data)

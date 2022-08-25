@@ -21,14 +21,12 @@ import threading
 import ipaddress
 import enum
 import zmq
-import queue
 import uuid
 from zmq.auth.thread import ThreadAuthenticator
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.request import Request
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.remote_ping_handler import RemotePingHandler
-from spine_engine.server.remote_event_query_handler import RemoteEventQueryHandler
 
 
 class ServerSecurityModel(enum.Enum):
@@ -115,7 +113,6 @@ class EngineServer(threading.Thread):
         except Exception as e:
             raise ValueError(f"Initializing serve() failed due to exception: {e}")
         workers = dict()
-        event_queues = dict()
         while True:
             try:
                 socks = dict(poller.poll())
@@ -133,9 +130,6 @@ class EngineServer(threading.Thread):
                         worker = RemoteExecutionHandler(self._context, request, job_id)
                     elif request.cmd() == "ping":
                         worker = RemotePingHandler(self._context, request, job_id)
-                    elif request.cmd() == "query":
-                        q = event_queues[request.request_id()]  # Find queue based on request Id
-                        worker = RemoteEventQueryHandler(self._context, request, q, job_id)
                     else:
                         print(f"Unknown command {request.cmd()} requested")
                         self.send_init_failed_reply(frontend, request.connection_id(),
@@ -147,28 +141,15 @@ class EngineServer(threading.Thread):
                     # Worker has finished execution. Relay reply from backend back to client using the frontend socket
                     message = backend.recv_multipart()
                     internal_msg = json.loads(message.pop(3).decode("utf-8"))
-                    if internal_msg[1] == "started":
-                        print(f"Sending response: {message}")
-                        frontend.send_multipart(message)
-                        continue
-                    elif internal_msg[1] == "completed":  # Note: This is not sent to clients
-                        print(f"Execution worker completed. Deleting worker.")
+                    if internal_msg[1] != "started":
                         finished_worker = workers.pop(internal_msg[0])
                         finished_worker.close()
-                        continue
-                    elif internal_msg[1].startswith("queue_exhausted_"):
-                        q_job_id = internal_msg[1][16:]
-                        print(f"EventQuery worker finished. Deleting worker {internal_msg[0]} and queue: {q_job_id}")
-                        event_queues.pop(q_job_id)
-                    finished_worker = workers.pop(internal_msg[0])
-                    finished_worker.close()
-                    print(f"Sending response: {message}")
-                    frontend.send_multipart(message)
+                    if internal_msg[1] != "completed":  # Note: completed msg not sent to clients
+                        print(f"Sending response: {message}")
+                        frontend.send_multipart(message)
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
                     if len(workers) > 0:
                         print(f"WARNING: Some workers still running:{workers.keys()}")
-                    if len(event_queues) > 0:
-                        print(f"WARNING: Some Event queues still available:{event_queues.keys()}")
                     break
             except Exception as e:
                 print(f"[DEBUG] EngineServer.serve() exception: {type(e)} serving failed, exception: {e}")
