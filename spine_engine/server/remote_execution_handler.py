@@ -56,12 +56,12 @@ class RemoteExecutionHandler(threading.Thread):
         if not len(file_names) == 1:  # No file name included
             print("Received msg contained no file name for the zip-file")
             self.request.send_response(
-                self.worker_socket, ("remote_execution_event", "Zip-file name missing"), (self.job_id, ""))
+                self.worker_socket, ("remote_execution_init_failed", "Zip-file name missing"), (self.job_id, ""))
             return
         if not msg_data["project_dir"]:
             print("Key project_dir missing from received msg. Can not create a local project directory.")
             self.request.send_response(
-                self.worker_socket, ("remote_execution_event", "Problem in execute request. Key 'project_dir' "
+                self.worker_socket, ("remote_execution_init_failed", "Problem in execute request. Key 'project_dir' "
                                                                "was None or an empty string."),
                 (self.job_id, "")
             )
@@ -69,7 +69,7 @@ class RemoteExecutionHandler(threading.Thread):
         if not self.request.zip_file():
             print("Project zip-file missing from request")
             self.request.send_response(
-                self.worker_socket, ("remote_execution_event", "Project zip-file missing"), (self.job_id, ""))
+                self.worker_socket, ("remote_execution_init_failed", "Project zip-file missing"), (self.job_id, ""))
             return
         # Solve a new local directory name based on project_dir
         local_project_dir = self.path_for_local_project_dir(msg_data["project_dir"])
@@ -80,7 +80,7 @@ class RemoteExecutionHandler(threading.Thread):
             print(f"Creating project directory '{local_project_dir}' failed")
             self.request.send_response(
                 self.worker_socket,
-                ("remote_execution_event", f"Server failed in creating a project directory "
+                ("remote_execution_init_failed", f"Server failed in creating a project directory "
                                            f"for the received project '{local_project_dir}'"),
                 (self.job_id, "")
             )
@@ -94,7 +94,7 @@ class RemoteExecutionHandler(threading.Thread):
             print(f"Saving the received file to '{zip_path}' failed. [{type(e).__name__}: {e}")
             self.request.send_response(
                 self.worker_socket,
-                ("remote_execution_event", f"Server failed in saving the received file "
+                ("remote_execution_init_failed", f"Server failed in saving the received file "
                                            f"to '{zip_path}' ({type(e).__name__} at server)"),
                 (self.job_id, "")
             )
@@ -111,7 +111,7 @@ class RemoteExecutionHandler(threading.Thread):
             print(f"File extraction failed: {type(e).__name__}: {e}")
             self.request.send_response(
                 self.worker_socket,
-                ("remote_execution_event", f"{type(e).__name__}: {e}. - File extraction failed on Server"),
+                ("remote_execution_init_failed", f"{type(e).__name__}: {e}. - File extraction failed on Server"),
                 (self.job_id, "")
             )
             return
@@ -135,10 +135,11 @@ class RemoteExecutionHandler(threading.Thread):
             print(f"Execution failed: {type(e).__name__}: {e}")
             self.request.send_response(
                 self.worker_socket,
-                ("remote_execution_event", f"{type(e).__name__}: {e}. - Project execution failed on Server"),
+                ("remote_execution_init_failed", f"{type(e).__name__}: {e}. - Project execution failed on Server"),
                 (self.job_id, "")
             )
             return
+        # Note: This is not sent to client
         self.request.send_response(
             self.worker_socket, ("remote_execution_event", "completed"), (self.job_id, "completed"))
         print("Execution done")

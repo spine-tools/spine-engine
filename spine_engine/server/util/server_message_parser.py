@@ -31,13 +31,13 @@ class ServerMessageParser:
             ServerMessage: Parsed message
         """
         parsed_msg = json.loads(message)  # Load JSON string into dictionary
-        file_names = parsed_msg["files"]  # dictionary
-        data_str = parsed_msg["data"]  # dictionary
-        parsedFileNames = list()
-        if len(file_names) > 0:
-            for f in file_names:
-                parsedFileNames.append(file_names[f])
-            msg = ServerMessage(parsed_msg['command'], parsed_msg['id'], data_str, parsedFileNames)
+        filenames = parsed_msg["files"]  # dict
+        data = parsed_msg["data"]  # list
+        parsed_filenames = list()
+        if len(filenames) > 0:
+            for f in filenames:
+                parsed_filenames.append(filenames[f])
+            msg = ServerMessage(parsed_msg['command'], parsed_msg['id'], data, parsed_filenames)
         else:
-            msg = ServerMessage(parsed_msg['command'], parsed_msg['id'], data_str, None)
+            msg = ServerMessage(parsed_msg['command'], parsed_msg['id'], data, None)
         return msg

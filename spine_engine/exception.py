@@ -20,5 +20,5 @@ class EngineInitFailed(Exception):
     """Raised when :class:`SpineEngine` initialization fails."""
 
 
-class RemoteEngineFailed(Exception):
+class RemoteEngineInitFailed(Exception):
     """Raised when initializing the remote server connection fails."""

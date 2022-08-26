@@ -58,7 +58,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         self.socket.send_multipart([msg_as_bytes, file_data])
         response = self.socket.recv()
         response_dict = json.loads(response.decode("utf-8"))  # Decode to get JSON str, then load into dictionary
-        self.assertEqual("remote_execution_starting", response_dict["data"][0])
+        self.assertEqual("remote_execution_started", response_dict["data"][0])
         self.assertTrue(self.receive_events(response_dict["data"][1]))
 
     def test_remote_execution2(self):
@@ -72,7 +72,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         self.socket.send_multipart([msg_as_bytes, data])
         response = self.socket.recv()
         response_dict = json.loads(response.decode("utf-8"))
-        self.assertEqual("remote_execution_starting", response_dict["data"][0])
+        self.assertEqual("remote_execution_started", response_dict["data"][0])
         self.assertTrue(self.receive_events(response_dict["data"][1]))
 
     def test_loop_calls(self):
@@ -92,7 +92,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
             self.socket.send_multipart([msg.to_bytes(), data_file])
             response = self.socket.recv()
             response_dict = json.loads(response.decode("utf-8"))
-            self.assertEqual("remote_execution_starting", response_dict["data"][0])
+            self.assertEqual("remote_execution_started", response_dict["data"][0])
             self.assertTrue(self.receive_events(response_dict["data"][1]))
             i += 1
 
@@ -105,7 +105,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
             data_file = f.read()
         msg = ServerMessage("execute", "1", msg_data_json, ["helloworld.zip"])
         self.socket.send_multipart([msg.to_bytes(), data_file])
-        self.assert_error_response("remote_execution_event", "Problem in execute request.")
+        self.assert_error_response("remote_execution_init_failed", "Problem in execute request.")
 
     def test_init_no_binarydata(self):
         """Try to execute a DC -> Tool DAG, but forget to send the project zip-file."""
@@ -113,7 +113,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         msg_data_json = json.dumps(engine_data)
         msg = ServerMessage("execute", "1", msg_data_json, ["helloworld.zip"])
         self.socket.send_multipart([msg.to_bytes()])
-        self.assert_error_response("remote_execution_event", "Project zip-file missing")
+        self.assert_error_response("remote_execution_init_failed", "Project zip-file missing")
 
     def test_no_filename(self):
         """Try to execute a DC->Tool DAG, but forget to include a zip-file name. """
@@ -123,7 +123,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
             data = f.read()
         msg = ServerMessage("execute", "1", msg_data_json, None)  # Note: files == None
         self.socket.send_multipart([msg.to_bytes(), data])
-        self.assert_error_response("remote_execution_event", "Zip-file name missing")
+        self.assert_error_response("remote_execution_init_failed", "Zip-file name missing")
 
     def test_invalid_json(self):
         with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f2:

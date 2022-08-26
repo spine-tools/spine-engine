@@ -26,8 +26,7 @@ class ServerMessage:
             command (str): Command to be executed at the server
             req_id (str): Identifier associated with the command
             data (str): Data associated to the command. In an execute request, this is the engine
-            data as a JSON string. In an execute reply, this is the execution events list of tuples.
-            If execution fails, this is an error msg JSON str.
+            data as a JSON string. In an execute reply, this is an event_type:data (str:str) tuple.
             files (list[str], None): List of file names to be associated with the message (optional)
         """
         self._command = command
