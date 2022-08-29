@@ -29,16 +29,13 @@ from spine_engine.server.util.event_data_converter import EventDataConverter
 class RemoteExecutionHandler(threading.Thread):
     """Handles one execute request at a time from Spine Toolbox,
     executes a DAG, and returns response to the client."""
-
-    # location, where all projects will be extracted and executed
-    internalProjectFolder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "received_projects")
-
-    def __init__(self, context, request, job_id):
+    def __init__(self, context, request, job_id, project_dir):
         """
         Args:
             context (zmq.Context): Context for this handler.
             request (Request): Client request
             job_id (str): Worker thread Id
+            project_dir (str): Absolute path to a server directory where the project has been extracted to
         """
         super().__init__(name="ExecutionHandlerThread")
         self.context = context
@@ -46,81 +43,18 @@ class RemoteExecutionHandler(threading.Thread):
         self.pub_socket = self.context.socket(zmq.PUB)
         self.request = request
         self.job_id = job_id
+        self.local_project_dir = project_dir
 
     def run(self):
         """Handles an execute DAG request."""
         self.worker_socket.connect("inproc://backend")
         pub_port = self.pub_socket.bind_to_random_port("tcp://*")
-        msg_data = self.request.data()
-        file_names = self.request.filenames()
-        if not len(file_names) == 1:  # No file name included
-            print("Received msg contained no file name for the zip-file")
-            self.request.send_response(
-                self.worker_socket, ("remote_execution_init_failed", "Zip-file name missing"), (self.job_id, ""))
-            return
-        if not msg_data["project_dir"]:
-            print("Key project_dir missing from received msg. Can not create a local project directory.")
-            self.request.send_response(
-                self.worker_socket, ("remote_execution_init_failed", "Problem in execute request. Key 'project_dir' "
-                                                               "was None or an empty string."),
-                (self.job_id, "")
-            )
-            return
-        if not self.request.zip_file():
-            print("Project zip-file missing from request")
-            self.request.send_response(
-                self.worker_socket, ("remote_execution_init_failed", "Project zip-file missing"), (self.job_id, ""))
-            return
-        # Solve a new local directory name based on project_dir
-        local_project_dir = self.path_for_local_project_dir(msg_data["project_dir"])
-        # Create project directory
-        try:
-            os.makedirs(local_project_dir)
-        except OSError:
-            print(f"Creating project directory '{local_project_dir}' failed")
-            self.request.send_response(
-                self.worker_socket,
-                ("remote_execution_init_failed", f"Server failed in creating a project directory "
-                                           f"for the received project '{local_project_dir}'"),
-                (self.job_id, "")
-            )
-            return
-        # Save the received zip file
-        zip_path = os.path.join(local_project_dir, file_names[0])
-        try:
-            with open(zip_path, "wb") as f:
-                f.write(self.request.zip_file())
-        except Exception as e:
-            print(f"Saving the received file to '{zip_path}' failed. [{type(e).__name__}: {e}")
-            self.request.send_response(
-                self.worker_socket,
-                ("remote_execution_init_failed", f"Server failed in saving the received file "
-                                           f"to '{zip_path}' ({type(e).__name__} at server)"),
-                (self.job_id, "")
-            )
-            return
-        # Check that the size of received bytes and the saved zip-file match
-        if not len(self.request.zip_file()) == os.path.getsize(zip_path):
-            print(f"Error: Size mismatch in saving zip-file. Received bytes:{len(self.request.zip_file())}. "
-                  f"Zip-file size:{os.path.getsize(zip_path)}")
-        # Extract the saved file
-        print(f"Extracting project file {file_names[0]} [{os.path.getsize(zip_path)}B] to: {local_project_dir}")
-        try:
-            FileExtractor.extract(zip_path, local_project_dir)
-        except Exception as e:
-            print(f"File extraction failed: {type(e).__name__}: {e}")
-            self.request.send_response(
-                self.worker_socket,
-                ("remote_execution_init_failed", f"{type(e).__name__}: {e}. - File extraction failed on Server"),
-                (self.job_id, "")
-            )
-            return
-        # Execute DAG in the Spine engine
+        engine_data = self.request.data()
         print("Executing DAG...")
         # Send execution started message to client with the publish socket port
         self.request.send_response(
             self.worker_socket, ("remote_execution_started", str(pub_port)), (self.job_id, "started"))
-        converted_data = self.convert_input(msg_data, local_project_dir)
+        converted_data = self.convert_input(engine_data, self.local_project_dir)
         try:
             engine = SpineEngine(**converted_data)
             while True:
@@ -158,25 +92,6 @@ class RemoteExecutionHandler(threading.Thread):
         """Cleans up after execution."""
         self.worker_socket.close()
         self.pub_socket.close()
-
-    @staticmethod
-    def path_for_local_project_dir(project_dir):
-        """Returns a unique local project dir path, where the project's ZIP-file will be extracted to.
-
-        Args:
-            project_dir: Project directory in the execute request message. Absolute path to CLIENT project directory.
-
-        Returns:
-            str: Absolute path to a local (server) directory.
-        """
-        # Convert to path to OS specific PurePath and get the rightmost folder name
-        if project_dir.startswith("/"):
-            # It's a Posix absolute path
-            p = pathlib.PurePosixPath(project_dir).stem
-        else:
-            # It's a Windows absolute Path
-            p = pathlib.PureWindowsPath(project_dir).stem
-        return os.path.join(RemoteExecutionHandler.internalProjectFolder, p + "__" + uuid.uuid4().hex)
 
     @staticmethod
     def convert_input(input_data, local_project_dir):

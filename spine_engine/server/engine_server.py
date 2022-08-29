@@ -27,6 +27,7 @@ from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.request import Request
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.remote_ping_handler import RemotePingHandler
+from spine_engine.server.project_extractor import ProjectExtractor
 
 
 class ServerSecurityModel(enum.Enum):
@@ -130,6 +131,8 @@ class EngineServer(threading.Thread):
                         worker = RemoteExecutionHandler(self._context, request, job_id)
                     elif request.cmd() == "ping":
                         worker = RemotePingHandler(self._context, request, job_id)
+                    elif request.cmd() == "prepare_execution":
+                        worker = ProjectExtractor(self._context, request, job_id)
                     else:
                         print(f"Unknown command {request.cmd()} requested")
                         self.send_init_failed_reply(frontend, request.connection_id(),
