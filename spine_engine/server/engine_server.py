@@ -114,6 +114,7 @@ class EngineServer(threading.Thread):
         except Exception as e:
             raise ValueError(f"Initializing serve() failed due to exception: {e}")
         workers = dict()
+        project_dirs = dict()
         while True:
             try:
                 socks = dict(poller.poll())
@@ -128,7 +129,9 @@ class EngineServer(threading.Thread):
                     print(f"New {request.cmd()} request from client {request.connection_id()}")
                     job_id = uuid.uuid4().hex  # Job Id for execution worker
                     if request.cmd() == "execute":
-                        worker = RemoteExecutionHandler(self._context, request, job_id)
+                        # Find local project dir for the job Id in the execute request
+                        project_dir = project_dirs[request.request_id()]
+                        worker = RemoteExecutionHandler(self._context, request, job_id, project_dir)
                     elif request.cmd() == "ping":
                         worker = RemotePingHandler(self._context, request, job_id)
                     elif request.cmd() == "prepare_execution":
@@ -146,6 +149,9 @@ class EngineServer(threading.Thread):
                     internal_msg = json.loads(message.pop(3).decode("utf-8"))
                     if internal_msg[1] != "started":
                         finished_worker = workers.pop(internal_msg[0])
+                        if isinstance(finished_worker, ProjectExtractor):
+                            project_dirs[internal_msg[0]] = internal_msg[1]
+                            print(f"ProjectExtractor finished: {internal_msg}")
                         finished_worker.close()
                     if internal_msg[1] != "completed":  # Note: completed msg not sent to clients
                         print(f"Sending response: {message}")
