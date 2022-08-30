@@ -198,7 +198,7 @@ class ResourceConvertingConnection(ConnectionBase):
 
     def receive_resources_from_source(self, resources):
         """See base class."""
-        self._resources = {r for r in resources if r.type_ == "database"}
+        self._resources = {r for r in resources if r.type_ == "database" and r.filterable}
 
     def convert_backward_resources(self, resources):
         """Called when advertising resources through this connection *in the BACKWARD direction*.

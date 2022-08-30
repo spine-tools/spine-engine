@@ -35,7 +35,7 @@ from spine_engine.project_item.project_item_resource import ProjectItemResource
 
 
 def _make_url_resource(url):
-    return ProjectItemResource("name", "database", "label", url)
+    return ProjectItemResource("name", "database", "label", url, filterable=True)
 
 
 class TestSpineEngine(unittest.TestCase):
