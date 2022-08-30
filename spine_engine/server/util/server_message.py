@@ -15,6 +15,8 @@ Contains a helper class for JSON-based messages exchanged between server and cli
 :date:   23.08.2021
 """
 
+import json
+
 
 class ServerMessage:
     """Class for communicating requests and replies between the client and the server."""
@@ -84,11 +86,19 @@ class ServerMessage:
         retStr = retStr + "    }\n"
         return retStr
 
+    def to_json(self):
+        a = dict()
+        a["command"] = self.getCommand()
+        a["id"] = self.getId()
+        a["data"] = self.getData()
+        a["files"] = self.getFileNames()
+        return json.dumps(a)
+
     def to_bytes(self):
         """Converts this ServerMessage instance to a JSON and then to a bytes string.
 
         Returns:
             bytes: ServerMessage instance as a UTF-8 bytes JSON string.
         """
-        as_json = self.toJSON()
+        as_json = self.to_json()
         return bytes(as_json, "utf-8")
