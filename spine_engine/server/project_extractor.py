@@ -49,7 +49,6 @@ class ProjectExtractor(threading.Thread):
         """Extracts the project into a new directory and makes and sends a response back to frontend."""
         self.worker_socket.connect("inproc://backend")
         dir_name = self.request.data()
-        print(f"Working on 'prepare_execution request. dir_name:{dir_name}")
         file_names = self.request.filenames()
         if not len(file_names) == 1:  # No file name included
             print("Received msg contained no file name for the zip-file")
