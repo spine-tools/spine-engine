@@ -48,19 +48,19 @@ class ProjectExtractor(threading.Thread):
     def run(self):
         """Extracts the project into a new directory and makes and sends a response back to frontend."""
         self.worker_socket.connect("inproc://backend")
-        project_dir = self.request.data()
-        print(f"Working on 'prepare_execution request. project_dir:{project_dir}")
+        dir_name = self.request.data()
+        print(f"Working on 'prepare_execution request. dir_name:{dir_name}")
         file_names = self.request.filenames()
         if not len(file_names) == 1:  # No file name included
             print("Received msg contained no file name for the zip-file")
             self.request.send_response(
                 self.worker_socket, ("remote_execution_init_failed", "Zip-file name missing"), (self.job_id, ""))
             return
-        if not project_dir:
+        if not dir_name:
             print("Project dir missing from request. Cannot create a local project directory.")
             self.request.send_response(
                 self.worker_socket, ("remote_execution_init_failed", "Problem in prepare_execution request. "
-                                                                     "'project_dir' should be as ServerMessage data."),
+                                                                     "Folder name should be included to request."),
                 (self.job_id, "")
             )
             return
@@ -70,7 +70,8 @@ class ProjectExtractor(threading.Thread):
                 self.worker_socket, ("remote_execution_init_failed", "Project zip-file missing"), (self.job_id, ""))
             return
         # Solve a new local directory name based on project_dir
-        local_project_dir = self.path_for_local_project_dir(project_dir)
+        local_project_dir = os.path.join(ProjectExtractor.INTERNAL_PROJECT_DIR, dir_name + "__" + uuid.uuid4().hex)
+        # local_project_dir = self.path_for_local_project_dir(project_dir)
         # Create project directory
         try:
             os.makedirs(local_project_dir)

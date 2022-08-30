@@ -67,11 +67,10 @@ class RemoteExecutionHandler(threading.Thread):
                     break
         except Exception as e:
             print(f"Execution failed: {type(e).__name__}: {e}")
-            self.request.send_response(
-                self.worker_socket,
-                ("remote_execution_init_failed", f"{type(e).__name__}: {e}. - Project execution failed on Server"),
-                (self.job_id, "")
+            json_error_event = EventDataConverter.convert_single(
+                "server_execution_error", f"{type(e).__name__}: {e}. - Project execution failed on Server"
             )
+            self.pub_socket.send_multipart([b"EVENTS", json_error_event.encode("utf-8")])
             return
         # Note: This is not sent to client
         self.request.send_response(

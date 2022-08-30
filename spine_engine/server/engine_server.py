@@ -114,7 +114,7 @@ class EngineServer(threading.Thread):
         except Exception as e:
             raise ValueError(f"Initializing serve() failed due to exception: {e}")
         workers = dict()
-        project_dirs = dict()
+        project_dirs = dict()  # Mapping of job Id to an abs. path to a project directory ready for execution
         while True:
             try:
                 socks = dict(poller.poll())
@@ -128,7 +128,7 @@ class EngineServer(threading.Thread):
                         continue
                     print(f"New {request.cmd()} request from client {request.connection_id()}")
                     job_id = uuid.uuid4().hex  # Job Id for execution worker
-                    if request.cmd() == "execute":
+                    if request.cmd() == "start_execution":
                         # Find local project dir for the job Id in the execute request
                         project_dir = project_dirs[request.request_id()]
                         worker = RemoteExecutionHandler(self._context, request, job_id, project_dir)
