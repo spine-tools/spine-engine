@@ -55,6 +55,8 @@ class EventDataConverter:
             msg_b = str(data).encode("ascii")
             base64_b = base64.b64encode(msg_b)
             data = base64_b.decode("ascii")
+        if "item_state" in data.keys():
+            data["item_state"] = str(data["item_state"])
         event_dict = {"event_type": event_type, "data": data}
         json_event_data = json.dumps(event_dict)
         return json_event_data
