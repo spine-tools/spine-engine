@@ -55,8 +55,9 @@ class EventDataConverter:
             msg_b = str(data).encode("ascii")
             base64_b = base64.b64encode(msg_b)
             data = base64_b.decode("ascii")
-        if "item_state" in data.keys():
-            data["item_state"] = str(data["item_state"])
+        if type(data) != str:
+            if "item_state" in data.keys():
+                data["item_state"] = str(data["item_state"])
         event_dict = {"event_type": event_type, "data": data}
         json_event_data = json.dumps(event_dict)
         return json_event_data
@@ -95,15 +96,11 @@ class EventDataConverter:
             base64Data (bool): Flag indicating, whether data is encoded into Base64
 
         Returns:
-            (list): List of with a single event type + data pair
+            (tuple): List of with a single event type + data pair
         """
-        ret_list = []
         if not b64encoding:
-            ret_list.append((event_data["event_type"], event_data["data"]))
-        else:  # Decode Base64
-            base64_bytes = event_data["data"].encode("ascii")
-            message_bytes = base64.b64decode(base64_bytes)
-            decoded_data = message_bytes.decode("ascii")
-            ret_list.append(event_data["event_type"])
-            ret_list.append(decoded_data)
-        return ret_list
+            return event_data["event_type"], event_data["data"]
+        base64_bytes = event_data["data"].encode("ascii")
+        message_bytes = base64.b64decode(base64_bytes)
+        decoded_data = message_bytes.decode("ascii")
+        return event_data["event_type"], decoded_data
