@@ -15,6 +15,8 @@ Contains a helper class for JSON-based messages exchanged between server and cli
 :date:   23.08.2021
 """
 
+import json
+
 
 class ServerMessage:
     """Class for communicating requests and replies between the client and the server."""
@@ -92,3 +94,25 @@ class ServerMessage:
         """
         as_json = self.toJSON()
         return bytes(as_json, "utf-8")
+
+    @classmethod
+    def parse(cls, message):
+        """Makes a ServerMessage instance from a received JSON string.
+
+        Args:
+            message (str): JSON message
+
+        Returns:
+            ServerMessage: Parsed message
+        """
+        parsed_msg = json.loads(message)  # Load JSON string into dictionary
+        filenames = parsed_msg["files"]  # dict
+        data = parsed_msg["data"]  # list
+        parsed_filenames = list()
+        if len(filenames) > 0:
+            for f in filenames:
+                parsed_filenames.append(filenames[f])
+            msg = cls(parsed_msg['command'], parsed_msg['id'], data, parsed_filenames)
+        else:
+            msg = cls(parsed_msg['command'], parsed_msg['id'], data, None)
+        return msg
