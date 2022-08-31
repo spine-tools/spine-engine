@@ -204,7 +204,13 @@ class EngineServer(threading.Thread):
                                                         f"- Message parsing error at server.")
             return None
         # server_msg is now a dict with keys: 'command', 'id', 'data', and 'files'
-        return Request(msg, server_msg["command"], server_msg["id"], server_msg["data"], server_msg["files"])
+        data_str = server_msg["data"]  # String
+        files = server_msg["files"]  # Dictionary. TODO: Should this be a list?
+        files_list = []
+        if len(files) > 0:
+            for f in files:
+                files_list.append(files[f])
+        return Request(msg, server_msg["command"], server_msg["id"], data_str, files_list)
 
     @staticmethod
     def send_init_failed_reply(socket, connection_id, error_msg):
