@@ -49,6 +49,14 @@ class TestEventDataConverter(unittest.TestCase):
         converted_events = json.loads(json_str)
         self.assertEqual(16, len(converted_events["items"]))
 
+    def test_convert_single(self):
+        event_data = self.make_event_data()
+        converted_events = list()
+        for event in event_data:
+            json_str = EventDataConverter.convert_single(event[0], event[1])
+            converted_events.append(json.loads(json_str))
+        self.assertEqual(16, len(converted_events))
+
     def test_two_converts(self):
         event_data = self.make_event_data()
         json_str = EventDataConverter.convert(event_data)

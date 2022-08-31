@@ -40,20 +40,22 @@ class EventDataConverter:
         return json_event_data
 
     @staticmethod
-    def convert_single(event_type, data):
+    def convert_single(event_type, data, b64decoding=False):
         """Converts a single event_type and data pair into a JSON string with data decoded to base64.
 
         Args:
             event_type: (str): Event type (e.g. exec_started, dag_exec_finished, etc.)
             data (dict): Data associated with the event_type
+            b64decoding (bool): True decodes data to base64, False does not
 
         Returns:
             str: JSON string
         """
-        msg_b = str(data).encode("ascii")
-        base64_b = base64.b64encode(msg_b)
-        base64_data = base64_b.decode("ascii")
-        event_dict = {"event_type": event_type, "data": base64_data}
+        if b64decoding:
+            msg_b = str(data).encode("ascii")
+            base64_b = base64.b64encode(msg_b)
+            data = base64_b.decode("ascii")
+        event_dict = {"event_type": event_type, "data": data}
         json_event_data = json.dumps(event_dict)
         return json_event_data
 
@@ -82,7 +84,7 @@ class EventDataConverter:
         return ret_list
 
     @staticmethod
-    def deconvert_single(event_data, base64Data):
+    def deconvert_single(event_data, b64encoding=False):
         """Converts the received event and data dictionary at client side back to a list.
         Base64 encoded events are decoded to plain text if base64Data == True.
 
@@ -94,7 +96,7 @@ class EventDataConverter:
             (list): List of with a single event type + data pair
         """
         ret_list = []
-        if not base64Data:
+        if not b64encoding:
             ret_list.append((event_data["event_type"], event_data["data"]))
         else:  # Decode Base64
             base64_bytes = event_data["data"].encode("ascii")

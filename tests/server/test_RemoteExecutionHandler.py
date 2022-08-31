@@ -24,7 +24,6 @@ from pathlib import Path
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 from spine_engine.server.util.server_message import ServerMessage
-from spine_engine.server.util.server_message_parser import ServerMessageParser
 from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
@@ -190,7 +189,7 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         """Waits for a response from server and checks that the error msg is as expected."""
         response = self.socket.recv()
         response = response.decode("utf-8")
-        server_msg = ServerMessageParser.parse(response)
+        server_msg = ServerMessage.parse(response)
         msg_data = server_msg.getData()
         self.assertEqual(expected_event_type, msg_data[0])
         self.assertTrue(msg_data[1].startswith(expected_start_of_error_msg))

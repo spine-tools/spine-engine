@@ -22,7 +22,6 @@ import os
 import pathlib
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 from spine_engine.server.util.server_message import ServerMessage
-from spine_engine.server.util.server_message_parser import ServerMessageParser
 
 base_dir = os.path.join(str(pathlib.Path(__file__).parent), "secfolder")
 
@@ -113,7 +112,7 @@ class TestEngineServer(unittest.TestCase):
         self.req_socket.send_multipart(msg_parts)
         response = self.req_socket.recv()
         response = response.decode("utf-8")
-        server_msg = ServerMessageParser.parse(response)
+        server_msg = ServerMessage.parse(response)
         msg_data = server_msg.getData()
         self.assertEqual("server_init_failed", msg_data[0])
         self.assertTrue(msg_data[1].startswith("json.decoder.JSONDecodeError:"))
