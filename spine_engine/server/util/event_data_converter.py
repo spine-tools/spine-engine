@@ -58,6 +58,12 @@ class EventDataConverter:
         if type(data) != str:
             if "item_state" in data.keys():
                 data["item_state"] = str(data["item_state"])
+            if "url" in data.keys():
+                data["url"] = str(data["url"])
+            for key in data.keys():
+                if type(data[key]) == tuple:
+                    # tuples are converted to lists by json.dumps(). Convert the lists back to tuples on client side
+                    print(f"[DEBUG] Found tuple in {event_type}: data. This may be a problem on client side.")
         event_dict = {"event_type": event_type, "data": data}
         json_event_data = json.dumps(event_dict)
         return json_event_data
