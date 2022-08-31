@@ -65,7 +65,7 @@ class TestConnectionWithDatabase(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         disabled_filters = {"my_database": {"scenario_filter": {"scenario_1"}}}
         connection = Connection("source", "bottom", "destination", "top", disabled_filter_names=disabled_filters)
-        resources = [database_resource("unit_test", self._url, "my_database")]
+        resources = [database_resource("unit_test", self._url, "my_database", filterable=True)]
         connection.receive_resources_from_source(resources)
         self.assertEqual(connection.enabled_filters("my_database"), {"scenario_filter": ["scenario_2"]})
 
@@ -74,7 +74,7 @@ class TestConnectionWithDatabase(unittest.TestCase):
         self._db_map.commit_session("Add test data.")
         disabled_filters = {"my_database": {"tool_filter": {"tool_1"}}}
         connection = Connection("source", "bottom", "destination", "top", disabled_filter_names=disabled_filters)
-        resources = [database_resource("unit_test", self._url, "my_database")]
+        resources = [database_resource("unit_test", self._url, "my_database", filterable=True)]
         connection.receive_resources_from_source(resources)
         self.assertEqual(connection.enabled_filters("my_database"), {"tool_filter": ["tool_2"]})
 

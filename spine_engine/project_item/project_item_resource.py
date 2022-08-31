@@ -34,7 +34,7 @@ class ProjectItemResource:
         metadata (dict): resource's metadata
     """
 
-    def __init__(self, provider_name, type_, label, url=None, metadata=None):
+    def __init__(self, provider_name, type_, label, url=None, metadata=None, filterable=False):
         """
         Args:
             provider_name (str): The name of the item that provides the resource
@@ -50,6 +50,7 @@ class ProjectItemResource:
 
                 - filter_stack (str): resource's filter stack
                 - filter_id (str): filter id
+            filterable (bool): If True, the resource provides opportunity for filtering
         """
         self.provider_name = provider_name
         self.type_ = type_
@@ -57,6 +58,7 @@ class ProjectItemResource:
         self._url = url
         self._parsed_url = urlparse(self._url)
         self.metadata = metadata if metadata is not None else dict()
+        self._filterable = filterable
 
     @contextmanager
     def open(self):
@@ -79,7 +81,14 @@ class ProjectItemResource:
             additional_metadata = {}
         metadata = copy.deepcopy(self.metadata)
         metadata.update(additional_metadata)
-        return ProjectItemResource(self.provider_name, self.type_, label=self.label, url=self._url, metadata=metadata)
+        return ProjectItemResource(
+            self.provider_name,
+            self.type_,
+            label=self.label,
+            url=self._url,
+            metadata=metadata,
+            filterable=self._filterable,
+        )
 
     def __eq__(self, other):
         if not isinstance(other, ProjectItemResource):
@@ -90,6 +99,7 @@ class ProjectItemResource:
             and self.type_ == other.type_
             and self._url == other._url
             and self.metadata == other.metadata
+            and self._filterable == other._filterable
         )
 
     def __hash__(self):
@@ -100,7 +110,8 @@ class ProjectItemResource:
         result += f"provider={self.provider_name}, "
         result += f"type_={self.type_}, "
         result += f"url={self._url}, "
-        result += f"metadata={self.metadata})"
+        result += f"metadata={self.metadata}, "
+        result += f"filterable={self._filterable})"
         return result
 
     @property
@@ -132,6 +143,10 @@ class ProjectItemResource:
     @property
     def arg(self):
         return self._url if self.type_ == "database" else self.path
+
+    @property
+    def filterable(self):
+        return self._filterable
 
 
 class CmdLineArg:
@@ -170,7 +185,7 @@ class LabelArg(CmdLineArg):
         return {"type": "resource", "arg": self.arg}
 
 
-def database_resource(provider_name, url, label=None):
+def database_resource(provider_name, url, label=None, filterable=False):
     """
     Constructs a database resource.
 
@@ -178,10 +193,11 @@ def database_resource(provider_name, url, label=None):
         provider_name (str): resource provider's name
         url (str): database URL
         label (str, optional): resource label
+        filterable (bool): is resource filterable
     """
     if label is None:
         label = clear_filter_configs(url)
-    return ProjectItemResource(provider_name, "database", label, url)
+    return ProjectItemResource(provider_name, "database", label, url, filterable=filterable)
 
 
 def file_resource(provider_name, file_path, label=None):
