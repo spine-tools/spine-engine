@@ -114,9 +114,5 @@ class Request:
             file (bytes): File to transmit to client
             internal_msg (str): Internal server message as JSON string
         """
-        print(f"connection_id:{type(connection_id)}")
-        print(f"data:{type(data)}")
-        print(f"file:{type(file)}")
-        print(f"internal_msg:{type(internal_msg)}")
         frame = [connection_id, b"", data, file, internal_msg.encode("utf-8")]
         socket.send_multipart(frame)

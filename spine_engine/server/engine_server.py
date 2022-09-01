@@ -154,7 +154,7 @@ class EngineServer(threading.Thread):
                 if socks.get(backend) == zmq.POLLIN:
                     # Worker has finished execution. Relay reply from backend back to client using the frontend socket
                     message = backend.recv_multipart()
-                    internal_msg = json.loads(message.pop(3).decode("utf-8"))
+                    internal_msg = json.loads(message.pop().decode("utf-8"))
                     if internal_msg[1] != "started":
                         finished_worker = workers.pop(internal_msg[0])
                         if isinstance(finished_worker, ProjectExtractor):
