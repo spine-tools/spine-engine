@@ -137,7 +137,7 @@ class EngineServer(threading.Thread):
                         worker = RemotePingHandler(self._context, request, job_id)
                     elif request.cmd() == "prepare_execution":
                         worker = ProjectExtractor(self._context, request, job_id)
-                    if request.cmd() == "retrieve_project":
+                    elif request.cmd() == "retrieve_project":
                         # Find project dir for the job Id in the execute request
                         project_dir = project_dirs[request.request_id()]
                         worker = ProjectRetriever(self._context, request, job_id, project_dir)
