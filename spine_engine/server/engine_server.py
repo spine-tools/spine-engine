@@ -139,7 +139,10 @@ class EngineServer(threading.Thread):
                         worker = ProjectExtractor(self._context, request, job_id)
                     elif request.cmd() == "retrieve_project":
                         # Find project dir for the job Id in the execute request
-                        project_dir = project_dirs[request.request_id()]
+                        project_dir = project_dirs.get(request.request_id(), None)
+                        if not project_dir:
+                            print(f"Project for job_id:{request.request_id()} not found")
+                            continue  # TODO: Send error to client
                         worker = ProjectRetriever(self._context, request, job_id, project_dir)
                     else:
                         print(f"Unknown command {request.cmd()} requested")
