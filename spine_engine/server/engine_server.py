@@ -126,7 +126,7 @@ class EngineServer(threading.Thread):
                     if not request:
                         print("Received request malformed. - continuing...")
                         continue
-                    print(f"New {request.cmd()} request from client {request.connection_id()}")
+                    print(f"{request.cmd().upper()} request from client {request.connection_id()}")
                     job_id = uuid.uuid4().hex  # Job Id for execution worker
                     if request.cmd() == "start_execution":
                         # Find local project dir for the job Id in the execute request
@@ -153,7 +153,7 @@ class EngineServer(threading.Thread):
                             project_dirs[internal_msg[0]] = internal_msg[1]
                         finished_worker.close()
                     if internal_msg[1] != "completed":  # Note: completed msg not sent to clients
-                        print(f"Sending response: {message}")
+                        print(f"Sending response to client {message[0]}")
                         frontend.send_multipart(message)
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
                     if len(workers) > 0:
