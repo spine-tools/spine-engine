@@ -113,6 +113,11 @@ class ProjectExtractor(threading.Thread):
                 (self.job_id, "")
             )
             return
+        # Remove project zip file
+        try:
+            os.remove(zip_path)
+        except OSError:
+            print(f"File: {zip_path} was not removed")
         reply_msg = ServerMessage(self.request.cmd(), self.job_id, "", None)
         internal_msg = json.dumps((self.job_id, local_project_dir))
         self.request.send_multipart_reply(
