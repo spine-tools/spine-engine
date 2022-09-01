@@ -53,7 +53,7 @@ class ProjectRetriever(threading.Thread):
             print(f"Zipping project {self.project_dir} to {zip_path} failed")
             return
         zip_fpath = os.path.abspath(os.path.join(self.project_dir, os.pardir, zip_fname + ".zip"))
-        if not os.path.isfile(zip_path):
+        if not os.path.isfile(zip_fpath):
             print(f"Zip file {zip_fpath} does not exist")
             return
         file_size = os.path.getsize(zip_path)
