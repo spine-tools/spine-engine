@@ -56,12 +56,11 @@ class ProjectRetriever(threading.Thread):
         if not os.path.isfile(zip_fpath):
             print(f"Zip file {zip_fpath} does not exist")
             return
-        file_size = os.path.getsize(zip_path)
-        print(f"Transmitting file [{file_size}]B: {zip_path} to client")
+        file_size = os.path.getsize(zip_fpath)
+        print(f"Transmitting file [{file_size}]B: {zip_fpath} to client")
         # Read file into bytes string and transmit
-        with open(zip_path, "rb") as f:
+        with open(zip_fpath, "rb") as f:
             file_data = f.read()
-        _, zip_filename = os.path.split(zip_path)
         reply_msg = ServerMessage(self.req.cmd(), self.req.request_id(), "", ["project_package.zip"])
         internal_msg = json.dumps((self.job_id, ""))
         self.req.send_multipart_reply_with_file(
