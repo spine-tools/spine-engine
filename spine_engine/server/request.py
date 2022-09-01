@@ -102,3 +102,17 @@ class Request:
         """
         frame = [connection_id, b"", data, internal_msg.encode("utf-8")]
         socket.send_multipart(frame)
+
+    @staticmethod
+    def send_multipart_reply_with_file(socket, connection_id, data, file, internal_msg):
+        """Sends a multi-part (multi-frame) response.
+
+        Args:
+            socket (ZMQSocket): Socket for sending the reply
+            connection_id (bytes): Client Id. Assigned by the frontend ROUTER socket when a request is received.
+            data (bytes): User data to be sent
+            file (bytes): File to transmit to client
+            internal_msg (str): Internal server message as JSON string
+        """
+        frame = [connection_id, b"", data, file, internal_msg.encode("utf-8")]
+        socket.send_multipart(frame)

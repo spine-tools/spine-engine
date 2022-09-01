@@ -28,6 +28,7 @@ from spine_engine.server.request import Request
 from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
 from spine_engine.server.remote_ping_handler import RemotePingHandler
 from spine_engine.server.project_extractor import ProjectExtractor
+from spine_engine.server.project_retriever import ProjectRetriever
 
 
 class ServerSecurityModel(enum.Enum):
@@ -136,6 +137,10 @@ class EngineServer(threading.Thread):
                         worker = RemotePingHandler(self._context, request, job_id)
                     elif request.cmd() == "prepare_execution":
                         worker = ProjectExtractor(self._context, request, job_id)
+                    if request.cmd() == "retrieve_project":
+                        # Find project dir for the job Id in the execute request
+                        project_dir = project_dirs[request.request_id()]
+                        worker = ProjectRetriever(self._context, request, job_id, project_dir)
                     else:
                         print(f"Unknown command {request.cmd()} requested")
                         self.send_init_failed_reply(frontend, request.connection_id(),
