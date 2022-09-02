@@ -11,46 +11,55 @@
 
 """
 Unit tests for FileExtractor class.
-:author: P. Pääkkönen (VTT)
+:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   23.8.2021
 """
 
 import unittest
 import os
 from pathlib import Path
-from spine_engine.server.util.file_extractor import FileExtractor
+from spine_engine.server.util.zip_handler import ZipHandler
 
 
-class TestFileExtractor(unittest.TestCase):
+class TestZipHandler(unittest.TestCase):
     def test_simple_extraction(self):
         zip_file_path = str(Path(__file__).parent / "test_zipfile.zip")
         output_dir_path = str(Path(__file__).parent / "output")
-        FileExtractor.extract(zip_file_path, output_dir_path)
+        ZipHandler.extract(zip_file_path, output_dir_path)
         self.assertEqual(os.path.isdir(output_dir_path), True)
 
     def test_invalid_input1(self):
         with self.assertRaises(ValueError):
-            FileExtractor.extract("", "./output")
+            ZipHandler.extract("", "./output")
 
     def test_invalid_input2(self):
         with self.assertRaises(ValueError):
-            FileExtractor.extract("does_not_exist.zip", "")
+            ZipHandler.extract("does_not_exist.zip", "")
 
     def test_removeFolder(self):
         zip_file_path = str(Path(__file__).parent / "test_zipfile.zip")
         output_dir_path = str(Path(__file__).parent / "output")
-        FileExtractor.extract(zip_file_path, output_dir_path)
+        ZipHandler.extract(zip_file_path, output_dir_path)
         self.assertEqual(os.path.isdir(output_dir_path), True)
-        FileExtractor.deleteFolder(output_dir_path)
+        ZipHandler.delete_folder(output_dir_path)
         self.assertEqual(os.path.isdir(output_dir_path), False)
 
     def test_remove_nonexisting_Folder(self):
         with self.assertRaises(ValueError):
-            FileExtractor.deleteFolder("./output2")
+            ZipHandler.delete_folder("./output2")
 
     def test_invalid_input1_remove_folder(self):
         with self.assertRaises(ValueError):
-            FileExtractor.deleteFolder("")
+            ZipHandler.delete_folder("")
+
+    def test_package_and_delete_file(self):
+        src = os.path.join(str(Path(__file__).parent), "projectforpackagingtests")
+        dst = os.path.join(src, os.pardir)
+        ZipHandler.package(src, dst, "packager_test_zip")
+        zip_file = os.path.join(dst, "packager_test_zip.zip")
+        self.assertTrue(os.path.isfile(zip_file))
+        os.remove(zip_file)
+        self.assertFalse(os.path.isfile(zip_file))
 
 
 if __name__ == "__main__":

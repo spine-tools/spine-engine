@@ -17,12 +17,9 @@ and running a DAG with Spine Engine. Only one DAG can be executed at a time.
 """
 
 import os
-import pathlib
 import threading
-import uuid
 import zmq
 from spine_engine import SpineEngine
-from spine_engine.server.util.file_extractor import FileExtractor
 from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
@@ -79,7 +76,7 @@ class RemoteExecutionHandler(threading.Thread):
         # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
         # try:
         #     time.sleep(4)
-        #     FileExtractor.deleteFolder(local_project_dir+"/")
+        #     FileExtractor.delete_folder(local_project_dir+"/")
         #     print("RemoteExecutionHandler._execute(): Deleted folder %s"%local_project_dir+"/")
         # except Exception as e:
         #     print(f"RemoteExecutionHandler._execute(): Couldn't delete directory {local_project_dir}. Error:\n{e}")

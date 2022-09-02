@@ -22,7 +22,7 @@ import pathlib
 import uuid
 import zmq
 from spine_engine.server.util.server_message import ServerMessage
-from spine_engine.server.util.file_extractor import FileExtractor
+from spine_engine.server.util.zip_handler import ZipHandler
 
 
 class ProjectExtractor(threading.Thread):
@@ -104,7 +104,7 @@ class ProjectExtractor(threading.Thread):
         # Extract the saved file
         print(f"Extracting project file {file_names[0]} [{os.path.getsize(zip_path)}B] to: {local_project_dir}")
         try:
-            FileExtractor.extract(zip_path, local_project_dir)
+            ZipHandler.extract(zip_path, local_project_dir)
         except Exception as e:
             print(f"File extraction failed: {type(e).__name__}: {e}")
             self.request.send_response(
