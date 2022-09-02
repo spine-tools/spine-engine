@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Unit tests for RemoteExecutionHandler class.
+Unit tests for RemoteExecutionService class.
 :author: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   24.8.2021
 """
@@ -21,13 +21,13 @@ import json
 import os
 import random
 from pathlib import Path
-from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
+from spine_engine.server.remote_execution_service import RemoteExecutionService
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
-class TestRemoteExecutionHandler(unittest.TestCase):
+class TestRemoteExecutionService(unittest.TestCase):
     def setUp(self):
         self.service = EngineServer("tcp", 5559, ServerSecurityModel.NONE, "")
         self.context = zmq.Context()
@@ -137,28 +137,28 @@ class TestRemoteExecutionHandler(unittest.TestCase):
         Also, p is never None or an empty string (must be checked before calling this
         method)."""
         p = "./home/ubuntu/hellofolder"  # Linux relative
-        ret = RemoteExecutionHandler.path_for_local_project_dir(p)
+        ret = RemoteExecutionService.path_for_local_project_dir(p)
         _, dir_name = os.path.split(ret)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 45)  # e.g. "hellofolder__af724968e13b4fd782212921becafc47"
         p = "./hellofolder"  # Linux relative
-        ret = RemoteExecutionHandler.path_for_local_project_dir(p)
+        ret = RemoteExecutionService.path_for_local_project_dir(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 45)
         p = "/home/ubuntu/hellofolder"  # Linux absolute
-        ret = RemoteExecutionHandler.path_for_local_project_dir(p)
+        ret = RemoteExecutionService.path_for_local_project_dir(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 45)
         p = ".\\hellofolder"  # Windows relative
-        ret = RemoteExecutionHandler.path_for_local_project_dir(p)
+        ret = RemoteExecutionService.path_for_local_project_dir(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 45)
         p = "c:\\data\\project\\hellofolder"  # Windows absolute
-        ret = RemoteExecutionHandler.path_for_local_project_dir(p)
+        ret = RemoteExecutionService.path_for_local_project_dir(p)
         self.assertTrue(os.path.isabs(ret))
         self.assertTrue(dir_name.startswith("hellofolder"))
         self.assertTrue(len(dir_name) == 45)

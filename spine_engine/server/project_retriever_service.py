@@ -23,7 +23,7 @@ import zmq
 from spine_engine.server.util.server_message import ServerMessage
 
 
-class ProjectRetriever(threading.Thread):
+class ProjectRetrieverService(threading.Thread):
     """Class for transmitting a project back to client."""
     def __init__(self, context, request, job_id, project_dir):
         """Initializes instance.
@@ -34,7 +34,7 @@ class ProjectRetriever(threading.Thread):
             job_id (str): Thread job Id
             project_dir (str): Absolute path to project directory
         """
-        super().__init__(name="ProjectRetrieverThread")
+        super().__init__(name="ProjectRetrieverServiceThread")
         self.context = context
         self.req = request
         self.job_id = job_id

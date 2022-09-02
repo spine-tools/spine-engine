@@ -21,7 +21,7 @@ import zmq
 from spine_engine.server.util.server_message import ServerMessage
 
 
-class RemotePingHandler(threading.Thread):
+class PingService(threading.Thread):
     """Class for handling ping requests."""
     def __init__(self, context, request, job_id):
         """Initializes instance.

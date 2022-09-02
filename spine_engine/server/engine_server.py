@@ -25,10 +25,10 @@ import uuid
 from zmq.auth.thread import ThreadAuthenticator
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.request import Request
-from spine_engine.server.remote_execution_handler import RemoteExecutionHandler
-from spine_engine.server.remote_ping_handler import RemotePingHandler
-from spine_engine.server.project_extractor import ProjectExtractor
-from spine_engine.server.project_retriever import ProjectRetriever
+from spine_engine.server.remote_execution_service import RemoteExecutionService
+from spine_engine.server.ping_service import PingService
+from spine_engine.server.project_extractor_service import ProjectExtractorService
+from spine_engine.server.project_retriever_service import ProjectRetrieverService
 
 
 class ServerSecurityModel(enum.Enum):
@@ -129,21 +129,21 @@ class EngineServer(threading.Thread):
                         continue
                     print(f"{request.cmd().upper()} request from client {request.connection_id()}")
                     job_id = uuid.uuid4().hex  # Job Id for execution worker
-                    if request.cmd() == "start_execution":
+                    if request.cmd() == "ping":
+                        worker = PingService(self._context, request, job_id)
+                    elif request.cmd() == "prepare_execution":
+                        worker = ProjectExtractorService(self._context, request, job_id)
+                    elif request.cmd() == "start_execution":
                         # Find local project dir for the job Id in the execute request
                         project_dir = project_dirs[request.request_id()]
-                        worker = RemoteExecutionHandler(self._context, request, job_id, project_dir)
-                    elif request.cmd() == "ping":
-                        worker = RemotePingHandler(self._context, request, job_id)
-                    elif request.cmd() == "prepare_execution":
-                        worker = ProjectExtractor(self._context, request, job_id)
+                        worker = RemoteExecutionService(self._context, request, job_id, project_dir)
                     elif request.cmd() == "retrieve_project":
                         # Find project dir for the job Id in the execute request
                         project_dir = project_dirs.get(request.request_id(), None)
                         if not project_dir:
                             print(f"Project for job_id:{request.request_id()} not found")
                             continue  # TODO: Send error to client
-                        worker = ProjectRetriever(self._context, request, job_id, project_dir)
+                        worker = ProjectRetrieverService(self._context, request, job_id, project_dir)
                     else:
                         print(f"Unknown command {request.cmd()} requested")
                         self.send_init_failed_reply(frontend, request.connection_id(),
@@ -157,7 +157,7 @@ class EngineServer(threading.Thread):
                     internal_msg = json.loads(message.pop().decode("utf-8"))
                     if internal_msg[1] != "started":
                         finished_worker = workers.pop(internal_msg[0])
-                        if isinstance(finished_worker, ProjectExtractor):
+                        if isinstance(finished_worker, ProjectExtractorService):
                             project_dirs[internal_msg[0]] = internal_msg[1]
                         finished_worker.close()
                     if internal_msg[1] != "completed":  # Note: completed msg not sent to clients

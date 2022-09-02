@@ -10,8 +10,7 @@
 ######################################################################################################################
 
 """
-Contains RemoteExecutionHandler class for receiving control messages(with project content) from the Toolbox,
-and running a DAG with Spine Engine. Only one DAG can be executed at a time.
+Contains RemoteExecutionService class that executes a single DAG on the Spine Engine Server.
 :authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   24.08.2021
 """
@@ -23,9 +22,9 @@ from spine_engine import SpineEngine
 from spine_engine.server.util.event_data_converter import EventDataConverter
 
 
-class RemoteExecutionHandler(threading.Thread):
-    """Handles one execute request at a time from Spine Toolbox,
-    executes a DAG, and returns response to the client."""
+class RemoteExecutionService(threading.Thread):
+    """Executes a DAG contained in the client request. Project must
+    be on server before running this service."""
     def __init__(self, context, request, job_id, project_dir):
         """
         Args:
@@ -43,7 +42,8 @@ class RemoteExecutionHandler(threading.Thread):
         self.local_project_dir = project_dir
 
     def run(self):
-        """Handles an execute DAG request."""
+        """Sends an execution started response to start execution request. Runs Spine Engine
+        and sends the events to the client using a publish socket."""
         self.worker_socket.connect("inproc://backend")
         pub_port = self.pub_socket.bind_to_random_port("tcp://*")
         engine_data = self.request.data()
@@ -77,12 +77,12 @@ class RemoteExecutionHandler(threading.Thread):
         # try:
         #     time.sleep(4)
         #     FileExtractor.delete_folder(local_project_dir+"/")
-        #     print("RemoteExecutionHandler._execute(): Deleted folder %s"%local_project_dir+"/")
+        #     print("RemoteExecutionService._execute(): Deleted folder %s"%local_project_dir+"/")
         # except Exception as e:
-        #     print(f"RemoteExecutionHandler._execute(): Couldn't delete directory {local_project_dir}. Error:\n{e}")
+        #     print(f"RemoteExecutionService._execute(): Couldn't delete directory {local_project_dir}. Error:\n{e}")
         # debugging
         # execStopTimeMs=round(time.time()*1000.0)
-        # print("RemoteExecutionHandler._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
+        # print("RemoteExecutionService._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
 
     def close(self):
         """Cleans up after execution."""
@@ -126,7 +126,7 @@ class RemoteExecutionHandler(threading.Thread):
                     input_data["specifications"][specs_key][i]["definition_file_path"] = modified
                 # Force execute_in_work to False
                 if "execute_in_work" in specItemInfo:
-                    # print("RemoteExecutionHandler.convert_input(): spec item info contains execute_in_work")
+                    # print("RemoteExecutionService.convert_input(): spec item info contains execute_in_work")
                     input_data["specifications"][specs_key][i]["execute_in_work"] = False
                 i += 1
         # Loop items
@@ -134,6 +134,6 @@ class RemoteExecutionHandler(threading.Thread):
         for items_key in items_keys:
             # force execute_in_work to False in items
             if "execute_in_work" in input_data["items"][items_key]:
-                # print("RemoteExecutionHandler.convert_input() execute_in_work in an item")
+                # print("RemoteExecutionService.convert_input() execute_in_work in an item")
                 input_data["items"][items_key]["execute_in_work"] = False
         return input_data

@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Unit tests for RemotePingHandler class.
+Unit tests for PingService class.
 :author: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   13.09.2021
 """
@@ -21,7 +21,7 @@ from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 
 
-class TestRemotePingHandler(unittest.TestCase):
+class TestPingService(unittest.TestCase):
 
     def setUp(self):
         self.context = zmq.Context()

@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Contains a class for extracting a project zip file.
+Contains a class for extracting a project ZIP file into a new directory on server.
 :authors: P. Savolainen (VTT)
 :date:   29.8.2022
 """
@@ -25,7 +25,7 @@ from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.zip_handler import ZipHandler
 
 
-class ProjectExtractor(threading.Thread):
+class ProjectExtractorService(threading.Thread):
     """Class for handling 'prepare_execution' requests."""
 
     # Root directory, where all projects will be extracted and executed
@@ -39,14 +39,14 @@ class ProjectExtractor(threading.Thread):
             request (Request): Client request
             job_id (str): Worker thread Id
         """
-        super().__init__(name="ProjectExtractorThread")
+        super().__init__(name="ProjectExtractorServiceThread")
         self.context = context
         self.request = request
         self.job_id = job_id
         self.worker_socket = self.context.socket(zmq.DEALER)  # Backend socket
 
     def run(self):
-        """Extracts the project into a new directory and makes and sends a response back to frontend."""
+        """Extracts the project into a new directory and sends a response back to client."""
         self.worker_socket.connect("inproc://backend")
         dir_name = self.request.data()
         file_names = self.request.filenames()
@@ -69,7 +69,7 @@ class ProjectExtractor(threading.Thread):
                 self.worker_socket, ("remote_execution_init_failed", "Project zip-file missing"), (self.job_id, ""))
             return
         # Solve a new local directory name based on project_dir
-        local_project_dir = os.path.join(ProjectExtractor.INTERNAL_PROJECT_DIR, dir_name + "__" + uuid.uuid4().hex)
+        local_project_dir = os.path.join(ProjectExtractorService.INTERNAL_PROJECT_DIR, dir_name + "__" + uuid.uuid4().hex)
         # local_project_dir = self.path_for_local_project_dir(project_dir)
         # Create project directory
         try:
@@ -141,7 +141,7 @@ class ProjectExtractor(threading.Thread):
         else:
             # It's a Windows absolute Path
             p = pathlib.PureWindowsPath(project_dir).stem
-        return os.path.join(ProjectExtractor.INTERNAL_PROJECT_DIR, p + "__" + uuid.uuid4().hex)
+        return os.path.join(ProjectExtractorService.INTERNAL_PROJECT_DIR, p + "__" + uuid.uuid4().hex)
 
     def close(self):
         """Closes socket and cleans up."""

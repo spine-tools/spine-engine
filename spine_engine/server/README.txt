@@ -1,8 +1,8 @@
-Remote execution
-================
+How to Execute Projects on Spine Engine Server
+==============================================
 
-Setting up Spine Engine (server)
---------------------------------
+Setting up Spine Engine Server
+------------------------------
 
 1. Make a new environment for spine engine server
 
@@ -23,7 +23,7 @@ This creates the security certificates into <repo_root>/spine_engine/server/cert
 - Make file <repo_root>/spine_engine/server/connectivity/certs/allowEndpoints.txt
 - Add IP addresses of the remote end points to the file
 
-4. Start remote server
+4. Start Spine Engine Server
 
 In directory, <repo_root>/spine_engine/server/
 
@@ -52,7 +52,7 @@ Setting up Spine Toolbox (client)
 
 4. Create a project and add some project items.
 
-5. Open the **Engine** page in File->Settings widget
+5. Open the **Engine** page in File->Settings
    - Enable remote execution from the checkbox (Enabled)
    - Set up the remote server settings: host, port, security model, and security folder
    - Click Ok, to close and save the new Settings
