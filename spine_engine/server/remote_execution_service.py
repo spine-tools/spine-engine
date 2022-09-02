@@ -33,7 +33,7 @@ class RemoteExecutionService(threading.Thread):
             job_id (str): Worker thread Id
             project_dir (str): Absolute path to a server directory where the project has been extracted to
         """
-        super().__init__(name="ExecutionHandlerThread")
+        super().__init__(name="RemoteExecutionServiceThread")
         self.context = context
         self.worker_socket = self.context.socket(zmq.DEALER)
         self.pub_socket = self.context.socket(zmq.PUB)

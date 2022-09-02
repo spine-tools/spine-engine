@@ -18,7 +18,6 @@ Contains a class for extracting a project ZIP file into a new directory on serve
 import os
 import json
 import threading
-import pathlib
 import uuid
 import zmq
 from spine_engine.server.util.server_message import ServerMessage
@@ -51,9 +50,9 @@ class ProjectExtractorService(threading.Thread):
         dir_name = self.request.data()
         file_names = self.request.filenames()
         if not len(file_names) == 1:  # No file name included
-            print("Received msg contained no file name for the zip-file")
+            print("Received msg contained no file name for the ZIP file")
             self.request.send_response(
-                self.worker_socket, ("remote_execution_init_failed", "Zip-file name missing"), (self.job_id, ""))
+                self.worker_socket, ("remote_execution_init_failed", "ZIP file name missing"), (self.job_id, ""))
             return
         if not dir_name:
             print("Project dir missing from request. Cannot create a local project directory.")
@@ -64,13 +63,12 @@ class ProjectExtractorService(threading.Thread):
             )
             return
         if not self.request.zip_file():
-            print("Project zip-file missing from request")
+            print("Project ZIP file missing from request")
             self.request.send_response(
-                self.worker_socket, ("remote_execution_init_failed", "Project zip-file missing"), (self.job_id, ""))
+                self.worker_socket, ("remote_execution_init_failed", "Project ZIP file missing"), (self.job_id, ""))
             return
-        # Solve a new local directory name based on project_dir
+        # Make a new local project directory based on project name in request
         local_project_dir = os.path.join(ProjectExtractorService.INTERNAL_PROJECT_DIR, dir_name + "__" + uuid.uuid4().hex)
-        # local_project_dir = self.path_for_local_project_dir(project_dir)
         # Create project directory
         try:
             os.makedirs(local_project_dir)
@@ -83,7 +81,7 @@ class ProjectExtractorService(threading.Thread):
                 (self.job_id, "")
             )
             return
-        # Save the received zip file
+        # Save the received ZIP file
         zip_path = os.path.join(local_project_dir, file_names[0])
         try:
             with open(zip_path, "wb") as f:
@@ -97,10 +95,10 @@ class ProjectExtractorService(threading.Thread):
                 (self.job_id, "")
             )
             return
-        # Check that the size of received bytes and the saved zip-file match
+        # Check that the size of received bytes and the saved ZIP file match
         if not len(self.request.zip_file()) == os.path.getsize(zip_path):
-            print(f"Error: Size mismatch in saving zip-file. Received bytes:{len(self.request.zip_file())}. "
-                  f"Zip-file size:{os.path.getsize(zip_path)}")
+            print(f"Error: Size mismatch in saving ZIP file. Received bytes:{len(self.request.zip_file())}. "
+                  f"ZIP file size:{os.path.getsize(zip_path)}")
         # Extract the saved file
         print(f"Extracting project file {file_names[0]} [{os.path.getsize(zip_path)}B] to: {local_project_dir}")
         try:
@@ -113,7 +111,7 @@ class ProjectExtractorService(threading.Thread):
                 (self.job_id, "")
             )
             return
-        # Remove project zip file
+        # Remove extracted ZIP file
         try:
             os.remove(zip_path)
         except OSError:
@@ -123,25 +121,6 @@ class ProjectExtractorService(threading.Thread):
         self.request.send_multipart_reply(
             self.worker_socket, self.request.connection_id(), reply_msg.to_bytes(), internal_msg
         )
-
-    @staticmethod
-    def path_for_local_project_dir(project_dir):
-        """Returns a unique local project dir path, where the project's ZIP-file will be extracted to.
-
-        Args:
-            project_dir: Project directory in the execute request message. Absolute path to CLIENT project directory.
-
-        Returns:
-            str: Absolute path to a local (server) directory.
-        """
-        # Convert to path to OS specific PurePath and get the rightmost folder name
-        if project_dir.startswith("/"):
-            # It's a Posix absolute path
-            p = pathlib.PurePosixPath(project_dir).stem
-        else:
-            # It's a Windows absolute Path
-            p = pathlib.PureWindowsPath(project_dir).stem
-        return os.path.join(ProjectExtractorService.INTERNAL_PROJECT_DIR, p + "__" + uuid.uuid4().hex)
 
     def close(self):
         """Closes socket and cleans up."""

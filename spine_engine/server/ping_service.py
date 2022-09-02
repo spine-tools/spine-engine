@@ -31,7 +31,7 @@ class PingService(threading.Thread):
             request (Request): Client request
             job_id (str): Worker thread Id
         """
-        super().__init__(name="PingHandlerThread")
+        super().__init__(name="PingServiceThread")
         self.context = context
         self.req = request
         self.job_id = job_id
