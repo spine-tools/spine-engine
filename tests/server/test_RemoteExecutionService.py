@@ -177,8 +177,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         retval = False
         while True:
             rcv = self.sub_socket.recv_multipart()
-            event = json.loads(rcv[1])
-            event_deconverted = EventDataConverter.deconvert_single(event, True)
+            event_deconverted = EventDataConverter.deconvert(rcv[1])
             if event_deconverted[0] == "dag_exec_finished":
                 if event_deconverted[1] == "COMPLETED":
                     retval = True

@@ -17,49 +17,32 @@ Contains static methods for converting event and data information to JSON format
 
 import base64
 import json
+from spine_engine.spine_engine import ItemExecutionFinishState
 
 
 class EventDataConverter:
     @staticmethod
-    def convert(event_data):
-        """Converts events and data into a JSON string on server side. Data is decoded as base64.
-
-        Args:
-            event_data (list(tuple)): List of tuples containing events and data
-
-        Returns:
-            str: JSON string
-        """
-        items_list = list()
-        for t in event_data:
-            msg_b = str(t[1]).encode("ascii")
-            base64_b = base64.b64encode(msg_b)
-            base64_data = base64_b.decode("ascii")
-            items_list.append({"event_type": t[0], "data": base64_data})
-        json_event_data = json.dumps({"items": items_list})
-        return json_event_data
-
-    @staticmethod
-    def convert_single(event_type, data, b64decoding=False):
-        """Converts a single event_type and data pair into a JSON string with data decoded to base64.
+    def convert(event_type, data, b64encoding=False):
+        """Converts a single event_type, data pair into a JSON string.
+         Optionally, encodes data as base64.
 
         Args:
             event_type: (str): Event type (e.g. exec_started, dag_exec_finished, etc.)
             data (dict): Data associated with the event_type
-            b64decoding (bool): True decodes data to base64, False does not
+            b64encoding (bool): True encodes data as base64, False does not
 
         Returns:
             str: JSON string
         """
-        if b64decoding:
+        if b64encoding:
             msg_b = str(data).encode("ascii")
             base64_b = base64.b64encode(msg_b)
             data = base64_b.decode("ascii")
         if type(data) != str:
             if "item_state" in data.keys():
-                data["item_state"] = str(data["item_state"])
+                data["item_state"] = str(data["item_state"])  # Cast ItemExecutionFinishState instance to string
             if "url" in data.keys():
-                data["url"] = str(data["url"])
+                data["url"] = str(data["url"])  # Cast URL instances to string
             for key in data.keys():
                 if type(data[key]) == tuple:
                     # tuples are converted to lists by json.dumps(). Convert the lists back to tuples on client side
@@ -69,44 +52,67 @@ class EventDataConverter:
         return json_event_data
 
     @staticmethod
-    def deconvert(event_data, base64Data):
-        """Converts the received event+data dictionary at client side back to a list-of-tuples.
-        Base64 encoded events are decoded to plain text if base64Data == True.
+    def deconvert(event_data, b64decoding=False):
+        """Decodes a bytes object into a JSON string, then converts it to a
+        dictionary with a single event_type, data pair into a tuple
+        containing the same. Optionally, decodes data field from base64
+        back to ascii.
 
         Args:
-            event_data (dict): Events and data in dictionary
-            base64Data (bool): Flag indicating, whether data is encoded into Base64
+            event_data (bytes): Event type and data as bytes
+            b64decoding (bool): Flag indicating, whether data is decoded from base64
 
         Returns:
-            (list(tuple)): List of tuples containing event_type and the associated data
+            (tuple): Event type and data pair
         """
-        items_list = event_data["items"]
-        ret_list = []
-        for item in items_list:
-            if not base64Data:
-                ret_list.append((item["event_type"], item["data"]))
-            else:  # Decode Base64
-                base64_bytes = item["data"].encode("ascii")
-                message_bytes = base64.b64decode(base64_bytes)
-                decoded_data = message_bytes.decode("ascii")
-                ret_list.append((item["event_type"], decoded_data))
-        return ret_list
+        event_dict = json.loads(event_data.decode("utf-8"))
+        if b64decoding:
+            base64_bytes = event_dict["data"].encode("ascii")
+            message_bytes = base64.b64decode(base64_bytes)
+            data = message_bytes.decode("ascii")
+        else:
+            data = event_dict["data"]
+        fixed_event = fix_event_data((event_dict["event_type"], data))
+        return fixed_event
 
-    @staticmethod
-    def deconvert_single(event_data, b64encoding=False):
-        """Converts the received event and data dictionary at client side back to a list.
-        Base64 encoded events are decoded to plain text if base64Data == True.
 
-        Args:
-            event_data (dict): Events and data in dictionary
-            base64Data (bool): Flag indicating, whether data is encoded into Base64
+def fix_event_data(event):
+    """Converts data back to what was sent.
 
-        Returns:
-            (tuple): List of with a single event type + data pair
-        """
-        if not b64encoding:
-            return event_data["event_type"], event_data["data"]
-        base64_bytes = event_data["data"].encode("ascii")
-        message_bytes = base64.b64decode(base64_bytes)
-        decoded_data = message_bytes.decode("ascii")
-        return event_data["event_type"], decoded_data
+    Args:
+        event (tuple): (event_type, data). event_type is str, data is dict or str.
+
+    Returns:
+        tuple: Fixed event_type: data tuple
+    """
+    # Convert item_state str back to ItemExecutionFinishState. This was converted to str on server because
+    # it is not JSON serializable
+    if type(event[1]) == str:
+        return event
+    if "item_state" in event[1].keys():
+        event[1]["item_state"] = convert_execution_finish_state(event[1]["item_state"])
+    # Fix persistent console key. It was converted from tuple to a list by JSON.dumps but we need it as
+    # a tuple because it will be used as dictionary key and lists cannot be used as keys
+    if event[0] == "persistent_execution_msg" and "key" in event[1].keys():
+        if type(event[1]["key"]) == list:
+            event[1]["key"] = tuple(event[1]["key"])
+    return event
+
+
+def convert_execution_finish_state(state):
+    """Transforms state string into an ItemExecutionFinishState enum.
+
+    Args:
+        state (str): State as string
+
+    Returns:
+        ItemExecutionFinishState: Enum if given str is valid, None otherwise.
+    """
+    states = dict()
+    states["SUCCESS"] = ItemExecutionFinishState.SUCCESS
+    states["FAILURE"] = ItemExecutionFinishState.FAILURE
+    states["SKIPPED"] = ItemExecutionFinishState.SKIPPED
+    states["EXCLUDED"] = ItemExecutionFinishState.EXCLUDED
+    states["STOPPED"] = ItemExecutionFinishState.STOPPED
+    states["NEVER_FINISHED"] = ItemExecutionFinishState.NEVER_FINISHED
+    return states.get(state, None)

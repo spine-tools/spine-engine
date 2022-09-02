@@ -222,7 +222,7 @@ class EngineServer(threading.Thread):
 
     @staticmethod
     def send_init_failed_reply(socket, connection_id, error_msg):
-        """Sends an error reply to client when initialisation fails for some reason.
+        """Sends an error reply to client when request is malformed.
 
         Args:
             socket (ZMQSocket): Socket for sending the reply

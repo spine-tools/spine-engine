@@ -57,14 +57,14 @@ class RemoteExecutionService(threading.Thread):
             while True:
                 # Get event and associated data from the spine engine
                 event_type, data = engine.get_event()
-                json_event = EventDataConverter.convert_single(event_type, data)
+                json_event = EventDataConverter.convert(event_type, data)
                 # Send events using a publish socket
                 self.pub_socket.send_multipart([b"EVENTS", json_event.encode("utf-8")])
                 if data == "COMPLETED" or data == "FAILED":
                     break
         except Exception as e:
             print(f"Execution failed: {type(e).__name__}: {e}")
-            json_error_event = EventDataConverter.convert_single(
+            json_error_event = EventDataConverter.convert(
                 "server_execution_error", f"{type(e).__name__}: {e}. - Project execution failed on Server"
             )
             self.pub_socket.send_multipart([b"EVENTS", json_error_event.encode("utf-8")])
