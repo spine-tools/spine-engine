@@ -11,13 +11,12 @@
 
 """
 Unit tests for ServerMessage class.
-:author: P. Pääkkönen (VTT)
+:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
 :date:   25.8.2021
 """
 
 import unittest
 import json
-from pathlib import Path
 from spine_engine.server.util.server_message import ServerMessage
 
 
@@ -77,12 +76,9 @@ class TestServerMessage(unittest.TestCase):
         """Engine data of DC -> Tool DAG"""
         engine_data = self.make_engine_data1()
         msg_data_json = json.dumps(engine_data)
-        # File name used at server to save the transmitted project zip file. Does not need to be the same as original.
-        zip_file_name = ["testi_zipu_file.zip"]
-        msg = ServerMessage("start_execution", "1", msg_data_json, None)
-        msg_as_bytes = bytes(msg.toJSON(), "utf-8")
-        decoded_msg = msg_as_bytes.decode("utf-8")
-        parsed_msg = ServerMessage.parse(decoded_msg)
+        msg = ServerMessage("start_execution", "1", msg_data_json, ["not_needed.zip"])
+        msg_as_bytes = msg.to_bytes()
+        parsed_msg = ServerMessage.parse(msg_as_bytes)
         parsed_engine_data = parsed_msg.getData()
         self.assertEqual(engine_data, parsed_engine_data)
 
@@ -90,24 +86,21 @@ class TestServerMessage(unittest.TestCase):
         """Engine data of DC -> Importer -> DS DAG"""
         engine_data = self.make_engine_data2()
         msg_data_json = json.dumps(engine_data)
-        # File name used at server to save the transmitted project zip file. Does not need to be the same as original.
-        zip_file_name = ["testi_zipu_file.zip"]
-        msg = ServerMessage("start_execution", "1", msg_data_json, None)
-        msg_as_bytes = bytes(msg.toJSON(), "utf-8")
-        decoded_msg = msg_as_bytes.decode("utf-8")
-        parsed_msg = ServerMessage.parse(decoded_msg)
+        msg = ServerMessage("start_execution", "1", msg_data_json, ["not_needed.zip"])
+        msg_as_bytes = msg.to_bytes()
+        parsed_msg = ServerMessage.parse(msg_as_bytes)
         parsed_engine_data = parsed_msg.getData()
         self.assertEqual(engine_data, parsed_engine_data)
 
     def test_msg_creation(self):
-        listFiles = ["dffd.zip", "fdeef.zip"]
-        msg = ServerMessage("execute", "4", "[]", listFiles)
+        list_files = ["dffd.zip", "fdeef.zip"]
+        msg = ServerMessage("execute", "4", "[]", list_files)
         self.assertEqual("execute", msg.getCommand())
         self.assertEqual("4", msg.getId())
-        self.assertEqual(listFiles, msg.getFileNames())
+        self.assertEqual(list_files, msg.getFileNames())
         self.assertEqual("[]", msg.getData())
 
-    def test_msg_creation2_nofilenames(self):
+    def test_msg_creation_nofilenames(self):
         msg = ServerMessage("execute", "4", "[]", None)
         self.assertEqual("execute", msg.getCommand())
         self.assertEqual("4", msg.getId())
@@ -119,48 +112,17 @@ class TestServerMessage(unittest.TestCase):
         self.assertEqual("execute", msg.getCommand())
         self.assertEqual("4", msg.getId())
 
-    def test_message_tojson1(self):
-        listFiles = ["dffd.zip", "fdeef.zip"]
-        msg = ServerMessage("execute", "4", "[]", listFiles)
-        jsonStr = msg.toJSON()
-        # print(jsonStr)
-
-    def test_message_tojson2(self):
-        msg = ServerMessage("execute", "4", "[]", None)
-        jsonStr = msg.toJSON()
-        # print(jsonStr)
-
-    def test_msg_parsing(self):
-        test_file_path = str(Path(__file__).parent / "testMsg.txt")
-        with open(test_file_path) as f:
-            content = f.read()
-            msg = ServerMessage.parse(content)
-            # print(msg)
-            self.assertEqual(msg.getCommand(), "execute")
-            self.assertEqual(msg.getId(), "1")
-            self.assertEqual(msg.getFileNames()[0], "helloworld.zip")
-
-    def test_msg_parsingw(self):
-        test_file_path = str(Path(__file__).parent / "testMsg2.txt")
-        with open(test_file_path) as f:
-            content = f.read()
-            msg = ServerMessage.parse(content)
-            # print(msg)
-            self.assertEqual(msg.getCommand(), "execute")
-            self.assertEqual(msg.getId(), "1")
-            self.assertEqual(len(msg.getFileNames()), 0)
-
     def test_invalid_input1(self):
         with self.assertRaises(ValueError):  # json.decoder.JSONDecodeError is a ValueError
-            ServerMessage.parse("")
+            ServerMessage.parse(b"")
 
     def test_invalid_input2(self):
         with self.assertRaises(ValueError):
-            ServerMessage.parse("fiuoehfoiewjkfdewjiofdj{")
+            ServerMessage.parse(b"fiuoehfoiewjkfdewjiofdj{")
 
     def test_msg_nofiles(self):
         msg = ServerMessage("execute", "4", "{}", None)
-        jsonStr = msg.toJSON()
+        jsonStr = msg.to_bytes()
         msg = ServerMessage.parse(jsonStr)
         self.assertEqual(msg.getCommand(), "execute")
         self.assertEqual(msg.getId(), "4")

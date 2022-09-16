@@ -48,6 +48,7 @@ class EngineServer(threading.Thread):
             sec_model (ServerSecurityModel): Security model state
             sec_folder (str): Folder, where security files have been stored.
         """
+        super().__init__(target=self.serve, name="EngineServerThread")
         try:
             if sec_model == ServerSecurityModel.NONE:
                 self._sec_model_state = ServerSecurityModel.NONE
@@ -76,9 +77,7 @@ class EngineServer(threading.Thread):
         self._context = zmq.Context()
         self.ctrl_msg_sender = self._context.socket(zmq.PAIR)
         self.ctrl_msg_sender.bind("inproc://ctrl_msg")  # inproc:// transport requires a bind() before connect()
-        # Start serving
-        threading.Thread.__init__(self, target=self.serve, name="EngineServerThread")
-        self.start()
+        self.start()  # Start serving
 
     def close(self):
         """Closes the server by sending a KILL message to this thread using a PAIR socket."""
@@ -86,7 +85,8 @@ class EngineServer(threading.Thread):
             self.auth.stop()
             time.sleep(0.2)  # wait a bit until authenticator has been closed
         self.ctrl_msg_sender.send(b"KILL")
-        self.ctrl_msg_sender.close()
+        self.join()  # Wait for the thread to finish and sockets to close
+        self.ctrl_msg_sender.close()  # Close this in the same thread that it was created in
         self._context.term()
 
     def serve(self):
@@ -100,8 +100,6 @@ class EngineServer(threading.Thread):
             # Socket for internal control input (i.e. killing the server)
             ctrl_msg_listener = self._context.socket(zmq.PAIR)
             ctrl_msg_listener.connect("inproc://ctrl_msg")
-            worker_thread_killer = self._context.socket(zmq.PAIR)
-            worker_thread_killer.bind("inproc://worker_ctrl")
             if self._sec_model_state == ServerSecurityModel.STONEHOUSE:
                 try:
                     self.auth = self.enable_stonehouse_security(frontend)
@@ -175,7 +173,6 @@ class EngineServer(threading.Thread):
         ctrl_msg_listener.close()
         frontend.close()
         backend.close()
-        worker_thread_killer.close()
 
     def handle_frontend_message_received(self, socket, msg):
         """Check received message integrity.

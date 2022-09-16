@@ -23,7 +23,7 @@ import pathlib
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 from spine_engine.server.util.server_message import ServerMessage
 
-base_dir = os.path.join(str(pathlib.Path(__file__).parent), "secfolder")
+base_dir = os.path.join(str(pathlib.Path(__file__).parent), "secfolder_for_tests")
 
 
 def _security_folder_exists():
@@ -104,14 +104,10 @@ class TestEngineServer(unittest.TestCase):
         """Tests what happens when the sent request is not valid."""
         server = EngineServer("tcp", 5556, ServerSecurityModel.NONE, "")
         self.req_socket.connect("tcp://localhost:5556")
-        msg_parts = list()
-        fileArray = bytearray([1, 2, 3, 4, 5])
-        part1Bytes = bytes("feiofnoknfsdnoiknsmd", "utf-8")
-        msg_parts.append(part1Bytes)
-        msg_parts.append(fileArray)
-        self.req_socket.send_multipart(msg_parts)
+        file_like_object = bytearray([1, 2, 3, 4, 5])
+        req = b"feiofnoknfsdnoiknsmd"
+        self.req_socket.send_multipart([req, file_like_object])
         response = self.req_socket.recv()
-        response = response.decode("utf-8")
         server_msg = ServerMessage.parse(response)
         msg_data = server_msg.getData()
         self.assertEqual("server_init_failed", msg_data[0])

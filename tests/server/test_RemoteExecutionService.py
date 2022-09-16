@@ -16,12 +16,13 @@ Unit tests for RemoteExecutionService class.
 """
 
 import unittest
-import zmq
 import json
 import os
 import random
 from pathlib import Path
-from spine_engine.server.remote_execution_service import RemoteExecutionService
+from unittest import mock
+from tempfile import TemporaryDirectory
+import zmq
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.event_data_converter import EventDataConverter
@@ -29,6 +30,7 @@ from spine_engine.server.util.event_data_converter import EventDataConverter
 
 class TestRemoteExecutionService(unittest.TestCase):
     def setUp(self):
+        self._temp_dir = TemporaryDirectory()
         self.service = EngineServer("tcp", 5559, ServerSecurityModel.NONE, "")
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
@@ -40,128 +42,90 @@ class TestRemoteExecutionService(unittest.TestCase):
         self.service.close()
         if not self.socket.closed:
             self.socket.close()
+        if not self.sub_socket.closed:
             self.sub_socket.close()
         if not self.context.closed:
             self.context.term()
+        try:
+            self._temp_dir.cleanup()
+        except RecursionError:
+            print("RecursionError. Everything is fine.")
 
-    def test_remote_execution1(self):
+    @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
+    def test_remote_execution1(self, mock_proj_dir):
         """Tests executing a DC -> Python Tool DAG."""
-        engine_data = self.make_engine_data_for_test_zipfile_project()
-        msg_data_json = json.dumps(engine_data)
+        mock_proj_dir.return_value = self._temp_dir.name
         with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
             file_data = f.read()
-        # File name used at server to save the transmitted project zip file. Does not need to be the same as original.
-        zip_file_name = ["testi_zipu_file.zip"]
-        msg = ServerMessage("execute", "1", msg_data_json, zip_file_name)
-        msg_as_bytes = bytes(msg.toJSON(), "utf-8")
-        self.socket.send_multipart([msg_as_bytes, file_data])
-        response = self.socket.recv()
-        response_dict = json.loads(response.decode("utf-8"))  # Decode to get JSON str, then load into dictionary
-        self.assertEqual("remote_execution_started", response_dict["data"][0])
-        self.assertTrue(self.receive_events(response_dict["data"][1]))
+        prepare_msg = ServerMessage("prepare_execution", "1", json.dumps("test project1"), ["test_zipfile.zip"])
+        self.socket.send_multipart([prepare_msg.to_bytes(), file_data])
+        prepare_response = self.socket.recv()
+        prepare_response_msg = ServerMessage.parse(prepare_response)
+        job_id = prepare_response_msg.getId()
+        self.assertEqual("prepare_execution", prepare_response_msg.getCommand())
+        self.assertTrue(len(job_id) == 32)
+        self.assertEqual("", prepare_response_msg.getData())
+        # Send start_execution request
+        engine_data = self.make_engine_data_for_test_zipfile_project()
+        engine_data_json = json.dumps(engine_data)
+        start_msg = ServerMessage("start_execution", job_id, engine_data_json, None)
+        self.socket.send_multipart([start_msg.to_bytes()])
+        start_response = self.socket.recv()
+        start_response_msg = ServerMessage.parse(start_response)
+        start_response_msg_data = start_response_msg.getData()
+        self.assertEqual("remote_execution_started", start_response_msg_data[0])
+        self.assertTrue(self.receive_events(start_response_msg_data[1]))
 
-    def test_remote_execution2(self):
+    @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
+    def test_remote_execution2(self, mock_project_dir):
         """Tests executing a project with 3 items (1 Dc, 2 Tools, and 2 Tool specs)."""
-        engine_data = self.make_engine_data_for_project_package_project()
-        msg_data_json = json.dumps(engine_data)
+        mock_project_dir.return_value = self._temp_dir.name
         with open(os.path.join(str(Path(__file__).parent), "project_package.zip"), "rb") as f:
-            data = f.read()
-        msg = ServerMessage("execute", "1", msg_data_json, ["project_package.zip"])
-        msg_as_bytes = bytes(msg.toJSON(), "utf-8")
-        self.socket.send_multipart([msg_as_bytes, data])
-        response = self.socket.recv()
-        response_dict = json.loads(response.decode("utf-8"))
-        self.assertEqual("remote_execution_started", response_dict["data"][0])
-        self.assertTrue(self.receive_events(response_dict["data"][1]))
+            file_data = f.read()
+        prepare_msg = ServerMessage("prepare_execution", "1", json.dumps("test project2"), ["project_package.zip"])
+        self.socket.send_multipart([prepare_msg.to_bytes(), file_data])
+        prepare_response = self.socket.recv()
+        prepare_response_msg = ServerMessage.parse(prepare_response)
+        job_id = prepare_response_msg.getId()
+        self.assertEqual("prepare_execution", prepare_response_msg.getCommand())
+        self.assertTrue(len(job_id) == 32)
+        self.assertEqual("", prepare_response_msg.getData())
+        # Send start_execution request
+        engine_data = self.make_engine_data_for_project_package_project()
+        engine_data_json = json.dumps(engine_data)
+        start_msg = ServerMessage("start_execution", job_id, engine_data_json, None)
+        self.socket.send_multipart([start_msg.to_bytes()])
+        start_response = self.socket.recv()
+        start_response_msg = ServerMessage.parse(start_response)
+        start_response_msg_data = start_response_msg.getData()
+        self.assertEqual("remote_execution_started", start_response_msg_data[0])
+        self.assertTrue(self.receive_events(start_response_msg_data[1]))
 
-    def test_loop_calls(self):
+    @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
+    def test_loop_calls(self, mock_proj_dir):
         """Tests executing a DC -> Python Tool DAG five times in a row."""
-        engine_data = self.make_engine_data_for_test_zipfile_project()
-        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
-            data_file = f.read()
-        i = 0
-        while i < 5:
+        mock_proj_dir.return_value = self._temp_dir.name
+        engine_data = self.make_engine_data_for_project_package_project()
+        engine_data_json = json.dumps(engine_data)
+        with open(os.path.join(str(Path(__file__).parent), "project_package.zip"), "rb") as f:
+            file_data = f.read()
+        for i in range(5):
             # Switch project folder on each iteration
-            engine_data["project_dir"] = "./helloworld" + str(i)
-            engine_data["specifications"]["Tool"][0]["definition_file_path"] = (
-                "./helloworld" + str(i) + "/.spinetoolbox/specifications/Tool/helloworld2.json"
-            )
-            msg_data_json = json.dumps(engine_data)
-            msg = ServerMessage("execute", str(i), msg_data_json, ["test_zipfile.zip"])
-            self.socket.send_multipart([msg.to_bytes(), data_file])
-            response = self.socket.recv()
-            response_dict = json.loads(response.decode("utf-8"))
-            self.assertEqual("remote_execution_started", response_dict["data"][0])
-            self.assertTrue(self.receive_events(response_dict["data"][1]))
-            i += 1
-
-    def test_invalid_project_folder(self):
-        """Tests what happens when project_dir is an empty string."""
-        engine_data = self.make_engine_data_for_test_zipfile_project()
-        engine_data["project_dir"] = ""  # Clear project_dir for testing purposes
-        msg_data_json = json.dumps(engine_data)
-        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
-            data_file = f.read()
-        msg = ServerMessage("execute", "1", msg_data_json, ["helloworld.zip"])
-        self.socket.send_multipart([msg.to_bytes(), data_file])
-        self.assert_error_response("remote_execution_init_failed", "Problem in execute request.")
-
-    def test_init_no_binarydata(self):
-        """Try to execute a DC -> Tool DAG, but forget to send the project zip-file."""
-        engine_data = self.make_engine_data_for_test_zipfile_project()
-        msg_data_json = json.dumps(engine_data)
-        msg = ServerMessage("execute", "1", msg_data_json, ["helloworld.zip"])
-        self.socket.send_multipart([msg.to_bytes()])
-        self.assert_error_response("remote_execution_init_failed", "Project zip-file missing")
-
-    def test_no_filename(self):
-        """Try to execute a DC->Tool DAG, but forget to include a zip-file name. """
-        engine_data = self.make_engine_data_for_test_zipfile_project()
-        msg_data_json = json.dumps(engine_data)
-        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
-            data = f.read()
-        msg = ServerMessage("execute", "1", msg_data_json, None)  # Note: files == None
-        self.socket.send_multipart([msg.to_bytes(), data])
-        self.assert_error_response("remote_execution_init_failed", "Zip-file name missing")
-
-    def test_invalid_json(self):
-        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f2:
-            data = f2.read()
-        msg_data = '{"abc": "value:"123""}'  # Invalid JSON string (json.loads() should fail on server)
-        msg = ServerMessage("execute", "1", msg_data, None)
-        self.socket.send_multipart([msg.to_bytes(), data])
-        self.assert_error_response("server_init_failed", "json.decoder.JSONDecodeError:")
-
-    def test_path_for_local_project_dir(self):
-        """In practice, given p for the tested method should always be an absolute path.
-        Also, p is never None or an empty string (must be checked before calling this
-        method)."""
-        p = "./home/ubuntu/hellofolder"  # Linux relative
-        ret = RemoteExecutionService.path_for_local_project_dir(p)
-        _, dir_name = os.path.split(ret)
-        self.assertTrue(os.path.isabs(ret))
-        self.assertTrue(dir_name.startswith("hellofolder"))
-        self.assertTrue(len(dir_name) == 45)  # e.g. "hellofolder__af724968e13b4fd782212921becafc47"
-        p = "./hellofolder"  # Linux relative
-        ret = RemoteExecutionService.path_for_local_project_dir(p)
-        self.assertTrue(os.path.isabs(ret))
-        self.assertTrue(dir_name.startswith("hellofolder"))
-        self.assertTrue(len(dir_name) == 45)
-        p = "/home/ubuntu/hellofolder"  # Linux absolute
-        ret = RemoteExecutionService.path_for_local_project_dir(p)
-        self.assertTrue(os.path.isabs(ret))
-        self.assertTrue(dir_name.startswith("hellofolder"))
-        self.assertTrue(len(dir_name) == 45)
-        p = ".\\hellofolder"  # Windows relative
-        ret = RemoteExecutionService.path_for_local_project_dir(p)
-        self.assertTrue(os.path.isabs(ret))
-        self.assertTrue(dir_name.startswith("hellofolder"))
-        self.assertTrue(len(dir_name) == 45)
-        p = "c:\\data\\project\\hellofolder"  # Windows absolute
-        ret = RemoteExecutionService.path_for_local_project_dir(p)
-        self.assertTrue(os.path.isabs(ret))
-        self.assertTrue(dir_name.startswith("hellofolder"))
-        self.assertTrue(len(dir_name) == 45)
+            project_name = "loop_test_project_" + str(i)
+            prepare_msg = ServerMessage("prepare_execution", "1", json.dumps(project_name), ["project_package.zip"])
+            self.socket.send_multipart([prepare_msg.to_bytes(), file_data])
+            prepare_response = self.socket.recv()
+            prepare_response_msg = ServerMessage.parse(prepare_response)
+            job_id = prepare_response_msg.getId()
+            self.assertEqual("prepare_execution", prepare_response_msg.getCommand())
+            # Send start_execution request
+            start_msg = ServerMessage("start_execution", job_id, engine_data_json, None)
+            self.socket.send_multipart([start_msg.to_bytes()])
+            start_response = self.socket.recv()
+            start_response_msg = ServerMessage.parse(start_response)
+            start_response_msg_data = start_response_msg.getData()
+            self.assertEqual("remote_execution_started", start_response_msg_data[0])
+            self.assertTrue(self.receive_events(start_response_msg_data[1]))
 
     def receive_events(self, publish_port):
         """Receives events from server until DAG execution has finished.
@@ -187,7 +151,6 @@ class TestRemoteExecutionService(unittest.TestCase):
     def assert_error_response(self, expected_event_type, expected_start_of_error_msg):
         """Waits for a response from server and checks that the error msg is as expected."""
         response = self.socket.recv()
-        response = response.decode("utf-8")
         server_msg = ServerMessage.parse(response)
         msg_data = server_msg.getData()
         self.assertEqual(expected_event_type, msg_data[0])

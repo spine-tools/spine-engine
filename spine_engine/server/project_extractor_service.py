@@ -52,13 +52,12 @@ class ProjectExtractorService(threading.Thread):
         if not len(file_names) == 1:  # No file name included
             print("Received msg contained no file name for the ZIP file")
             self.request.send_response(
-                self.worker_socket, ("remote_execution_init_failed", "ZIP file name missing"), (self.job_id, ""))
+                self.worker_socket, ("remote_execution_init_failed", "Project ZIP file name missing"), (self.job_id, ""))
             return
         if not dir_name:
-            print("Project dir missing from request. Cannot create a local project directory.")
+            print("Project name missing from request. Cannot create a local project directory.")
             self.request.send_response(
-                self.worker_socket, ("remote_execution_init_failed", "Problem in prepare_execution request. "
-                                                                     "Folder name should be included to request."),
+                self.worker_socket, ("remote_execution_init_failed", "Project name missing"),
                 (self.job_id, "")
             )
             return
@@ -115,7 +114,7 @@ class ProjectExtractorService(threading.Thread):
         try:
             os.remove(zip_path)
         except OSError:
-            print(f"File: {zip_path} was not removed")
+            print(f"[OSError] File: {zip_path} was not removed")
         reply_msg = ServerMessage(self.request.cmd(), self.job_id, "", None)
         internal_msg = json.dumps((self.job_id, local_project_dir))
         self.request.send_multipart_reply(

@@ -16,6 +16,7 @@ Unit tests for EventDataConverter class.
 """
 
 import unittest
+from copy import deepcopy
 from spine_engine.spine_engine import ItemExecutionFinishState
 from spine_engine.server.util.event_data_converter import EventDataConverter
 
@@ -57,8 +58,9 @@ class TestEventDataConverter(unittest.TestCase):
         self.assertEqual(4, n)
 
     def test_convert_deconvert(self):
-        """Converts events, then deconvert them. """
+        """Converts events, then deconverts them back."""
         event_data = self.make_event_data()
+        expected_data = deepcopy(event_data)
         converted_events = list()
         for event in event_data:
             json_str = EventDataConverter.convert(event[0], event[1])
@@ -69,11 +71,8 @@ class TestEventDataConverter(unittest.TestCase):
             event_tuple = EventDataConverter.deconvert(conv_event.encode("utf-8"))
             deconverted_events.append(event_tuple)
         self.assertEqual(16, len(deconverted_events))
-        # Note: Make original data again because event_data on first line was edited by convert()
-        original_data = self.make_event_data()
         # The converted & deconverted list must be equal to the original
-        for i in range(len(deconverted_events)):
-            self.assertEqual(original_data[i], deconverted_events[i])
+        self.assertEqual(expected_data, deconverted_events)
 
 
 if __name__ == '__main__':

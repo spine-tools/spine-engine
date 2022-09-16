@@ -28,7 +28,7 @@ class EventDataConverter:
 
         Args:
             event_type: (str): Event type (e.g. exec_started, dag_exec_finished, etc.)
-            data (dict): Data associated with the event_type
+            data (dict or str): Data associated with the event_type
             b64encoding (bool): True encodes data as base64, False does not
 
         Returns:
@@ -38,15 +38,7 @@ class EventDataConverter:
             msg_b = str(data).encode("ascii")
             base64_b = base64.b64encode(msg_b)
             data = base64_b.decode("ascii")
-        if type(data) != str:
-            if "item_state" in data.keys():
-                data["item_state"] = str(data["item_state"])  # Cast ItemExecutionFinishState instance to string
-            if "url" in data.keys():
-                data["url"] = str(data["url"])  # Cast URL instances to string
-            for key in data.keys():
-                if type(data[key]) == tuple:
-                    # tuples are converted to lists by json.dumps(). Convert the lists back to tuples on client side
-                    print(f"[DEBUG] Found tuple in {event_type}: data. This may be a problem on client side.")
+        data = break_event_data(event_type, data)
         event_dict = {"event_type": event_type, "data": data}
         json_event_data = json.dumps(event_dict)
         return json_event_data
@@ -76,8 +68,30 @@ class EventDataConverter:
         return fixed_event
 
 
+def break_event_data(event_type, data):
+    """Makes values in data dictionary suitable for converting them to JSON strings.
+
+    Args:
+        event_type (str): Event type
+        data (dict or str): Data
+
+    Returns:
+        dict or str: Converted data dictionary or data string as it was.
+    """
+    if type(data) != str:
+        if "item_state" in data.keys():
+            data["item_state"] = str(data["item_state"])  # Cast ItemExecutionFinishState instance to string
+        if "url" in data.keys():
+            data["url"] = str(data["url"])  # Cast URL instances to string
+        for key in data.keys():
+            if type(data[key]) == tuple:
+                # tuples are converted to lists by json.dumps(). Convert the lists back to tuples on client side
+                print(f"[DEBUG] Found tuple in {event_type}: data. This may be a problem on client side.")
+    return data
+
+
 def fix_event_data(event):
-    """Converts data back to what was sent.
+    """Does the opposite of break_event_data(). Converts values in data dictionary back to original.
 
     Args:
         event (tuple): (event_type, data). event_type is str, data is dict or str.

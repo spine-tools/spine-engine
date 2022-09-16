@@ -22,7 +22,19 @@ class ServerMessage:
     """Class for communicating requests and replies between the client and the server."""
     def __init__(self, command, req_id, data, files):
         """
-        Class constructor.
+        Supported requests and expected server responses
+        - Ping
+            request: ServerMessage("ping", id, "", None)
+            response: ServerMessage("ping", id, "", None)
+        - Prepare project execution
+            request: ServerMessage("prepare_execution", "1", <project_name>, [project_package.zip]) + file as bytes
+            response: ServerMessage("prepare_execution, job_id, "", None)
+        - Start DAG execution
+            request: ServerMessage("start_execution", job_id, engine_data, None)
+            response: ServerMessage("start_execution", job_id, ("remote_execution_started", publish_port), [])
+        - Retrieve finished project
+            request: ServerMessage("retrieve_project", job_id, "", [])
+            response ServerMessage("retrieve_project, job_id, "", ["project_package.zip"]) + file as bytes
 
         Args:
             command (str): Command to be executed at the server
@@ -97,15 +109,15 @@ class ServerMessage:
 
     @classmethod
     def parse(cls, message):
-        """Makes a ServerMessage instance from a received JSON string.
+        """Makes a ServerMessage instance from a received bytes object.
 
         Args:
-            message (str): JSON message
+            message (bytes): JSON message as bytes
 
         Returns:
             ServerMessage: Parsed message
         """
-        parsed_msg = json.loads(message)  # Load JSON string into dictionary
+        parsed_msg = json.loads(message.decode("utf-8"))  # Load JSON string into dictionary
         filenames = parsed_msg["files"]  # dict
         data = parsed_msg["data"]  # list
         parsed_filenames = list()
