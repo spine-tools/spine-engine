@@ -497,12 +497,10 @@ class SpineEngine:
         """
         item = self._make_item(item_name, ED.FORWARD)
         if not item.ready_to_execute(self._settings):
-            if not self._execution_permits[self._solid_names[item_name]]:  # Exclude if not selected
-                item_finish_state = ItemExecutionFinishState.EXCLUDED
-            else:  # Fail if selected
-                context.log.error(f"compute_fn() FAILURE with '{item_name}', not ready for forward execution")
-                item_finish_state = ItemExecutionFinishState.FAILURE
-            return item_finish_state, []
+            if not self._execution_permits[self._solid_names[item_name]]:
+                return ItemExecutionFinishState.EXCLUDED, []
+            context.log.error(f"compute_fn() FAILURE with '{item_name}', not ready for forward execution")
+            return ItemExecutionFinishState.FAILURE, []
         if self._execution_permits[self._solid_names[item_name]] and not item.execute_unfiltered(
             forward_resource_stacks, backward_resources
         ):
