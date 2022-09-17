@@ -453,11 +453,12 @@ class SpineEngine:
                     forward_resource_stacks += values
                 elif name.startswith(f"{ED.BACKWARD}"):
                     backward_resources += values
-            output_resource_stacks, item_finish_state = self._execute_item(
+            item_finish_state, output_resource_stacks = self._execute_item(
                 context, item_name, forward_resource_stacks, backward_resources
             )
             yield AssetMaterialization(asset_key=str(item_finish_state))
-            yield Output(value=output_resource_stacks, output_name=f"{ED.FORWARD}_output")
+            if output_resource_stacks:
+                yield Output(value=output_resource_stacks, output_name=f"{ED.FORWARD}_output")
             for conn in self._connections_by_source.get(item_name, []):
                 conn.visit_source()
 
@@ -491,8 +492,22 @@ class SpineEngine:
             backward_resources (list(ProjectItemResource))
 
         Returns:
+            ItemExecutionFinishState
             list(tuple(ProjectItemResource))
         """
+        item = self._make_item(item_name, ED.FORWARD)
+        if not item.ready_to_execute(self._settings):
+            if not self._execution_permits[self._solid_names[item_name]]:  # Exclude if not selected
+                item_finish_state = ItemExecutionFinishState.EXCLUDED
+            else:  # Fail if selected
+                context.log.error(f"compute_fn() FAILURE with '{item_name}', not ready for forward execution")
+                item_finish_state = ItemExecutionFinishState.FAILURE
+            return item_finish_state, []
+        if self._execution_permits[self._solid_names[item_name]] and not item.execute_unfiltered(
+            forward_resource_stacks, backward_resources
+        ):
+            context.log.error(f"compute_fn() FAILURE with {item_name}, failed to execute")
+            return ItemExecutionFinishState.FAILURE, []
         success = [ItemExecutionFinishState.NEVER_FINISHED]
         output_resources_list = []
         threads = []
@@ -501,29 +516,22 @@ class SpineEngine:
         )
         for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
             item = self._make_item(item_name, ED.FORWARD)
-            if not item.ready_to_execute(self._settings):
-                if not self._execution_permits[self._solid_names[item_name]]:  # Exclude if not selected
-                    success[0] = ItemExecutionFinishState.EXCLUDED
-                else:  # Fail if selected
-                    context.log.error(f"compute_fn() FAILURE in: '{item_name}', not ready for forward execution")
-                    success[0] = ItemExecutionFinishState.FAILURE
-            else:
-                item.filter_id = filter_id
-                thread = threading.Thread(
-                    target=self._execute_item_filtered,
-                    args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, success),
-                )
-                threads.append(thread)
-                thread.start()
+            item.filter_id = filter_id
+            thread = threading.Thread(
+                target=self._execute_item_filtered,
+                args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, success),
+            )
+            threads.append(thread)
+            thread.start()
         for thread in threads:
             thread.join()
         if success[0] == ItemExecutionFinishState.FAILURE:
-            context.log.error(f"compute_fn() FAILURE with item: {item_name} failed to execute")
+            context.log.error(f"compute_fn() FAILURE with {item_name}, failed to execute")
             raise Failure()
         for resources in output_resources_list:
             for connection in self._connections_by_source.get(item_name, []):
                 connection.receive_resources_from_source(resources)
-        return output_resources_list, success[0]
+        return success[0], output_resources_list
 
     def _execute_item_filtered(
         self, item, filtered_forward_resources, filtered_backward_resources, output_resources_list, success
@@ -558,7 +566,7 @@ class SpineEngine:
         """Yields tuples of (filtered forward resources, filtered backward resources, filter id).
 
         Each tuple corresponds to a unique filter combination. Combinations are obtained by applying the cross-product
-        over forward resource stacks as yielded by ``_forward_resource_stacks_iterator``.
+        over forward resource stacks.
 
         Args:
             item_name (str)

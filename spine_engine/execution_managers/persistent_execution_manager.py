@@ -406,6 +406,7 @@ class JuliaPersistentManager(PersistentManagerBase):
             f'include("{path}"); SpineREPL.start_server("{host}", {port})',
             "--color=yes",
             "--banner=yes",
+            # "--threads=auto",
         ]
 
     @staticmethod

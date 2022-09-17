@@ -94,6 +94,10 @@ class ExecutableItemBase:
         """
         return True
 
+    def execute_unfiltered(self, forward_resources, backward_resources):
+        """Executes tasks that should be done only once, instead of once per filtered execution."""
+        return True
+
     def execute(self, forward_resources, backward_resources):
         """Executes this item using the given resources and returns a boolean indicating the outcome.
 
@@ -116,7 +120,7 @@ class ExecutableItemBase:
         Only lightweight bookkeeping or processing should be done in this case, e.g.
         forward input resources.
 
-        Subclasses can implement this method to the appropriate work.
+        Subclasses can implement this method to do the appropriate work.
 
         Args:
             forward_resources (list): a list of ProjectItemResources from predecessors (forward)
