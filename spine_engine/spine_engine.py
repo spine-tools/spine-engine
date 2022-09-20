@@ -700,7 +700,10 @@ class SpineEngine:
             resources_from_destination = resources_by_provider.get(c.destination)
             if resources_from_destination is None:
                 continue
-            resources_by_provider[c.destination] = c.convert_backward_resources(resources_from_destination)
+            sibling_connections = [x for x in self._connections_by_destination.get(c.destination, []) if x != c]
+            resources_by_provider[c.destination] = c.convert_backward_resources(
+                resources_from_destination, sibling_connections
+            )
         return [r for resources in resources_by_provider.values() for r in resources]
 
     def _convert_forward_resources(self, item_name, resources):

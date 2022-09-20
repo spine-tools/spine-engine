@@ -184,6 +184,13 @@ class ResourceConvertingConnection(ConnectionBase):
         """True if in-memory database is used, False otherwise"""
         return self.options.get("use_memory_db", False)
 
+    @property
+    def write_index(self):
+        """The index this connection has in concurrent writing. Defaults to 1, lower writes earlier.
+        If two or more connections have the same, then no order is enforced among them.
+        """
+        return self.options.get("write_index", 1)
+
     def _has_disabled_filters(self):
         """Return True if connection has disabled filters.
 
@@ -200,18 +207,19 @@ class ResourceConvertingConnection(ConnectionBase):
         """See base class."""
         self._resources = {r for r in resources if r.type_ == "database" and r.filterable}
 
-    def convert_backward_resources(self, resources):
+    def convert_backward_resources(self, resources, sibling_connections):
         """Called when advertising resources through this connection *in the BACKWARD direction*.
         Takes the initial list of resources advertised by the destination item and returns a new list,
         which is the one finally advertised.
 
         Args:
             resources (list of ProjectItemResource): Resources to convert
+            sibling_connections (list of Connection): Sibling connections
 
         Returns:
             list of ProjectItemResource
         """
-        return self._apply_use_memory_db(resources)
+        return self._apply_use_memory_db(self._apply_write_index(resources, sibling_connections))
 
     def convert_forward_resources(self, resources):
         """Called when advertising resources through this connection *in the FORWARD direction*.
@@ -233,6 +241,15 @@ class ResourceConvertingConnection(ConnectionBase):
         for r in resources:
             if r.type_ == "database":
                 r = r.clone(additional_metadata={"memory": True})
+            final_resources.append(r)
+        return final_resources
+
+    def _apply_write_index(self, resources, sibling_connections):
+        final_resources = []
+        precursors = [c.name for c in sibling_connections if c.write_index < self.write_index]
+        for r in resources:
+            if r.type_ == "database":
+                r = r.clone(additional_metadata={"consumer": self.name, "precursors": precursors})
             final_resources.append(r)
         return final_resources
 

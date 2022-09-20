@@ -16,12 +16,17 @@ Provides the ProjectItemResource class.
 :date:   29.4.2020
 """
 import copy
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 from spinedb_api.filters.tools import clear_filter_configs
 from spinedb_api.spine_db_server import closing_spine_db_server
+from .resource_manager import ResourceManager
+
+
+_resource_mngr = ResourceManager()
 
 
 class ProjectItemResource:
@@ -34,7 +39,7 @@ class ProjectItemResource:
         metadata (dict): resource's metadata
     """
 
-    def __init__(self, provider_name, type_, label, url=None, metadata=None, filterable=False):
+    def __init__(self, provider_name, type_, label, url=None, metadata=None, filterable=False, identifier=None):
         """
         Args:
             provider_name (str): The name of the item that provides the resource
@@ -52,6 +57,7 @@ class ProjectItemResource:
                 - filter_id (str): filter id
             filterable (bool): If True, the resource provides opportunity for filtering
         """
+        self.identifier = identifier if identifier is not None else uuid.uuid4().hex
         self.provider_name = provider_name
         self.type_ = type_
         self.label = label
@@ -62,11 +68,12 @@ class ProjectItemResource:
 
     @contextmanager
     def open(self):
-        if self.type_ == "database":
-            with closing_spine_db_server(self.url, memory=self.metadata.get("memory", False)) as server_url:
-                yield server_url
-        else:
-            yield self.path if self.hasfilepath else ""
+        with _resource_mngr.managing_order(self):
+            if self.type_ == "database":
+                with closing_spine_db_server(self.url, memory=self.metadata.get("memory", False)) as server_url:
+                    yield server_url
+            else:
+                yield self.path if self.hasfilepath else ""
 
     def clone(self, additional_metadata=None):
         """Clones a resource and optionally updates the clone's metadata.
@@ -88,6 +95,7 @@ class ProjectItemResource:
             url=self._url,
             metadata=metadata,
             filterable=self._filterable,
+            identifier=self.identifier,
         )
 
     def __eq__(self, other):

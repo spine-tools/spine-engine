@@ -806,7 +806,8 @@ class TestSpineEngine(unittest.TestCase):
                     self.assertEqual(resource.provider_name, expected_resource.provider_name)
                     self.assertEqual(resource.label, expected_resource.label)
                     self.assertEqual(clear_filter_configs(resource.url), expected_resource.url)
-                    self.assertEqual(resource.metadata, expected_resource.metadata)
+                    for key, value in expected_resource.metadata.items():
+                        self.assertEqual(resource.metadata[key], value)
 
 
 if __name__ == '__main__':
