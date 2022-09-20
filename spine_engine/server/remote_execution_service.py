@@ -20,6 +20,7 @@ import threading
 import zmq
 from spine_engine import SpineEngine
 from spine_engine.server.util.event_data_converter import EventDataConverter
+from spine_engine.server.util.zip_handler import ZipHandler
 
 
 class RemoteExecutionService(threading.Thread):
@@ -69,18 +70,17 @@ class RemoteExecutionService(threading.Thread):
             )
             self.pub_socket.send_multipart([b"EVENTS", json_error_event.encode("utf-8")])
             return
+
         # Note: This is not sent to client
         self.request.send_response(
             self.worker_socket, ("remote_execution_event", "completed"), (self.job_id, "completed"))
         print("Execution done")
         # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
         # try:
-        #     time.sleep(4)
-        #     FileExtractor.delete_folder(local_project_dir+"/")
-        #     print("RemoteExecutionService._execute(): Deleted folder %s"%local_project_dir+"/")
+        #     ZipHandler.delete_folder(self.local_project_dir)
+        #     print(f"RemoteExecutionService._execute(): Deleted folder {self.local_project_dir}")
         # except Exception as e:
-        #     print(f"RemoteExecutionService._execute(): Couldn't delete directory {local_project_dir}. Error:\n{e}")
-        # debugging
+        #     print(f"RemoteExecutionService._execute(): Couldn't delete directory {self.local_project_dir}. Error:\n{e}")
         # execStopTimeMs=round(time.time()*1000.0)
         # print("RemoteExecutionService._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
 
@@ -136,4 +136,8 @@ class RemoteExecutionService(threading.Thread):
             if "execute_in_work" in input_data["items"][items_key]:
                 # print("RemoteExecutionService.convert_input() execute_in_work in an item")
                 input_data["items"][items_key]["execute_in_work"] = False
+        # Edit app settings dictionary
+        # Replace Julia path and Julia project path with an empty string so that the server uses the Julia in PATH
+        input_data["settings"]["appSettings/juliaPath"] = ""
+        input_data["settings"]["appSettings/juliaProjectPath"] = ""
         return input_data

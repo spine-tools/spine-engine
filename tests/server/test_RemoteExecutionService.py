@@ -49,7 +49,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         try:
             self._temp_dir.cleanup()
         except RecursionError:
-            print("RecursionError. Everything is fine.")
+            print("RecursionError due to a PermissionError on Windows")
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_remote_execution1(self, mock_proj_dir):
@@ -78,7 +78,7 @@ class TestRemoteExecutionService(unittest.TestCase):
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_remote_execution2(self, mock_project_dir):
-        """Tests executing a project with 3 items (1 Dc, 2 Tools, and 2 Tool specs)."""
+        """Tests executing a project with 3 items (1 Dc + 2 Tools)."""
         mock_project_dir.return_value = self._temp_dir.name
         with open(os.path.join(str(Path(__file__).parent), "project_package.zip"), "rb") as f:
             file_data = f.read()
@@ -103,7 +103,7 @@ class TestRemoteExecutionService(unittest.TestCase):
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_loop_calls(self, mock_proj_dir):
-        """Tests executing a DC -> Python Tool DAG five times in a row."""
+        """Tests executing a project with 3 items (1 DC + 2 Tools) five times in a row."""
         mock_proj_dir.return_value = self._temp_dir.name
         engine_data = self.make_engine_data_for_project_package_project()
         engine_data_json = json.dumps(engine_data)

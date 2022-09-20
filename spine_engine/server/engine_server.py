@@ -158,6 +158,7 @@ class EngineServer(threading.Thread):
                         if isinstance(finished_worker, ProjectExtractorService):
                             project_dirs[internal_msg[0]] = internal_msg[1]
                         finished_worker.close()
+                        finished_worker.join()
                     if internal_msg[1] != "completed":  # Note: completed msg not sent to clients
                         print(f"Sending response to client {message[0]}")
                         frontend.send_multipart(message)
