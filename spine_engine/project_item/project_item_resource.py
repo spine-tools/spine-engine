@@ -23,10 +23,6 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 from spinedb_api.filters.tools import clear_filter_configs
 from spinedb_api.spine_db_server import closing_spine_db_server
-from .resource_manager import ResourceManager
-
-
-_resource_mngr = ResourceManager()
 
 
 class ProjectItemResource:
@@ -68,12 +64,18 @@ class ProjectItemResource:
 
     @contextmanager
     def open(self):
-        with _resource_mngr.managing_order(self):
-            if self.type_ == "database":
-                with closing_spine_db_server(self.url, memory=self.metadata.get("memory", False)) as server_url:
-                    yield server_url
-            else:
-                yield self.path if self.hasfilepath else ""
+        if self.type_ == "database":
+            ordering = {
+                "id": self.identifier,
+                "consumer": self.metadata.get("consumer"),
+                "precursors": self.metadata.get("precursors"),
+            }
+            with closing_spine_db_server(
+                self.url, memory=self.metadata.get("memory", False), ordering=ordering
+            ) as server_url:
+                yield server_url
+        else:
+            yield self.path if self.hasfilepath else ""
 
     def clone(self, additional_metadata=None):
         """Clones a resource and optionally updates the clone's metadata.
