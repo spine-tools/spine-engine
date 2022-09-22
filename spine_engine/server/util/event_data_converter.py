@@ -78,11 +78,24 @@ def break_event_data(event_type, data):
     Returns:
         dict or str: Converted data dictionary or data string as it was.
     """
+
     if type(data) != str:
         if "item_state" in data.keys():
             data["item_state"] = str(data["item_state"])  # Cast ItemExecutionFinishState instance to string
         if "url" in data.keys():
             data["url"] = str(data["url"])  # Cast URL instances to string
+        if "connection_file" in data.keys():
+            # When the item requires a Jupyter Console for execution, this is the message that the client uses
+            # to connect to the kernel manager running on server
+            # kernel_execution_msg: {'item_name': 'T2', 'filter_id': '', 'type': 'kernel_started',
+            #                        'connection_file': '/tmp/tmp_ve9ohel.json', 'kernel_name': 'python3'}
+            # We need to read the connection file to a JSON dictionary and insert that to data as a new key
+            with open(data["connection_file"], "r") as fh:
+                try:
+                    connection_file_dict = json.load(fh)
+                    data["connection_file_dict"] = connection_file_dict
+                except json.decoder.JSONDecodeError:
+                    print(f"Error loading connection file {data['connection_file']}. Invalid JSON.")
         for key in data.keys():
             if type(data[key]) == tuple:
                 # tuples are converted to lists by json.dumps(). Convert the lists back to tuples on client side
