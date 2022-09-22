@@ -126,9 +126,15 @@ class RemoteExecutionService(threading.Thread):
                     input_data["specifications"][specs_key][i]["definition_file_path"] = modified
                 # Force execute_in_work to False
                 if "execute_in_work" in specItemInfo:
-                    # print("RemoteExecutionService.convert_input(): spec item info contains execute_in_work")
                     input_data["specifications"][specs_key][i]["execute_in_work"] = False
                 i += 1
+                if "execution_settings" in specItemInfo:
+                    if specItemInfo["execution_settings"]["use_jupyter_console"]:
+                        # Replace kernel_spec_name with the default kernel spec 'python3' (must be available on server)
+                        specItemInfo["execution_settings"]["kernel_spec_name"] = "python3"
+                    else:
+                        # Replace Python executable exec with "" because client's Python is not be available on server
+                        specItemInfo["execution_settings"]["executable"] = ""
         # Loop items
         items_keys = input_data["items"].keys()
         for items_key in items_keys:
