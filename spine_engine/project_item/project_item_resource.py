@@ -68,7 +68,7 @@ class ProjectItemResource:
             ordering = {
                 "id": self.identifier,
                 "consumer": self.metadata.get("consumer"),
-                "precursors": self.metadata.get("precursors"),
+                "precursors": self.metadata.get("precursors", ()),
             }
             with closing_spine_db_server(
                 self.url, memory=self.metadata.get("memory", False), ordering=ordering
