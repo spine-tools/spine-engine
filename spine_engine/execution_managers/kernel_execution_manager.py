@@ -32,22 +32,30 @@ class _KernelManagerFactory(metaclass=Singleton):
     _key_by_connection_file = {}
     """Maps connection file string to tuple (kernel_name, group_id). Mostly for fast lookup in ``restart_kernel()``"""
 
-    def _make_kernel_manager(self, kernel_name, group_id):
+    def _make_kernel_manager(self, kernel_name, group_id, server_ip):
         """Creates a new kernel manager for given kernel and group id if none exists, and returns it.
 
         Args:
             kernel_name (str): the kernel
             group_id (str): item group that will execute using this kernel
+            server_ip (str): IP address of Spine Engine Server if executing remotely or None if executing locally
 
         Returns:
             KernelManager
         """
         if group_id is None:
             # Execute in isolation
-            return KernelManager(kernel_name=kernel_name)
+            if not server_ip:
+                km = KernelManager(kernel_name=kernel_name)
+            else:
+                km = KernelManager(kernel_name=kernel_name, ip=server_ip)
+            return km
         key = (kernel_name, group_id)
         if key not in self._kernel_managers:
-            self._kernel_managers[key] = KernelManager(kernel_name=kernel_name)
+            if not server_ip:
+                self._kernel_managers[key] = KernelManager(kernel_name=kernel_name)
+            else:
+                self._kernel_managers[key] = KernelManager(kernel_name=kernel_name, ip=server_ip)
         return self._kernel_managers[key]
 
     def new_kernel_manager(self, kernel_name, group_id, logger, extra_switches=None, environment="", **kwargs):
@@ -66,7 +74,12 @@ class _KernelManagerFactory(metaclass=Singleton):
         Returns:
             KernelManager
         """
-        km = self._make_kernel_manager(kernel_name, group_id)
+        remote_exec_enabled = kwargs.pop("remote_exec_enabled", False)
+        if remote_exec_enabled:
+            server_ip = kwargs.pop("server_ip", "")
+        else:
+            server_ip = None
+        km = self._make_kernel_manager(kernel_name, group_id, server_ip)
         conda_exe = kwargs.pop("conda_exe", "")
         if environment == "conda":
             try:
