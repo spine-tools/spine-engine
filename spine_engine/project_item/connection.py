@@ -22,6 +22,7 @@ from datapackage import Package
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
+from spinedb_api.purge import purge_url
 from spine_engine.project_item.project_item_resource import (
     file_resource,
     cmd_line_arg_from_dict,
@@ -185,6 +186,17 @@ class ResourceConvertingConnection(ConnectionBase):
         return self.options.get("use_memory_db", False)
 
     @property
+    def purge_before_writing(self):
+        """True if purge before writing is active, False otherwise"""
+        return self.options.get("purge_before_writing", False)
+
+    @property
+    def purge_settings(self):
+        """A dictionary mapping DB item types to a boolean value indicating whether to wipe them or not,
+        or None if the entire DB should suffer."""
+        return self.options.get("purge_settings")
+
+    @property
     def write_index(self):
         """The index this connection has in concurrent writing. Defaults to 1, lower writes earlier.
         If two or more connections have the same, then no order is enforced among them.
@@ -219,7 +231,9 @@ class ResourceConvertingConnection(ConnectionBase):
         Returns:
             list of ProjectItemResource
         """
-        return self._apply_use_memory_db(self._apply_write_index(resources, sibling_connections))
+        return self._apply_use_memory_db(
+            self._apply_write_index(self._apply_purge_before_writing(resources), sibling_connections)
+        )
 
     def convert_forward_resources(self, resources):
         """Called when advertising resources through this connection *in the FORWARD direction*.
@@ -233,6 +247,13 @@ class ResourceConvertingConnection(ConnectionBase):
             list of ProjectItemResource
         """
         return self._apply_use_memory_db(self._apply_use_datapackage(resources))
+
+    def _apply_purge_before_writing(self, resources):
+        if self.purge_before_writing:
+            to_urls = (r.url for r in resources if r.type_ == "database")
+            for url in to_urls:
+                purge_url(url, self.purge_settings, self._logger)
+        return resources
 
     def _apply_use_memory_db(self, resources):
         if not self.use_memory_db:
