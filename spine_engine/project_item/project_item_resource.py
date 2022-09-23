@@ -23,6 +23,7 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 from spinedb_api.filters.tools import clear_filter_configs
 from spinedb_api.spine_db_server import closing_spine_db_server
+from spinedb_api.spine_db_client import SpineDBClient
 
 
 class ProjectItemResource:
@@ -63,7 +64,7 @@ class ProjectItemResource:
         self._filterable = filterable
 
     @contextmanager
-    def open(self):
+    def open(self, db_checkin=False, db_checkout=False):
         if self.type_ == "database":
             ordering = {
                 "id": self.identifier,
@@ -73,7 +74,13 @@ class ProjectItemResource:
             with closing_spine_db_server(
                 self.url, memory=self.metadata.get("memory", False), ordering=ordering
             ) as server_url:
-                yield server_url
+                if db_checkin:
+                    SpineDBClient.from_server_url(server_url).db_checkin()
+                try:
+                    yield server_url
+                finally:
+                    if db_checkout:
+                        SpineDBClient.from_server_url(server_url).db_checkout()
         else:
             yield self.path if self.hasfilepath else ""
 
@@ -315,7 +322,7 @@ def cmd_line_arg_from_dict(arg_dict):
     return construct(arg_dict["arg"])
 
 
-def labelled_resource_args(resources, stack):
+def labelled_resource_args(resources, stack, db_checkin=False, db_checkout=False):
     """
     Args:
         resources (Iterable of ProjectItemResource): resources to process
@@ -327,9 +334,11 @@ def labelled_resource_args(resources, stack):
     result = {}
     single_resources, pack_resources = extract_packs(resources)
     for resource in single_resources:
-        result[resource.label] = stack.enter_context(resource.open())
+        result[resource.label] = stack.enter_context(resource.open(db_checkin=db_checkin, db_checkout=db_checkout))
     for label, resources_ in pack_resources.items():
-        result[label] = " ".join(stack.enter_context(r.open()) for r in resources_)
+        result[label] = " ".join(
+            stack.enter_context(r.open(db_checkin=db_checkin, db_checkout=db_checkout)) for r in resources_
+        )
     return result
 
 
