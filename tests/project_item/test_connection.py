@@ -18,7 +18,8 @@ import os.path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import Mock
-from spinedb_api import DatabaseMapping, import_scenarios, import_tools
+from spinedb_api import DatabaseMapping, import_scenarios, import_tools, import_alternatives, import_object_classes
+
 from spine_engine.project_item.connection import Connection, Jump
 from spine_engine.project_item.project_item_resource import database_resource
 
@@ -77,6 +78,29 @@ class TestConnectionWithDatabase(unittest.TestCase):
         resources = [database_resource("unit_test", self._url, "my_database", filterable=True)]
         connection.receive_resources_from_source(resources)
         self.assertEqual(connection.enabled_filters("my_database"), {"tool_filter": ["tool_2"]})
+
+    def test_purge_data_before_writing(self):
+        import_alternatives(self._db_map, ("my_alternative",))
+        import_object_classes(self._db_map, ("my_object_class",))
+        self._db_map.commit_session("Add test data.")
+        self._db_map.connection.close()
+        connection = Connection(
+            "source",
+            "bottom",
+            "destination",
+            "top",
+            options={"purge_before_writing": True, "purge_settings": {"object_class": True}},
+        )
+        resources = [database_resource("unit_test", self._url, "my_database")]
+        connection.convert_backward_resources(resources, [])
+        database_map = DatabaseMapping(self._url)
+        object_class_list = database_map.query(database_map.object_class_sq).all()
+        self.assertEqual(len(object_class_list), 0)
+        alternative_list = database_map.query(database_map.alternative_sq).all()
+        self.assertEqual(len(alternative_list), 2)
+        self.assertEqual(alternative_list[0].name, "Base")
+        self.assertEqual(alternative_list[1].name, "my_alternative")
+        database_map.connection.close()
 
 
 class TestJump(unittest.TestCase):
