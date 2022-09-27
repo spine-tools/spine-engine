@@ -507,7 +507,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
             else:
                 pm = self.persistent_managers[key]
             port = pm.port
-            print(f"Dynamically assigned port for address {server_ip}: port")
+            print(f"Dynamically assigned port for address {server_ip}: {port}")
             msg = dict(type="persistent_started", key=key, language=pm.language, port=port)
             logger.msg_persistent_execution.emit(msg)
             for msg in pm.drain_queue():
