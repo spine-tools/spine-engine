@@ -45,7 +45,8 @@ class PersistentManagerBase:
             args (list): the arguments to launch the persistent process
         """
         self._args = args
-        self._server_address = server_ip, 64800
+        self._server_address = server_ip, 0
+        self.port = None
         self._msg_queue = Queue()
         self.command_successful = False
         self._is_running_lock = Lock()
@@ -124,8 +125,9 @@ class PersistentManagerBase:
     def _start_persistent(self):
         """Starts the persistent process."""
         # host = "127.0.0.1"
-        # with socketserver.TCPServer((host, port), None) as s:
-        #     self._server_address = s.server_address
+        with socketserver.TCPServer((self._server_address[0], 0), None) as s:
+            self._server_address = s.server_address  # Let OS select a free port
+        self.port = self._server_address[1]
         self.command_successful = False
         self._persistent = Popen(self._args + self._init_args(), **self._kwargs)
         threading.Thread(target=self._log_stdout, daemon=True).start()
@@ -504,7 +506,9 @@ class _PersistentManagerFactory(metaclass=Singleton):
                         return None
             else:
                 pm = self.persistent_managers[key]
-            msg = dict(type="persistent_started", key=key, language=pm.language)
+            port = pm.port
+            print(f"Dynamically assigned port for address {server_ip}: port")
+            msg = dict(type="persistent_started", key=key, language=pm.language, port=port)
             logger.msg_persistent_execution.emit(msg)
             for msg in pm.drain_queue():
                 logger.msg_persistent_execution.emit(msg)
