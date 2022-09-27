@@ -237,16 +237,16 @@ class PersistentManagerBase:
             bool
         """
         # host = "127.0.0.1"
-        # with socketserver.TCPServer((host, 0), None) as s:
-        #     port = s.server_address[1]
-        #     print(f"port:{port}")
-        host = self._server_address[0]
-        port = self._server_address[1]
+        with socketserver.TCPServer((self.server_ip, 0), None) as s:
+            temp_port = s.server_address[1]
+            print(f"port:{temp_port}")
+        # host = self._server_address[0]
+        # port = self._server_address[1]
         queue = Queue()
-        thread = threading.Thread(target=self._wait_ping, args=(host, port, queue))
+        thread = threading.Thread(target=self._wait_ping, args=(self.server_ip, temp_port, queue))
         thread.start()
         queue.get()  # This blocks until the server is listening
-        ping = self._ping_command(host, port)
+        ping = self._ping_command(self.server_ip, temp_port)
         if not self._issue_command(ping, catch_exception=False):
             thread.join()
             return False
