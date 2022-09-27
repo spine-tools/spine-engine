@@ -39,13 +39,13 @@ if sys.platform == "win32":
 
 
 class PersistentManagerBase:
-    def __init__(self, args):
+    def __init__(self, args, server_ip):
         """
         Args:
             args (list): the arguments to launch the persistent process
         """
         self._args = args
-        self._server_address = None
+        self._server_address = server_ip, 64800
         self._msg_queue = Queue()
         self.command_successful = False
         self._is_running_lock = Lock()
@@ -123,9 +123,9 @@ class PersistentManagerBase:
 
     def _start_persistent(self):
         """Starts the persistent process."""
-        host = "127.0.0.1"
-        with socketserver.TCPServer((host, 0), None) as s:
-            self._server_address = s.server_address
+        # host = "127.0.0.1"
+        # with socketserver.TCPServer((host, port), None) as s:
+        #     self._server_address = s.server_address
         self.command_successful = False
         self._persistent = Popen(self._args + self._init_args(), **self._kwargs)
         threading.Thread(target=self._log_stdout, daemon=True).start()
@@ -233,9 +233,12 @@ class PersistentManagerBase:
         Returns:
             bool
         """
-        host = "127.0.0.1"
-        with socketserver.TCPServer((host, 0), None) as s:
-            port = s.server_address[1]
+        # host = "127.0.0.1"
+        # with socketserver.TCPServer((host, 0), None) as s:
+        #     port = s.server_address[1]
+        #     print(f"port:{port}")
+        host = self._server_address[0]
+        port = self._server_address[1]
         queue = Queue()
         thread = threading.Thread(target=self._wait_ping, args=(host, port, queue))
         thread.start()
@@ -466,7 +469,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
     factory_lock = threading.Lock()
     _factory_open = OpenSign()
 
-    def new_persistent_manager(self, constructor, logger, args, group_id):
+    def new_persistent_manager(self, constructor, logger, args, group_id, server_ip):
         """Creates a new persistent for given args and group id if none exists.
 
         Args:
@@ -474,6 +477,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
             logger (LoggerInterface)
             args (list): the arguments to launch the persistent process
             group_id (str): item group that will execute using this persistent
+            server_ip (str): Engine Server IP address
 
         Returns:
             PersistentManagerBase: persistent manager or None if factory has been closed
@@ -484,7 +488,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
                 with acquire_persistent_process(self.persistent_managers, self._isolated_managers, self._factory_open):
                     if not self._factory_open:
                         return None
-                    mp = constructor(args)
+                    mp = constructor(args, server_ip)
                     self._isolated_managers.append(mp)
                     return mp
             key = tuple(args + [group_id])
@@ -493,7 +497,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
                     if not self._factory_open:
                         return None
                     try:
-                        self.persistent_managers[key] = pm = constructor(args)
+                        self.persistent_managers[key] = pm = constructor(args, server_ip)
                     except OSError as err:
                         msg = dict(type="persistent_failed_to_start", args=" ".join(args), error=str(err))
                         logger.msg_persistent_execution.emit(msg)
@@ -547,7 +551,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
             yield msg
 
     def is_persistent_command_complete(self, key, cmd):
-        """Checkes whether a command is complete.
+        """Checks whether a command is complete.
 
         Args:
             key (tuple): persistent identifier
@@ -685,7 +689,7 @@ def acquire_persistent_process(group_persistent_managers, isolated_persistent_ma
 class PersistentExecutionManagerBase(ExecutionManagerBase):
     """Base class for managing execution of commands on a persistent process."""
 
-    def __init__(self, logger, args, commands, alias, group_id=None):
+    def __init__(self, logger, args, commands, alias, group_id=None, server_ip="127.0.0.1"):
         """
         Args:
             logger (LoggerInterface): a logger instance
@@ -693,13 +697,14 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             commands (list): List of commands to execute in the persistent process
             alias (str): an alias name for the manager
             group_id (str, optional): item group that will execute using this kernel
+            server_ip (str): Engine Server IP address
         """
         super().__init__(logger)
         self._args = args
         self._commands = commands
         self._alias = alias
         self._persistent_manager = _persistent_manager_factory.new_persistent_manager(
-            self.persistent_manager_factory, logger, args, group_id
+            self.persistent_manager_factory, logger, args, group_id, server_ip
         )
 
     @property

@@ -76,9 +76,8 @@ def break_event_data(event_type, data):
         data (dict or str): Data
 
     Returns:
-        dict or str: Converted data dictionary or data string as it was.
+        dict or str: Edited data dictionary or data string as it was.
     """
-
     if type(data) != str:
         if "item_state" in data.keys():
             data["item_state"] = str(data["item_state"])  # Cast ItemExecutionFinishState instance to string
