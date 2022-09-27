@@ -45,8 +45,9 @@ class PersistentManagerBase:
             args (list): the arguments to launch the persistent process
         """
         self._args = args
-        self._server_address = server_ip, 0
+        self.server_ip = server_ip
         self.port = None
+        self._server_address = None
         self._msg_queue = Queue()
         self.command_successful = False
         self._is_running_lock = Lock()
@@ -125,9 +126,9 @@ class PersistentManagerBase:
     def _start_persistent(self):
         """Starts the persistent process."""
         # host = "127.0.0.1"
-        with socketserver.TCPServer((self._server_address[0], 0), None) as s:
-            self._server_address = s.server_address  # Let OS select a free port
-        self.port = self._server_address[1]
+        with socketserver.TCPServer((self.server_ip, 0), None) as s:
+            self.port = s.server_address[1]  # Let OS select a free port
+        self._server_address = self.server_ip, self.port
         self.command_successful = False
         self._persistent = Popen(self._args + self._init_args(), **self._kwargs)
         threading.Thread(target=self._log_stdout, daemon=True).start()
