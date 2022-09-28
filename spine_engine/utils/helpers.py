@@ -15,6 +15,7 @@ Helpers functions and classes.
 :authors: M. Marin (KTH)
 :date:   20.11.2019
 """
+from enum import Enum, auto, unique
 import os
 import sys
 import datetime
@@ -25,6 +26,28 @@ from pathlib import Path
 import networkx
 from jupyter_client.kernelspec import find_kernel_specs
 from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON
+
+
+@unique
+class ExecutionDirection(Enum):
+    FORWARD = auto()
+    BACKWARD = auto()
+
+    def __str__(self):
+        return str(self.name)
+
+
+@unique
+class ItemExecutionFinishState(Enum):
+    SUCCESS = 1
+    FAILURE = 2
+    SKIPPED = 3
+    EXCLUDED = 4
+    STOPPED = 5
+    NEVER_FINISHED = 6
+
+    def __str__(self):
+        return str(self.name)
 
 
 class Singleton(type):

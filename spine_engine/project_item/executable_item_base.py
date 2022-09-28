@@ -17,8 +17,7 @@ Contains ExecutableItem, a project item's counterpart in execution as well as su
 """
 from hashlib import sha1
 from pathlib import Path
-from ..spine_engine import ExecutionDirection, ItemExecutionFinishState
-from ..utils.helpers import shorten
+from ..utils.helpers import ExecutionDirection, ItemExecutionFinishState, shorten
 
 
 class ExecutableItemBase:

@@ -25,11 +25,11 @@ from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
 from spinedb_api.purge import purge_url
 from spine_engine.project_item.project_item_resource import (
     file_resource,
-    cmd_line_arg_from_dict,
+    make_cmd_line_arg,
     expand_cmd_line_args,
     labelled_resource_args,
 )
-from spine_engine.utils.helpers import resolve_python_interpreter
+from spine_engine.utils.helpers import resolve_python_interpreter, ItemExecutionFinishState
 from spine_engine.utils.queue_logger import QueueLogger
 
 
@@ -428,7 +428,7 @@ class Jump(ConnectionBase):
         source_position,
         destination_name,
         destination_position,
-        condition="exit(1)",
+        condition=None,
         cmd_line_args=(),
     ):
         """
@@ -440,10 +440,11 @@ class Jump(ConnectionBase):
             condition (str): jump condition
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
-        self.condition = condition
+        self.condition = condition if condition is not None else {"type": "python-script", "script": "exit(1)"}
         self._resources_from_source = set()
         self._resources_from_destination = set()
         self.cmd_line_args = list(cmd_line_args)
+        self._condition_tool = None
 
     @property
     def resources(self):
@@ -469,27 +470,50 @@ class Jump(ConnectionBase):
         Returns:
             bool: True if jump should be executed, False otherwise
         """
-        if not self.condition.strip():
+        if self.condition["type"] == "python-script":
+            iterate = self._is_python_script_condition_true(jump_counter)
+        elif self.condition["type"] == "tool-specification":
+            iterate = self._is_tool_specification_condition_true(jump_counter)
+        if iterate:
+            self.emit_flash()
+        return iterate
+
+    def _is_python_script_condition_true(self, jump_counter):
+        script = self.condition["script"]
+        if not script.strip():
             return False
         with ExitStack() as stack:
             labelled_args = labelled_resource_args(self.resources, stack)
-            expanded_args = expand_cmd_line_args(self.cmd_line_args, labelled_args, self._logger)
-            expanded_args.append(str(jump_counter))
-            with tempfile.TemporaryFile("w+", encoding="utf-8") as script:
-                script.write(self.condition)
-                script.seek(0)
+            expanded_args = expand_cmd_line_args(self.cmd_line_args + [jump_counter], labelled_args, self._logger)
+            with tempfile.TemporaryFile("w+", encoding="utf-8") as script_file:
+                script_file.write(script)
+                script_file.seek(0)
                 python = resolve_python_interpreter("")
                 result = subprocess.run(
-                    [python, "-", *expanded_args], encoding="utf-8", stdin=script, capture_output=True
+                    [python, "-", *expanded_args], encoding="utf-8", stdin=script_file, capture_output=True
                 )
                 if result.stdout:
                     self._logger.msg_proc.emit(result.stdout)
                 if result.stderr:
                     self._logger.msg_proc_error.emit(result.stderr)
-                iterate = result.returncode == 0
-                if iterate:
-                    self.emit_flash()
-                return iterate
+                return result.returncode == 0
+
+    def _is_tool_specification_condition_true(self, jump_counter):
+        self._condition_tool.cmd_line_args[-1] = jump_counter
+        return (
+            self._condition_tool.execute(list(self._resources_from_source), list(self._resources_from_destination))
+            == ItemExecutionFinishState.SUCCESS
+        )
+
+    def prepare_condition(self, engine):
+        if self.condition["type"] == "tool-specification":
+            item_dict = {
+                "type": "Tool",
+                "execute_in_work": False,
+                "specification": self.condition["specification"],
+                "cmd_line_args": self.cmd_line_args + [0],
+            }
+            self._condition_tool = engine.make_item(self.name, item_dict, self._logger)
 
     @classmethod
     def from_dict(cls, jump_dict, **kwargs):
@@ -503,9 +527,9 @@ class Jump(ConnectionBase):
             Jump: restored jump
         """
         super_kw_ags = cls._constructor_args_from_dict(jump_dict)
-        condition = jump_dict["condition"]["script"]
+        condition = jump_dict["condition"]
         cmd_line_args = jump_dict.get("cmd_line_args", [])
-        cmd_line_args = [cmd_line_arg_from_dict(arg) for arg in cmd_line_args]
+        cmd_line_args = [make_cmd_line_arg(arg) for arg in cmd_line_args]
         return cls(condition=condition, cmd_line_args=cmd_line_args, **super_kw_ags, **kwargs)
 
     def to_dict(self):
@@ -515,7 +539,7 @@ class Jump(ConnectionBase):
             dict: serialized Jump
         """
         d = super().to_dict()
-        d["condition"] = {"type": "python-script", "script": self.condition}
+        d["condition"] = self.condition
         d["cmd_line_args"] = [arg.to_dict() for arg in self.cmd_line_args]
         return d
 

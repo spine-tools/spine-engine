@@ -308,18 +308,20 @@ def get_labelled_sources(resources):
     return d
 
 
-def cmd_line_arg_from_dict(arg_dict):
+def make_cmd_line_arg(arg_spec):
     """Deserializes argument from dictionary.
 
     Args:
-        arg_dict (dict): serialized command line argument
+        arg_spec (dict or str): serialized command line argument
 
     Returns:
         CmdLineArg: deserialized command line argument
     """
-    type_ = arg_dict["type"]
+    if not isinstance(arg_spec, dict):
+        return CmdLineArg(arg_spec)
+    type_ = arg_spec["type"]
     construct = {"literal": CmdLineArg, "resource": LabelArg}[type_]
-    return construct(arg_dict["arg"])
+    return construct(arg_spec["arg"])
 
 
 def labelled_resource_args(resources, stack, db_checkin=False, db_checkout=False):

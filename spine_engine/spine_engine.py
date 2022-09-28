@@ -16,7 +16,7 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 :date:   20.11.2019
 """
 
-from enum import Enum, auto, unique
+from enum import Enum, unique
 import os
 import threading
 import multiprocessing as mp
@@ -45,25 +45,20 @@ from .execution_managers.persistent_execution_manager import (
     disable_persistent_process_creation,
     enable_persistent_process_creation,
 )
-from .utils.helpers import AppSettings, inverted, create_timestamp, make_dag
+from .utils.helpers import (
+    AppSettings,
+    inverted,
+    create_timestamp,
+    make_dag,
+    ExecutionDirection as ED,
+    ItemExecutionFinishState,
+)
 from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
 from .utils.queue_logger import QueueLogger
 from .project_item_loader import ProjectItemLoader
 from .multithread_executor.executor import multithread_executor
 from .project_item.connection import Connection, Jump
 from .shared_memory_io_manager import shared_memory_io_manager
-
-
-@unique
-class ExecutionDirection(Enum):
-    FORWARD = auto()
-    BACKWARD = auto()
-
-    def __str__(self):
-        return str(self.name)
-
-
-ED = ExecutionDirection
 
 
 @unique
@@ -74,19 +69,6 @@ class SpineEngineState(Enum):
     USER_STOPPED = 3
     FAILED = 4
     COMPLETED = 5
-
-    def __str__(self):
-        return str(self.name)
-
-
-@unique
-class ItemExecutionFinishState(Enum):
-    SUCCESS = 1
-    FAILURE = 2
-    SKIPPED = 3
-    EXCLUDED = 4
-    STOPPED = 5
-    NEVER_FINISHED = 6
 
     def __str__(self):
         return str(self.name)
@@ -175,6 +157,8 @@ class SpineEngine:
         validate_jumps(self._jumps, self._dag)
         for x in self._connections + self._jumps:
             x.make_logger(self._queue)
+        for x in self._jumps:
+            x.prepare_condition(self)
         self._back_injectors = {
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
@@ -216,12 +200,15 @@ class SpineEngine:
         Note that this method is called multiple times for each item:
         Once for the backward pipeline, and once for each filtered execution in the forward pipeline."""
         item_dict = self._items[item_name]
-        item_type = item_dict["type"]
-        executable_item_class = self._executable_item_classes[item_type]
         prompt_queue = self._prompt_queues[item_name] = mp.Queue()
         logger = QueueLogger(
             self._queue, item_name, prompt_queue, self._answered_prompts, silent=direction is ED.BACKWARD
         )
+        return self.make_item(item_name, item_dict, logger)
+
+    def make_item(self, item_name, item_dict, logger):
+        item_type = item_dict["type"]
+        executable_item_class = self._executable_item_classes[item_type]
         return executable_item_class.from_dict(
             item_dict, item_name, self._project_dir, self._settings, self._item_specifications, logger
         )
