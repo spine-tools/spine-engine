@@ -92,7 +92,7 @@ class TestConnectionWithDatabase(unittest.TestCase):
             options={"purge_before_writing": True, "purge_settings": {"object_class": True}},
         )
         resources = [database_resource("unit_test", self._url, "my_database")]
-        connection.convert_backward_resources(resources, [])
+        connection.clean_up_backward_resources(resources)
         database_map = DatabaseMapping(self._url)
         object_class_list = database_map.query(database_map.object_class_sq).all()
         self.assertEqual(len(object_class_list), 0)
