@@ -24,13 +24,13 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock, NonCallableMagicMock, call, patch
 
-from spine_engine.project_item.connection import Jump, Connection
 from spinedb_api import DatabaseMapping, import_scenarios, import_tools
 from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.filters.tool_filter import tool_filter_config
 from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.tools import clear_filter_configs
 from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState, ItemExecutionFinishState
+from spine_engine.project_item.connection import Jump, Connection
 from spine_engine.project_item.project_item_resource import ProjectItemResource
 
 
