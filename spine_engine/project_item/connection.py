@@ -219,6 +219,9 @@ class ResourceConvertingConnection(ConnectionBase):
         """See base class."""
         self._resources = {r for r in resources if r.type_ == "database" and r.filterable}
 
+    def clean_up_backward_resources(self, resources):
+        self._do_purge_before_writing(resources)
+
     def convert_backward_resources(self, resources, sibling_connections):
         """Called when advertising resources through this connection *in the BACKWARD direction*.
         Takes the initial list of resources advertised by the destination item and returns a new list,
@@ -231,9 +234,7 @@ class ResourceConvertingConnection(ConnectionBase):
         Returns:
             list of ProjectItemResource
         """
-        return self._apply_use_memory_db(
-            self._apply_write_index(self._apply_purge_before_writing(resources), sibling_connections)
-        )
+        return self._apply_use_memory_db(self._apply_write_index(resources, sibling_connections))
 
     def convert_forward_resources(self, resources):
         """Called when advertising resources through this connection *in the FORWARD direction*.
@@ -248,12 +249,11 @@ class ResourceConvertingConnection(ConnectionBase):
         """
         return self._apply_use_memory_db(self._apply_use_datapackage(resources))
 
-    def _apply_purge_before_writing(self, resources):
+    def _do_purge_before_writing(self, resources):
         if self.purge_before_writing:
             to_urls = (r.url for r in resources if r.type_ == "database")
             for url in to_urls:
                 purge_url(url, self.purge_settings, self._logger)
-        return resources
 
     def _apply_use_memory_db(self, resources):
         if not self.use_memory_db:

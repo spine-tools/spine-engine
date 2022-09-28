@@ -687,6 +687,8 @@ class SpineEngine:
             resources_from_destination = resources_by_provider.get(c.destination)
             if resources_from_destination is None:
                 continue
+            if self._execution_permits[self._solid_names[item_name]]:
+                c.clean_up_backward_resources(resources_from_destination)
             sibling_connections = [x for x in self._connections_by_destination.get(c.destination, []) if x != c]
             resources_by_provider[c.destination] = c.convert_backward_resources(
                 resources_from_destination, sibling_connections
