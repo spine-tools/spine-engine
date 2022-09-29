@@ -511,7 +511,7 @@ class Jump(ConnectionBase):
                 "type": "Tool",
                 "execute_in_work": False,
                 "specification": self.condition["specification"],
-                "cmd_line_args": self.cmd_line_args + [0],
+                "cmd_line_args": [arg.to_dict() for arg in self.cmd_line_args] + [0],
             }
             self._condition_tool = engine.make_item(self.name, item_dict, self._logger)
 
