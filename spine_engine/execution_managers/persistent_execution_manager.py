@@ -50,6 +50,8 @@ class PersistentManagerBase:
         self.command_successful = False
         self._is_running_lock = Lock()
         self._is_running = True
+        self._process_semaphore_released_lock = Lock()
+        self._process_semaphore_released = False
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE)
         if sys.platform == "win32":
             self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
@@ -192,7 +194,7 @@ class PersistentManagerBase:
 
         Args:
             cmd (str): Command to pass to the persistent process
-            add_history (bool): Whether or not to add the command to history
+            add_history (bool): Whether to add the command to history
         """
         with self._lock:
             self._msg_queue.put({"type": "stdin", "data": cmd})
@@ -219,7 +221,7 @@ class PersistentManagerBase:
         try:
             self._persistent.stdin.flush()
             return True
-        except BrokenPipeError:
+        except (BrokenPipeError, OSError):
             return False
 
     def _wait(self):
@@ -248,6 +250,7 @@ class PersistentManagerBase:
         thread.join()
         if not self.is_persistent_alive():
             self._msg_queue.put({"type": "stdout", "data": "Kernel died (×_×)"})
+            self._try_release_persistent_process_semaphore()
             return self._persistent.returncode == 0
         return result == "ok"
 
@@ -361,7 +364,7 @@ class PersistentManagerBase:
         self.set_running_until_completion(False)
 
     def is_persistent_alive(self):
-        """Whether or not the persistent is still alive and ready to receive commands.
+        """Whether the persistent is still alive and ready to receive commands.
 
         Returns:
             bool
@@ -378,7 +381,14 @@ class PersistentManagerBase:
         self._persistent.stderr.close()
         self._persistent = None
         self.set_running_until_completion(False)
-        persistent_process_semaphore.release()
+        self._try_release_persistent_process_semaphore()
+
+    def _try_release_persistent_process_semaphore(self):
+        """Releases persistent process semaphore if it hasn't been released yet."""
+        with self._process_semaphore_released_lock:
+            if not self._process_semaphore_released:
+                self._process_semaphore_released = True
+                persistent_process_semaphore.release()
 
 
 def _send_ctrl_c(pid):
