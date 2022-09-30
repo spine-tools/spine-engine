@@ -165,7 +165,7 @@ class MultithreadExecutor(Executor):
                             try:
                                 active_execution.handle_event(event_or_none)
                             except check.CheckError:
-                                # Bypass check erros on iterating steps
+                                # Bypass check errors on iterating steps
                                 if key in iterating_active:
                                     pass
                                 else:

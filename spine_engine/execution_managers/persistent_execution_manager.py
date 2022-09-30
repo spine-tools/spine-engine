@@ -50,6 +50,7 @@ class PersistentManagerBase:
         self.command_successful = False
         self._is_running_lock = Lock()
         self._is_running = True
+        self._persistent_resources_release_lock = Lock()
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE)
         if sys.platform == "win32":
             self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
@@ -200,7 +201,7 @@ class PersistentManagerBase:
 
         Args:
             cmd (str): Command to pass to the persistent process
-            add_history (bool): Whether or not to add the command to history
+            add_history (bool): Whether to add the command to history
         """
         with self._lock:
             self._msg_queue.put({"type": "stdin", "data": cmd})
@@ -227,7 +228,7 @@ class PersistentManagerBase:
         try:
             self._persistent.stdin.flush()
             return True
-        except BrokenPipeError:
+        except (BrokenPipeError, OSError):
             return False
 
     def _wait(self):
@@ -239,7 +240,7 @@ class PersistentManagerBase:
         in the server.
 
         Returns:
-            bool
+            bool: True if persistent process finished successfully, False otherwise
         """
         host = "127.0.0.1"
         with socketserver.TCPServer((host, 0), None) as s:
@@ -256,7 +257,9 @@ class PersistentManagerBase:
         thread.join()
         if not self.is_persistent_alive():
             self._msg_queue.put({"type": "stdout", "data": "Kernel died (×_×)"})
-            return self._persistent.returncode == 0
+            was_success = self._persistent.returncode == 0
+            self._release_persistent_resources()
+            return was_success
         return result == "ok"
 
     def _wait_ping(self, host, port, queue, timeout=1):
@@ -369,7 +372,7 @@ class PersistentManagerBase:
         self.set_running_until_completion(False)
 
     def is_persistent_alive(self):
-        """Whether or not the persistent is still alive and ready to receive commands.
+        """Whether the persistent is still alive and ready to receive commands.
 
         Returns:
             bool
@@ -381,12 +384,18 @@ class PersistentManagerBase:
             return
         self._persistent.kill()
         self._persistent.wait()
-        self._persistent.stdin.close()
-        self._persistent.stdout.close()
-        self._persistent.stderr.close()
-        self._persistent = None
+        self._release_persistent_resources()
         self.set_running_until_completion(False)
-        persistent_process_semaphore.release()
+
+    def _release_persistent_resources(self):
+        """Releases the resources of the persistent process."""
+        with self._persistent_resources_release_lock:
+            if self._persistent is not None:
+                self._persistent.stdin.close()
+                self._persistent.stdout.close()
+                self._persistent.stderr.close()
+                self._persistent = None
+                persistent_process_semaphore.release()
 
 
 def _send_ctrl_c(pid):

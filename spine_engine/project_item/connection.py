@@ -423,13 +423,7 @@ class Jump(ConnectionBase):
     """Represents a conditional jump between two project items."""
 
     def __init__(
-        self,
-        source_name,
-        source_position,
-        destination_name,
-        destination_position,
-        condition=None,
-        cmd_line_args=(),
+        self, source_name, source_position, destination_name, destination_position, condition=None, cmd_line_args=()
     ):
         """
         Args:
