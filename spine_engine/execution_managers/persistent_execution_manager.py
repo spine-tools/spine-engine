@@ -50,8 +50,7 @@ class PersistentManagerBase:
         self.command_successful = False
         self._is_running_lock = Lock()
         self._is_running = True
-        self._process_semaphore_released_lock = Lock()
-        self._process_semaphore_released = False
+        self._persistent_resources_release_lock = Lock()
         self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE)
         if sys.platform == "win32":
             self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
@@ -233,7 +232,7 @@ class PersistentManagerBase:
         in the server.
 
         Returns:
-            bool
+            bool: True if persistent process finished successfully, False otherwise
         """
         host = "127.0.0.1"
         with socketserver.TCPServer((host, 0), None) as s:
@@ -250,8 +249,9 @@ class PersistentManagerBase:
         thread.join()
         if not self.is_persistent_alive():
             self._msg_queue.put({"type": "stdout", "data": "Kernel died (×_×)"})
-            self._try_release_persistent_process_semaphore()
-            return self._persistent.returncode == 0
+            was_success = self._persistent.returncode == 0
+            self._release_persistent_resources()
+            return was_success
         return result == "ok"
 
     def _wait_ping(self, host, port, queue, timeout=1):
@@ -376,18 +376,17 @@ class PersistentManagerBase:
             return
         self._persistent.kill()
         self._persistent.wait()
-        self._persistent.stdin.close()
-        self._persistent.stdout.close()
-        self._persistent.stderr.close()
-        self._persistent = None
+        self._release_persistent_resources()
         self.set_running_until_completion(False)
-        self._try_release_persistent_process_semaphore()
 
-    def _try_release_persistent_process_semaphore(self):
-        """Releases persistent process semaphore if it hasn't been released yet."""
-        with self._process_semaphore_released_lock:
-            if not self._process_semaphore_released:
-                self._process_semaphore_released = True
+    def _release_persistent_resources(self):
+        """Releases the resources of the persistent process."""
+        with self._persistent_resources_release_lock:
+            if self._persistent is not None:
+                self._persistent.stdin.close()
+                self._persistent.stdout.close()
+                self._persistent.stderr.close()
+                self._persistent = None
                 persistent_process_semaphore.release()
 
 
