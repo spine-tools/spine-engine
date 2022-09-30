@@ -25,7 +25,6 @@ import signal
 import threading
 import time
 from dataclasses import dataclass
-from itertools import chain
 from subprocess import Popen, PIPE
 from multiprocessing import Process, Lock
 from queue import Queue, Empty
