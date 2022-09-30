@@ -234,21 +234,19 @@ class PersistentManagerBase:
     def _wait(self):
         """Waits for the persistent process to become idle.
 
-        This is implemented by running a socket server that waits for a ping on the current process,
-        and then issuing a command to the persistent process that pings that server.
+        This is implemented as follows:
+            1. Run a socket server on the current process that waits for a ping.
+            2. Issue a command to the persistent process that pings that server.
         The ping command will run on the persistent process when it becomes idle and we will catch that situation
         in the server.
 
         Returns:
             bool: True if persistent process finished successfully, False otherwise
         """
-        host = "127.0.0.1"
-        with socketserver.TCPServer((host, 0), None) as s:
-            port = s.server_address[1]
         queue = Queue()
-        thread = threading.Thread(target=self._wait_ping, args=(host, port, queue))
+        thread = threading.Thread(target=self._wait_ping, args=(queue,))
         thread.start()
-        queue.get()  # This blocks until the server is listening
+        host, port = queue.get()  # This blocks until the server is listening
         ping = self._ping_command(host, port)
         if not self._issue_command(ping, catch_exception=False):
             thread.join()
@@ -257,17 +255,26 @@ class PersistentManagerBase:
         thread.join()
         if not self.is_persistent_alive():
             self._msg_queue.put({"type": "stdout", "data": "Kernel died (×_×)"})
-            was_success = self._persistent.returncode == 0
+            success = self._persistent.returncode == 0
             self._release_persistent_resources()
-            return was_success
+            return success
         return result == "ok"
 
-    def _wait_ping(self, host, port, queue, timeout=1):
+    def _wait_ping(self, queue, timeout=1):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
             server.settimeout(timeout)
-            server.bind((host, port))
+            host = "127.0.0.1"
+            while True:
+                with socketserver.TCPServer((host, 0), None) as s:
+                    port = s.server_address[1]
+                try:
+                    server.bind((host, port))
+                    break
+                except OSError:
+                    # OSError: [Errno 98] Address already in use
+                    time.sleep(0.02)
             server.listen()
-            queue.put(None)
+            queue.put((host, port))
             while True:
                 try:
                     conn, _ = server.accept()
