@@ -39,12 +39,13 @@ if sys.platform == "win32":
 
 
 class PersistentManagerBase:
-    def __init__(self, args):
+    def __init__(self, args, group_id):
         """
         Args:
             args (list): the arguments to launch the persistent process
         """
         self._args = args
+        self._group_id = group_id
         self._server_address = None
         self._msg_queue = Queue()
         self.command_successful = False
@@ -59,6 +60,14 @@ class PersistentManagerBase:
         self._persistent = None
         self._start_persistent()
         self._wait()
+
+    @property
+    def args(self):
+        return self._args
+
+    @property
+    def group_id(self):
+        return self._group_id
 
     @property
     def language(self):
@@ -465,8 +474,26 @@ class _PersistentManagerFactory(metaclass=Singleton):
     """Maps keys to associated PersistentManagerBase."""
     _factory_open = OpenSign()
 
+    @staticmethod
+    def _emit_persistent_started(logger, key, language):
+        msg = dict(type="persistent_started", key=key, language=language)
+        logger.msg_persistent_execution.emit(msg)
+
+    def _get_idle_persistent_managers(self):
+        return [
+            (key, pm)
+            for key, pm in self.persistent_managers.items()
+            if pm.is_persistent_alive() and not pm.is_running_until_completion()
+        ]
+
+    def _reuse_persistent_manager(self, idle_pms, logger, args, group_id):
+        for key, pm in idle_pms:
+            if pm.args == args and pm.group_id == group_id:
+                self._emit_persistent_started(logger, key, pm.language)
+                return pm
+
     def new_persistent_manager(self, constructor, logger, args, group_id):
-        """Creates a new persistent for given args and group id if none exists.
+        """Creates a new persistent manager.
 
         Args:
             constructor (Callable): the persistent manager constructor
@@ -477,44 +504,12 @@ class _PersistentManagerFactory(metaclass=Singleton):
         Returns:
             PersistentManagerBase: persistent manager or None if factory has been closed
         """
-        key = tuple(args + [group_id])
-        if key not in self.persistent_managers or not self.persistent_managers[key].is_persistent_alive():
-            if not self._acquire_persistent_process():
-                return None
-            try:
-                self.persistent_managers[key] = pm = constructor(args)
-            except OSError as err:
-                msg = dict(type="persistent_failed_to_start", args=" ".join(args), error=str(err))
-                logger.msg_persistent_execution.emit(msg)
-                return None
-        else:
-            pm = self.persistent_managers[key]
-        msg = dict(type="persistent_started", key=key, language=pm.language)
-        logger.msg_persistent_execution.emit(msg)
-        for msg in pm.drain_queue():
-            logger.msg_persistent_execution.emit(msg)
-        return pm
-
-    def _get_idle_persistent_managers(self):
-        return [
-            (key, pm)
-            for key, pm in self.persistent_managers.items()
-            if pm.is_persistent_alive() and not pm.is_running_until_completion()
-        ]
-
-    @staticmethod
-    def _reuse_persistent_manager(idle_pms, args, group_id):
-        for _, pm in idle_pms:
-            if pm.args == args and pm.group_id == group_id:
-                return pm
-
-    def acquire_persistent_process(self, constructor, logger, args, group_id):
         while not persistent_process_semaphore.acquire(timeout=0.5):
             if not self._factory_open:
                 return None
             idle_pms = self._get_idle_persistent_managers()
             # Try to reuse
-            pm = self._reuse_persistent_manager(idle_pms, args, group_id)
+            pm = self._reuse_persistent_manager(idle_pms, logger, args, group_id)
             if pm:
                 return pm
             # Kill the first idle pm
@@ -524,17 +519,21 @@ class _PersistentManagerFactory(metaclass=Singleton):
                 del self.persistent_managers[key]
         # We got the lock, try to reuse one last time just in case things changed quickly
         idle_pms = self._get_idle_persistent_managers()
-        pm = self._reuse_persistent_manager(idle_pms, args, group_id)
+        pm = self._reuse_persistent_manager(idle_pms, logger, args, group_id)
         if pm:
             return pm
         # Create new one
         key = uuid.uuid4().hex
         try:
-            self.persistent_managers[key] = pm = constructor(args)
+            self.persistent_managers[key] = pm = constructor(args, group_id)
         except OSError as err:
             msg = dict(type="persistent_failed_to_start", args=" ".join(args), error=str(err))
             logger.msg_persistent_execution.emit(msg)
             return None
+        self._emit_persistent_started(logger, key, pm.language)
+        for msg in pm.drain_queue():
+            logger.msg_persistent_execution.emit(msg)
+        return pm
 
     def restart_persistent(self, key):
         """Restart a persistent process.
@@ -622,7 +621,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
 
     def kill_manager_processes(self):
         """Kills persistent managers' Popen instances."""
-        for manager in chain(self.persistent_managers.values(), self._isolated_managers):
+        for manager in self.persistent_managers.values():
             manager.kill_process()
 
     def open_factory(self):
