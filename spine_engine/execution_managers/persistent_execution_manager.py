@@ -497,7 +497,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
     def _reuse_persistent_manager(self, idle_pms, logger, args, group_id):
         for key, pm in idle_pms:
             if pm.args == args and pm.group_id == group_id:
-                logger.msg.emit(f"Reusing process for group '{group_id}'")
+                logger.msg_warning.emit(f"Reusing process for group '{group_id}'")
                 self._emit_persistent_started(logger, key, pm.language)
                 return pm
 
