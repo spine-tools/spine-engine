@@ -57,7 +57,7 @@ class ExecutableItemBase:
         Returns:
             str: item's id within an execution group
         """
-        return self._group_id + self._filter_id
+        return self._group_id
 
     @property
     def filter_id(self):
