@@ -479,7 +479,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
             return self.value
 
     persistent_managers = {}
-    """Maps keys to associated PersistentManagerBase."""
+    """Maps keys to associated PersistentManagerBase instances."""
     _factory_open = OpenSign()
 
     @staticmethod
@@ -497,6 +497,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
     def _reuse_persistent_manager(self, idle_pms, logger, args, group_id):
         for key, pm in idle_pms:
             if pm.args == args and pm.group_id == group_id:
+                logger.msg.emit(f"Reusing process for group '{group_id}'")
                 self._emit_persistent_started(logger, key, pm.language)
                 return pm
 
@@ -520,20 +521,21 @@ class _PersistentManagerFactory(metaclass=Singleton):
             pm = self._reuse_persistent_manager(idle_pms, logger, args, group_id)
             if pm:
                 return pm
-            # Kill the first idle pm
+            # Kill an idle pm if any
             if idle_pms:
                 key, pm = idle_pms[0]
                 pm.kill_process()
                 del self.persistent_managers[key]
-        # We got the lock, try to reuse one last time just in case things changed quickly
+        # We got permission to create a new process
+        # Try to reuse one last time just in case things changed quickly
         idle_pms = self._get_idle_persistent_managers()
         pm = self._reuse_persistent_manager(idle_pms, logger, args, group_id)
         if pm:
             return pm
-        # Create new one
+        # No luck, just create the new process
         key = uuid.uuid4().hex
         try:
-            self.persistent_managers[key] = pm = constructor(args, group_id)
+            pm = self.persistent_managers[key] = constructor(args, group_id)
         except OSError as err:
             msg = dict(type="persistent_failed_to_start", args=" ".join(args), error=str(err))
             logger.msg_persistent_execution.emit(msg)
