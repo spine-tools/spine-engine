@@ -68,8 +68,9 @@ class ProjectItemResource:
         if self.type_ == "database":
             ordering = {
                 "id": self.identifier,
-                "consumer": self.metadata.get("consumer"),
-                "precursors": self.metadata.get("precursors", ()),
+                "current": self.metadata.get("current"),
+                "precursors": self.metadata.get("precursors", set()),
+                "all": self.metadata.get("all", set()),
             }
             with closing_spine_db_server(
                 self.url, memory=self.metadata.get("memory", False), ordering=ordering

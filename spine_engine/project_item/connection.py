@@ -267,10 +267,11 @@ class ResourceConvertingConnection(ConnectionBase):
 
     def _apply_write_index(self, resources, sibling_connections):
         final_resources = []
-        precursors = [c.name for c in sibling_connections if c.write_index < self.write_index]
+        precursors = set(c.name for c in sibling_connections if c.write_index < self.write_index)
+        all_ = set(c.name for c in sibling_connections) | {self.name}
         for r in resources:
             if r.type_ == "database":
-                r = r.clone(additional_metadata={"consumer": self.name, "precursors": precursors})
+                r = r.clone(additional_metadata={"current": self.name, "precursors": precursors, "all": all_})
             final_resources.append(r)
         return final_resources
 
