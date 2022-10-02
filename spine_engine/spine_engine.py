@@ -874,16 +874,18 @@ def _set_resource_limits(settings, lock):
         settings (AppSettings): Engine settings
     """
     with lock:
-        single_shot_control = settings.value("engineSettings/processLimiter", "auto")
-        if single_shot_control == "auto":
+        process_limiter = settings.value("engineSettings/processLimiter", "auto")
+        if process_limiter == "unlimited":
+            limit = "unlimited"
+        elif process_limiter == "auto":
             limit = os.cpu_count()
         else:
             limit = int(settings.value("engineSettings/maxProcesses", os.cpu_count()))
         one_shot_process_semaphore.set_limit(limit)
-        persistent_process_control = settings.value("engineSettings/persistentLimiter", "unlimited")
-        if persistent_process_control == "unlimited":
+        persistent_limiter = settings.value("engineSettings/persistentLimiter", "unlimited")
+        if persistent_limiter == "unlimited":
             limit = "unlimited"
-        elif persistent_process_control == "auto":
+        elif persistent_limiter == "auto":
             limit = os.cpu_count()
         else:
             limit = int(settings.value("engineSettings/maxPersistentProcesses", os.cpu_count()))
