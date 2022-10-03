@@ -54,7 +54,7 @@ class ProjectItemResource:
                 - filter_stack (str): resource's filter stack
                 - filter_id (str): filter id
             filterable (bool): If True, the resource provides opportunity for filtering
-            identifier (str): an identifier or the original instance, shared also by all the clones
+            identifier (str): an identifier of the original instance, shared also by all the clones
         """
         self.provider_name = provider_name
         self.type_ = type_
