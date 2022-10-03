@@ -307,3 +307,21 @@ def gather_leaf_data(input_dict, paths, pop=False):
         leaf_dict = build_to_leaf(output_dict, prefix)
         leaf_dict[prefix[-1]] = value
     return output_dict
+
+
+class PartCount:
+    def __init__(self):
+        self._count = 0
+
+    def __iadd__(self, number):
+        self._count += number
+        return self
+
+    def __eq__(self, number):
+        return self._count == number
+
+    def __deepcopy__(self, memo):
+        return self
+
+    def __repr__(self):
+        return str(self._count)

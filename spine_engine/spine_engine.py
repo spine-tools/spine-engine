@@ -511,6 +511,7 @@ class SpineEngine:
                 args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, success),
             )
             threads.append(thread)
+        for thread in threads:
             thread.start()
         for thread in threads:
             thread.join()
@@ -612,6 +613,8 @@ class SpineEngine:
             config = execution_filter_config(execution)
             filtered_backward_resources = []
             for resource in backward_resources:
+                if "part_count" in resource.metadata:
+                    resource.metadata["part_count"] += 1
                 clone = resource.clone(additional_metadata={"filter_stack": (config,)})
                 clone.url = append_filter_config(clone.url, config)
                 filtered_backward_resources.append(clone)

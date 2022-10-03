@@ -24,6 +24,7 @@ from urllib.request import url2pathname
 from spinedb_api.filters.tools import clear_filter_configs
 from spinedb_api.spine_db_server import closing_spine_db_server
 from spinedb_api.spine_db_client import SpineDBClient
+from ..utils.helpers import PartCount
 
 
 class ProjectItemResource:
@@ -53,8 +54,8 @@ class ProjectItemResource:
                 - filter_stack (str): resource's filter stack
                 - filter_id (str): filter id
             filterable (bool): If True, the resource provides opportunity for filtering
+            identifier (str): an identifier or the original instance, shared also by all the clones
         """
-        self.identifier = identifier if identifier is not None else uuid.uuid4().hex
         self.provider_name = provider_name
         self.type_ = type_
         self.label = label
@@ -62,12 +63,14 @@ class ProjectItemResource:
         self._parsed_url = urlparse(self._url)
         self.metadata = metadata if metadata is not None else dict()
         self._filterable = filterable
+        self._identifier = identifier if identifier is not None else uuid.uuid4().hex
 
     @contextmanager
     def open(self, db_checkin=False, db_checkout=False):
         if self.type_ == "database":
             ordering = {
-                "id": self.identifier,
+                "id": self._identifier,
+                "part_count": self.metadata.get("part_count", PartCount()),
                 "current": self.metadata.get("current"),
                 "precursors": self.metadata.get("precursors", set()),
                 "all": self.metadata.get("all", set()),
@@ -105,7 +108,7 @@ class ProjectItemResource:
             url=self._url,
             metadata=metadata,
             filterable=self._filterable,
-            identifier=self.identifier,
+            identifier=self._identifier,
         )
 
     def __eq__(self, other):

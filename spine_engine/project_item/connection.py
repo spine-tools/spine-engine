@@ -29,7 +29,7 @@ from spine_engine.project_item.project_item_resource import (
     expand_cmd_line_args,
     labelled_resource_args,
 )
-from spine_engine.utils.helpers import resolve_python_interpreter, ItemExecutionFinishState
+from spine_engine.utils.helpers import resolve_python_interpreter, ItemExecutionFinishState, PartCount
 from spine_engine.utils.queue_logger import QueueLogger
 
 
@@ -271,7 +271,14 @@ class ResourceConvertingConnection(ConnectionBase):
         all_ = set(c.name for c in sibling_connections) | {self.name}
         for r in resources:
             if r.type_ == "database":
-                r = r.clone(additional_metadata={"current": self.name, "precursors": precursors, "all": all_})
+                r = r.clone(
+                    additional_metadata={
+                        "current": self.name,
+                        "precursors": precursors,
+                        "all": all_,
+                        "part_count": PartCount(),
+                    }
+                )
             final_resources.append(r)
         return final_resources
 
