@@ -39,14 +39,12 @@ if sys.platform == "win32":
 
 
 class PersistentManagerBase:
-    def __init__(self, args, server_ip):
+    def __init__(self, args):
         """
         Args:
             args (list): the arguments to launch the persistent process
         """
         self._args = args
-        # self.server_ip = server_ip
-        # self.port = None
         self._server_address = None
         self._msg_queue = Queue()
         self.command_successful = False
@@ -469,7 +467,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
     factory_lock = threading.Lock()
     _factory_open = OpenSign()
 
-    def new_persistent_manager(self, constructor, logger, args, group_id, server_ip):
+    def new_persistent_manager(self, constructor, logger, args, group_id):
         """Creates a new persistent for given args and group id if none exists.
 
         Args:
@@ -477,7 +475,6 @@ class _PersistentManagerFactory(metaclass=Singleton):
             logger (LoggerInterface)
             args (list): the arguments to launch the persistent process
             group_id (str): item group that will execute using this persistent
-            server_ip (str): Engine Server IP address
 
         Returns:
             PersistentManagerBase: persistent manager or None if factory has been closed
@@ -488,7 +485,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
                 with acquire_persistent_process(self.persistent_managers, self._isolated_managers, self._factory_open):
                     if not self._factory_open:
                         return None
-                    mp = constructor(args, server_ip)
+                    mp = constructor(args)
                     self._isolated_managers.append(mp)
                     return mp
             key = tuple(args + [group_id])
@@ -497,16 +494,14 @@ class _PersistentManagerFactory(metaclass=Singleton):
                     if not self._factory_open:
                         return None
                     try:
-                        self.persistent_managers[key] = pm = constructor(args, server_ip)
+                        self.persistent_managers[key] = pm = constructor(args)
                     except OSError as err:
                         msg = dict(type="persistent_failed_to_start", args=" ".join(args), error=str(err))
                         logger.msg_persistent_execution.emit(msg)
                         return None
             else:
                 pm = self.persistent_managers[key]
-            port = pm.port  # TODO: port not needed anymore
-            print(f"Dynamically assigned port for address {server_ip}: {port}")
-            msg = dict(type="persistent_started", key=key, language=pm.language, port=port)
+            msg = dict(type="persistent_started", key=key, language=pm.language)
             logger.msg_persistent_execution.emit(msg)
             for msg in pm.drain_queue():
                 logger.msg_persistent_execution.emit(msg)
@@ -691,7 +686,7 @@ def acquire_persistent_process(group_persistent_managers, isolated_persistent_ma
 class PersistentExecutionManagerBase(ExecutionManagerBase):
     """Base class for managing execution of commands on a persistent process."""
 
-    def __init__(self, logger, args, commands, alias, group_id=None, server_ip="127.0.0.1"):
+    def __init__(self, logger, args, commands, alias, group_id=None):
         """
         Args:
             logger (LoggerInterface): a logger instance
@@ -706,7 +701,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         self._commands = commands
         self._alias = alias
         self._persistent_manager = _persistent_manager_factory.new_persistent_manager(
-            self.persistent_manager_factory, logger, args, group_id, server_ip
+            self.persistent_manager_factory, logger, args, group_id
         )
 
     @property
