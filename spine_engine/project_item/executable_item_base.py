@@ -93,8 +93,8 @@ class ExecutableItemBase:
         """
         return True
 
-    def execute_unfiltered(self, forward_resources, backward_resources):
-        """Executes tasks that should be done only once, instead of once per filtered execution."""
+    def update(self, forward_resources, backward_resources):
+        """Executes tasks that should be done before going into a next iteration of the loop."""
         return True
 
     def execute(self, forward_resources, backward_resources):

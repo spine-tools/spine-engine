@@ -73,7 +73,6 @@ class ProjectItemResource:
                 "part_count": self.metadata.get("part_count", PartCount()),
                 "current": self.metadata.get("current"),
                 "precursors": self.metadata.get("precursors", set()),
-                "all": self.metadata.get("all", set()),
             }
             with closing_spine_db_server(
                 self.url, memory=self.metadata.get("memory", False), ordering=ordering
@@ -89,7 +88,7 @@ class ProjectItemResource:
             yield self.path if self.hasfilepath else ""
 
     def clone(self, additional_metadata=None):
-        """Clones a resource and optionally updates the clone's metadata.
+        """Clones this resource and optionally updates the clone's metadata.
 
         Args:
             additional_metadata (dict): metadata to add to the clone

@@ -29,7 +29,12 @@ from spine_engine.project_item.project_item_resource import (
     expand_cmd_line_args,
     labelled_resource_args,
 )
-from spine_engine.utils.helpers import resolve_python_interpreter, ItemExecutionFinishState, PartCount
+from spine_engine.utils.helpers import (
+    resolve_python_interpreter,
+    ItemExecutionFinishState,
+    PartCount,
+    ExecutionDirection as ED,
+)
 from spine_engine.utils.queue_logger import QueueLogger
 
 
@@ -268,16 +273,10 @@ class ResourceConvertingConnection(ConnectionBase):
     def _apply_write_index(self, resources, sibling_connections):
         final_resources = []
         precursors = set(c.name for c in sibling_connections if c.write_index < self.write_index)
-        all_ = set(c.name for c in sibling_connections) | {self.name}
         for r in resources:
             if r.type_ == "database":
                 r = r.clone(
-                    additional_metadata={
-                        "current": self.name,
-                        "precursors": precursors,
-                        "all": all_,
-                        "part_count": PartCount(),
-                    }
+                    additional_metadata={"current": self.name, "precursors": precursors, "part_count": PartCount()}
                 )
             final_resources.append(r)
         return final_resources
@@ -446,7 +445,14 @@ class Jump(ConnectionBase):
         self._resources_from_source = set()
         self._resources_from_destination = set()
         self.cmd_line_args = list(cmd_line_args)
-        self._condition_tool = None
+        self._engine = None
+        self.source_solid = None
+        self.destination_solid = None
+        self.item_names = set()
+        self.solid_names = set()
+
+    def set_engine(self, engine):
+        self._engine = engine
 
     @property
     def resources(self):
@@ -478,7 +484,14 @@ class Jump(ConnectionBase):
             iterate = self._is_tool_specification_condition_true(jump_counter)
         if iterate:
             self.emit_flash()
+            self._update_items()
         return iterate
+
+    def _update_items(self):
+        for item_name in self.item_names:
+            item = self._engine.make_item(item_name, ED.FORWARD)
+            forward_resources, backward_resources = self._engine.resources_per_item[item_name]
+            item.update(forward_resources, backward_resources)
 
     def _is_python_script_condition_true(self, jump_counter):
         script = self.condition["script"]
@@ -501,21 +514,17 @@ class Jump(ConnectionBase):
                 return result.returncode == 0
 
     def _is_tool_specification_condition_true(self, jump_counter):
-        self._condition_tool.cmd_line_args[-1] = jump_counter
+        item_dict = {
+            "type": "Tool",
+            "execute_in_work": False,
+            "specification": self.condition["specification"],
+            "cmd_line_args": [arg.to_dict() for arg in self.cmd_line_args] + [str(jump_counter)],
+        }
+        condition_tool = self._engine.do_make_item(self.name, item_dict, self._logger)
         return (
-            self._condition_tool.execute(list(self._resources_from_source), list(self._resources_from_destination))
+            condition_tool.execute(list(self._resources_from_source), list(self._resources_from_destination))
             == ItemExecutionFinishState.SUCCESS
         )
-
-    def prepare_condition(self, engine):
-        if self.condition["type"] == "tool-specification":
-            item_dict = {
-                "type": "Tool",
-                "execute_in_work": False,
-                "specification": self.condition["specification"],
-                "cmd_line_args": [arg.to_dict() for arg in self.cmd_line_args] + [0],
-            }
-            self._condition_tool = engine.make_item(self.name, item_dict, self._logger)
 
     @classmethod
     def from_dict(cls, jump_dict, **kwargs):

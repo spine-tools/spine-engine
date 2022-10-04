@@ -74,10 +74,10 @@ class SpineEngineState(Enum):
         return str(self.name)
 
 
-class _LoopPipelineDefinition(PipelineDefinition):
-    def __init__(self, *args, loops=None, **kwargs):
+class _JumpPipelineDefinition(PipelineDefinition):
+    def __init__(self, *args, jumps=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.loops = loops if loops is not None else []
+        self.jumps = jumps if jumps is not None else []
 
 
 class SpineEngine:
@@ -158,7 +158,7 @@ class SpineEngine:
         for x in self._connections + self._jumps:
             x.make_logger(self._queue)
         for x in self._jumps:
-            x.prepare_condition(self)
+            x.set_engine(self)
         self._back_injectors = {
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
@@ -169,6 +169,7 @@ class SpineEngine:
         self._running_items = []
         self._prompt_queues = {}
         self._answered_prompts = {}
+        self.resources_per_item = {}  # Tuples of (forward resources, backward resources) from last execution
         self._timestamp = create_timestamp()
         self._event_stream = self._get_event_stream()
 
@@ -195,7 +196,7 @@ class SpineEngine:
                 item_specifications[item_type][spec.name] = spec
         return item_specifications
 
-    def _make_item(self, item_name, direction, unfiltered=False):
+    def make_item(self, item_name, direction, unfiltered=False):
         """Recreates item from project item dictionary for a particular execution.
         Note that this method is called multiple times for each item:
         Once for the backward pipeline, and once for each filtered execution in the forward pipeline."""
@@ -204,9 +205,9 @@ class SpineEngine:
         logger = QueueLogger(
             self._queue, item_name, prompt_queue, self._answered_prompts, silent=direction is ED.BACKWARD
         )
-        return self.make_item(item_name, item_dict, logger)
+        return self.do_make_item(item_name, item_dict, logger)
 
-    def make_item(self, item_name, item_dict, logger):
+    def do_make_item(self, item_name, item_dict, logger):
         item_type = item_dict["type"]
         executable_item_class = self._executable_item_classes[item_type]
         return executable_item_class.from_dict(
@@ -350,10 +351,10 @@ class SpineEngine:
 
     def _make_pipeline(self):
         """
-        Returns a _LoopPipelineDefinition for executing this engine.
+        Returns a _JumpPipelineDefinition for executing this engine.
 
         Returns:
-            _LoopPipelineDefinition
+            _JumpPipelineDefinition
         """
         solid_defs = [
             make_solid_def(item_name)
@@ -367,28 +368,25 @@ class SpineEngine:
                 resource_defs={"io_manager": shared_memory_io_manager},
             )
         ]
-        loops = self._make_loops()
-        return _LoopPipelineDefinition(
-            name="pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs, loops=loops
+        self._complete_jumps()
+        return _JumpPipelineDefinition(
+            name="pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs, jumps=self._jumps
         )
 
-    def _make_loops(self):
+    def _complete_jumps(self):
         """Returns a dictionary mapping Jump objects to a set of solid names corresponding to items within the loop.
 
         Returns:
             dict
         """
-        loops = {}
         for jump in self._jumps:
             src, dst = jump.source, jump.destination
-            item_names = {dst, src}
+            jump.item_names = {dst, src}
             for path in nx.all_simple_paths(self._dag, dst, src):
-                item_names.update(path)
-            solid_names = {f"{ED.FORWARD}_{self._solid_names[n]}" for n in item_names}
-            jump.source = f"{ED.FORWARD}_{self._solid_names[src]}"
-            jump.destination = f"{ED.BACKWARD}_{self._solid_names[dst]}"
-            loops[jump] = solid_names
-        return loops
+                jump.item_names.update(path)
+            jump.solid_names = {f"{ED.FORWARD}_{self._solid_names[n]}" for n in jump.item_names}
+            jump.source_solid = f"{ED.FORWARD}_{self._solid_names[src]}"
+            jump.destination_solid = f"{ED.BACKWARD}_{self._solid_names[dst]}"
 
     def _make_backward_solid_def(self, item_name):
         """Returns a SolidDefinition for executing the given item in the backward sweep.
@@ -402,7 +400,7 @@ class SpineEngine:
                 context.log.error(f"compute_fn() FAILURE with item: {item_name} stopped by the user")
                 raise Failure()
             context.log.info(f"Item Name: {item_name}")
-            item = self._make_item(item_name, ED.BACKWARD)
+            item = self.make_item(item_name, ED.BACKWARD)
             resources = item.output_resources(ED.BACKWARD)
             yield Output(value=resources, output_name=f"{ED.BACKWARD}_output")
 
@@ -486,16 +484,11 @@ class SpineEngine:
             ItemExecutionFinishState
             list(tuple(ProjectItemResource))
         """
-        item = self._make_item(item_name, ED.FORWARD, unfiltered=True)
+        item = self.make_item(item_name, ED.FORWARD, unfiltered=True)
         if not item.ready_to_execute(self._settings):
             if not self._execution_permits[self._solid_names[item_name]]:
                 return ItemExecutionFinishState.EXCLUDED, []
             context.log.error(f"compute_fn() FAILURE with '{item_name}', not ready for forward execution")
-            return ItemExecutionFinishState.FAILURE, []
-        if self._execution_permits[self._solid_names[item_name]] and not item.execute_unfiltered(
-            forward_resource_stacks, backward_resources
-        ):
-            context.log.error(f"compute_fn() FAILURE with {item_name}, failed to execute")
             return ItemExecutionFinishState.FAILURE, []
         success = [ItemExecutionFinishState.NEVER_FINISHED]
         output_resources_list = []
@@ -504,7 +497,8 @@ class SpineEngine:
             item_name, forward_resource_stacks, backward_resources, self._timestamp
         )
         for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
-            item = self._make_item(item_name, ED.FORWARD)
+            self.resources_per_item[item_name] = (flt_fwd_resources, flt_bwd_resources)
+            item = self.make_item(item_name, ED.FORWARD)
             item.filter_id = filter_id
             thread = threading.Thread(
                 target=self._execute_item_filtered,

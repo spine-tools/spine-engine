@@ -66,7 +66,6 @@ class TestSpineEngine(unittest.TestCase):
         item = NonCallableMagicMock()
         item.name = name
         item.short_name = name.lower().replace(' ', '_')
-        item.execute_unfiltered.return_value = True
         item.execute.return_value = execute_outcome
         item.exclude_execution = MagicMock()
         for r in resources_forward + resources_backward:
@@ -112,14 +111,14 @@ class TestSpineEngine(unittest.TestCase):
                 items_module_name="items_module",
             )
 
-        def _make_item(name, direction, unfiltered=False):
+        def make_item(name, direction, unfiltered=False):
             if direction == ExecutionDirection.FORWARD:
                 if unfiltered:
                     return engine._items[name][0]
                 return engine._items[name].pop(0)
             return engine._items[name][0]
 
-        engine._make_item = _make_item
+        engine.make_item = make_item
         engine.run()
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
@@ -712,7 +711,7 @@ class TestSpineEngine(unittest.TestCase):
             execution_permits=execution_permits,
             items_module_name="items_module",
         )
-        engine._make_item = lambda name, direction, unfiltered=False: engine._items[name]
+        engine.make_item = lambda name, direction, unfiltered=False: engine._items[name]
         engine.run()
         self.assertEqual(mock_item.execute.call_args_list, 2 * [call([], [])])
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
