@@ -9,31 +9,45 @@ Setting up Spine Engine Server
 - Make new anaconda environment & activate
 - Clone and checkout spine-engine. Branch **server**.
 - cd to spine-engine repo root, run `pip install -e .`
-- Clone and checkout spine-items. Branch **master**.
+- Clone and checkout spine-items. Branch **server**.
 - cd to spine-items repo root, run `pip install --no-deps -e .`
 
-2. Create security credentials
+2. Create security credentials (optional)
 
 - cd to <repo_root>/spine_engine/server/
 - Run `python certificate_creator.py`
 
 This creates the security certificates into <repo_root>/spine_engine/server/certs/ directory.
 
-3. Configure allowed endpoints (if security is used)
+3. Configure allowed endpoints (if security credentials are used)
+
 - Make file <repo_root>/spine_engine/server/connectivity/certs/allowEndpoints.txt
 - Add IP addresses of the remote end points to the file
 
-4. Start Spine Engine Server
+4. Install IPython kernel spec (python3) to enable Jupyter Console execution of Python Tools
+
+- Run `python -m pip install ipykernel` to install and register an IPython kernel (python3) with Jupyter
+
+5. Install Julia 1.8
+
+- Download from https://julialang.org/downloads/ or use `apt-get install julia` on Ubuntu
+
+6. Install IJulia kernel spec (julia-1.8) to enable Jupyter Console execution of Julia tools
+
+- Open Julia REPL and press `]` to enter pkg mode. Enter `add IJulia`
+- This installs `julia-1.8` kernel spec to ~/.local/share/jupyter/kernels on Ubuntu or to %APPDATA%\jupyter\kernels
+
+7. Start Spine Engine Server
 
 In directory, <repo_root>/spine_engine/server/
 
 Without security, run:
-`python start_server.py tcp 50001 None`
+`python start_server.py tcp 50001`
 
 With Stonehouse security, run:
 `python start_server.py tcp 50001 StoneHouse <repo_root>/spine-engine/server/connectivity/certs`
 
-- Arguments: protocol, Zero-MQ listening port, security model (StoneHouse/None), location of the 
+- Arguments: Transport protocol, port, security model (StoneHouse/None), location of the
   security folder.
 
 Note that on the client side, port range has been restricted to 49152-65535.
