@@ -10,36 +10,29 @@
 ######################################################################################################################
 
 """
-Contains a class for handling ping requests.
-:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   13.09.2021
+Contains a base class for different services provided by the Spine Engine Server.
+:authors: P. Savolainen (VTT)
+:date:   30.9.2021
 """
 
-import threading
-import json
 import zmq
-from spine_engine.server.service_base import ServiceBase
-from spine_engine.server.util.server_message import ServerMessage
 
 
-class PingService(threading.Thread, ServiceBase):
-    """Class for handling ping requests."""
+class ServiceBase:
+    """Service base class."""
     def __init__(self, context, request, job_id):
         """Initializes instance.
 
         Args:
-            context (zmq.Context): Server context
+            context (zmq.Context): Context for this handler.
             request (Request): Client request
             job_id (str): Worker thread Id
         """
-        super(PingService, self).__init__(name="PingServiceThread")
-        ServiceBase.__init__(self, context, request, job_id)
+        self.context = context
+        self.request = request
+        self.job_id = job_id
+        self.worker_socket = self.context.socket(zmq.DEALER)
 
-    def run(self):
-        """Replies to a ping command."""
-        self.worker_socket.connect("inproc://backend")
-        reply_msg = ServerMessage("ping", self.request.request_id(), "", None)
-        internal_msg = json.dumps((self.job_id, ""))
-        conn_id = self.request.connection_id()
-        rep = reply_msg.to_bytes()
-        self.request.send_multipart_reply(self.worker_socket, conn_id, rep, internal_msg)
+    def close(self):
+        """Closes socket after thread has finished."""
+        self.worker_socket.close()

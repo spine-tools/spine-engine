@@ -20,10 +20,11 @@ import shutil
 import threading
 import json
 import zmq
+from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.server_message import ServerMessage
 
 
-class ProjectRetrieverService(threading.Thread):
+class ProjectRetrieverService(threading.Thread, ServiceBase):
     """Class for transmitting a project back to client."""
     def __init__(self, context, request, job_id, project_dir):
         """Initializes instance.
@@ -34,12 +35,9 @@ class ProjectRetrieverService(threading.Thread):
             job_id (str): Thread job Id
             project_dir (str): Absolute path to project directory
         """
-        super().__init__(name="ProjectRetrieverServiceThread")
-        self.context = context
-        self.req = request
-        self.job_id = job_id
+        super(ProjectRetrieverService, self).__init__(name="ProjectRetrieverServiceThread")
+        ServiceBase.__init__(self, context, request, job_id)
         self.project_dir = project_dir
-        self.worker_socket = self.context.socket(zmq.DEALER)  # Backend socket
 
     def run(self):
         """Replies to a retrieve_project command."""
@@ -61,12 +59,8 @@ class ProjectRetrieverService(threading.Thread):
         # Read file into bytes string and transmit
         with open(zip_fpath, "rb") as f:
             file_data = f.read()
-        reply_msg = ServerMessage(self.req.cmd(), self.req.request_id(), "", ["project_package.zip"])
+        reply_msg = ServerMessage(self.request.cmd(), self.request.request_id(), "", ["project_package.zip"])
         internal_msg = json.dumps((self.job_id, ""))
-        self.req.send_multipart_reply_with_file(
-            self.worker_socket, self.req.connection_id(), reply_msg.to_bytes(), file_data, internal_msg
+        self.request.send_multipart_reply_with_file(
+            self.worker_socket, self.request.connection_id(), reply_msg.to_bytes(), file_data, internal_msg
         )
-
-    def close(self):
-        """Closes socket and cleans up."""
-        self.worker_socket.close()

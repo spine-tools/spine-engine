@@ -20,11 +20,12 @@ import json
 import threading
 import uuid
 import zmq
+from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.zip_handler import ZipHandler
 
 
-class ProjectExtractorService(threading.Thread):
+class ProjectExtractorService(threading.Thread, ServiceBase):
     """Class for handling 'prepare_execution' requests."""
 
     # Root directory, where all projects will be extracted and executed
@@ -38,11 +39,8 @@ class ProjectExtractorService(threading.Thread):
             request (Request): Client request
             job_id (str): Worker thread Id
         """
-        super().__init__(name="ProjectExtractorServiceThread")
-        self.context = context
-        self.request = request
-        self.job_id = job_id
-        self.worker_socket = self.context.socket(zmq.DEALER)  # Backend socket
+        super(ProjectExtractorService, self).__init__(name="ProjectExtractorServiceThread")
+        ServiceBase.__init__(self, context, request, job_id)
 
     def run(self):
         """Extracts the project into a new directory and sends a response back to client."""
@@ -120,7 +118,3 @@ class ProjectExtractorService(threading.Thread):
         self.request.send_multipart_reply(
             self.worker_socket, self.request.connection_id(), reply_msg.to_bytes(), internal_msg
         )
-
-    def close(self):
-        """Closes socket and cleans up."""
-        self.worker_socket.close()

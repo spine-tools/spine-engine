@@ -16,6 +16,7 @@ Contains EngineServer class for running a Zero-MQ server with Spine Engine.
 """
 import json.decoder
 import os
+import queue
 import time
 import threading
 import ipaddress
@@ -29,6 +30,7 @@ from spine_engine.server.remote_execution_service import RemoteExecutionService
 from spine_engine.server.ping_service import PingService
 from spine_engine.server.project_extractor_service import ProjectExtractorService
 from spine_engine.server.project_retriever_service import ProjectRetrieverService
+from spine_engine.server.persistent_execution_service import PersistentExecutionService
 
 
 class ServerSecurityModel(enum.Enum):
@@ -114,6 +116,8 @@ class EngineServer(threading.Thread):
             raise ValueError(f"Initializing serve() failed due to exception: {e}")
         workers = dict()
         project_dirs = dict()  # Mapping of job Id to an abs. path to a project directory ready for execution
+        persistent_exec_mngr_q = queue.Queue()
+        persistent_exec_mngrs = dict()
         while True:
             try:
                 socks = dict(poller.poll())
@@ -132,20 +136,37 @@ class EngineServer(threading.Thread):
                     elif request.cmd() == "prepare_execution":
                         worker = ProjectExtractorService(self._context, request, job_id)
                     elif request.cmd() == "start_execution":
-                        # Find local project dir for the job Id in the execute request
-                        project_dir = project_dirs[request.request_id()]
-                        worker = RemoteExecutionService(self._context, request, job_id, project_dir)
-                    elif request.cmd() == "retrieve_project":
-                        # Find project dir for the job Id in the execute request
-                        project_dir = project_dirs.get(request.request_id(), None)
+                        project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
                         if not project_dir:
                             print(f"Project for job_id:{request.request_id()} not found")
-                            continue  # TODO: Send error to client
+                            msg = f"Starting DAG execution failed. Project directory for " \
+                                  f"job_id:{request.request_id()} not found."
+                            self.send_init_failed_reply(frontend, request.connection_id(), msg)
+                            continue
+                        worker = RemoteExecutionService(self._context, request, job_id, project_dir, persistent_exec_mngr_q)
+                    elif request.cmd() == "retrieve_project":
+                        project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
+                        if not project_dir:
+                            print(f"Project for job_id:{request.request_id()} not found")
+                            msg = f"Retrieving project for job_id {request.request_id()} failed. " \
+                                  f"Project directory not found."
+                            self.send_init_failed_reply(frontend, request.connection_id(), msg)
+                            continue
                         worker = ProjectRetrieverService(self._context, request, job_id, project_dir)
+                    elif request.cmd() == "execute_in_persistent":
+                        exec_mngr_key = tuple(request.data()[0])  # Cast key list back to tuple
+                        exec_mngr = persistent_exec_mngrs.get(exec_mngr_key, None)
+                        if not exec_mngr:
+                            print(f"Persistent exec. mngr for key:{exec_mngr_key} not found.")
+                            msg = f"Executing command:{request.data()[1]} - {request.data()[2]} in persistent " \
+                                  f"manager failed. Persistent execution manager for key {exec_mngr_key} not found."
+                            self.send_init_failed_reply(frontend, request.connection_id(), msg)
+                            continue
+                        worker = PersistentExecutionService(self._context, request, job_id, exec_mngr)
                     else:
                         print(f"Unknown command {request.cmd()} requested")
-                        self.send_init_failed_reply(frontend, request.connection_id(),
-                                                    f"Error at server - Unknown command '{request.cmd()}' requested")
+                        msg = f"Server error: Unknown command '{request.cmd()}' requested"
+                        self.send_init_failed_reply(frontend, request.connection_id(), msg)
                         continue
                     worker.start()
                     workers[job_id] = worker
@@ -153,16 +174,25 @@ class EngineServer(threading.Thread):
                     # Worker has finished execution. Relay reply from backend back to client using the frontend socket
                     message = backend.recv_multipart()
                     internal_msg = json.loads(message.pop().decode("utf-8"))
-                    if internal_msg[1] != "started":
+                    if internal_msg[1] != "in_progress":
                         finished_worker = workers.pop(internal_msg[0])
                         if isinstance(finished_worker, ProjectExtractorService):
                             project_dirs[internal_msg[0]] = internal_msg[1]
+                        if isinstance(finished_worker, RemoteExecutionService):
+                            # Store refs to exec. managers
+                            new_exec_mngrs = finished_worker.persist_q.get()
+                            for k, v in new_exec_mngrs.items():
+                                persistent_exec_mngrs[k] = v
+                            # print(f"Persistent exec. managers: {persistent_exec_mngrs}")
                         finished_worker.close()
                         finished_worker.join()
                     if internal_msg[1] != "completed":  # Note: completed msg not sent to clients
                         print(f"Sending response to client {message[0]}")
                         frontend.send_multipart(message)
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
+                    for k, v in persistent_exec_mngrs.items():
+                        if v._persistent_manager.is_persistent_alive():
+                            print(f"Persistent exec. mngr:{k} still alive (n:{len(persistent_exec_mngrs)})")
                     if len(workers) > 0:
                         print(f"WARNING: Some workers still running:{workers.keys()}")
                     break

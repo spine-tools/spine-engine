@@ -19,28 +19,51 @@ import os
 import threading
 import zmq
 from spine_engine import SpineEngine
+from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.event_data_converter import EventDataConverter
 from spine_engine.server.util.zip_handler import ZipHandler
 
 
-class RemoteExecutionService(threading.Thread):
+class RemoteExecutionService(threading.Thread, ServiceBase):
     """Executes a DAG contained in the client request. Project must
     be on server before running this service."""
-    def __init__(self, context, request, job_id, project_dir):
+    def __init__(self, context, request, job_id, project_dir, persistent_exec_mngr_q):
         """
         Args:
             context (zmq.Context): Context for this handler.
             request (Request): Client request
             job_id (str): Worker thread Id
             project_dir (str): Absolute path to a server directory where the project has been extracted to
+            persistent_exec_mngr_q (queue.Queue): Queue for storing persistent exec. managers (consumed in frontend)
         """
-        super().__init__(name="RemoteExecutionServiceThread")
-        self.context = context
-        self.worker_socket = self.context.socket(zmq.DEALER)
+        super(RemoteExecutionService, self).__init__(name="RemoteExecutionServiceThread")
+        ServiceBase.__init__(self, context, request, job_id)
         self.pub_socket = self.context.socket(zmq.PUB)
-        self.request = request
-        self.job_id = job_id
         self.local_project_dir = project_dir
+        self.persistent_keys = dict()  # Mapping of item_name to a persistent execution manager key
+        self.persistent_exec_mngrs = dict()  # Mapping of per. execution manager key to per. execution manager
+        self.persist_q = persistent_exec_mngr_q
+
+    def collect_persistent_keys(self, event_type, data):
+        """Collects the keys used in identifying persistent execution managers
+        The key is in a persistent_execution_msg when the type is persistent_started."""
+        if event_type == "persistent_execution_msg" and data["type"] == "persistent_started":
+            self.persistent_keys[data["item_name"]] = data["key"]  # NOTE: Cast tuple into list
+
+    def collect_persistent_console_managers(self, event_type, data, running_items):
+        """Collects a persistent execution manager from a tool item that is being
+        executed in engine (running). Matches the key (collected earlier), with the
+        persistent execution manager and inserts them into a dict."""
+        if event_type == "persistent_execution_msg" and data["type"] == "execution_started":
+            persistent_owner = data["item_name"]
+            if len(running_items) > 0:
+                for item in running_items:
+                    if item.name == persistent_owner:
+                        ref = item._tool_instance.exec_mngr
+                        k = self.persistent_keys[persistent_owner]
+                        self.persistent_exec_mngrs[k] = ref
+            else:  # If this happens regularly, we have a problem
+                print(f"[DEBUG] Collecting {persistent_owner}'s persistent exec. manager failed. Item not running.")
 
     def run(self):
         """Sends an execution started response to start execution request. Runs Spine Engine
@@ -51,13 +74,15 @@ class RemoteExecutionService(threading.Thread):
         print("Executing DAG...")
         # Send execution started message to client with the publish socket port
         self.request.send_response(
-            self.worker_socket, ("remote_execution_started", str(pub_port)), (self.job_id, "started"))
+            self.worker_socket, ("remote_execution_started", str(pub_port)), (self.job_id, "in_progress"))
         converted_data = self.convert_input(engine_data, self.local_project_dir)
         try:
             engine = SpineEngine(**converted_data)
             while True:
                 # Get event and associated data from the spine engine
                 event_type, data = engine.get_event()
+                self.collect_persistent_keys(event_type, data)
+                self.collect_persistent_console_managers(event_type, data, engine._running_items)
                 json_event = EventDataConverter.convert(event_type, data)
                 # Send events using a publish socket
                 self.pub_socket.send_multipart([b"EVENTS", json_event.encode("utf-8")])
@@ -70,7 +95,7 @@ class RemoteExecutionService(threading.Thread):
             )
             self.pub_socket.send_multipart([b"EVENTS", json_error_event.encode("utf-8")])
             return
-
+        self.persist_q.put(self.persistent_exec_mngrs)  # Put new persistent execution managers to queue
         # Note: This is not sent to client
         self.request.send_response(
             self.worker_socket, ("remote_execution_event", "completed"), (self.job_id, "completed"))
@@ -85,8 +110,8 @@ class RemoteExecutionService(threading.Thread):
         # print("RemoteExecutionService._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
 
     def close(self):
-        """Cleans up after execution."""
-        self.worker_socket.close()
+        """Cleans up after thread closes."""
+        super().close()
         self.pub_socket.close()
 
     @staticmethod

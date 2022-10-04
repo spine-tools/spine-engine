@@ -45,8 +45,8 @@ class PersistentManagerBase:
             args (list): the arguments to launch the persistent process
         """
         self._args = args
-        self.server_ip = server_ip
-        self.port = None
+        # self.server_ip = server_ip
+        # self.port = None
         self._server_address = None
         self._msg_queue = Queue()
         self.command_successful = False
@@ -125,10 +125,10 @@ class PersistentManagerBase:
 
     def _start_persistent(self):
         """Starts the persistent process."""
-        # host = "127.0.0.1"
-        with socketserver.TCPServer((self.server_ip, 0), None) as s:
+        host = "127.0.0.1"
+        with socketserver.TCPServer((host, 0), None) as s:
             self.port = s.server_address[1]  # Let OS select a free port
-        self._server_address = self.server_ip, self.port
+        self._server_address = host, self.port
         self.command_successful = False
         self._persistent = Popen(self._args + self._init_args(), **self._kwargs)
         threading.Thread(target=self._log_stdout, daemon=True).start()
@@ -236,17 +236,14 @@ class PersistentManagerBase:
         Returns:
             bool
         """
-        # host = "127.0.0.1"
-        with socketserver.TCPServer((self.server_ip, 0), None) as s:
-            temp_port = s.server_address[1]
-            print(f"port:{temp_port}")
-        # host = self._server_address[0]
-        # port = self._server_address[1]
+        host = "127.0.0.1"
+        with socketserver.TCPServer((host, 0), None) as s:
+            port = s.server_address[1]  # Obtain a free port for pinging the repl process
         queue = Queue()
-        thread = threading.Thread(target=self._wait_ping, args=(self.server_ip, temp_port, queue))
+        thread = threading.Thread(target=self._wait_ping, args=(host, port, queue))
         thread.start()
         queue.get()  # This blocks until the server is listening
-        ping = self._ping_command(self.server_ip, temp_port)
+        ping = self._ping_command(host, port)
         if not self._issue_command(ping, catch_exception=False):
             thread.join()
             return False
@@ -507,7 +504,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
                         return None
             else:
                 pm = self.persistent_managers[key]
-            port = pm.port
+            port = pm.port  # TODO: port not needed anymore
             print(f"Dynamically assigned port for address {server_ip}: {port}")
             msg = dict(type="persistent_started", key=key, language=pm.language, port=port)
             logger.msg_persistent_execution.emit(msg)
