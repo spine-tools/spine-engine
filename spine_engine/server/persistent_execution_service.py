@@ -53,6 +53,9 @@ class PersistentExecutionService(threading.Thread, ServiceBase):
                 self.push_socket.send(json_msg.encode("utf-8"))  # This blocks until somebody is pulling (receiving)
             self.push_socket.send(b'END')
             self.request.send_response(self.worker_socket, (cmd_type, "everything ok"), (self.job_id, "completed"))
+        elif cmd_type == "get_completions":
+            retval = pm.get_completions(cmd)
+            self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
         else:
             print(f"Command type {cmd_type} does not have a handler. cmd:{cmd}")
             self.request.send_response(self.worker_socket, (cmd_type, "Unhandled command"), (self.job_id, ""))
