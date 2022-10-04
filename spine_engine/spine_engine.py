@@ -196,7 +196,7 @@ class SpineEngine:
                 item_specifications[item_type][spec.name] = spec
         return item_specifications
 
-    def make_item(self, item_name, direction, unfiltered=False):
+    def make_item(self, item_name, direction):
         """Recreates item from project item dictionary for a particular execution.
         Note that this method is called multiple times for each item:
         Once for the backward pipeline, and once for each filtered execution in the forward pipeline."""
@@ -484,7 +484,7 @@ class SpineEngine:
             ItemExecutionFinishState
             list(tuple(ProjectItemResource))
         """
-        item = self.make_item(item_name, ED.FORWARD, unfiltered=True)
+        item = self.make_item(item_name, ED.NONE)
         if not item.ready_to_execute(self._settings):
             if not self._execution_permits[self._solid_names[item_name]]:
                 return ItemExecutionFinishState.EXCLUDED, []

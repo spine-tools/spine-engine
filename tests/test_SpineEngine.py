@@ -111,10 +111,8 @@ class TestSpineEngine(unittest.TestCase):
                 items_module_name="items_module",
             )
 
-        def make_item(name, direction, unfiltered=False):
+        def make_item(name, direction):
             if direction == ExecutionDirection.FORWARD:
-                if unfiltered:
-                    return engine._items[name][0]
                 return engine._items[name].pop(0)
             return engine._items[name][0]
 
@@ -711,7 +709,7 @@ class TestSpineEngine(unittest.TestCase):
             execution_permits=execution_permits,
             items_module_name="items_module",
         )
-        engine.make_item = lambda name, direction, unfiltered=False: engine._items[name]
+        engine.make_item = lambda name, direction: engine._items[name]
         engine.run()
         self.assertEqual(mock_item.execute.call_args_list, 2 * [call([], [])])
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)

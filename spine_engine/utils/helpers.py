@@ -32,6 +32,7 @@ from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBED
 class ExecutionDirection(Enum):
     FORWARD = auto()
     BACKWARD = auto()
+    NONE = auto()
 
     def __str__(self):
         return str(self.name)

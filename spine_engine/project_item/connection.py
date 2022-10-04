@@ -489,7 +489,7 @@ class Jump(ConnectionBase):
 
     def _update_items(self):
         for item_name in self.item_names:
-            item = self._engine.make_item(item_name, ED.FORWARD)
+            item = self._engine.make_item(item_name, ED.NONE)
             forward_resources, backward_resources = self._engine.resources_per_item[item_name]
             item.update(forward_resources, backward_resources)
 
