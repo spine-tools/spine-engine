@@ -171,4 +171,6 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         # Replace Julia path and Julia project path with an empty string so that the server uses the Julia in PATH
         input_data["settings"]["appSettings/juliaPath"] = ""
         input_data["settings"]["appSettings/juliaProjectPath"] = ""
+        # Replace Julia kernel
+        input_data["settings"]["appSettings/juliaKernel"] = "julia-1.8"  # (must be available on server)
         return input_data
