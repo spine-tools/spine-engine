@@ -60,6 +60,12 @@ class PersistentExecutionService(threading.Thread, ServiceBase):
             text, prefix, backwards = cmd
             retval = pm.get_history_item(text, prefix, backwards)
             self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
+        elif cmd_type == "restart_persistent":
+            retval = pm.restart_persistent()
+            self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
+        elif cmd_type == "interrupt_persistent":
+            retval = pm.interrupt_persistent()
+            self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
         else:
             print(f"Command type {cmd_type} does not have a handler. cmd:{cmd}")
             self.request.send_response(self.worker_socket, (cmd_type, "Unhandled command"), (self.job_id, ""))
