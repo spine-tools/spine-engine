@@ -38,11 +38,13 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         """
         super(RemoteExecutionService, self).__init__(name="RemoteExecutionServiceThread")
         ServiceBase.__init__(self, context, request, job_id)
-        self.pub_socket = self.context.socket(zmq.PUB)
+        self.pub_socket = self.context.socket(zmq.PUB)  # For transmitting events
+        self.push_socket = self.context.socket(zmq.PUSH)  # For transmitting files
         self.local_project_dir = project_dir
         self.persistent_keys = dict()  # Mapping of item_name to a persistent execution manager key
         self.persistent_exec_mngrs = dict()  # Mapping of per. execution manager key to per. execution manager
         self.persist_q = persistent_exec_mngr_q
+        self.items = list()
 
     def collect_persistent_keys(self, event_type, data):
         """Collects the keys used in identifying persistent execution managers
@@ -65,16 +67,31 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
             else:  # If this happens regularly, we have a problem
                 print(f"[DEBUG] Collecting {persistent_owner}'s persistent exec. manager failed. Item not running.")
 
+    def collect_running_items(self, running_items):
+        """Collects executable items that were executed during this DAG execution into a list."""
+        if len(running_items) > 0:
+            for running_item in running_items:
+                if running_item not in self.items:
+                    self.items.append(running_item)
+
+    def collect_resources(self):
+        """Returns a list-of-lists ProjectItemResources from finished ExecutableItems."""
+        resources = list()
+        for item in self.items:
+            resources.append(item._output_resources_forward())
+        return resources
+
     def run(self):
         """Sends an execution started response to start execution request. Runs Spine Engine
         and sends the events to the client using a publish socket."""
         self.worker_socket.connect("inproc://backend")
         pub_port = self.pub_socket.bind_to_random_port("tcp://*")
+        push_port = self.push_socket.bind_to_random_port("tcp://*")
         engine_data = self.request.data()
         print("Executing DAG...")
         # Send execution started message to client with the publish socket port
         self.request.send_response(
-            self.worker_socket, ("remote_execution_started", str(pub_port)), (self.job_id, "in_progress"))
+            self.worker_socket, ("remote_execution_started", str(pub_port) + ":" + str(push_port)), (self.job_id, "in_progress"))
         converted_data = self.convert_input(engine_data, self.local_project_dir)
         try:
             engine = SpineEngine(**converted_data)
@@ -83,11 +100,13 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                 event_type, data = engine.get_event()
                 self.collect_persistent_keys(event_type, data)
                 self.collect_persistent_console_managers(event_type, data, engine._running_items)
+                self.collect_running_items(engine._running_items)
                 json_event = EventDataConverter.convert(event_type, data)
                 # Send events using a publish socket
                 self.pub_socket.send_multipart([b"EVENTS", json_event.encode("utf-8")])
                 if data == "COMPLETED" or data == "FAILED":
                     break
+            resources = self.collect_resources()
         except Exception as e:
             print(f"Execution failed: {type(e).__name__}: {e}")
             json_error_event = EventDataConverter.convert(
@@ -96,7 +115,17 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
             self.pub_socket.send_multipart([b"EVENTS", json_error_event.encode("utf-8")])
             return
         self.persist_q.put(self.persistent_exec_mngrs)  # Put new persistent execution managers to queue
-        # Note: This is not sent to client
+        # Send all file resources back to client
+        for resources_by_item in resources:
+            for resource in resources_by_item:
+                if resource.hasfilepath:
+                    with open(resource.path, "rb") as f:
+                        file_data = f.read()
+                    path_rel_to_project_dir = os.path.relpath(resource.path, self.local_project_dir)
+                    b_fpath = path_rel_to_project_dir.replace(os.sep, "/").encode("utf-8")  # Replace "\" with "/"
+                    self.push_socket.send_multipart([b_fpath, file_data])
+        self.push_socket.send_multipart([b"END", b""])
+        # Note: 'completed' is not sent to client
         self.request.send_response(
             self.worker_socket, ("remote_execution_event", "completed"), (self.job_id, "completed"))
         print("Execution done")
@@ -113,6 +142,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         """Cleans up after thread closes."""
         super().close()
         self.pub_socket.close()
+        self.push_socket.close()
 
     @staticmethod
     def convert_input(input_data, local_project_dir):
