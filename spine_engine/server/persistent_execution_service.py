@@ -61,8 +61,12 @@ class PersistentExecutionService(threading.Thread, ServiceBase):
             retval = pm.get_history_item(text, prefix, backwards)
             self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
         elif cmd_type == "restart_persistent":
-            retval = pm.restart_persistent()
-            self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
+            self.request.send_response(self.worker_socket, (cmd_type, str(pub_port)), (self.job_id, "in_progress"))
+            for msg in pm.restart_persistent():
+                json_msg = json.dumps(msg)
+                self.push_socket.send(json_msg.encode("utf-8"))
+            self.push_socket.send(b'END')
+            self.request.send_response(self.worker_socket, (cmd_type, "everything ok"), (self.job_id, "completed"))
         elif cmd_type == "interrupt_persistent":
             retval = pm.interrupt_persistent()
             self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
