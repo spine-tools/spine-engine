@@ -68,8 +68,8 @@ class PersistentExecutionService(threading.Thread, ServiceBase):
             self.push_socket.send(b'END')
             self.request.send_response(self.worker_socket, (cmd_type, "everything ok"), (self.job_id, "completed"))
         elif cmd_type == "interrupt_persistent":
-            retval = pm.interrupt_persistent()
-            self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
+            pm.interrupt_persistent()
+            self.request.send_response(self.worker_socket, (cmd_type, "everything ok"), (self.job_id, ""))
         else:
             print(f"Command type {cmd_type} does not have a handler. cmd:{cmd}")
             self.request.send_response(self.worker_socket, (cmd_type, "Unhandled command"), (self.job_id, ""))
