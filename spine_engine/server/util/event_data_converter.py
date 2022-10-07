@@ -96,9 +96,12 @@ def break_event_data(event_type, data):
                 except json.decoder.JSONDecodeError:
                     print(f"Error loading connection file {data['connection_file']}. Invalid JSON.")
         for key in data.keys():
+            # Print warning if there are any tuples used as keys in the data dictionary.
+            # Tuples are converted to lists by json.dumps(). Lists must be converted back to tuples
+            # on client side (in fix_event_data()).
             if type(data[key]) == tuple:
-                # tuples are converted to lists by json.dumps(). Convert the lists back to tuples on client side
-                print(f"[DEBUG] Found tuple in {event_type}: data. This may be a problem on client side.")
+                if event_type != "persistent_execution_msg":
+                    print(f"[WARNING] Found tuple in message {event_type}: {data}. Fix this on client side.")
     return data
 
 

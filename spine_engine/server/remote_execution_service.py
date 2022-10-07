@@ -67,17 +67,17 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                 print(f"[DEBUG] Collecting {persistent_owner}'s persistent exec. manager failed. Item not running.")
 
     def collect_running_items(self, running_items):
-        """Collects executable items that were executed during this DAG execution into a list."""
+        """Collects executed items into a list."""
         if len(running_items) > 0:
             for running_item in running_items:
                 if running_item not in self.items:
                     self.items.append(running_item)
 
     def collect_resources(self):
-        """Returns ProjectItemResources in a list of lists from finished executable items."""
-        resources = list()
+        """Returns a dictionary containing items name, type and ProjectItemResources."""
+        resources = dict()
         for item in self.items:
-            resources.append(item._output_resources_forward())
+            resources[item.name] = [item.item_type(), item._output_resources_forward()]
         return resources
 
     def run(self):
@@ -113,9 +113,11 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
             self.push_socket.send_multipart([json_error_event.encode("utf-8")])
             return
         self.persist_q.put(self.persistent_exec_mngrs)  # Put new persistent execution managers to queue
-        # Send all file resources back to client
-        for resources_by_item in resources:
-            for resource in resources_by_item:
+        # Send file resources back to client except for Data Connections
+        for item_name, type_and_pir in resources.items():
+            if type_and_pir[0] == "Data Connection":
+                continue
+            for resource in type_and_pir[1]:
                 if resource.hasfilepath:
                     with open(resource.path, "rb") as f:
                         file_data = f.read()
