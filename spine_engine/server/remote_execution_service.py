@@ -74,7 +74,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                     self.items.append(running_item)
 
     def collect_resources(self):
-        """Returns a list-of-lists ProjectItemResources from finished ExecutableItems."""
+        """Returns ProjectItemResources in a list of lists from finished executable items."""
         resources = list()
         for item in self.items:
             resources.append(item._output_resources_forward())
@@ -101,7 +101,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                 self.collect_running_items(engine._running_items)
                 json_event = EventDataConverter.convert(event_type, data)
                 # Send events using a push socket
-                self.push_socket.send_multipart([b"EVENTS", json_event.encode("utf-8")])
+                self.push_socket.send_multipart([json_event.encode("utf-8")])
                 if data == "COMPLETED" or data == "FAILED":
                     break
             resources = self.collect_resources()
@@ -110,7 +110,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
             json_error_event = EventDataConverter.convert(
                 "server_execution_error", f"{type(e).__name__}: {e}. - Project execution failed on Server"
             )
-            self.push_socket.send_multipart([b"EVENTS", json_error_event.encode("utf-8")])
+            self.push_socket.send_multipart([json_error_event.encode("utf-8")])
             return
         self.persist_q.put(self.persistent_exec_mngrs)  # Put new persistent execution managers to queue
         # Send all file resources back to client
