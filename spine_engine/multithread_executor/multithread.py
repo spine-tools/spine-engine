@@ -123,13 +123,15 @@ class MultithreadExecutor(Executor):
                         executable_steps = []
                         for step in candidate_steps:
                             # Check if the step depends on any jumps that don't contain it
-                            jumps = (jump for jump in unfinished_jumps if step.solid_name not in jump.solid_names)
-                            solid_names = {item for jump in jumps for item in jump.solid_names}
-                            problematic_keys = {
-                                key for key, step in steps_by_key.items() if step.solid_name in solid_names
+                            predecessor_jumps = (
+                                jump for jump in unfinished_jumps if step.solid_name not in jump.solid_names
+                            )
+                            predecessor_solid_names = {item for jump in predecessor_jumps for item in jump.solid_names}
+                            predecessor_keys = {
+                                key for key, step in steps_by_key.items() if step.solid_name in predecessor_solid_names
                             }
                             dependency_keys = step.get_execution_dependency_keys()
-                            if dependency_keys & problematic_keys:
+                            if dependency_keys & predecessor_keys:
                                 if step.key not in iterating:
                                     waiting[step.key] = step
                                 continue
