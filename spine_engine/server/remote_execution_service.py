@@ -182,7 +182,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                 if "execute_in_work" in specItemInfo:
                     input_data["specifications"][specs_key][i]["execute_in_work"] = False
                 i += 1
-                if "execution_settings" in specItemInfo:
+                if "execution_settings" in specItemInfo and specItemInfo["tooltype"] == "python":
                     if specItemInfo["execution_settings"]["use_jupyter_console"]:
                         # Replace kernel_spec_name with the default kernel spec 'python3' (must be available on server)
                         specItemInfo["execution_settings"]["kernel_spec_name"] = "python3"
