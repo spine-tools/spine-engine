@@ -20,6 +20,7 @@ import json
 import threading
 import uuid
 import zmq
+from spine_engine.utils.helpers import get_file_size
 from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.zip_handler import ZipHandler
@@ -97,7 +98,7 @@ class ProjectExtractorService(threading.Thread, ServiceBase):
             print(f"Error: Size mismatch in saving ZIP file. Received bytes:{len(self.request.zip_file())}. "
                   f"ZIP file size:{os.path.getsize(zip_path)}")
         # Extract the saved file
-        print(f"Extracting project file {file_names[0]} [{os.path.getsize(zip_path)}B] to: {local_project_dir}")
+        print(f"Extracting {file_names[0]} [{get_file_size(os.path.getsize(zip_path))}] to: {local_project_dir}")
         try:
             ZipHandler.extract(zip_path, local_project_dir)
         except Exception as e:

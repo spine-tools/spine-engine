@@ -300,3 +300,30 @@ def gather_leaf_data(input_dict, paths, pop=False):
         leaf_dict = build_to_leaf(output_dict, prefix)
         leaf_dict[prefix[-1]] = value
     return output_dict
+
+
+def get_file_size(size_in_bytes):
+    """Returns a human readable string of the size of a file. Given size_in_bytes arg
+    is designed as the output of os.path.getsize().
+
+    1 KB = 1024 bytes
+    1 MB = 1024*1024 bytes
+    1 GB = 1024*1024*1024 bytes
+
+    Args:
+        size_in_bytes (int): Size in bytes [B]
+
+    Returns:
+        str: Human readable file size
+    """
+    kb = 1024
+    mb = 1024*1024
+    gb = 1024*1024*1024
+    if size_in_bytes <= kb:
+        return str(size_in_bytes) + " B"
+    if kb < size_in_bytes <= mb:
+        return str(round(size_in_bytes/kb, 1)) + " KB"
+    elif mb < size_in_bytes < gb:
+        return str(round(size_in_bytes/mb, 1)) + " MB"
+    else:
+        return str(round(size_in_bytes/gb, 1)) + " GB"

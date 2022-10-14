@@ -144,6 +144,16 @@ class EngineServer(threading.Thread):
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
                         worker = RemoteExecutionService(self._context, request, job_id, project_dir, persistent_exec_mngr_q)
+                    elif request.cmd() == "stop_execution":
+                        worker = workers.get(request.request_id(), None)  # Get DAG execution worker based on job Id
+                        if not worker:
+                            print(f"Worker for job_id:{request.request_id()} not found")
+                            msg = f"Stopping DAG execution failed. Worker for job_id:{request.request_id()} not found."
+                            self.send_init_failed_reply(frontend, request.connection_id(), msg)
+                            continue
+                        worker.stop_engine()
+                        request.send_response(frontend, ("server_status_msg", "DAG worker stopped"))
+                        continue
                     elif request.cmd() == "retrieve_project":
                         project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
                         if not project_dir:
@@ -180,10 +190,12 @@ class EngineServer(threading.Thread):
                             project_dirs[internal_msg[0]] = internal_msg[1]
                         if isinstance(finished_worker, RemoteExecutionService):
                             # Store refs to exec. managers
-                            new_exec_mngrs = finished_worker.persist_q.get()
-                            for k, v in new_exec_mngrs.items():
-                                persistent_exec_mngrs[k] = v
-                            # print(f"Persistent exec. managers: {persistent_exec_mngrs}")
+                            try:
+                                new_exec_mngrs = persistent_exec_mngr_q.get_nowait()
+                                for k, v in new_exec_mngrs.items():
+                                    persistent_exec_mngrs[k] = v
+                            except queue.Empty:
+                                pass
                         finished_worker.close()
                         finished_worker.join()
                     if internal_msg[1] != "completed":  # Note: completed msg not sent to clients

@@ -16,7 +16,7 @@ Unit tests for chunk module.
 :date:    21.6.2021
 """
 import unittest
-from spine_engine.utils.helpers import make_dag, remove_credentials_from_url, gather_leaf_data
+from spine_engine.utils.helpers import make_dag, remove_credentials_from_url, gather_leaf_data, get_file_size
 
 
 class TestMakeDAG(unittest.TestCase):
@@ -86,6 +86,26 @@ class TestGatherLeafData(unittest.TestCase):
         popped = gather_leaf_data(input_dict, [("a", "c")], pop=True)
         self.assertEqual(popped, {"a": {"c": 2}})
         self.assertEqual(input_dict, {"a": {"b": 1}})
+
+
+class TestGetFileSize(unittest.TestCase):
+    def test_get_file_size(self):
+        s = 523
+        expected_output = "523 B"
+        output = get_file_size(s)
+        self.assertEqual(expected_output, output)
+        s = 2048
+        expected_output = "2.0 KB"
+        output = get_file_size(s)
+        self.assertEqual(expected_output, output)
+        s = 1024*1024*2
+        expected_output = "2.0 MB"
+        output = get_file_size(s)
+        self.assertEqual(expected_output, output)
+        s = 1024*1024*1024*2
+        expected_output = "2.0 GB"
+        output = get_file_size(s)
+        self.assertEqual(expected_output, output)
 
 
 if __name__ == '__main__':

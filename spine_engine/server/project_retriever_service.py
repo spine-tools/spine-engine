@@ -20,6 +20,7 @@ import shutil
 import threading
 import json
 import zmq
+from spine_engine.utils.helpers import get_file_size
 from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.server_message import ServerMessage
 
@@ -54,8 +55,8 @@ class ProjectRetrieverService(threading.Thread, ServiceBase):
         if not os.path.isfile(zip_fpath):
             print(f"Zip file {zip_fpath} does not exist")
             return
-        file_size = os.path.getsize(zip_fpath)
-        print(f"Transmitting file [{file_size}]B: {zip_fpath} to client")
+        file_size = get_file_size(os.path.getsize(zip_fpath))
+        print(f"Transmitting file [{file_size}]: {zip_fpath} to client")
         # Read file into bytes string and transmit
         with open(zip_fpath, "rb") as f:
             file_data = f.read()

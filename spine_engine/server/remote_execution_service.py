@@ -38,6 +38,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         """
         super(RemoteExecutionService, self).__init__(name="RemoteExecutionServiceThread")
         ServiceBase.__init__(self, context, request, job_id)
+        self.engine = None
         self.push_socket = self.context.socket(zmq.PUSH)  # Transmits events and files directly to client
         self.local_project_dir = project_dir
         self.persistent_keys = dict()  # Mapping of item_name to a persistent execution manager key
@@ -86,49 +87,56 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         self.worker_socket.connect("inproc://backend")
         push_port = self.push_socket.bind_to_random_port("tcp://*")
         engine_data = self.request.data()
-        print("Executing DAG...")
-        # Send execution started message to client with the publish socket port
+        print(f"Executing DAG [{self.job_id}] ...")
+        # Send reply to 'start_execution' request to client with the push socket port for
+        # pulling events and worker job id for stopping execution
         self.request.send_response(
-            self.worker_socket, ("remote_execution_started", str(push_port)), (self.job_id, "in_progress"))
+            self.worker_socket, ("remote_execution_started", str(push_port), self.job_id), (self.job_id, "in_progress"))
         converted_data = self.convert_input(engine_data, self.local_project_dir)
         try:
-            engine = SpineEngine(**converted_data)
+            self.engine = SpineEngine(**converted_data)
             while True:
-                # Get event and associated data from the spine engine
-                event_type, data = engine.get_event()
+                event_type, data = self.engine.get_event()  # Get next event and associated data from spine engine
                 self.collect_persistent_keys(event_type, data)
-                self.collect_persistent_console_managers(event_type, data, engine._running_items)
-                self.collect_running_items(engine._running_items)
+                self.collect_persistent_console_managers(event_type, data, self.engine._running_items)
+                self.collect_running_items(self.engine._running_items)
                 json_event = EventDataConverter.convert(event_type, data)
-                # Send events using a push socket
-                self.push_socket.send_multipart([json_event.encode("utf-8")])
-                if data == "COMPLETED" or data == "FAILED":
+                self.push_socket.send_multipart([json_event.encode("utf-8")])  # Blocks until the client pulls
+                if data == "COMPLETED" or data == "FAILED" or data == "USER_STOPPED":
                     break
-            resources = self.collect_resources()
+        except StopIteration:
+            # Raised by SpineEngine._get_event_stream() generator if we try to get_event() after
+            # "dag_exec_finished" has been processed
+            print("[DEBUG] Handled StopIteration exception")
+            self.send_completed()
+            return
         except Exception as e:
             print(f"Execution failed: {type(e).__name__}: {e}")
             json_error_event = EventDataConverter.convert(
                 "server_execution_error", f"{type(e).__name__}: {e}. - Project execution failed on Server"
             )
             self.push_socket.send_multipart([json_error_event.encode("utf-8")])
+            self.send_completed()
             return
-        self.persist_q.put(self.persistent_exec_mngrs)  # Put new persistent execution managers to queue
-        # Send file resources back to client except for Data Connections
-        for item_name, type_and_pir in resources.items():
-            if type_and_pir[0] == "Data Connection":
-                continue
-            for resource in type_and_pir[1]:
-                if resource.hasfilepath:
-                    with open(resource.path, "rb") as f:
-                        file_data = f.read()
-                    path_rel_to_project_dir = os.path.relpath(resource.path, self.local_project_dir)
-                    b_fpath = path_rel_to_project_dir.replace(os.sep, "/").encode("utf-8")  # Replace "\" with "/"
-                    self.push_socket.send_multipart([b_fpath, file_data])
-        self.push_socket.send_multipart([b"END", b""])
-        # Note: 'completed' is not sent to client
-        self.request.send_response(
-            self.worker_socket, ("remote_execution_event", "completed"), (self.job_id, "completed"))
-        print("Execution done")
+        if data != "USER_STOPPED":
+            resources = self.collect_resources()
+            self.persist_q.put(self.persistent_exec_mngrs)  # Put new persistent execution managers to queue
+            # Send file resources back to client except for Data Connections
+            for item_name, type_and_pir in resources.items():
+                if type_and_pir[0] == "Data Connection":
+                    continue
+                for resource in type_and_pir[1]:
+                    if resource.hasfilepath:
+                        with open(resource.path, "rb") as f:
+                            file_data = f.read()
+                        path_rel_to_project_dir = os.path.relpath(resource.path, self.local_project_dir)
+                        b_fpath = path_rel_to_project_dir.replace(os.sep, "/").encode("utf-8")  # Replace "\" with "/"
+                        self.push_socket.send_multipart([b_fpath, file_data])
+            self.push_socket.send_multipart([b"END", b""])
+            print(f"Executing DAG [{self.job_id}] completed")
+        else:
+            print(f"Executing DAG [{self.job_id}] stopped")
+        self.send_completed()
         # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
         # try:
         #     ZipHandler.delete_folder(self.local_project_dir)
@@ -138,8 +146,20 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         # execStopTimeMs=round(time.time()*1000.0)
         # print("RemoteExecutionService._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
 
+    def send_completed(self):
+        """Sends a 'completed' message to frontend to notify that this worker has finished and it can be cleaned up.
+        This message should not to be relayed to client.
+        """
+        self.request.send_response(
+            self.worker_socket, ("remote_execution_event", "completed"), (self.job_id, "completed")
+        )
+
+    def stop_engine(self):
+        """Stops DAG execution."""
+        self.engine.stop()
+
     def close(self):
-        """Cleans up after thread closes."""
+        """Cleans up sockets after worker is finished."""
         super().close()
         self.push_socket.close()
 

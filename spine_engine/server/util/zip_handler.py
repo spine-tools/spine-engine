@@ -15,9 +15,10 @@ Contains static methods for handling ZIP files.
 :date:   23.08.2021
 """
 
-from zipfile import ZipFile
-import shutil
 import os
+import shutil
+from zipfile import ZipFile
+from spine_engine.utils.helpers import get_file_size
 
 
 class ZipHandler:
@@ -54,14 +55,14 @@ class ZipHandler:
             raise ValueError(f"ZIP file '{zip_file}' does not exist")
         file_size = os.path.getsize(zip_file)
         if file_size < 100:
-            raise ValueError(f"ZIP file '{zip_file}' corrupted. Size is too small. File size:{file_size}")
+            raise ValueError(f"'{zip_file}' possibly corrupted. File size too small [{get_file_size(file_size)}]")
         with ZipFile(zip_file, "r") as zip_obj:
             try:
                 first_bad_file = zip_obj.testzip()  # Test ZIP file integrity before extraction (debugging)
                 if not first_bad_file:
                     zip_obj.extractall(output_folder)
                 else:
-                    print(f"ZIP file '{zip_file}' integrity test failure. First bad file: {first_bad_file}")
+                    print(f"'{zip_file}' integrity test failure. First bad file: {first_bad_file}")
             except Exception as e:
                 raise e
 

@@ -76,8 +76,8 @@ class Request:
         or None if the message did not contain a zip-file."""
         return self._zip_file
 
-    def send_response(self, socket, info, internal_msg, dump_to_json=True):
-        """Sends a response message to client. Do not use \n in the (not allowed in JSON).
+    def send_response(self, socket, info, internal_msg=None, dump_to_json=True):
+        """Sends a response message to client. Do not use \n in the internal_msg (not allowed in JSON).
 
         Args:
             socket (ZMQSocket): Socket for sending the reply
@@ -85,13 +85,16 @@ class Request:
             internal_msg (tuple): Internal server message, [job_id, msg]
             dump_to_json (bool): If True, info is dumped to a JSON str. When False, info must be a JSON str already.
         """
-        internal_msg_json = json.dumps(internal_msg)
         info_as_json = json.dumps(info) if dump_to_json else info
         reply_msg = ServerMessage(self._cmd, self._request_id, info_as_json, [])
-        self.send_multipart_reply(socket, self.connection_id(), reply_msg.to_bytes(), internal_msg_json)
+        if not internal_msg:
+            self.send_multipart_reply(socket, self.connection_id(), reply_msg.to_bytes())
+        else:
+            internal_msg_json = json.dumps(internal_msg)
+            self.send_multipart_reply(socket, self.connection_id(), reply_msg.to_bytes(), internal_msg_json)
 
     @staticmethod
-    def send_multipart_reply(socket, connection_id, data, internal_msg):
+    def send_multipart_reply(socket, connection_id, data, internal_msg=None):
         """Sends a multi-part (multi-frame) response.
 
         Args:
@@ -100,7 +103,10 @@ class Request:
             data (bytes): User data to be sent
             internal_msg (str): Internal server message as JSON string
         """
-        frame = [connection_id, b"", data, internal_msg.encode("utf-8")]
+        if not internal_msg:
+            frame = [connection_id, b"", data]
+        else:
+            frame = [connection_id, b"", data, internal_msg.encode("utf-8")]
         socket.send_multipart(frame)
 
     @staticmethod
