@@ -22,7 +22,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 from spinedb_api.filters.tools import clear_filter_configs
-from spinedb_api.spine_db_server import closing_spine_db_server
+from spinedb_api.spine_db_server import closing_spine_db_server, quick_db_checkout
 from spinedb_api.spine_db_client import SpineDBClient
 from ..utils.helpers import PartCount
 
@@ -86,6 +86,17 @@ class ProjectItemResource:
                         SpineDBClient.from_server_url(server_url).db_checkout()
         else:
             yield self.path if self.hasfilepath else ""
+
+    def quick_db_checkout(self):
+        if self.type_ != "database":
+            return
+        ordering = {
+            "id": self._identifier,
+            "part_count": self.metadata.get("part_count", PartCount()),
+            "current": self.metadata.get("current"),
+            "precursors": self.metadata.get("precursors", set()),
+        }
+        quick_db_checkout(ordering)
 
     def clone(self, additional_metadata=None):
         """Clones this resource and optionally updates the clone's metadata.
