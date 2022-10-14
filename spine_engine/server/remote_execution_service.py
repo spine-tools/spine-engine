@@ -19,6 +19,7 @@ import os
 import threading
 import zmq
 from spine_engine import SpineEngine
+from spine_engine.utils.helpers import get_file_size
 from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.event_data_converter import EventDataConverter
 from spine_engine.server.util.zip_handler import ZipHandler
@@ -129,6 +130,9 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                     if resource.hasfilepath:
                         with open(resource.path, "rb") as f:
                             file_data = f.read()
+                        _, fname = os.path.split(resource.path)
+                        fsize = get_file_size(os.path.getsize(resource.path))
+                        self.push_socket.send_multipart([b"incoming_file", f"{fname} [{fsize}]".encode("utf-8")])
                         path_rel_to_project_dir = os.path.relpath(resource.path, self.local_project_dir)
                         b_fpath = path_rel_to_project_dir.replace(os.sep, "/").encode("utf-8")  # Replace "\" with "/"
                         self.push_socket.send_multipart([b_fpath, file_data])
