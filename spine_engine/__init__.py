@@ -9,5 +9,6 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-from .spine_engine import ExecutionDirection, SpineEngine, SpineEngineState, ItemExecutionFinishState
+from .spine_engine import SpineEngine, SpineEngineState
+from .utils.helpers import ExecutionDirection, ItemExecutionFinishState
 from .version import __version__

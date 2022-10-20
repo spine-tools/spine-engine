@@ -20,12 +20,34 @@ import sys
 import datetime
 import time
 import json
-from urllib.parse import urlparse, urlunparse
 from pathlib import Path
-
+from enum import Enum, auto, unique
 import networkx
 from jupyter_client.kernelspec import find_kernel_specs
 from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON
+
+
+@unique
+class ExecutionDirection(Enum):
+    FORWARD = auto()
+    BACKWARD = auto()
+    NONE = auto()
+
+    def __str__(self):
+        return str(self.name)
+
+
+@unique
+class ItemExecutionFinishState(Enum):
+    SUCCESS = 1
+    FAILURE = 2
+    SKIPPED = 3
+    EXCLUDED = 4
+    STOPPED = 5
+    NEVER_FINISHED = 6
+
+    def __str__(self):
+        return str(self.name)
 
 
 class Singleton(type):
@@ -247,21 +269,6 @@ def write_filter_id_file(filter_id, path):
         filter_id_file.writelines([filter_id + "\n"])
 
 
-def remove_credentials_from_url(url):
-    """Removes username and password information from URLs.
-
-    Args:
-        url (str): URL
-
-    Returns:
-        str: sanitized URL
-    """
-    parsed = urlparse(url)
-    if parsed.username is None:
-        return url
-    return urlunparse(parsed._replace(netloc=parsed.netloc.partition("@")[-1]))
-
-
 def gather_leaf_data(input_dict, paths, pop=False):
     """Gathers data defined by 'paths' of keys from nested dicts.
 
@@ -327,3 +334,21 @@ def get_file_size(size_in_bytes):
         return str(round(size_in_bytes/mb, 1)) + " MB"
     else:
         return str(round(size_in_bytes/gb, 1)) + " GB"
+
+
+class PartCount:
+    def __init__(self):
+        self._count = 0
+
+    def __iadd__(self, number):
+        self._count += number
+        return self
+
+    def __eq__(self, number):
+        return self._count == number
+
+    def __deepcopy__(self, memo):
+        return self
+
+    def __repr__(self):
+        return str(self._count)

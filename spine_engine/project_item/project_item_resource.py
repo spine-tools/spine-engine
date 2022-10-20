@@ -16,12 +16,15 @@ Provides the ProjectItemResource class.
 :date:   29.4.2020
 """
 import copy
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 from spinedb_api.filters.tools import clear_filter_configs
-from spinedb_api.spine_db_server import closing_spine_db_server
+from spinedb_api.spine_db_server import closing_spine_db_server, quick_db_checkout
+from spinedb_api.spine_db_client import SpineDBClient
+from ..utils.helpers import PartCount
 
 
 class ProjectItemResource:
@@ -34,7 +37,7 @@ class ProjectItemResource:
         metadata (dict): resource's metadata
     """
 
-    def __init__(self, provider_name, type_, label, url=None, metadata=None, filterable=False):
+    def __init__(self, provider_name, type_, label, url=None, metadata=None, filterable=False, identifier=None):
         """
         Args:
             provider_name (str): The name of the item that provides the resource
@@ -51,6 +54,7 @@ class ProjectItemResource:
                 - filter_stack (str): resource's filter stack
                 - filter_id (str): filter id
             filterable (bool): If True, the resource provides opportunity for filtering
+            identifier (str): an identifier of the original instance, shared also by all the clones
         """
         self.provider_name = provider_name
         self.type_ = type_
@@ -59,17 +63,43 @@ class ProjectItemResource:
         self._parsed_url = urlparse(self._url)
         self.metadata = metadata if metadata is not None else dict()
         self._filterable = filterable
+        self._identifier = identifier if identifier is not None else uuid.uuid4().hex
 
     @contextmanager
-    def open(self):
+    def open(self, db_checkin=False, db_checkout=False):
         if self.type_ == "database":
-            with closing_spine_db_server(self.url, memory=self.metadata.get("memory", False)) as server_url:
-                yield server_url
+            ordering = {
+                "id": self._identifier,
+                "part_count": self.metadata.get("part_count", PartCount()),
+                "current": self.metadata.get("current"),
+                "precursors": self.metadata.get("precursors", set()),
+            }
+            with closing_spine_db_server(
+                self.url, memory=self.metadata.get("memory", False), ordering=ordering
+            ) as server_url:
+                if db_checkin:
+                    SpineDBClient.from_server_url(server_url).db_checkin()
+                try:
+                    yield server_url
+                finally:
+                    if db_checkout:
+                        SpineDBClient.from_server_url(server_url).db_checkout()
         else:
             yield self.path if self.hasfilepath else ""
 
+    def quick_db_checkout(self):
+        if self.type_ != "database":
+            return
+        ordering = {
+            "id": self._identifier,
+            "part_count": self.metadata.get("part_count", PartCount()),
+            "current": self.metadata.get("current"),
+            "precursors": self.metadata.get("precursors", set()),
+        }
+        quick_db_checkout(ordering)
+
     def clone(self, additional_metadata=None):
-        """Clones a resource and optionally updates the clone's metadata.
+        """Clones this resource and optionally updates the clone's metadata.
 
         Args:
             additional_metadata (dict): metadata to add to the clone
@@ -88,6 +118,7 @@ class ProjectItemResource:
             url=self._url,
             metadata=metadata,
             filterable=self._filterable,
+            identifier=self._identifier,
         )
 
     def __eq__(self, other):
@@ -291,21 +322,23 @@ def get_labelled_sources(resources):
     return d
 
 
-def cmd_line_arg_from_dict(arg_dict):
+def make_cmd_line_arg(arg_spec):
     """Deserializes argument from dictionary.
 
     Args:
-        arg_dict (dict): serialized command line argument
+        arg_spec (dict or str): serialized command line argument
 
     Returns:
         CmdLineArg: deserialized command line argument
     """
-    type_ = arg_dict["type"]
+    if not isinstance(arg_spec, dict):
+        return CmdLineArg(arg_spec)
+    type_ = arg_spec["type"]
     construct = {"literal": CmdLineArg, "resource": LabelArg}[type_]
-    return construct(arg_dict["arg"])
+    return construct(arg_spec["arg"])
 
 
-def labelled_resource_args(resources, stack):
+def labelled_resource_args(resources, stack, db_checkin=False, db_checkout=False):
     """
     Args:
         resources (Iterable of ProjectItemResource): resources to process
@@ -317,9 +350,11 @@ def labelled_resource_args(resources, stack):
     result = {}
     single_resources, pack_resources = extract_packs(resources)
     for resource in single_resources:
-        result[resource.label] = stack.enter_context(resource.open())
+        result[resource.label] = stack.enter_context(resource.open(db_checkin=db_checkin, db_checkout=db_checkout))
     for label, resources_ in pack_resources.items():
-        result[label] = " ".join(stack.enter_context(r.open()) for r in resources_)
+        result[label] = " ".join(
+            stack.enter_context(r.open(db_checkin=db_checkin, db_checkout=db_checkout)) for r in resources_
+        )
     return result
 
 

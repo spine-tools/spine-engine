@@ -16,7 +16,8 @@ Unit tests for chunk module.
 :date:    21.6.2021
 """
 import unittest
-from spine_engine.utils.helpers import make_dag, remove_credentials_from_url, gather_leaf_data, get_file_size
+from spinedb_api.helpers import remove_credentials_from_url
+from spine_engine.utils.helpers import make_dag, gather_leaf_data, get_file_size
 
 
 class TestMakeDAG(unittest.TestCase):

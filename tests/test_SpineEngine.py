@@ -24,13 +24,13 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock, NonCallableMagicMock, call, patch
 
-from spine_engine.project_item.connection import Jump, Connection
 from spinedb_api import DatabaseMapping, import_scenarios, import_tools
 from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.filters.tool_filter import tool_filter_config
 from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.tools import clear_filter_configs
 from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState, ItemExecutionFinishState
+from spine_engine.project_item.connection import Jump, Connection
 from spine_engine.project_item.project_item_resource import ProjectItemResource
 
 
@@ -39,7 +39,10 @@ def _make_url_resource(url):
 
 
 class TestSpineEngine(unittest.TestCase):
-    _LOOP_TWICE = "\n".join(["import sys", "loop_counter = int(sys.argv[1])", "exit(0 if loop_counter < 2 else 1)"])
+    _LOOP_TWICE = {
+        "type": "python-script",
+        "script": "\n".join(["import sys", "loop_counter = int(sys.argv[1])", "exit(0 if loop_counter < 2 else 1)"]),
+    }
 
     @staticmethod
     def _mock_item(
@@ -63,7 +66,6 @@ class TestSpineEngine(unittest.TestCase):
         item = NonCallableMagicMock()
         item.name = name
         item.short_name = name.lower().replace(' ', '_')
-
         item.execute.return_value = execute_outcome
         item.exclude_execution = MagicMock()
         for r in resources_forward + resources_backward:
@@ -108,11 +110,13 @@ class TestSpineEngine(unittest.TestCase):
                 execution_permits=execution_permits,
                 items_module_name="items_module",
             )
-        engine._make_item = (
-            lambda name, direction: engine._items[name].pop(0)
-            if direction == ExecutionDirection.FORWARD
-            else engine._items[name][0]
-        )
+
+        def make_item(name, direction):
+            if direction == ExecutionDirection.FORWARD:
+                return engine._items[name].pop(0)
+            return engine._items[name][0]
+
+        engine.make_item = make_item
         engine.run()
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
@@ -705,7 +709,7 @@ class TestSpineEngine(unittest.TestCase):
             execution_permits=execution_permits,
             items_module_name="items_module",
         )
-        engine._make_item = lambda name, direction: engine._items[name]
+        engine.make_item = lambda name, direction: engine._items[name]
         engine.run()
         self.assertEqual(mock_item.execute.call_args_list, 2 * [call([], [])])
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
@@ -802,7 +806,8 @@ class TestSpineEngine(unittest.TestCase):
                     self.assertEqual(resource.provider_name, expected_resource.provider_name)
                     self.assertEqual(resource.label, expected_resource.label)
                     self.assertEqual(clear_filter_configs(resource.url), expected_resource.url)
-                    self.assertEqual(resource.metadata, expected_resource.metadata)
+                    for key, value in expected_resource.metadata.items():
+                        self.assertEqual(resource.metadata[key], value)
 
 
 if __name__ == '__main__':

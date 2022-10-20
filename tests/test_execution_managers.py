@@ -20,6 +20,8 @@ import unittest
 from unittest.mock import MagicMock
 from tempfile import TemporaryDirectory
 from spine_engine.execution_managers.process_execution_manager import ProcessExecutionManager
+from spine_engine.execution_managers.persistent_execution_manager import PythonPersistentExecutionManager
+from spine_engine.utils.execution_resources import persistent_process_semaphore
 
 
 class TestStandardExecutionManager(unittest.TestCase):
@@ -71,6 +73,36 @@ class TestStandardExecutionManager(unittest.TestCase):
         logger.msg_proc.emit.assert_called_once()
         logger.msg_proc.emit.assert_called_with(f"{workdir}")
         self.assertEqual(ret, 0)
+
+
+class TestPersistentExecutionManager(unittest.TestCase):
+    def test_reuse_process(self):
+        logger = MagicMock()
+        logger.msg_warning = MagicMock()
+        exec_mngr1 = PythonPersistentExecutionManager(
+            logger, ["python"], ['print("hello")'], "alias", group_id="SomeGroup"
+        )
+        exec_mngr1.run_until_complete()
+        exec_mngr2 = PythonPersistentExecutionManager(
+            logger, ["python"], ['print("hello again")'], "another alias", group_id="SomeGroup"
+        )
+        self.assertEqual(exec_mngr1._persistent_manager, exec_mngr2._persistent_manager)
+        logger.msg_warning.emit.assert_called_once()
+        exec_mngr1._persistent_manager.kill_process()
+
+    def test_do_not_reuse_unfinished_process(self):
+        persistent_process_semaphore.set_limit(2)
+        logger = MagicMock()
+        logger.msg_warning = MagicMock()
+        exec_mngr1 = PythonPersistentExecutionManager(
+            logger, ["python"], ['print("hello")'], "alias", group_id="SomeGroup"
+        )
+        exec_mngr2 = PythonPersistentExecutionManager(
+            logger, ["python"], ['print("hello again")'], "another alias", group_id="SomeGroup"
+        )
+        self.assertNotEqual(exec_mngr1._persistent_manager, exec_mngr2._persistent_manager)
+        exec_mngr1._persistent_manager.kill_process()
+        exec_mngr2._persistent_manager.kill_process()
 
 
 if __name__ == '__main__':

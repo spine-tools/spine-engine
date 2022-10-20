@@ -22,13 +22,19 @@ from datapackage import Package
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
+from spinedb_api.purge import purge_url
 from spine_engine.project_item.project_item_resource import (
     file_resource,
-    cmd_line_arg_from_dict,
+    make_cmd_line_arg,
     expand_cmd_line_args,
     labelled_resource_args,
 )
-from spine_engine.utils.helpers import resolve_python_interpreter
+from spine_engine.utils.helpers import (
+    resolve_python_interpreter,
+    ItemExecutionFinishState,
+    PartCount,
+    ExecutionDirection as ED,
+)
 from spine_engine.utils.queue_logger import QueueLogger
 
 
@@ -184,6 +190,24 @@ class ResourceConvertingConnection(ConnectionBase):
         """True if in-memory database is used, False otherwise"""
         return self.options.get("use_memory_db", False)
 
+    @property
+    def purge_before_writing(self):
+        """True if purge before writing is active, False otherwise"""
+        return self.options.get("purge_before_writing", False)
+
+    @property
+    def purge_settings(self):
+        """A dictionary mapping DB item types to a boolean value indicating whether to wipe them or not,
+        or None if the entire DB should suffer."""
+        return self.options.get("purge_settings")
+
+    @property
+    def write_index(self):
+        """The index this connection has in concurrent writing. Defaults to 1, lower writes earlier.
+        If two or more connections have the same, then no order is enforced among them.
+        """
+        return self.options.get("write_index", 1)
+
     def _has_disabled_filters(self):
         """Return True if connection has disabled filters.
 
@@ -200,18 +224,22 @@ class ResourceConvertingConnection(ConnectionBase):
         """See base class."""
         self._resources = {r for r in resources if r.type_ == "database" and r.filterable}
 
-    def convert_backward_resources(self, resources):
+    def clean_up_backward_resources(self, resources):
+        self._do_purge_before_writing(resources)
+
+    def convert_backward_resources(self, resources, sibling_connections):
         """Called when advertising resources through this connection *in the BACKWARD direction*.
         Takes the initial list of resources advertised by the destination item and returns a new list,
         which is the one finally advertised.
 
         Args:
             resources (list of ProjectItemResource): Resources to convert
+            sibling_connections (list of Connection): Sibling connections
 
         Returns:
             list of ProjectItemResource
         """
-        return self._apply_use_memory_db(resources)
+        return self._apply_use_memory_db(self._apply_write_index(resources, sibling_connections))
 
     def convert_forward_resources(self, resources):
         """Called when advertising resources through this connection *in the FORWARD direction*.
@@ -226,6 +254,12 @@ class ResourceConvertingConnection(ConnectionBase):
         """
         return self._apply_use_memory_db(self._apply_use_datapackage(resources))
 
+    def _do_purge_before_writing(self, resources):
+        if self.purge_before_writing:
+            to_urls = (r.url for r in resources if r.type_ == "database")
+            for url in to_urls:
+                purge_url(url, self.purge_settings, self._logger)
+
     def _apply_use_memory_db(self, resources):
         if not self.use_memory_db:
             return resources
@@ -233,6 +267,17 @@ class ResourceConvertingConnection(ConnectionBase):
         for r in resources:
             if r.type_ == "database":
                 r = r.clone(additional_metadata={"memory": True})
+            final_resources.append(r)
+        return final_resources
+
+    def _apply_write_index(self, resources, sibling_connections):
+        final_resources = []
+        precursors = set(c.name for c in sibling_connections if c.write_index < self.write_index)
+        for r in resources:
+            if r.type_ == "database":
+                r = r.clone(
+                    additional_metadata={"current": self.name, "precursors": precursors, "part_count": PartCount()}
+                )
             final_resources.append(r)
         return final_resources
 
@@ -385,13 +430,7 @@ class Jump(ConnectionBase):
     """Represents a conditional jump between two project items."""
 
     def __init__(
-        self,
-        source_name,
-        source_position,
-        destination_name,
-        destination_position,
-        condition="exit(1)",
-        cmd_line_args=(),
+        self, source_name, source_position, destination_name, destination_position, condition=None, cmd_line_args=()
     ):
         """
         Args:
@@ -402,10 +441,18 @@ class Jump(ConnectionBase):
             condition (str): jump condition
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
-        self.condition = condition
+        self.condition = condition if condition is not None else {"type": "python-script", "script": "exit(1)"}
         self._resources_from_source = set()
         self._resources_from_destination = set()
         self.cmd_line_args = list(cmd_line_args)
+        self._engine = None
+        self.source_solid = None
+        self.destination_solid = None
+        self.item_names = set()
+        self.solid_names = set()
+
+    def set_engine(self, engine):
+        self._engine = engine
 
     @property
     def resources(self):
@@ -431,27 +478,53 @@ class Jump(ConnectionBase):
         Returns:
             bool: True if jump should be executed, False otherwise
         """
-        if not self.condition.strip():
+        if self.condition["type"] == "python-script":
+            iterate = self._is_python_script_condition_true(jump_counter)
+        elif self.condition["type"] == "tool-specification":
+            iterate = self._is_tool_specification_condition_true(jump_counter)
+        if iterate:
+            self.emit_flash()
+            self._update_items()
+        return iterate
+
+    def _update_items(self):
+        for item_name in self.item_names:
+            item = self._engine.make_item(item_name, ED.NONE)
+            forward_resources, backward_resources = self._engine.resources_per_item[item_name]
+            item.update(forward_resources, backward_resources)
+
+    def _is_python_script_condition_true(self, jump_counter):
+        script = self.condition["script"]
+        if not script.strip():
             return False
         with ExitStack() as stack:
             labelled_args = labelled_resource_args(self.resources, stack)
-            expanded_args = expand_cmd_line_args(self.cmd_line_args, labelled_args, self._logger)
-            expanded_args.append(str(jump_counter))
-            with tempfile.TemporaryFile("w+", encoding="utf-8") as script:
-                script.write(self.condition)
-                script.seek(0)
+            expanded_args = expand_cmd_line_args(self.cmd_line_args + [jump_counter], labelled_args, self._logger)
+            with tempfile.TemporaryFile("w+", encoding="utf-8") as script_file:
+                script_file.write(script)
+                script_file.seek(0)
                 python = resolve_python_interpreter("")
                 result = subprocess.run(
-                    [python, "-", *expanded_args], encoding="utf-8", stdin=script, capture_output=True
+                    [python, "-", *expanded_args], encoding="utf-8", stdin=script_file, capture_output=True
                 )
                 if result.stdout:
                     self._logger.msg_proc.emit(result.stdout)
                 if result.stderr:
                     self._logger.msg_proc_error.emit(result.stderr)
-                iterate = result.returncode == 0
-                if iterate:
-                    self.emit_flash()
-                return iterate
+                return result.returncode == 0
+
+    def _is_tool_specification_condition_true(self, jump_counter):
+        item_dict = {
+            "type": "Tool",
+            "execute_in_work": False,
+            "specification": self.condition["specification"],
+            "cmd_line_args": [arg.to_dict() for arg in self.cmd_line_args] + [str(jump_counter)],
+        }
+        condition_tool = self._engine.do_make_item(self.name, item_dict, self._logger)
+        return (
+            condition_tool.execute(list(self._resources_from_source), list(self._resources_from_destination))
+            == ItemExecutionFinishState.SUCCESS
+        )
 
     @classmethod
     def from_dict(cls, jump_dict, **kwargs):
@@ -465,9 +538,9 @@ class Jump(ConnectionBase):
             Jump: restored jump
         """
         super_kw_ags = cls._constructor_args_from_dict(jump_dict)
-        condition = jump_dict["condition"]["script"]
+        condition = jump_dict["condition"]
         cmd_line_args = jump_dict.get("cmd_line_args", [])
-        cmd_line_args = [cmd_line_arg_from_dict(arg) for arg in cmd_line_args]
+        cmd_line_args = [make_cmd_line_arg(arg) for arg in cmd_line_args]
         return cls(condition=condition, cmd_line_args=cmd_line_args, **super_kw_ags, **kwargs)
 
     def to_dict(self):
@@ -477,7 +550,7 @@ class Jump(ConnectionBase):
             dict: serialized Jump
         """
         d = super().to_dict()
-        d["condition"] = {"type": "python-script", "script": self.condition}
+        d["condition"] = self.condition
         d["cmd_line_args"] = [arg.to_dict() for arg in self.cmd_line_args]
         return d
 

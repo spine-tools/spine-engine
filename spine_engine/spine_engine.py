@@ -16,7 +16,7 @@ Contains the SpineEngine class for running Spine Toolbox DAGs.
 :date:   20.11.2019
 """
 
-from enum import Enum, auto, unique
+from enum import Enum, unique
 import os
 import threading
 import multiprocessing as mp
@@ -45,25 +45,20 @@ from .execution_managers.persistent_execution_manager import (
     disable_persistent_process_creation,
     enable_persistent_process_creation,
 )
-from .utils.helpers import AppSettings, inverted, create_timestamp, make_dag
+from .utils.helpers import (
+    AppSettings,
+    inverted,
+    create_timestamp,
+    make_dag,
+    ExecutionDirection as ED,
+    ItemExecutionFinishState,
+)
 from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
 from .utils.queue_logger import QueueLogger
 from .project_item_loader import ProjectItemLoader
 from .multithread_executor.executor import multithread_executor
 from .project_item.connection import Connection, Jump
 from .shared_memory_io_manager import shared_memory_io_manager
-
-
-@unique
-class ExecutionDirection(Enum):
-    FORWARD = auto()
-    BACKWARD = auto()
-
-    def __str__(self):
-        return str(self.name)
-
-
-ED = ExecutionDirection
 
 
 @unique
@@ -79,23 +74,10 @@ class SpineEngineState(Enum):
         return str(self.name)
 
 
-@unique
-class ItemExecutionFinishState(Enum):
-    SUCCESS = 1
-    FAILURE = 2
-    SKIPPED = 3
-    EXCLUDED = 4
-    STOPPED = 5
-    NEVER_FINISHED = 6
-
-    def __str__(self):
-        return str(self.name)
-
-
-class _LoopPipelineDefinition(PipelineDefinition):
-    def __init__(self, *args, loops=None, **kwargs):
+class _JumpPipelineDefinition(PipelineDefinition):
+    def __init__(self, *args, jumps=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.loops = loops if loops is not None else []
+        self.jumps = jumps if jumps is not None else []
 
 
 class SpineEngine:
@@ -175,6 +157,8 @@ class SpineEngine:
         validate_jumps(self._jumps, self._dag)
         for x in self._connections + self._jumps:
             x.make_logger(self._queue)
+        for x in self._jumps:
+            x.set_engine(self)
         self._back_injectors = {
             self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
         }
@@ -185,6 +169,7 @@ class SpineEngine:
         self._running_items = []
         self._prompt_queues = {}
         self._answered_prompts = {}
+        self.resources_per_item = {}  # Tuples of (forward resources, backward resources) from last execution
         self._timestamp = create_timestamp()
         self._event_stream = self._get_event_stream()
 
@@ -211,17 +196,20 @@ class SpineEngine:
                 item_specifications[item_type][spec.name] = spec
         return item_specifications
 
-    def _make_item(self, item_name, direction):
+    def make_item(self, item_name, direction):
         """Recreates item from project item dictionary for a particular execution.
         Note that this method is called multiple times for each item:
         Once for the backward pipeline, and once for each filtered execution in the forward pipeline."""
         item_dict = self._items[item_name]
-        item_type = item_dict["type"]
-        executable_item_class = self._executable_item_classes[item_type]
         prompt_queue = self._prompt_queues[item_name] = mp.Queue()
         logger = QueueLogger(
             self._queue, item_name, prompt_queue, self._answered_prompts, silent=direction is ED.BACKWARD
         )
+        return self.do_make_item(item_name, item_dict, logger)
+
+    def do_make_item(self, item_name, item_dict, logger):
+        item_type = item_dict["type"]
+        executable_item_class = self._executable_item_classes[item_type]
         return executable_item_class.from_dict(
             item_dict, item_name, self._project_dir, self._settings, self._item_specifications, logger
         )
@@ -363,10 +351,10 @@ class SpineEngine:
 
     def _make_pipeline(self):
         """
-        Returns a _LoopPipelineDefinition for executing this engine.
+        Returns a _JumpPipelineDefinition for executing this engine.
 
         Returns:
-            _LoopPipelineDefinition
+            _JumpPipelineDefinition
         """
         solid_defs = [
             make_solid_def(item_name)
@@ -380,28 +368,25 @@ class SpineEngine:
                 resource_defs={"io_manager": shared_memory_io_manager},
             )
         ]
-        loops = self._make_loops()
-        return _LoopPipelineDefinition(
-            name="pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs, loops=loops
+        self._complete_jumps()
+        return _JumpPipelineDefinition(
+            name="pipeline", solid_defs=solid_defs, dependencies=dependencies, mode_defs=mode_defs, jumps=self._jumps
         )
 
-    def _make_loops(self):
+    def _complete_jumps(self):
         """Returns a dictionary mapping Jump objects to a set of solid names corresponding to items within the loop.
 
         Returns:
             dict
         """
-        loops = {}
         for jump in self._jumps:
             src, dst = jump.source, jump.destination
-            item_names = {dst, src}
+            jump.item_names = {dst, src}
             for path in nx.all_simple_paths(self._dag, dst, src):
-                item_names.update(path)
-            solid_names = {f"{ED.FORWARD}_{self._solid_names[n]}" for n in item_names}
-            jump.source = f"{ED.FORWARD}_{self._solid_names[src]}"
-            jump.destination = f"{ED.BACKWARD}_{self._solid_names[dst]}"
-            loops[jump] = solid_names
-        return loops
+                jump.item_names.update(path)
+            jump.solid_names = {f"{ED.FORWARD}_{self._solid_names[n]}" for n in jump.item_names}
+            jump.source_solid = f"{ED.FORWARD}_{self._solid_names[src]}"
+            jump.destination_solid = f"{ED.BACKWARD}_{self._solid_names[dst]}"
 
     def _make_backward_solid_def(self, item_name):
         """Returns a SolidDefinition for executing the given item in the backward sweep.
@@ -415,7 +400,7 @@ class SpineEngine:
                 context.log.error(f"compute_fn() FAILURE with item: {item_name} stopped by the user")
                 raise Failure()
             context.log.info(f"Item Name: {item_name}")
-            item = self._make_item(item_name, ED.BACKWARD)
+            item = self.make_item(item_name, ED.BACKWARD)
             resources = item.output_resources(ED.BACKWARD)
             yield Output(value=resources, output_name=f"{ED.BACKWARD}_output")
 
@@ -453,11 +438,12 @@ class SpineEngine:
                     forward_resource_stacks += values
                 elif name.startswith(f"{ED.BACKWARD}"):
                     backward_resources += values
-            output_resource_stacks, item_finish_state = self._execute_item(
+            item_finish_state, output_resource_stacks = self._execute_item(
                 context, item_name, forward_resource_stacks, backward_resources
             )
             yield AssetMaterialization(asset_key=str(item_finish_state))
-            yield Output(value=output_resource_stacks, output_name=f"{ED.FORWARD}_output")
+            if output_resource_stacks:
+                yield Output(value=output_resource_stacks, output_name=f"{ED.FORWARD}_output")
             for conn in self._connections_by_source.get(item_name, []):
                 conn.visit_source()
 
@@ -482,17 +468,28 @@ class SpineEngine:
 
         Called by ``_make_forward_solid_def.compute_fn``.
 
-        For each element yielded by ``_filtered_resources_iterator``, spawns a thread that runs ``_execute_item_filtered``.
+        For each element yielded by ``_filtered_resources_iterator``, spawns a thread that runs
+        ``_execute_item_filtered``.
 
         Args:
             context
             item_name (str)
-            forward_resource_stacks (list(tuple(ProjectItemResource)))
-            backward_resources (list(ProjectItemResource))
+            forward_resource_stacks (list(tuple(ProjectItemResource))): resources comming from predecessor items -
+                one tuple of ProjectItemResource per item, where each element in the tuple corresponds to a filtered
+                execution of the item.
+            backward_resources (list(ProjectItemResource)): resources comming from successor items - just one
+                resource per item.
 
         Returns:
+            ItemExecutionFinishState
             list(tuple(ProjectItemResource))
         """
+        item = self.make_item(item_name, ED.NONE)
+        if not item.ready_to_execute(self._settings):
+            if not self._execution_permits[self._solid_names[item_name]]:
+                return ItemExecutionFinishState.EXCLUDED, []
+            context.log.error(f"compute_fn() FAILURE with '{item_name}', not ready for forward execution")
+            return ItemExecutionFinishState.FAILURE, []
         success = [ItemExecutionFinishState.NEVER_FINISHED]
         output_resources_list = []
         threads = []
@@ -500,30 +497,25 @@ class SpineEngine:
             item_name, forward_resource_stacks, backward_resources, self._timestamp
         )
         for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
-            item = self._make_item(item_name, ED.FORWARD)
-            if not item.ready_to_execute(self._settings):
-                if not self._execution_permits[self._solid_names[item_name]]:  # Exclude if not selected
-                    success[0] = ItemExecutionFinishState.EXCLUDED
-                else:  # Fail if selected
-                    context.log.error(f"compute_fn() FAILURE in: '{item_name}', not ready for forward execution")
-                    success[0] = ItemExecutionFinishState.FAILURE
-            else:
-                item.filter_id = filter_id
-                thread = threading.Thread(
-                    target=self._execute_item_filtered,
-                    args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, success),
-                )
-                threads.append(thread)
-                thread.start()
+            self.resources_per_item[item_name] = (flt_fwd_resources, flt_bwd_resources)
+            item = self.make_item(item_name, ED.FORWARD)
+            item.filter_id = filter_id
+            thread = threading.Thread(
+                target=self._execute_item_filtered,
+                args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, success),
+            )
+            threads.append(thread)
+        for thread in threads:
+            thread.start()
         for thread in threads:
             thread.join()
         if success[0] == ItemExecutionFinishState.FAILURE:
-            context.log.error(f"compute_fn() FAILURE with item: {item_name} failed to execute")
+            context.log.error(f"compute_fn() FAILURE with {item_name}, failed to execute")
             raise Failure()
         for resources in output_resources_list:
             for connection in self._connections_by_source.get(item_name, []):
                 connection.receive_resources_from_source(resources)
-        return output_resources_list, success[0]
+        return success[0], output_resources_list
 
     def _execute_item_filtered(
         self, item, filtered_forward_resources, filtered_backward_resources, output_resources_list, success
@@ -534,8 +526,8 @@ class SpineEngine:
             item (ExecutableItemBase)
             filtered_forward_resources (list(ProjectItemResource))
             filtered_backward_resources (list(ProjectItemResource))
-            output_resources_list (list(list(ProjectItemResource))): A list of lists, to append the
-                output resources generated by the item.
+            output_resources_list (list(list(ProjectItemResource))): A list to append the output resources
+                generated by the item.
             success (list): A list of one element, to write the outcome of the execution.
         """
         self._running_items.append(item)
@@ -558,12 +550,15 @@ class SpineEngine:
         """Yields tuples of (filtered forward resources, filtered backward resources, filter id).
 
         Each tuple corresponds to a unique filter combination. Combinations are obtained by applying the cross-product
-        over forward resource stacks as yielded by ``_forward_resource_stacks_iterator``.
+        over forward resource stacks.
 
         Args:
             item_name (str)
-            forward_resource_stacks (list(tuple(ProjectItemResource)))
-            backward_resources (list(ProjectItemResource))
+            forward_resource_stacks (list(tuple(ProjectItemResource))): resources comming from predecessor items -
+                one tuple of ProjectItemResource per item, where each element in the tuple corresponds to a filtered
+                execution of the item.
+            backward_resources (list(ProjectItemResource)): resources comming from successor items - just one
+                resource per item.
             timestamp (str): timestamp for the execution filter
 
         Yields:
@@ -577,27 +572,25 @@ class SpineEngine:
             return all(len(filter_ids) == 1 for filter_ids in filter_ids_by_provider.values())
 
         resource_filter_stacks = dict()
-        non_filterable_resources = dict()
-        filterable_resources = list()
+        unfiltered_resource_lists = dict()
         for stack in forward_resource_stacks:
             if not stack:
                 continue
-            non_filterable = list()
+            unfiltered = list()
             for resource in stack:
                 filter_stacks = self._filter_stacks(item_name, resource.provider_name, resource.label)
                 if not filter_stacks:
-                    non_filterable.append(resource)
+                    unfiltered.append(resource)
                 else:
-                    resource_filter_stacks[(resource.provider_name, resource.label)] = filter_stacks
-                    filterable_resources.append(resource)
-            if non_filterable:
-                non_filterable_resources.setdefault(stack[0].provider_name, list()).append(non_filterable)
+                    resource_filter_stacks[resource] = filter_stacks
+            if unfiltered:
+                unfiltered_resource_lists.setdefault(stack[0].provider_name, list()).append(unfiltered)
         forward_resource_stacks_iterator = (
-            self._expand_resource_stack(resource, resource_filter_stacks[(resource.provider_name, resource.label)])
-            for resource in filterable_resources
+            self._expand_resource_stack(resource, filter_stacks)
+            for resource, filter_stacks in resource_filter_stacks.items()
         )
         backward_resources = self._convert_backward_resources(item_name, backward_resources)
-        for resources_or_lists in product(*non_filterable_resources.values(), *forward_resource_stacks_iterator):
+        for resources_or_lists in product(*unfiltered_resource_lists.values(), *forward_resource_stacks_iterator):
             filtered_forward_resources = list()
             for item in resources_or_lists:
                 if isinstance(item, list):
@@ -614,6 +607,8 @@ class SpineEngine:
             config = execution_filter_config(execution)
             filtered_backward_resources = []
             for resource in backward_resources:
+                if "part_count" in resource.metadata:
+                    resource.metadata["part_count"] += 1
                 clone = resource.clone(additional_metadata={"filter_stack": (config,)})
                 clone.url = append_filter_config(clone.url, config)
                 filtered_backward_resources.append(clone)
@@ -657,11 +652,7 @@ class SpineEngine:
             list of list: filter stacks
         """
         connections = self._connections_by_destination.get(item_name, [])
-        connection = None
-        for c in connections:
-            if c.source == provider_name:
-                connection = c
-                break
+        connection = next(iter(c for c in connections if c.source == provider_name), None)
         if connection is None:
             raise RuntimeError("Logic error: no connection from resource provider")
         filters = connection.enabled_filters(resource_label)
@@ -694,7 +685,12 @@ class SpineEngine:
             resources_from_destination = resources_by_provider.get(c.destination)
             if resources_from_destination is None:
                 continue
-            resources_by_provider[c.destination] = c.convert_backward_resources(resources_from_destination)
+            if self._execution_permits[self._solid_names[item_name]]:
+                c.clean_up_backward_resources(resources_from_destination)
+            sibling_connections = [x for x in self._connections_by_destination.get(c.destination, []) if x != c]
+            resources_by_provider[c.destination] = c.convert_backward_resources(
+                resources_from_destination, sibling_connections
+            )
         return [r for resources in resources_by_provider.values() for r in resources]
 
     def _convert_forward_resources(self, item_name, resources):
@@ -875,16 +871,18 @@ def _set_resource_limits(settings, lock):
         settings (AppSettings): Engine settings
     """
     with lock:
-        single_shot_control = settings.value("engineSettings/processLimiter", "auto")
-        if single_shot_control == "auto":
+        process_limiter = settings.value("engineSettings/processLimiter", "auto")
+        if process_limiter == "unlimited":
+            limit = "unlimited"
+        elif process_limiter == "auto":
             limit = os.cpu_count()
         else:
             limit = int(settings.value("engineSettings/maxProcesses", os.cpu_count()))
         one_shot_process_semaphore.set_limit(limit)
-        persistent_process_control = settings.value("engineSettings/persistentLimiter", "unlimited")
-        if persistent_process_control == "unlimited":
+        persistent_limiter = settings.value("engineSettings/persistentLimiter", "unlimited")
+        if persistent_limiter == "unlimited":
             limit = "unlimited"
-        elif persistent_process_control == "auto":
+        elif persistent_limiter == "auto":
             limit = os.cpu_count()
         else:
             limit = int(settings.value("engineSettings/maxPersistentProcesses", os.cpu_count()))

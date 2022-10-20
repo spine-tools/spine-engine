@@ -17,8 +17,7 @@ Contains ExecutableItem, a project item's counterpart in execution as well as su
 """
 from hashlib import sha1
 from pathlib import Path
-from ..spine_engine import ExecutionDirection, ItemExecutionFinishState
-from ..utils.helpers import shorten
+from ..utils.helpers import ExecutionDirection, ItemExecutionFinishState, shorten
 
 
 class ExecutableItemBase:
@@ -58,7 +57,7 @@ class ExecutableItemBase:
         Returns:
             str: item's id within an execution group
         """
-        return self._group_id + self._filter_id
+        return self._group_id
 
     @property
     def filter_id(self):
@@ -94,6 +93,10 @@ class ExecutableItemBase:
         """
         return True
 
+    def update(self, forward_resources, backward_resources):
+        """Executes tasks that should be done before going into a next iteration of the loop."""
+        return True
+
     def execute(self, forward_resources, backward_resources):
         """Executes this item using the given resources and returns a boolean indicating the outcome.
 
@@ -116,7 +119,7 @@ class ExecutableItemBase:
         Only lightweight bookkeeping or processing should be done in this case, e.g.
         forward input resources.
 
-        Subclasses can implement this method to the appropriate work.
+        Subclasses can implement this method to do the appropriate work.
 
         Args:
             forward_resources (list): a list of ProjectItemResources from predecessors (forward)
