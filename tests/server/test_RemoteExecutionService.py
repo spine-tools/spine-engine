@@ -15,6 +15,7 @@ Unit tests for RemoteExecutionService class.
 :date:   24.8.2021
 """
 
+import time
 import unittest
 import json
 import os
@@ -36,14 +37,14 @@ class TestRemoteExecutionService(unittest.TestCase):
         self.socket = self.context.socket(zmq.REQ)
         self.socket.identity = "Worker1".encode("ascii")
         self.socket.connect("tcp://localhost:5559")
-        self.sub_socket = self.context.socket(zmq.SUB)
+        self.pull_socket = self.context.socket(zmq.PULL)
 
     def tearDown(self):
         self.service.close()
         if not self.socket.closed:
             self.socket.close()
-        if not self.sub_socket.closed:
-            self.sub_socket.close()
+        if not self.pull_socket.closed:
+            self.pull_socket.close()
         if not self.context.closed:
             self.context.term()
         try:
@@ -53,11 +54,11 @@ class TestRemoteExecutionService(unittest.TestCase):
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_remote_execution1(self, mock_proj_dir):
-        """Tests executing a DC -> Python Tool DAG."""
+        """Tests executing a Hello World (DC -> Python Tool) project."""
         mock_proj_dir.return_value = self._temp_dir.name
-        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
             file_data = f.read()
-        prepare_msg = ServerMessage("prepare_execution", "1", json.dumps("test project1"), ["test_zipfile.zip"])
+        prepare_msg = ServerMessage("prepare_execution", "1", json.dumps("Hello World"), ["helloworld.zip"])
         self.socket.send_multipart([prepare_msg.to_bytes(), file_data])
         prepare_response = self.socket.recv()
         prepare_response_msg = ServerMessage.parse(prepare_response)
@@ -66,23 +67,25 @@ class TestRemoteExecutionService(unittest.TestCase):
         self.assertTrue(len(job_id) == 32)
         self.assertEqual("", prepare_response_msg.getData())
         # Send start_execution request
-        engine_data = self.make_engine_data_for_test_zipfile_project()
+        engine_data = self.make_engine_data_for_helloworld_project()
         engine_data_json = json.dumps(engine_data)
         start_msg = ServerMessage("start_execution", job_id, engine_data_json, None)
         self.socket.send_multipart([start_msg.to_bytes()])
         start_response = self.socket.recv()
+        print(f"start_response:{start_response}")
         start_response_msg = ServerMessage.parse(start_response)
         start_response_msg_data = start_response_msg.getData()
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
         self.assertTrue(self.receive_events(start_response_msg_data[1]))
+        time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_remote_execution2(self, mock_project_dir):
-        """Tests executing a project with 3 items (1 Dc + 2 Tools)."""
+        """Tests executing a single DAG project with 3 items (DC -> Importer -> DS)."""
         mock_project_dir.return_value = self._temp_dir.name
-        with open(os.path.join(str(Path(__file__).parent), "project_package.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "simple_importer.zip"), "rb") as f:
             file_data = f.read()
-        prepare_msg = ServerMessage("prepare_execution", "1", json.dumps("test project2"), ["project_package.zip"])
+        prepare_msg = ServerMessage("prepare_execution", "1", json.dumps("Simple Importer"), ["simple_importer.zip"])
         self.socket.send_multipart([prepare_msg.to_bytes(), file_data])
         prepare_response = self.socket.recv()
         prepare_response_msg = ServerMessage.parse(prepare_response)
@@ -91,7 +94,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         self.assertTrue(len(job_id) == 32)
         self.assertEqual("", prepare_response_msg.getData())
         # Send start_execution request
-        engine_data = self.make_engine_data_for_project_package_project()
+        engine_data = self.make_engine_data_for_simple_importer_project()
         engine_data_json = json.dumps(engine_data)
         start_msg = ServerMessage("start_execution", job_id, engine_data_json, None)
         self.socket.send_multipart([start_msg.to_bytes()])
@@ -100,19 +103,20 @@ class TestRemoteExecutionService(unittest.TestCase):
         start_response_msg_data = start_response_msg.getData()
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
         self.assertTrue(self.receive_events(start_response_msg_data[1]))
+        time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_loop_calls(self, mock_proj_dir):
-        """Tests executing a project with 3 items (1 DC + 2 Tools) five times in a row."""
+        """Tests executing the Hellow World project (DC -> Tool) five times in a row."""
         mock_proj_dir.return_value = self._temp_dir.name
-        engine_data = self.make_engine_data_for_project_package_project()
+        engine_data = self.make_engine_data_for_helloworld_project()
         engine_data_json = json.dumps(engine_data)
-        with open(os.path.join(str(Path(__file__).parent), "project_package.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
             file_data = f.read()
         for i in range(5):
             # Switch project folder on each iteration
             project_name = "loop_test_project_" + str(i)
-            prepare_msg = ServerMessage("prepare_execution", "1", json.dumps(project_name), ["project_package.zip"])
+            prepare_msg = ServerMessage("prepare_execution", "1", json.dumps(project_name), ["helloworld.zip"])
             self.socket.send_multipart([prepare_msg.to_bytes(), file_data])
             prepare_response = self.socket.recv()
             prepare_response_msg = ServerMessage.parse(prepare_response)
@@ -126,6 +130,7 @@ class TestRemoteExecutionService(unittest.TestCase):
             start_response_msg_data = start_response_msg.getData()
             self.assertEqual("remote_execution_started", start_response_msg_data[0])
             self.assertTrue(self.receive_events(start_response_msg_data[1]))
+        time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
 
     def receive_events(self, publish_port):
         """Receives events from server until DAG execution has finished.
@@ -136,15 +141,16 @@ class TestRemoteExecutionService(unittest.TestCase):
         Returns:
             bool: True if execution succeeds, False otherwise.
         """
-        self.sub_socket.connect("tcp://localhost:" + publish_port)
-        self.sub_socket.setsockopt(zmq.SUBSCRIBE, b"EVENTS")
+        self.pull_socket.connect("tcp://localhost:" + publish_port)
         retval = False
         while True:
-            rcv = self.sub_socket.recv_multipart()
-            event_deconverted = EventDataConverter.deconvert(rcv[1])
+            rcv = self.pull_socket.recv_multipart()
+            event_deconverted = EventDataConverter.deconvert(*rcv)
             if event_deconverted[0] == "dag_exec_finished":
                 if event_deconverted[1] == "COMPLETED":
                     retval = True
+                # Get final event [b'END', b""], which is consumed by engine_client.download_files() by the client
+                rcv = self.pull_socket.recv_multipart()
                 break
         return retval
 
@@ -171,7 +177,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         d = self.make_default_item_dict("Data Connection")
         d["file_references"] = file_ref if file_ref is not None else list()
         d["db_references"] = []
-        d["db_credentials"] = []
+        d["db_credentials"] = {}
         return d
 
     def make_tool_item_dict(self, spec_name, exec_in_work, options=None, group_id=None):
@@ -187,11 +193,24 @@ class TestRemoteExecutionService(unittest.TestCase):
             d["group_id"] = group_id
         return d
 
+    def make_importer_item_dict(self):
+        d = self.make_default_item_dict("Importer")
+        d["specification"] = "Importer 1 - units.xlsx"
+        d["cancel_on_error"] = True
+        d["on_conflict"] = "replace"
+        d["file_selection"] = [["<Raw data>/units.xlsx", True]]
+        return d
+
+    def make_ds_item_dict(self):
+        d = self.make_default_item_dict("Data Store")
+        d["url"] = {"dialect": "sqlite", "username": "", "password": "", "host": "", "port": "", "database": {"type": "path", "relative": True, "path": ".spinetoolbox/items/ds1/DS1.sqlite"}}
+        return d
+
     @staticmethod
     def make_python_tool_spec_dict(
             name,
-            script_path,
-            input_file,
+            includes,
+            input_files,
             exec_in_work,
             includes_main_path,
             def_file_path,
@@ -199,9 +218,9 @@ class TestRemoteExecutionService(unittest.TestCase):
         return {
             "name": name,
             "tooltype": "python",
-            "includes": script_path,
+            "includes": includes,
             "description": "",
-            "inputfiles": input_file,
+            "inputfiles": input_files,
             "inputfiles_opt": [],
             "outputfiles": [],
             "cmdline_args": [],
@@ -211,90 +230,83 @@ class TestRemoteExecutionService(unittest.TestCase):
             "definition_file_path": def_file_path,
         }
 
-    def make_engine_data_for_test_zipfile_project(self):
-        """Returns an engine data dictionary for SpineEngine() for the project in file test_zipfile.zip.
+    @staticmethod
+    def make_importer_spec_dict():
+        d = dict()
+        d["name"] = "Importer 1 - units.xlsx"
+        d["item_type"] = "Importer"
+        d["mapping"] = {"table_mappings":
+                            {"Sheet1":
+                                 [
+                                     {"": {"mapping": [{"map_type": "ObjectClass", "position": 0},
+                                                       {"map_type": "Object", "position": 1},
+                                                       {"map_type": "ObjectMetadata", "position": "hidden"}]}}
+                                 ]
+                            },
+            "selected_tables": ["Sheet1"],
+            "table_options": {"Sheet1": {}}, "table_types": {"Sheet1": {"0": "string", "1": "string"}},
+            "table_default_column_type": {}, "table_row_types": {}, "source_type": "ExcelConnector"}
+        d["description"] = "",
+        d["definition_file_path"] = "C:\\data\\SpineToolboxData\\Projects\\Simple Importer\\Importer 1 - units.xlsx.json"
+        return d
+
+    def make_engine_data_for_helloworld_project(self):
+        """Returns an engine data dictionary for SpineEngine() for the project in file helloworld.zip.
 
         engine_data dict must be the same as what is passed to SpineEngineWorker() in
         spinetoolbox.project.create_engine_worker()
         """
-        tool_item_dict = self.make_tool_item_dict("helloworld2", False)
-        dc_item_dict = self.make_dc_item_dict(file_ref=[{"type": "path", "relative": True, "path": "input2.txt"}])
-        spec_dict = self.make_python_tool_spec_dict("helloworld2", ["helloworld.py"], ["input2.txt"], True, "../../..",
-                                                    "./helloworld/.spinetoolbox/specifications/Tool/helloworld2.json")
+        tool_item_dict = self.make_tool_item_dict("Simple Tool Spec", False)
+        dc_item_dict = self.make_dc_item_dict(file_ref=[{"type": "path", "relative": True, "path": "input_file.txt"}])
+        spec_dict = self.make_python_tool_spec_dict(name="Simple Tool Spec",
+                                                    includes=["simple_script.py"],
+                                                    input_files=["input_file.txt"],
+                                                    exec_in_work=True,
+                                                    includes_main_path="../../..",
+                                                    def_file_path="C:/data/temp/.spinetoolbox/specifications/Tool/simple_tool_spec.json",
+                                                    exec_settings={"env": "", "kernel_spec_name": "py38", "use_jupyter_console": False, "executable": ""})
         item_dicts = dict()
-        item_dicts["helloworld"] = tool_item_dict
         item_dicts["Data Connection 1"] = dc_item_dict
+        item_dicts["Simple Tool"] = tool_item_dict
         specification_dicts = dict()
         specification_dicts["Tool"] = [spec_dict]
         engine_data = {
             "items": item_dicts,
             "specifications": specification_dicts,
-            "connections": [{"from": ["Data Connection 1", "left"], "to": ["helloworld", "right"]}],
+            "connections": [{"name": "from Data Connection 1 to Simple Tool", "from": ["Data Connection 1", "right"], "to": ["Simple Tool", "left"]}],
             "jumps": [],
-            "execution_permits": {"Data Connection 1": True, "helloworld": True},
+            "execution_permits": {"Data Connection 1": True, "Simple Tool": True},
             "items_module_name": "spine_items",
             "settings": {},
-            "project_dir": "./helloworld",
+            "project_dir": "C:/data/temp",
         }
         return engine_data
 
-    def make_engine_data_for_project_package_project(self):
-        """Returns an engine data dictionary for SpineEngine() for the project in file project_package.zip.
+    def make_engine_data_for_simple_importer_project(self):
+        """Returns an engine data dictionary for SpineEngine() for the project in file simple_importer.zip.
 
         engine_data dict must be the same as what is passed to SpineEngineWorker() in
         spinetoolbox.project.create_engine_worker()
         """
-        t1_item_dict = self.make_tool_item_dict("a", False)
-        t2_item_dict = self.make_tool_item_dict("b", True,)
-        dc1_item_dict = self.make_dc_item_dict()
-        exec_settings_a = {
-            "env": "",
-            "kernel_spec_name": "python38",
-            "use_jupyter_console": False,
-            "executable": "",
-            "fail_on_stderror": False
-        }
-        spec_dict_a = self.make_python_tool_spec_dict(
-            "a",
-            ["a.py"],
-            [],
-            True,
-            ".",
-            "C:/Users/ttepsa/OneDrive - Teknologian Tutkimuskeskus VTT/Documents/SpineToolboxProjects/remote test 3 items/.spinetoolbox/specifications/Tool/a.json",
-            exec_settings_a
-        )
-        exec_settings_b = {
-            "env": "",
-            "kernel_spec_name": "python38",
-            "use_jupyter_console": False,
-            "executable": "",
-            "fail_on_stderror": True
-        }
-        spec_dict_b = self.make_python_tool_spec_dict(
-            "b",
-            ["b.py"],
-            [],
-            True,
-            "../../..",
-            "C:/Users/ttepsa/OneDrive - Teknologian Tutkimuskeskus VTT/Documents/SpineToolboxProjects/remote test 3 items/.spinetoolbox/specifications/Tool/b.json",
-            exec_settings_b
-        )
+        dc_item_dict = self.make_dc_item_dict()
+        importer_item_dict = self.make_importer_item_dict()
+        ds_item_dict = self.make_ds_item_dict()
+        importer_spec_dict = self.make_importer_spec_dict()
         item_dicts = dict()
-        item_dicts["T1"] = t1_item_dict
-        item_dicts["T2"] = t2_item_dict
-        item_dicts["DC1"] = dc1_item_dict
+        item_dicts["Raw data"] = dc_item_dict
+        item_dicts["Importer 1"] = importer_item_dict
+        item_dicts["DS1"] = ds_item_dict
         specification_dicts = dict()
-        specification_dicts["Tool"] = [spec_dict_a, spec_dict_b]
+        specification_dicts["Importer"] = [importer_spec_dict]
         engine_data = {
             "items": item_dicts,
             "specifications": specification_dicts,
-            "connections": [{"from": ["DC1", "right"], "to": ["T1", "left"]},
-                            {"from": ["T1", "right"], "to": ["T2", "left"]}],
+            "connections":  [{"name": "from Raw data to Importer 1", "from": ["Raw data", "right"], "to": ["Importer 1", "left"]}, {"name": "from Importer 1 to DS1", "from": ["Importer 1", "right"], "to": ["DS1", "left"], "options": {"purge_before_writing": True, "purge_settings": None}}],
             "jumps": [],
-            "execution_permits": {"DC1": True, "T1": True, "T2": True},
+            "execution_permits": {"Importer 1": True, "DS1": True, "Raw data": True},
             "items_module_name": "spine_items",
             "settings": {},
-            "project_dir": "C:/Users/ttepsa/OneDrive - Teknologian Tutkimuskeskus VTT/Documents/SpineToolboxProjects/remote test 3 items",
+            "project_dir": "C:/data/temp",
         }
         return engine_data
 

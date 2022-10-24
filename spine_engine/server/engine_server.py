@@ -205,6 +205,8 @@ class EngineServer(threading.Thread):
                     for k, v in persistent_exec_mngrs.items():
                         if v._persistent_manager.is_persistent_alive():
                             print(f"Persistent exec. mngr:{k} still alive (n:{len(persistent_exec_mngrs)})")
+                            v._persistent_manager.kill_process()
+                    persistent_exec_mngrs.clear()
                     if len(workers) > 0:
                         print(f"WARNING: Some workers still running:{workers.keys()}")
                     break

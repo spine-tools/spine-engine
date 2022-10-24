@@ -22,37 +22,8 @@ from spine_engine.server.util.zip_handler import ZipHandler
 
 
 class TestZipHandler(unittest.TestCase):
-    def test_simple_extraction(self):
-        zip_file_path = str(Path(__file__).parent / "test_zipfile.zip")
-        output_dir_path = str(Path(__file__).parent / "output")
-        ZipHandler.extract(zip_file_path, output_dir_path)
-        self.assertEqual(os.path.isdir(output_dir_path), True)
 
-    def test_invalid_input1(self):
-        with self.assertRaises(ValueError):
-            ZipHandler.extract("", "./output")
-
-    def test_invalid_input2(self):
-        with self.assertRaises(ValueError):
-            ZipHandler.extract("does_not_exist.zip", "")
-
-    def test_removeFolder(self):
-        zip_file_path = str(Path(__file__).parent / "test_zipfile.zip")
-        output_dir_path = str(Path(__file__).parent / "output")
-        ZipHandler.extract(zip_file_path, output_dir_path)
-        self.assertEqual(os.path.isdir(output_dir_path), True)
-        ZipHandler.delete_folder(output_dir_path)
-        self.assertEqual(os.path.isdir(output_dir_path), False)
-
-    def test_remove_nonexisting_Folder(self):
-        with self.assertRaises(ValueError):
-            ZipHandler.delete_folder("./output2")
-
-    def test_invalid_input1_remove_folder(self):
-        with self.assertRaises(ValueError):
-            ZipHandler.delete_folder("")
-
-    def test_package_and_delete_file(self):
+    def test_package(self):
         src = os.path.join(str(Path(__file__).parent), "projectforpackagingtests")
         dst = os.path.join(src, os.pardir)
         ZipHandler.package(src, dst, "packager_test_zip")
@@ -60,6 +31,26 @@ class TestZipHandler(unittest.TestCase):
         self.assertTrue(os.path.isfile(zip_file))
         os.remove(zip_file)
         self.assertFalse(os.path.isfile(zip_file))
+
+    def test_extract_and_delete_folder(self):
+        zip_file_path = str(Path(__file__).parent.parent / "helloworld.zip")
+        output_dir_path = str(Path(__file__).parent / "output")
+        ZipHandler.extract(zip_file_path, output_dir_path)
+        self.assertEqual(os.path.isdir(output_dir_path), True)
+        ZipHandler.delete_folder(output_dir_path)
+        self.assertEqual(os.path.isdir(output_dir_path), False)
+
+    def test_extract_invalid_input(self):
+        with self.assertRaises(ValueError):
+            ZipHandler.extract("", "./output")
+        with self.assertRaises(ValueError):
+            ZipHandler.extract("does_not_exist.zip", "")
+
+    def test_delete_folder_invalid_input(self):
+        with self.assertRaises(ValueError):
+            ZipHandler.delete_folder("./output2")
+        with self.assertRaises(ValueError):
+            ZipHandler.delete_folder("")
 
 
 if __name__ == "__main__":

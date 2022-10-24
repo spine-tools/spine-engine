@@ -1,7 +1,0 @@
-{
-		"items": "{'helloworld': {'type': 'Tool', 'description': '', 'x': -91.6640625, 'y': -5.609375, 'specification': 'helloworld2', 'execute_in_work': True, 'cmd_line_args': []}, 'Data Connection 1': {'type': 'Data Connection', 'description': '', 'x': 62.7109375, 'y': 8.609375, 'references': [{'type': 'path', 'relative': True, 'path': 'input2.txt'}]}}",
-ccdscdscopsdmce40+9328e09uj123mew2q edlk2#!"#!"#!"#!"#!"#!"#!"#!"#!"#
-		"execution_permits": "{'Data Connection 1': True, 'helloworld': True}",
-		"settings": "{'appSettings/previousProject': './tests/server/helloworld', 'appSettings/recentProjectStorages': './tests/server/spine', 'appSettings/recentProjects': 'helloworld<>./tests/server/helloworld', 'appSettings/showExitPrompt': '2', 'appSettings/toolbarIconOrdering': 'Importer;;View;;Tool;;Data Connection;;Data Transformer;;Gimlet;;Exporter;;Data Store', 'appSettings/workDir': './tests/server/Spine-Toolbox/work'}",
-		"project_dir": "./tests/server/helloworld"
-}

@@ -46,9 +46,9 @@ class TestProjectExtractorService(unittest.TestCase):
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_project_extraction(self, mock_proj_dir):
         mock_proj_dir.return_value = self._temp_dir.name
-        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
             file_data = f.read()
-        msg = ServerMessage("prepare_execution", "1", json.dumps("test project"), ["test_zipfile.zip"])
+        msg = ServerMessage("prepare_execution", "1", json.dumps("helloworld"), ["helloworld.zip"])
         self.socket.send_multipart([msg.to_bytes(), file_data])
         response = self.socket.recv()
         response_msg = ServerMessage.parse(response)
@@ -58,16 +58,16 @@ class TestProjectExtractorService(unittest.TestCase):
 
     def test_project_file_name_missing(self):
         """File name list in request is empty."""
-        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
             file_data = f.read()
-        msg = ServerMessage("prepare_execution", "1", json.dumps("test project"), [])
+        msg = ServerMessage("prepare_execution", "1", json.dumps("helloworld"), [])
         self.socket.send_multipart([msg.to_bytes(), file_data])
         response = self.socket.recv()
         self.check_correct_error_response(response, "Project ZIP file name missing")
 
     def test_project_name_missing(self):
         """Project name missing from request."""
-        with open(os.path.join(str(Path(__file__).parent), "test_zipfile.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
             data_file = f.read()
         msg = ServerMessage("prepare_execution", "1", "", ["helloworld.zip"])
         self.socket.send_multipart([msg.to_bytes(), data_file])
