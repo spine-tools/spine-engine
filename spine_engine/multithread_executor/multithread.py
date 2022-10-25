@@ -85,6 +85,7 @@ class MultithreadExecutor(Executor):
                 waiting = {}
                 iterating = {}
                 iterating_active = set()
+                iterating_failed = set()
                 jumps = pipeline_context.pipeline.get_definition().jumps
                 jump_by_source = {}
                 jump_by_solid_name = {}
@@ -114,7 +115,7 @@ class MultithreadExecutor(Executor):
                         iterating_skipped = set()
                         for key, step in iterating.items():
                             dependency_keys = step.get_execution_dependency_keys()
-                            if dependency_keys & (iterating_active | iterating_skipped):
+                            if dependency_keys & (iterating_active | iterating_skipped | iterating_failed):
                                 iterating_skipped.add(key)
                                 continue
                             iterating_active.add(key)
@@ -181,6 +182,7 @@ class MultithreadExecutor(Executor):
                                     if jump.solid_names & failed_solid_names:
                                         unfinished_jumps.discard(jump)
                                         loop_iteration_counters.pop(jump, None)
+                                iterating_failed.add(step)
                             elif event_or_none.is_step_success:
                                 # Process loop condition
                                 iterating_active.discard(key)
