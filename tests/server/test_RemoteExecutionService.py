@@ -72,7 +72,6 @@ class TestRemoteExecutionService(unittest.TestCase):
         start_msg = ServerMessage("start_execution", job_id, engine_data_json, None)
         self.socket.send_multipart([start_msg.to_bytes()])
         start_response = self.socket.recv()
-        print(f"start_response:{start_response}")
         start_response_msg = ServerMessage.parse(start_response)
         start_response_msg_data = start_response_msg.getData()
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
@@ -130,7 +129,8 @@ class TestRemoteExecutionService(unittest.TestCase):
             start_response_msg_data = start_response_msg.getData()
             self.assertEqual("remote_execution_started", start_response_msg_data[0])
             self.assertTrue(self.receive_events(start_response_msg_data[1]))
-        time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
+            time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
+            self.service.kill_persistent_exec_mngrs()
 
     def receive_events(self, publish_port):
         """Receives events from server until DAG execution has finished.

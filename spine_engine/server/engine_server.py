@@ -79,6 +79,7 @@ class EngineServer(threading.Thread):
         self._context = zmq.Context()
         self.ctrl_msg_sender = self._context.socket(zmq.PAIR)
         self.ctrl_msg_sender.bind("inproc://ctrl_msg")  # inproc:// transport requires a bind() before connect()
+        self.persistent_exec_mngrs = dict()
         self.start()  # Start serving
 
     def close(self):
@@ -117,7 +118,6 @@ class EngineServer(threading.Thread):
         workers = dict()
         project_dirs = dict()  # Mapping of job Id to an abs. path to a project directory ready for execution
         persistent_exec_mngr_q = queue.Queue()
-        persistent_exec_mngrs = dict()
         while True:
             try:
                 socks = dict(poller.poll())
@@ -165,7 +165,7 @@ class EngineServer(threading.Thread):
                         worker = ProjectRetrieverService(self._context, request, job_id, project_dir)
                     elif request.cmd() == "execute_in_persistent":
                         exec_mngr_key = tuple(request.data()[0])  # Cast key list back to tuple
-                        exec_mngr = persistent_exec_mngrs.get(exec_mngr_key, None)
+                        exec_mngr = self.persistent_exec_mngrs.get(exec_mngr_key, None)
                         if not exec_mngr:
                             print(f"Persistent exec. mngr for key:{exec_mngr_key} not found.")
                             msg = f"Executing command:{request.data()[1]} - {request.data()[2]} in persistent " \
@@ -193,7 +193,7 @@ class EngineServer(threading.Thread):
                             try:
                                 new_exec_mngrs = persistent_exec_mngr_q.get_nowait()
                                 for k, v in new_exec_mngrs.items():
-                                    persistent_exec_mngrs[k] = v
+                                    self.persistent_exec_mngrs[k] = v
                             except queue.Empty:
                                 pass
                         finished_worker.close()
@@ -202,11 +202,8 @@ class EngineServer(threading.Thread):
                         print(f"Sending response to client {message[0]}")
                         frontend.send_multipart(message)
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
-                    for k, v in persistent_exec_mngrs.items():
-                        if v._persistent_manager.is_persistent_alive():
-                            print(f"Persistent exec. mngr:{k} still alive (n:{len(persistent_exec_mngrs)})")
-                            v._persistent_manager.kill_process()
-                    persistent_exec_mngrs.clear()
+                    print("Closing server...")
+                    self.kill_persistent_exec_mngrs()
                     if len(workers) > 0:
                         print(f"WARNING: Some workers still running:{workers.keys()}")
                     break
@@ -214,10 +211,18 @@ class EngineServer(threading.Thread):
                 print(f"[DEBUG] EngineServer.serve() exception: {type(e)} serving failed, exception: {e}")
                 break
         # Close sockets
-        print("Closing server...")
         ctrl_msg_listener.close()
         frontend.close()
         backend.close()
+
+    def kill_persistent_exec_mngrs(self):
+        """Kills all persistent (execution) manager processes."""
+        n_exec_mngrs = len(self.persistent_exec_mngrs)
+        if n_exec_mngrs > 0:
+            print(f"Closing {len(self.persistent_exec_mngrs)} persistent execution manager processes")
+            for k, exec_mngr in self.persistent_exec_mngrs.items():
+                exec_mngr._persistent_manager.kill_process()
+            self.persistent_exec_mngrs.clear()
 
     def handle_frontend_message_received(self, socket, msg):
         """Check received message integrity.

@@ -76,7 +76,6 @@ class TestStandardExecutionManager(unittest.TestCase):
 
 
 class TestPersistentExecutionManager(unittest.TestCase):
-    @unittest.skip("Hangs...")
     def test_reuse_process(self):
         logger = MagicMock()
         logger.msg_warning = MagicMock()
@@ -91,7 +90,6 @@ class TestPersistentExecutionManager(unittest.TestCase):
         logger.msg_warning.emit.assert_called_once()
         exec_mngr1._persistent_manager.kill_process()
 
-    @unittest.skip("Hangs...")
     def test_do_not_reuse_unfinished_process(self):
         persistent_process_semaphore.set_limit(2)
         logger = MagicMock()
