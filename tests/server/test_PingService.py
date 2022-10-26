@@ -25,7 +25,7 @@ class TestPingService(unittest.TestCase):
 
     def setUp(self):
         self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.REQ)
+        self.socket = self.context.socket(zmq.DEALER)
 
     def tearDown(self):
         if not self.socket.closed:
@@ -41,8 +41,8 @@ class TestPingService(unittest.TestCase):
         while i < 10:
             ping_msg = ServerMessage("ping", str(i), "", None)
             self.socket.send_multipart([ping_msg.to_bytes()])
-            response = self.socket.recv()
-            response_str = response.decode("utf-8")
+            response = self.socket.recv_multipart()
+            response_str = response[1].decode("utf-8")
             ping_as_json = ping_msg.toJSON()
             self.assertEqual(response_str, ping_as_json)  # check that echoed content is as expected
             i = i + 1

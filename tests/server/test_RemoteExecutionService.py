@@ -34,10 +34,13 @@ class TestRemoteExecutionService(unittest.TestCase):
         self._temp_dir = TemporaryDirectory()
         self.service = EngineServer("tcp", 5559, ServerSecurityModel.NONE, "")
         self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.REQ)
+        self.socket = self.context.socket(zmq.DEALER)
         self.socket.identity = "Worker1".encode("ascii")
         self.socket.connect("tcp://localhost:5559")
         self.pull_socket = self.context.socket(zmq.PULL)
+        self.poller = zmq.Poller()
+        self.poller.register(self.socket, zmq.POLLIN)
+        self.poller.register(self.pull_socket, zmq.POLLIN)
 
     def tearDown(self):
         self.service.close()
@@ -60,8 +63,8 @@ class TestRemoteExecutionService(unittest.TestCase):
             file_data = f.read()
         prepare_msg = ServerMessage("prepare_execution", "1", json.dumps("Hello World"), ["helloworld.zip"])
         self.socket.send_multipart([prepare_msg.to_bytes(), file_data])
-        prepare_response = self.socket.recv()
-        prepare_response_msg = ServerMessage.parse(prepare_response)
+        prepare_response = self.socket.recv_multipart()
+        prepare_response_msg = ServerMessage.parse(prepare_response[1])
         job_id = prepare_response_msg.getId()
         self.assertEqual("prepare_execution", prepare_response_msg.getCommand())
         self.assertTrue(len(job_id) == 32)
@@ -71,12 +74,18 @@ class TestRemoteExecutionService(unittest.TestCase):
         engine_data_json = json.dumps(engine_data)
         start_msg = ServerMessage("start_execution", job_id, engine_data_json, None)
         self.socket.send_multipart([start_msg.to_bytes()])
-        start_response = self.socket.recv()
-        start_response_msg = ServerMessage.parse(start_response)
+        start_response = self.socket.recv_multipart()
+        start_response_msg = ServerMessage.parse(start_response[1])
         start_response_msg_data = start_response_msg.getData()
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
         self.assertTrue(self.receive_events(start_response_msg_data[1]))
-        time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
+        # completed_response = self.socket.recv_multipart()
+        # completed_response_msg = ServerMessage.parse(completed_response[1])
+        # completed_response_msg_data = completed_response_msg.getData()
+        # self.assertEqual("remote_execution_event", completed_response_msg_data[0])
+        # self.assertEqual("completed", completed_response_msg_data[1])
+
+        # time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_remote_execution2(self, mock_project_dir):
@@ -86,8 +95,8 @@ class TestRemoteExecutionService(unittest.TestCase):
             file_data = f.read()
         prepare_msg = ServerMessage("prepare_execution", "1", json.dumps("Simple Importer"), ["simple_importer.zip"])
         self.socket.send_multipart([prepare_msg.to_bytes(), file_data])
-        prepare_response = self.socket.recv()
-        prepare_response_msg = ServerMessage.parse(prepare_response)
+        prepare_response = self.socket.recv_multipart()
+        prepare_response_msg = ServerMessage.parse(prepare_response[1])
         job_id = prepare_response_msg.getId()
         self.assertEqual("prepare_execution", prepare_response_msg.getCommand())
         self.assertTrue(len(job_id) == 32)
@@ -97,12 +106,12 @@ class TestRemoteExecutionService(unittest.TestCase):
         engine_data_json = json.dumps(engine_data)
         start_msg = ServerMessage("start_execution", job_id, engine_data_json, None)
         self.socket.send_multipart([start_msg.to_bytes()])
-        start_response = self.socket.recv()
-        start_response_msg = ServerMessage.parse(start_response)
+        start_response = self.socket.recv_multipart()
+        start_response_msg = ServerMessage.parse(start_response[1])
         start_response_msg_data = start_response_msg.getData()
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
         self.assertTrue(self.receive_events(start_response_msg_data[1]))
-        time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
+        # time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_loop_calls(self, mock_proj_dir):
@@ -117,20 +126,21 @@ class TestRemoteExecutionService(unittest.TestCase):
             project_name = "loop_test_project_" + str(i)
             prepare_msg = ServerMessage("prepare_execution", "1", json.dumps(project_name), ["helloworld.zip"])
             self.socket.send_multipart([prepare_msg.to_bytes(), file_data])
-            prepare_response = self.socket.recv()
-            prepare_response_msg = ServerMessage.parse(prepare_response)
+            prepare_response = self.socket.recv_multipart()
+            prepare_response_msg = ServerMessage.parse(prepare_response[1])
             job_id = prepare_response_msg.getId()
             self.assertEqual("prepare_execution", prepare_response_msg.getCommand())
             # Send start_execution request
             start_msg = ServerMessage("start_execution", job_id, engine_data_json, None)
             self.socket.send_multipart([start_msg.to_bytes()])
-            start_response = self.socket.recv()
-            start_response_msg = ServerMessage.parse(start_response)
+            start_response = self.socket.recv_multipart()
+            start_response_msg = ServerMessage.parse(start_response[1])
             start_response_msg_data = start_response_msg.getData()
             self.assertEqual("remote_execution_started", start_response_msg_data[0])
             self.assertTrue(self.receive_events(start_response_msg_data[1]))
-            time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
+            # time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
             self.service.kill_persistent_exec_mngrs()
+            # TODO: Check that we use the same persistent exec manager in all 5 execution iterations
 
     def receive_events(self, publish_port):
         """Receives events from server until DAG execution has finished.
@@ -142,15 +152,33 @@ class TestRemoteExecutionService(unittest.TestCase):
             bool: True if execution succeeds, False otherwise.
         """
         self.pull_socket.connect("tcp://localhost:" + publish_port)
-        retval = False
+        retval = True
+        # TODO: Poll PULL and DEALER sockets here
         while True:
-            rcv = self.pull_socket.recv_multipart()
-            event_deconverted = EventDataConverter.deconvert(*rcv)
-            if event_deconverted[0] == "dag_exec_finished":
-                if event_deconverted[1] == "COMPLETED":
-                    retval = True
-                # Get final event [b'END', b""], which is consumed by engine_client.download_files() by the client
+            socks = dict(self.poller.poll())
+            # Broker
+            if socks.get(self.pull_socket) == zmq.POLLIN:
                 rcv = self.pull_socket.recv_multipart()
+                if len(rcv) > 1:
+                    # This should discard incoming_file and the actual file messages
+                    if rcv == [b'END', b""]:
+                        print("END")
+                    continue
+                event_deconverted = EventDataConverter.deconvert(*rcv)
+                if event_deconverted[0] == "dag_exec_finished":
+                    self.assertEqual("COMPLETED", event_deconverted[1])
+                    # if event_deconverted[1] == "COMPLETED":
+                    #     retval = True
+                    # Get final event [b'END', b""], which is consumed by engine_client.download_files() by the client
+                    # rcv = self.pull_socket.recv_multipart()
+                    # break
+            if socks.get(self.socket) == zmq.POLLIN:
+                # Wait for the completed msg to make sure that the server can be closed
+                completed_response = self.socket.recv_multipart()
+                completed_response_msg = ServerMessage.parse(completed_response[1])
+                completed_response_msg_data = completed_response_msg.getData()
+                self.assertEqual("remote_execution_event", completed_response_msg_data[0])
+                self.assertEqual("completed", completed_response_msg_data[1])
                 break
         return retval
 

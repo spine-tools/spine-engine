@@ -39,8 +39,8 @@ class Request:
         self._filenames = filenames
         self._connection_id = msg[0]  # Assigned by the frontend (ROUTER) socket that received the message
         self._zip_file = None
-        if len(msg) == 4:
-            self._zip_file = msg[3]
+        if len(msg) == 3:
+            self._zip_file = msg[2]
 
     def msg(self):
         """Returns a list containing three binary frames.

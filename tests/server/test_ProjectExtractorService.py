@@ -32,7 +32,7 @@ class TestProjectExtractorService(unittest.TestCase):
         self._temp_dir = TemporaryDirectory()
         self.service = EngineServer("tcp", 5559, ServerSecurityModel.NONE, "")
         self.context = zmq.Context()
-        self.socket = self.context.socket(zmq.REQ)
+        self.socket = self.context.socket(zmq.DEALER)
         self.socket.connect("tcp://localhost:5559")
 
     def tearDown(self):
@@ -50,8 +50,8 @@ class TestProjectExtractorService(unittest.TestCase):
             file_data = f.read()
         msg = ServerMessage("prepare_execution", "1", json.dumps("helloworld"), ["helloworld.zip"])
         self.socket.send_multipart([msg.to_bytes(), file_data])
-        response = self.socket.recv()
-        response_msg = ServerMessage.parse(response)
+        response = self.socket.recv_multipart()
+        response_msg = ServerMessage.parse(response[1])
         self.assertEqual("prepare_execution", response_msg.getCommand())
         self.assertTrue(len(response_msg.getId()) == 32)
         self.assertEqual("", response_msg.getData())
@@ -62,8 +62,8 @@ class TestProjectExtractorService(unittest.TestCase):
             file_data = f.read()
         msg = ServerMessage("prepare_execution", "1", json.dumps("helloworld"), [])
         self.socket.send_multipart([msg.to_bytes(), file_data])
-        response = self.socket.recv()
-        self.check_correct_error_response(response, "Project ZIP file name missing")
+        response = self.socket.recv_multipart()
+        self.check_correct_error_response(response[1], "Project ZIP file name missing")
 
     def test_project_name_missing(self):
         """Project name missing from request."""
@@ -71,15 +71,15 @@ class TestProjectExtractorService(unittest.TestCase):
             data_file = f.read()
         msg = ServerMessage("prepare_execution", "1", "", ["helloworld.zip"])
         self.socket.send_multipart([msg.to_bytes(), data_file])
-        response = self.socket.recv()
-        self.check_correct_error_response(response, "Project name missing")
+        response = self.socket.recv_multipart()
+        self.check_correct_error_response(response[1], "Project name missing")
 
     def test_zip_file_missing(self):
         """Project zip-file missing from request."""
         msg = ServerMessage("prepare_execution", "1", json.dumps("projekti"), ["helloworld.zip"])
         self.socket.send_multipart([msg.to_bytes()])
-        response = self.socket.recv()
-        self.check_correct_error_response(response, "Project ZIP file missing")
+        response = self.socket.recv_multipart()
+        self.check_correct_error_response(response[1], "Project ZIP file missing")
 
     def check_correct_error_response(self, response, expected_err_str):
         response_msg = ServerMessage.parse(response)

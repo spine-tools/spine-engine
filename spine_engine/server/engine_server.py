@@ -198,9 +198,8 @@ class EngineServer(threading.Thread):
                                 pass
                         finished_worker.close()
                         finished_worker.join()
-                    if internal_msg[1] != "completed":  # Note: completed msg not sent to clients
-                        print(f"Sending response to client {message[0]}")
-                        frontend.send_multipart(message)
+                    print(f"Sending msg to client {message[0]}")
+                    frontend.send_multipart(message)
                 if socks.get(ctrl_msg_listener) == zmq.POLLIN:
                     print("Closing server...")
                     self.kill_persistent_exec_mngrs()
@@ -228,26 +227,25 @@ class EngineServer(threading.Thread):
         """Check received message integrity.
 
         msg for ping is eg.
-        [b'\x00k\x8bEg', b'', b'{\n   "command": "ping",\n   "id":"4773735",\n   "data":"",\n   "files": {}\n}']
+        [b'\x00k\x8bEg', b'{\n   "command": "ping",\n   "id":"4773735",\n   "data":"",\n   "files": {}\n}']
         where,
         msg[0] - Frame 1, is the connection identity (or an address). Unique binary string handle to the connection.
-        msg[1] - Frame 2, empty delimiter frame.
-        msg[2] - Frame 3, data frame. This is the request from client as a binary
+        msg[1] - Frame 2, data frame. This is the request from client as a binary
             JSON string containing a server message dictionary
 
         Returns:
             None if something went wrong or a new Request instance
         """
-        b_json_str_server_msg = msg[2]  # binary string
+        b_json_str_server_msg = msg[1]  # binary string
         if len(b_json_str_server_msg) <= 10:  # Message size too small
-            print(f"User data frame too small [{len(msg[2])}]. msg:{msg}")
+            print(f"User data frame too small [{len(msg[1])}]. msg:{msg}")
             self.send_init_failed_reply(socket, msg[0], f"User data frame too small "
                                                         f"- Malformed message sent to server.")
             return None
         try:
             json_str_server_msg = b_json_str_server_msg.decode("utf-8")  # json string
         except UnicodeDecodeError as e:
-            print(f"Decoding received msg '{msg[2]} ' failed. \nUnicodeDecodeError: {e}")
+            print(f"Decoding received msg '{msg[1]} ' failed. \nUnicodeDecodeError: {e}")
             self.send_init_failed_reply(socket, msg[0], f"UnicodeDecodeError: {e}. "
                                                         f"- Malformed message sent to server.")
             return None
