@@ -634,6 +634,8 @@ class _PersistentManagerFactory(metaclass=Singleton):
         pm = self.persistent_managers.get(key)
         if pm is None:
             return
+        if sys.platform == "win32":
+            return ""
         return pm.get_history_item(text, prefix, backwards)
 
     def kill_manager_processes(self):
