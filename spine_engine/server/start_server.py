@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Starts Spine Engine Server.
+Start script for Spine Engine Server.
 
 :author: P. Savolainen (VTT)
 :date:   01.09.2021
@@ -23,19 +23,19 @@ from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 
 def main(argv):
     """Spine Engine server main."""
-    if len(argv) != 3 and len(argv) != 5:
-        print(f"Spine Engine Server\n\nUsage:\n  python {argv[0]} <protocol> <port>\n"
-              f"or\n  python {argv[0]} <protocol> <port> stonehouse <path_to_security_folder>\n"
+    if len(argv) != 2 and len(argv) != 4:
+        print(f"Spine Engine Server\n\nUsage:\n  python {argv[0]} <port>\n"
+              f"or\n  python {argv[0]} <port> stonehouse <path_to_security_folder>\n"
               f"to enable security."
         )
         return
     server = None
     try:
-        port = int(argv[2])
-        if len(argv) == 3:
-            server = EngineServer(argv[1], port, ServerSecurityModel.NONE, "")
-        elif len(argv) == 5:
-            server = EngineServer(argv[1], port, ServerSecurityModel.STONEHOUSE, argv[4])
+        port = int(argv[1])
+        if len(argv) == 2:
+            server = EngineServer("tcp", port, ServerSecurityModel.NONE, "")
+        elif len(argv) == 4:
+            server = EngineServer("tcp", port, ServerSecurityModel.STONEHOUSE, argv[3])
     except Exception as e:
         print(f"start_server.main(): {type(e).__name__}: {e}")
         return
@@ -52,7 +52,7 @@ def main(argv):
             try:
                 server.close()
             except Exception as e:
-                print(f"EngineServer.close(): {type(e).__name__}: {e}")
+                print(f"start_server.main(): {type(e).__name__}: {e}")
             break
         else:
             time.sleep(0.1)

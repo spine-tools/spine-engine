@@ -50,20 +50,15 @@ class ProjectExtractorService(threading.Thread, ServiceBase):
         file_names = self.request.filenames()
         if not len(file_names) == 1:  # No file name included
             print("Received msg contained no file name for the ZIP file")
-            self.request.send_response(
-                self.worker_socket, ("remote_execution_init_failed", "Project ZIP file name missing"), (self.job_id, ""))
+            self.send_completed_with_error("Project ZIP file name missing")
             return
         if not dir_name:
             print("Project name missing from request. Cannot create a local project directory.")
-            self.request.send_response(
-                self.worker_socket, ("remote_execution_init_failed", "Project name missing"),
-                (self.job_id, "")
-            )
+            self.send_completed_with_error("Project name missing")
             return
         if not self.request.zip_file():
             print("Project ZIP file missing from request")
-            self.request.send_response(
-                self.worker_socket, ("remote_execution_init_failed", "Project ZIP file missing"), (self.job_id, ""))
+            self.send_completed_with_error("Project ZIP file missing")
             return
         # Make a new local project directory based on project name in request
         local_project_dir = os.path.join(ProjectExtractorService.INTERNAL_PROJECT_DIR, dir_name + "__" + uuid.uuid4().hex)
@@ -72,12 +67,8 @@ class ProjectExtractorService(threading.Thread, ServiceBase):
             os.makedirs(local_project_dir)
         except OSError:
             print(f"Creating project directory '{local_project_dir}' failed")
-            self.request.send_response(
-                self.worker_socket,
-                ("remote_execution_init_failed", f"Server failed in creating a project directory "
-                                                 f"for the received project '{local_project_dir}'"),
-                (self.job_id, "")
-            )
+            msg = f"Server failed in creating a project directory for the received project '{local_project_dir}'"
+            self.send_completed_with_error(msg)
             return
         # Save the received ZIP file
         zip_path = os.path.join(local_project_dir, file_names[0])
@@ -86,12 +77,8 @@ class ProjectExtractorService(threading.Thread, ServiceBase):
                 f.write(self.request.zip_file())
         except Exception as e:
             print(f"Saving the received file to '{zip_path}' failed. [{type(e).__name__}: {e}")
-            self.request.send_response(
-                self.worker_socket,
-                ("remote_execution_init_failed", f"Server failed in saving the received file "
-                                                 f"to '{zip_path}' ({type(e).__name__} at server)"),
-                (self.job_id, "")
-            )
+            msg = f" [{type(e).__name__}] Server failed in saving the received file to '{zip_path}'"
+            self.send_completed_with_error(msg)
             return
         # Check that the size of received bytes and the saved ZIP file match
         if not len(self.request.zip_file()) == os.path.getsize(zip_path):
@@ -103,11 +90,8 @@ class ProjectExtractorService(threading.Thread, ServiceBase):
             ZipHandler.extract(zip_path, local_project_dir)
         except Exception as e:
             print(f"File extraction failed: {type(e).__name__}: {e}")
-            self.request.send_response(
-                self.worker_socket,
-                ("remote_execution_init_failed", f"{type(e).__name__}: {e}. - File extraction failed on Server"),
-                (self.job_id, "")
-            )
+            msg = f"{type(e).__name__}: {e}. - File extraction failed on Server"
+            self.send_completed_with_error(msg)
             return
         # Remove extracted ZIP file
         try:
@@ -119,3 +103,8 @@ class ProjectExtractorService(threading.Thread, ServiceBase):
         self.request.send_multipart_reply(
             self.worker_socket, self.request.connection_id(), reply_msg.to_bytes(), internal_msg
         )
+
+    def send_completed_with_error(self, msg):
+        """Sends completed message to frontend for relaying to client when something goes wrong."""
+        error_event = "remote_execution_init_failed", msg
+        self.request.send_response(self.worker_socket, error_event, (self.job_id, "completed"))

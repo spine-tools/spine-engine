@@ -53,7 +53,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         try:
             self._temp_dir.cleanup()
         except RecursionError:
-            print("RecursionError due to a PermissionError on Windows")
+            print("RecursionError due to a PermissionError on Windows. Server resources not cleaned up properly.")
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_remote_execution1(self, mock_proj_dir):
@@ -78,14 +78,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         start_response_msg = ServerMessage.parse(start_response[1])
         start_response_msg_data = start_response_msg.getData()
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
-        self.assertTrue(self.receive_events(start_response_msg_data[1]))
-        # completed_response = self.socket.recv_multipart()
-        # completed_response_msg = ServerMessage.parse(completed_response[1])
-        # completed_response_msg_data = completed_response_msg.getData()
-        # self.assertEqual("remote_execution_event", completed_response_msg_data[0])
-        # self.assertEqual("completed", completed_response_msg_data[1])
-
-        # time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
+        self.receive_events(start_response_msg_data[1])
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_remote_execution2(self, mock_project_dir):
@@ -110,8 +103,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         start_response_msg = ServerMessage.parse(start_response[1])
         start_response_msg_data = start_response_msg.getData()
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
-        self.assertTrue(self.receive_events(start_response_msg_data[1]))
-        # time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
+        self.receive_events(start_response_msg_data[1])
 
     @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
     def test_loop_calls(self, mock_proj_dir):
@@ -122,7 +114,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
             file_data = f.read()
         for i in range(5):
-            # Switch project folder on each iteration
+            # Change project dir on each iteration
             project_name = "loop_test_project_" + str(i)
             prepare_msg = ServerMessage("prepare_execution", "1", json.dumps(project_name), ["helloworld.zip"])
             self.socket.send_multipart([prepare_msg.to_bytes(), file_data])
@@ -137,8 +129,7 @@ class TestRemoteExecutionService(unittest.TestCase):
             start_response_msg = ServerMessage.parse(start_response[1])
             start_response_msg_data = start_response_msg.getData()
             self.assertEqual("remote_execution_started", start_response_msg_data[0])
-            self.assertTrue(self.receive_events(start_response_msg_data[1]))
-            # time.sleep(0.5)  # Give the server a bit of time to close the RemoteExecutionService worker
+            self.receive_events(start_response_msg_data[1])
             self.service.kill_persistent_exec_mngrs()
             # TODO: Check that we use the same persistent exec manager in all 5 execution iterations
 
@@ -147,45 +138,32 @@ class TestRemoteExecutionService(unittest.TestCase):
 
         Args:
             publish_port (str): Publish socket port
-
-        Returns:
-            bool: True if execution succeeds, False otherwise.
         """
         self.pull_socket.connect("tcp://localhost:" + publish_port)
-        retval = True
-        # TODO: Poll PULL and DEALER sockets here
         while True:
             socks = dict(self.poller.poll())
-            # Broker
             if socks.get(self.pull_socket) == zmq.POLLIN:
+                # Pull events
                 rcv = self.pull_socket.recv_multipart()
-                if len(rcv) > 1:
-                    # This should discard incoming_file and the actual file messages
-                    if rcv == [b'END', b""]:
-                        print("END")
+                if len(rcv) > 1:  # Discard 'incoming_file', 'END' and file data messages
                     continue
                 event_deconverted = EventDataConverter.deconvert(*rcv)
                 if event_deconverted[0] == "dag_exec_finished":
                     self.assertEqual("COMPLETED", event_deconverted[1])
-                    # if event_deconverted[1] == "COMPLETED":
-                    #     retval = True
-                    # Get final event [b'END', b""], which is consumed by engine_client.download_files() by the client
-                    # rcv = self.pull_socket.recv_multipart()
-                    # break
             if socks.get(self.socket) == zmq.POLLIN:
-                # Wait for the completed msg to make sure that the server can be closed
-                completed_response = self.socket.recv_multipart()
-                completed_response_msg = ServerMessage.parse(completed_response[1])
-                completed_response_msg_data = completed_response_msg.getData()
-                self.assertEqual("remote_execution_event", completed_response_msg_data[0])
-                self.assertEqual("completed", completed_response_msg_data[1])
+                # Wait for the 'completed' msg to make sure that the server can be closed
+                resp = self.socket.recv_multipart()
+                resp_msg = ServerMessage.parse(resp[1])
+                resp_msg_data = resp_msg.getData()
+                self.assertEqual("remote_execution_event", resp_msg_data[0])
+                self.assertEqual("completed", resp_msg_data[1])
                 break
-        return retval
+        return
 
     def assert_error_response(self, expected_event_type, expected_start_of_error_msg):
         """Waits for a response from server and checks that the error msg is as expected."""
-        response = self.socket.recv()
-        server_msg = ServerMessage.parse(response)
+        response = self.socket.recv_multipart()
+        server_msg = ServerMessage.parse(response[1])
         msg_data = server_msg.getData()
         self.assertEqual(expected_event_type, msg_data[0])
         self.assertTrue(msg_data[1].startswith(expected_start_of_error_msg))

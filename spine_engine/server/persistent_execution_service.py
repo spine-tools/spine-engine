@@ -45,34 +45,35 @@ class PersistentExecutionService(threading.Thread, ServiceBase):
         cmd = self.request.data()[2]  # Command to process in persistent manager
         if cmd_type == "is_complete":
             retval = pm.make_complete_command(cmd)
-            self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
+            retval_tuple = cmd_type, retval
         elif cmd_type == "issue_persistent_command":
             self.request.send_response(self.worker_socket, (cmd_type, str(pub_port)), (self.job_id, "in_progress"))
             for msg in pm.issue_command(cmd, add_history=True, catch_exception=False):
                 json_msg = json.dumps(msg)
                 self.push_socket.send(json_msg.encode("utf-8"))  # This blocks until somebody is pulling (receiving)
             self.push_socket.send(b'END')
-            self.request.send_response(self.worker_socket, (cmd_type, "everything ok"), (self.job_id, "completed"))
+            retval_tuple = cmd_type, "ok"
         elif cmd_type == "get_completions":
             retval = pm.get_completions(cmd)
-            self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
+            retval_tuple = cmd_type, retval
         elif cmd_type == "get_history_item":
             text, prefix, backwards = cmd
             retval = pm.get_history_item(text, prefix, backwards)
-            self.request.send_response(self.worker_socket, (cmd_type, retval), (self.job_id, ""))
+            retval_tuple = cmd_type, retval
         elif cmd_type == "restart_persistent":
             self.request.send_response(self.worker_socket, (cmd_type, str(pub_port)), (self.job_id, "in_progress"))
             for msg in pm.restart_persistent():
                 json_msg = json.dumps(msg)
                 self.push_socket.send(json_msg.encode("utf-8"))
             self.push_socket.send(b'END')
-            self.request.send_response(self.worker_socket, (cmd_type, "everything ok"), (self.job_id, "completed"))
+            retval_tuple = cmd_type, "ok"
         elif cmd_type == "interrupt_persistent":
             pm.interrupt_persistent()
-            self.request.send_response(self.worker_socket, (cmd_type, "everything ok"), (self.job_id, ""))
+            retval_tuple = cmd_type, "ok"
         else:
             print(f"Command type {cmd_type} does not have a handler. cmd:{cmd}")
-            self.request.send_response(self.worker_socket, (cmd_type, "Unhandled command"), (self.job_id, ""))
+            retval_tuple = cmd_type, "No handler for command"
+        self.request.send_response(self.worker_socket, retval_tuple, (self.job_id, "completed"))
 
     def close(self):
         """Cleans up after thread closes."""

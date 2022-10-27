@@ -34,7 +34,6 @@ class TestPingService(unittest.TestCase):
             self.context.term()
 
     def test_ping_tcp(self):
-        """Tests starting of a ZMQ server with tcp, and pinging it."""
         service = EngineServer("tcp", 5558, ServerSecurityModel.NONE, "")
         self.socket.connect("tcp://localhost:5558")
         i = 0
@@ -44,18 +43,17 @@ class TestPingService(unittest.TestCase):
             response = self.socket.recv_multipart()
             response_str = response[1].decode("utf-8")
             ping_as_json = ping_msg.toJSON()
-            self.assertEqual(response_str, ping_as_json)  # check that echoed content is as expected
+            self.assertEqual(response_str, ping_as_json)  # Check that echoed content is as expected
             i = i + 1
         service.close()
 
     def test_no_connection(self):
-        """Tests pinging a non-existent server."""
         self.socket.setsockopt(zmq.LINGER, 0)
         self.socket.connect("tcp://localhost:7002")  # Connect socket somewhere that does not exist
         msg_parts = []
         ping_msg = ServerMessage("ping", "2", "", None)
         msg_parts.append(ping_msg.to_bytes())
-        sendRet = self.socket.send_multipart(msg_parts, flags=zmq.NOBLOCK)
+        self.socket.send_multipart(msg_parts, flags=zmq.NOBLOCK)
         event = self.socket.poll(timeout=1000)
         self.assertEqual(0, event)
 

@@ -39,7 +39,7 @@ class PingService(threading.Thread, ServiceBase):
         """Replies to a ping command."""
         self.worker_socket.connect("inproc://backend")
         reply_msg = ServerMessage("ping", self.request.request_id(), "", None)
-        internal_msg = json.dumps((self.job_id, ""))
+        internal_msg = json.dumps((self.job_id, "completed"))
         conn_id = self.request.connection_id()
         rep = reply_msg.to_bytes()
         self.request.send_multipart_reply(self.worker_socket, conn_id, rep, internal_msg)

@@ -49,11 +49,15 @@ class ProjectRetrieverService(threading.Thread, ServiceBase):
         try:
             shutil.make_archive(zip_path, "zip", self.project_dir)
         except OSError:
-            print(f"Zipping project {self.project_dir} to {zip_path} failed")
+            msg = f"Zipping project {self.project_dir} to {zip_path} failed"
+            print(msg)
+            self.send_completed_with_error(msg)
             return
         zip_fpath = os.path.abspath(os.path.join(self.project_dir, os.pardir, zip_fname + ".zip"))
         if not os.path.isfile(zip_fpath):
-            print(f"Zip file {zip_fpath} does not exist")
+            msg = f"Zip file {zip_fpath} does not exist"
+            print(msg)
+            self.send_completed_with_error(msg)
             return
         file_size = get_file_size(os.path.getsize(zip_fpath))
         print(f"Transmitting file [{file_size}]: {zip_fpath} to client")
@@ -61,7 +65,12 @@ class ProjectRetrieverService(threading.Thread, ServiceBase):
         with open(zip_fpath, "rb") as f:
             file_data = f.read()
         reply_msg = ServerMessage(self.request.cmd(), self.request.request_id(), "", ["project_package.zip"])
-        internal_msg = json.dumps((self.job_id, ""))
+        internal_msg = json.dumps((self.job_id, "completed"))
         self.request.send_multipart_reply_with_file(
             self.worker_socket, self.request.connection_id(), reply_msg.to_bytes(), file_data, internal_msg
         )
+
+    def send_completed_with_error(self, msg):
+        """Sends completed message to frontend for relaying to client when something goes wrong."""
+        error_event = "project_retriever_service_failed", msg
+        self.request.send_response(self.worker_socket, error_event, (self.job_id, "completed"))
