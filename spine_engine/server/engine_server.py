@@ -164,7 +164,7 @@ class EngineServer(threading.Thread):
                             continue
                         worker = ProjectRetrieverService(self._context, request, job_id, project_dir)
                     elif request.cmd() == "execute_in_persistent":
-                        exec_mngr_key = tuple(request.data()[0])  # Cast key list back to tuple
+                        exec_mngr_key = request.data()[0]
                         exec_mngr = self.persistent_exec_mngrs.get(exec_mngr_key, None)
                         if not exec_mngr:
                             print(f"Persistent exec. mngr for key:{exec_mngr_key} not found.")

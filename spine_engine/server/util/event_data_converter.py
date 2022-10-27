@@ -100,8 +100,7 @@ def break_event_data(event_type, data):
             # Tuples are converted to lists by json.dumps(). Lists must be converted back to tuples
             # on client side (in fix_event_data()).
             if type(data[key]) == tuple:
-                if event_type != "persistent_execution_msg":
-                    print(f"[WARNING] Found tuple in message {event_type}: {data}. Fix this on client side.")
+                print(f"[WARNING] Found tuple in message {event_type}: {data}. Fix this on client side.")
     return data
 
 
@@ -120,11 +119,6 @@ def fix_event_data(event):
         return event
     if "item_state" in event[1].keys():
         event[1]["item_state"] = convert_execution_finish_state(event[1]["item_state"])
-    # Fix persistent console key. It was converted from tuple to a list by JSON.dumps but we need it as
-    # a tuple because it will be used as dictionary key and lists cannot be used as keys
-    if event[0] == "persistent_execution_msg" and "key" in event[1].keys():
-        if type(event[1]["key"]) == list:
-            event[1]["key"] = tuple(event[1]["key"])
     return event
 
 

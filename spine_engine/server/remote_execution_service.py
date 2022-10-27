@@ -51,7 +51,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         """Collects the keys used in identifying persistent execution managers
         The key is in a persistent_execution_msg when the type is persistent_started."""
         if event_type == "persistent_execution_msg" and data["type"] == "persistent_started":
-            self.persistent_keys[data["item_name"]] = data["key"]  # NOTE: Cast tuple into list
+            self.persistent_keys[data["item_name"]] = data["key"]
 
     def collect_persistent_console_managers(self, event_type, data, running_items):
         """Collects a persistent execution manager from a tool item that is being
