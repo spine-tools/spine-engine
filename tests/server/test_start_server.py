@@ -1,0 +1,40 @@
+#####################################################################################################################
+# Copyright (C) 2017-2021 Spine project consortium
+# This file is part of Spine Engine.
+# Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
+# Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
+# any later version. This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+# without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
+# Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
+# this program. If not, see <http://www.gnu.org/licenses/>.
+######################################################################################################################
+
+"""
+Unit tests for start_server.py script.
+:author: P. Savolainen (VTT)
+:date:   28.10.2022
+"""
+import unittest
+from multiprocessing import Process
+from spine_engine.server.start_server import main
+
+
+class TestStartServer(unittest.TestCase):
+
+    def test_start_server(self):
+        server = Process(target=main, args=(["", "5001"],))
+        server.start()
+        self.assertTrue(server.is_alive())
+        server.terminate()
+        server.join()  # process is still alive after terminate if we don't join()
+        self.assertFalse(server.is_alive())
+
+    def test_invalid_number_of_args(self):
+        server = Process(target=main, args=(["", "a", "b"],))
+        server.start()
+        server.join()
+        self.assertTrue(server.exitcode == 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

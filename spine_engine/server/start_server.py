@@ -26,8 +26,7 @@ def main(argv):
     if len(argv) != 2 and len(argv) != 4:
         print(f"Spine Engine Server\n\nUsage:\n  python {argv[0]} <port>\n"
               f"or\n  python {argv[0]} <port> stonehouse <path_to_security_folder>\n"
-              f"to enable security."
-        )
+              f"to enable security.")
         return
     server = None
     try:
@@ -46,7 +45,7 @@ def main(argv):
     while kb_input != "c":
         try:
             kb_input = input()
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, EOFError):
             kb_input = "c"
         if kb_input == "c":
             try:
