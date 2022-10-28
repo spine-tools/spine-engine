@@ -51,26 +51,23 @@ class EngineServer(threading.Thread):
             sec_folder (str): Folder, where security files have been stored.
         """
         super().__init__(target=self.serve, name="EngineServerThread")
-        try:
-            if sec_model == ServerSecurityModel.NONE:
-                self._sec_model_state = ServerSecurityModel.NONE
-            elif sec_model == ServerSecurityModel.STONEHOUSE:
-                if not sec_folder:
-                    raise ValueError("EngineServer(): security folder input is missing.")
-                base_dir = sec_folder
-                self.keys_dir = os.path.join(base_dir, 'certificates')
-                self.public_keys_dir = os.path.join(base_dir, 'public_keys')
-                self.secret_keys_dir = os.path.join(base_dir, 'private_keys')
-                if not os.path.exists(self.keys_dir):
-                    raise ValueError(f"Security folder: {self.keys_dir} does not exist")
-                elif not os.path.exists(self.public_keys_dir):
-                    raise ValueError(f"Security folder: {self.public_keys_dir} does not exist")
-                elif not os.path.exists(self.secret_keys_dir):
-                    raise ValueError(f"Security folder: {self.secret_keys_dir} does not exist")
-                self._sec_folder = sec_folder
-                self._sec_model_state = ServerSecurityModel.STONEHOUSE
-        except Exception as e:
-            raise ValueError(f"Invalid input. Error: {e}")
+        if sec_model == ServerSecurityModel.NONE:
+            self._sec_model_state = ServerSecurityModel.NONE
+        elif sec_model == ServerSecurityModel.STONEHOUSE:
+            if not sec_folder:
+                raise ValueError("Path to security folder missing")
+            base_dir = sec_folder
+            self.keys_dir = os.path.join(base_dir, 'certificates')
+            self.public_keys_dir = os.path.join(base_dir, 'public_keys')
+            self.secret_keys_dir = os.path.join(base_dir, 'private_keys')
+            if not os.path.exists(self.keys_dir):
+                raise ValueError(f"Security folder: {self.keys_dir} does not exist")
+            elif not os.path.exists(self.public_keys_dir):
+                raise ValueError(f"Security folder: {self.public_keys_dir} does not exist")
+            elif not os.path.exists(self.secret_keys_dir):
+                raise ValueError(f"Security folder: {self.secret_keys_dir} does not exist")
+            self._sec_folder = sec_folder
+            self._sec_model_state = ServerSecurityModel.STONEHOUSE
         self.protocol = protocol
         self.port = port
         self.auth = None

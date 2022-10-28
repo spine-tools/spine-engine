@@ -15,6 +15,7 @@ Unit tests for start_server.py script.
 :date:   28.10.2022
 """
 import unittest
+import time
 from multiprocessing import Process
 from spine_engine.server.start_server import main
 
@@ -25,9 +26,18 @@ class TestStartServer(unittest.TestCase):
         server = Process(target=main, args=(["", "5001"],))
         server.start()
         self.assertTrue(server.is_alive())
+        time.sleep(5)  # Starting the server takes some time (in tests)
         server.terminate()
         server.join()  # process is still alive after terminate if we don't join()
         self.assertFalse(server.is_alive())
+        self.assertTrue(server.exitcode == 0)
+
+    def test_start_server_with_security_folder_missing(self):
+        # Expected behaviour is to exit immediately and print an error message
+        server = Process(target=main, args=(["", "5001", "stonehouse", ""],))
+        server.start()
+        server.join()
+        self.assertTrue(server.exitcode == 0)
 
     def test_invalid_number_of_args(self):
         server = Process(target=main, args=(["", "a", "b"],))

@@ -36,7 +36,7 @@ def main(argv):
         elif len(argv) == 4:
             server = EngineServer("tcp", port, ServerSecurityModel.STONEHOUSE, argv[3])
     except Exception as e:
-        print(f"start_server.main(): {type(e).__name__}: {e}")
+        print(f"{type(e).__name__}: {e}")
         return
     # Block main thread until user closes it
     print("Press c or Ctrl-c to close the server")
@@ -55,6 +55,7 @@ def main(argv):
             break
         else:
             time.sleep(0.1)
+    return
 
 
 if __name__ == "__main__":
