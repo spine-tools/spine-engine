@@ -1,7 +1,7 @@
 [run]
 branch = True
 source = spine_engine
-concurrency = multiprocessing
+concurrency = multiprocessing, thread
 
 [report]
 ignore_errors = True
