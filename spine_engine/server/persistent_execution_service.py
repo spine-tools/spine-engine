@@ -44,7 +44,7 @@ class PersistentExecutionService(threading.Thread, ServiceBase):
         cmd_type = self.request.data()[1]  # Command type for persistent manager, e.g. 'is_complete'
         cmd = self.request.data()[2]  # Command to process in persistent manager
         if cmd_type == "is_complete":
-            retval = pm.make_complete_command(cmd)
+            retval = pm.make_complete_command(cmd) is not None
             retval_tuple = cmd_type, retval
         elif cmd_type == "issue_persistent_command":
             self.request.send_response(self.worker_socket, (cmd_type, str(pub_port)), (self.job_id, "in_progress"))
