@@ -8,17 +8,9 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
+
 """
-Contains Engine's exceptions.
-
-:authors: A. Soininen (VTT)
-:date:    30.6.2021
+Init file for spine_engine.tests.server package.
+:author: P. Pääkkönen (VTT)
+:date:   18.08.2021
 """
-
-
-class EngineInitFailed(Exception):
-    """Raised when :class:`SpineEngine` initialization fails."""
-
-
-class RemoteEngineInitFailed(Exception):
-    """Raised when initializing the remote server connection fails."""

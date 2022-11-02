@@ -32,22 +32,23 @@ class _KernelManagerFactory(metaclass=Singleton):
     _key_by_connection_file = {}
     """Maps connection file string to tuple (kernel_name, group_id). Mostly for fast lookup in ``restart_kernel()``"""
 
-    def _make_kernel_manager(self, kernel_name, group_id):
+    def _make_kernel_manager(self, kernel_name, group_id, server_ip):
         """Creates a new kernel manager for given kernel and group id if none exists, and returns it.
 
         Args:
             kernel_name (str): the kernel
             group_id (str): item group that will execute using this kernel
+            server_ip (str): Engine Server IP address. '127.0.0.1' when execution happens locally
 
         Returns:
             KernelManager
         """
         if group_id is None:
             # Execute in isolation
-            return KernelManager(kernel_name=kernel_name)
+            return KernelManager(kernel_name=kernel_name, ip=server_ip)
         key = (kernel_name, group_id)
         if key not in self._kernel_managers:
-            self._kernel_managers[key] = KernelManager(kernel_name=kernel_name)
+            self._kernel_managers[key] = KernelManager(kernel_name=kernel_name, ip=server_ip)
         return self._kernel_managers[key]
 
     def new_kernel_manager(self, kernel_name, group_id, logger, extra_switches=None, environment="", **kwargs):
@@ -66,7 +67,8 @@ class _KernelManagerFactory(metaclass=Singleton):
         Returns:
             KernelManager
         """
-        km = self._make_kernel_manager(kernel_name, group_id)
+        server_ip = kwargs.pop("server_ip", "")
+        km = self._make_kernel_manager(kernel_name, group_id, server_ip)
         conda_exe = kwargs.pop("conda_exe", "")
         if environment == "conda":
             try:

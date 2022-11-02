@@ -30,8 +30,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install git+https://github.com/Spine-project/Spine-Database-API.git#egg=spinedb_api
         pip install .
+        pip install --no-deps git+https://github.com/Spine-project/spine-items.git#egg=spine_items
         pip install coverage
         pip install codecov
+    - name: Display coverage version
+      run:
+        coverage --version
     - name: Run tests
       run:
         coverage run -m unittest discover --verbose
@@ -53,7 +57,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Display Python version
       run:
-         python -c "import sys; print(sys.version)"
+        python -c "import sys; print(sys.version)"
     - name: Install unixodbc
       run:
         sudo apt-get install -y unixodbc-dev  # Install to get sql.h headers
@@ -62,8 +66,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install git+https://github.com/Spine-project/Spine-Database-API.git#egg=spinedb_api
         pip install .
+        pip install --no-deps git+https://github.com/Spine-project/spine-items.git#egg=spine_items
         pip install coverage
         pip install codecov
+    - name: Display coverage version
+      run:
+        coverage --version
     - name: Run tests
       run:
         QT_QPA_PLATFORM=offscreen coverage run -m unittest discover --verbose

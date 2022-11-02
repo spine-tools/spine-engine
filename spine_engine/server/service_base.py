@@ -8,17 +8,31 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
+
 """
-Contains Engine's exceptions.
-
-:authors: A. Soininen (VTT)
-:date:    30.6.2021
+Contains a base class for different services provided by the Spine Engine Server.
+:authors: P. Savolainen (VTT)
+:date:   30.9.2021
 """
 
-
-class EngineInitFailed(Exception):
-    """Raised when :class:`SpineEngine` initialization fails."""
+import zmq
 
 
-class RemoteEngineInitFailed(Exception):
-    """Raised when initializing the remote server connection fails."""
+class ServiceBase:
+    """Service base class."""
+    def __init__(self, context, request, job_id):
+        """Initializes instance.
+
+        Args:
+            context (zmq.Context): Context for this handler.
+            request (Request): Client request
+            job_id (str): Worker thread Id
+        """
+        self.context = context
+        self.request = request
+        self.job_id = job_id
+        self.worker_socket = self.context.socket(zmq.DEALER)
+
+    def close(self):
+        """Closes socket after thread has finished."""
+        self.worker_socket.close()

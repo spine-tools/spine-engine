@@ -5,3 +5,7 @@ dist
 spine_engine.egg-info
 .coverage
 htmlcov/
+spine_engine/server/certs
+spine_engine/server/received_projects
+tests/server/test_project
+tests/server/util/output

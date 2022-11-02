@@ -134,7 +134,8 @@ class PersistentManagerBase:
         """Starts the persistent process."""
         host = "127.0.0.1"
         with socketserver.TCPServer((host, 0), None) as s:
-            self._server_address = s.server_address
+            self.port = s.server_address[1]  # Let OS select a free port
+        self._server_address = host, self.port
         self.command_successful = False
         self._persistent = Popen(self._args + self._init_args(), **self._kwargs)
         threading.Thread(target=self._log_stdout, daemon=True).start()
@@ -593,7 +594,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
             yield msg
 
     def is_persistent_command_complete(self, key, cmd):
-        """Checkes whether a command is complete.
+        """Checks whether a command is complete.
 
         Args:
             key (tuple): persistent identifier
@@ -721,6 +722,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             commands (list): List of commands to execute in the persistent process
             alias (str): an alias name for the manager
             group_id (str, optional): item group that will execute using this kernel
+            server_ip (str): Engine Server IP address
         """
         super().__init__(logger)
         self._args = args
