@@ -30,7 +30,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install git+https://github.com/Spine-project/Spine-Database-API.git#egg=spinedb_api
         pip install .
-        pip install --no-deps git+https://github.com/Spine-project/spine-items.git@server#egg=spine_items
+        pip install --no-deps git+https://github.com/Spine-project/spine-items.git#egg=spine_items
         pip install coverage
         pip install codecov
     - name: Display coverage version
@@ -66,7 +66,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install git+https://github.com/Spine-project/Spine-Database-API.git#egg=spinedb_api
         pip install .
-        pip install --no-deps git+https://github.com/Spine-project/spine-items.git@server#egg=spine_items
+        pip install --no-deps git+https://github.com/Spine-project/spine-items.git#egg=spine_items
         pip install coverage
         pip install codecov
     - name: Display coverage version
