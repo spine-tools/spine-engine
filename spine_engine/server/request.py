@@ -21,6 +21,7 @@ from spine_engine.server.util.server_message import ServerMessage
 
 class Request:
     """Class for bundling the received request and associated data together."""
+
     def __init__(self, msg, cmd, request_id, data, filenames):
         """Init class.
 

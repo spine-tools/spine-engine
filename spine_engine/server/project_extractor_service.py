@@ -61,7 +61,9 @@ class ProjectExtractorService(threading.Thread, ServiceBase):
             self.send_completed_with_error("Project ZIP file missing")
             return
         # Make a new local project directory based on project name in request
-        local_project_dir = os.path.join(ProjectExtractorService.INTERNAL_PROJECT_DIR, dir_name + "__" + uuid.uuid4().hex)
+        local_project_dir = os.path.join(
+            ProjectExtractorService.INTERNAL_PROJECT_DIR, dir_name + "__" + uuid.uuid4().hex
+        )
         # Create project directory
         try:
             os.makedirs(local_project_dir)
@@ -82,8 +84,10 @@ class ProjectExtractorService(threading.Thread, ServiceBase):
             return
         # Check that the size of received bytes and the saved ZIP file match
         if not len(self.request.zip_file()) == os.path.getsize(zip_path):
-            print(f"Error: Size mismatch in saving ZIP file. Received bytes:{len(self.request.zip_file())}. "
-                  f"ZIP file size:{os.path.getsize(zip_path)}")
+            print(
+                f"Error: Size mismatch in saving ZIP file. Received bytes:{len(self.request.zip_file())}. "
+                f"ZIP file size:{os.path.getsize(zip_path)}"
+            )
         # Extract the saved file
         print(f"Extracting {file_names[0]} [{get_file_size(os.path.getsize(zip_path))}] to: {local_project_dir}")
         try:

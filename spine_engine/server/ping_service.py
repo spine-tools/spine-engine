@@ -24,6 +24,7 @@ from spine_engine.server.util.server_message import ServerMessage
 
 class PingService(threading.Thread, ServiceBase):
     """Class for handling ping requests."""
+
     def __init__(self, context, request, job_id):
         """Initializes instance.
 

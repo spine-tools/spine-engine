@@ -23,6 +23,7 @@ from spine_engine.utils.helpers import get_file_size
 
 class ZipHandler:
     """ZIP file handler."""
+
     @staticmethod
     def package(src_folder, dst_folder, fname):
         """Packages a directory into a ZIP-file.

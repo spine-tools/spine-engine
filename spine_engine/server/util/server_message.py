@@ -20,6 +20,7 @@ import json
 
 class ServerMessage:
     """Class for communicating requests and replies between the client and the server."""
+
     def __init__(self, command, req_id, data, files=None):
         """
         Supported requests and expected server responses

@@ -27,6 +27,7 @@ from spine_engine.server.util.server_message import ServerMessage
 
 class ProjectRetrieverService(threading.Thread, ServiceBase):
     """Class for transmitting a project back to client."""
+
     def __init__(self, context, request, job_id, project_dir):
         """Initializes instance.
 

@@ -28,6 +28,7 @@ from spine_engine.server.util.zip_handler import ZipHandler
 class RemoteExecutionService(threading.Thread, ServiceBase):
     """Executes a DAG contained in the client request. Project must
     be on server before running this service."""
+
     def __init__(self, context, request, job_id, project_dir, persistent_exec_mngr_q):
         """
         Args:
@@ -92,7 +93,8 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         # Send reply to 'start_execution' request to client with the push socket port for
         # pulling events and worker job id for stopping execution
         self.request.send_response(
-            self.worker_socket, ("remote_execution_started", str(push_port), self.job_id), (self.job_id, "in_progress"))
+            self.worker_socket, ("remote_execution_started", str(push_port), self.job_id), (self.job_id, "in_progress")
+        )
         converted_data = self.convert_input(engine_data, self.local_project_dir)
         try:
             self.engine = SpineEngine(**converted_data)
