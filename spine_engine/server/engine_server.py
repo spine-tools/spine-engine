@@ -136,11 +136,15 @@ class EngineServer(threading.Thread):
                         project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
                         if not project_dir:
                             print(f"Project for job_id:{request.request_id()} not found")
-                            msg = f"Starting DAG execution failed. Project directory for " \
-                                  f"job_id:{request.request_id()} not found."
+                            msg = (
+                                f"Starting DAG execution failed. Project directory for "
+                                f"job_id:{request.request_id()} not found."
+                            )
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
-                        worker = RemoteExecutionService(self._context, request, job_id, project_dir, persistent_exec_mngr_q)
+                        worker = RemoteExecutionService(
+                            self._context, request, job_id, project_dir, persistent_exec_mngr_q
+                        )
                     elif request.cmd() == "stop_execution":
                         worker = workers.get(request.request_id(), None)  # Get DAG execution worker based on job Id
                         if not worker:
@@ -155,8 +159,10 @@ class EngineServer(threading.Thread):
                         project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
                         if not project_dir:
                             print(f"Project for job_id:{request.request_id()} not found")
-                            msg = f"Retrieving project for job_id {request.request_id()} failed. " \
-                                  f"Project directory not found."
+                            msg = (
+                                f"Retrieving project for job_id {request.request_id()} failed. "
+                                f"Project directory not found."
+                            )
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
                         worker = ProjectRetrieverService(self._context, request, job_id, project_dir)
@@ -165,8 +171,10 @@ class EngineServer(threading.Thread):
                         exec_mngr = self.persistent_exec_mngrs.get(exec_mngr_key, None)
                         if not exec_mngr:
                             print(f"Persistent exec. mngr for key:{exec_mngr_key} not found.")
-                            msg = f"Executing command:{request.data()[1]} - {request.data()[2]} in persistent " \
-                                  f"manager failed. Persistent execution manager for key {exec_mngr_key} not found."
+                            msg = (
+                                f"Executing command:{request.data()[1]} - {request.data()[2]} in persistent "
+                                f"manager failed. Persistent execution manager for key {exec_mngr_key} not found."
+                            )
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
                         worker = PersistentExecutionService(self._context, request, job_id, exec_mngr)
@@ -236,22 +244,25 @@ class EngineServer(threading.Thread):
         b_json_str_server_msg = msg[1]  # binary string
         if len(b_json_str_server_msg) <= 10:  # Message size too small
             print(f"User data frame too small [{len(msg[1])}]. msg:{msg}")
-            self.send_init_failed_reply(socket, msg[0], f"User data frame too small "
-                                                        f"- Malformed message sent to server.")
+            self.send_init_failed_reply(
+                socket, msg[0], f"User data frame too small " f"- Malformed message sent to server."
+            )
             return None
         try:
             json_str_server_msg = b_json_str_server_msg.decode("utf-8")  # json string
         except UnicodeDecodeError as e:
             print(f"Decoding received msg '{msg[1]} ' failed. \nUnicodeDecodeError: {e}")
-            self.send_init_failed_reply(socket, msg[0], f"UnicodeDecodeError: {e}. "
-                                                        f"- Malformed message sent to server.")
+            self.send_init_failed_reply(
+                socket, msg[0], f"UnicodeDecodeError: {e}. " f"- Malformed message sent to server."
+            )
             return None
         # Load JSON string into dictionary
         try:
             server_msg = json.loads(json_str_server_msg)  # dictionary
         except json.decoder.JSONDecodeError as e:
-            self.send_init_failed_reply(socket, msg[0], f"json.decoder.JSONDecodeError: {e}. "
-                                                        f"- Message parsing error at server.")
+            self.send_init_failed_reply(
+                socket, msg[0], f"json.decoder.JSONDecodeError: {e}. " f"- Message parsing error at server."
+            )
             return None
         # server_msg is now a dict with keys: 'command', 'id', 'data', and 'files'
         data_str = server_msg["data"]  # String

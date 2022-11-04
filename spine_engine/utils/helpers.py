@@ -324,16 +324,16 @@ def get_file_size(size_in_bytes):
         str: Human readable file size
     """
     kb = 1024
-    mb = 1024*1024
-    gb = 1024*1024*1024
+    mb = 1024 * 1024
+    gb = 1024 * 1024 * 1024
     if size_in_bytes <= kb:
         return str(size_in_bytes) + " B"
     if kb < size_in_bytes <= mb:
-        return str(round(size_in_bytes/kb, 1)) + " KB"
+        return str(round(size_in_bytes / kb, 1)) + " KB"
     elif mb < size_in_bytes < gb:
-        return str(round(size_in_bytes/mb, 1)) + " MB"
+        return str(round(size_in_bytes / mb, 1)) + " MB"
     else:
-        return str(round(size_in_bytes/gb, 1)) + " GB"
+        return str(round(size_in_bytes / gb, 1)) + " GB"
 
 
 class PartCount:

@@ -24,9 +24,11 @@ from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 def main(argv):
     """Spine Engine server main."""
     if len(argv) != 2 and len(argv) != 4:
-        print(f"Spine Engine Server\n\nUsage:\n  python {argv[0]} <port>\n"
-              f"or\n  python {argv[0]} <port> stonehouse <path_to_security_folder>\n"
-              f"to enable security.")
+        print(
+            f"Spine Engine Server\n\nUsage:\n  python {argv[0]} <port>\n"
+            f"or\n  python {argv[0]} <port> stonehouse <path_to_security_folder>\n"
+            f"to enable security."
+        )
         return
     server = None
     try:

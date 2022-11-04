@@ -20,6 +20,7 @@ import zmq
 
 class ServiceBase:
     """Service base class."""
+
     def __init__(self, context, request, job_id):
         """Initializes instance.
 

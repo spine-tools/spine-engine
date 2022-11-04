@@ -23,6 +23,7 @@ from spine_engine.server.service_base import ServiceBase
 
 class PersistentExecutionService(threading.Thread, ServiceBase):
     """Class for interacting with a persistent execution manager running on server."""
+
     def __init__(self, context, request, job_id, persistent_exec_mngr):
         """
         Args:
