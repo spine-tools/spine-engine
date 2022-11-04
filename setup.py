@@ -33,6 +33,7 @@ install_requires = [
     "jupyter_client<7.0",
     "spinedb_api>=0.18.0",
     "pyzmq >=21.0",
+    "markupsafe < 2.1",  # dagster 0.12.8 requires Jinja2<3.0, which tries to import soft_unicode, which has been removed in markupsafe 2.1
 ]
 
 setup(
