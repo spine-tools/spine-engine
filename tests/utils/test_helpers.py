@@ -99,11 +99,11 @@ class TestGetFileSize(unittest.TestCase):
         expected_output = "2.0 KB"
         output = get_file_size(s)
         self.assertEqual(expected_output, output)
-        s = 1024*1024*2
+        s = 1024 * 1024 * 2
         expected_output = "2.0 MB"
         output = get_file_size(s)
         self.assertEqual(expected_output, output)
-        s = 1024*1024*1024*2
+        s = 1024 * 1024 * 1024 * 2
         expected_output = "2.0 GB"
         output = get_file_size(s)
         self.assertEqual(expected_output, output)

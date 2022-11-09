@@ -55,7 +55,10 @@ class TestRemoteExecutionService(unittest.TestCase):
         except RecursionError:
             print("RecursionError due to a PermissionError on Windows. Server resources not cleaned up properly.")
 
-    @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
+    @mock.patch(
+        "spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR",
+        new_callable=mock.PropertyMock,
+    )
     def test_remote_execution1(self, mock_proj_dir):
         """Tests executing a Hello World (DC -> Python Tool) project."""
         mock_proj_dir.return_value = self._temp_dir.name
@@ -80,7 +83,10 @@ class TestRemoteExecutionService(unittest.TestCase):
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
         self.receive_events(start_response_msg_data[1])
 
-    @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
+    @mock.patch(
+        "spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR",
+        new_callable=mock.PropertyMock,
+    )
     def test_remote_execution2(self, mock_project_dir):
         """Tests executing a single DAG project with 3 items (DC -> Importer -> DS)."""
         mock_project_dir.return_value = self._temp_dir.name
@@ -105,7 +111,10 @@ class TestRemoteExecutionService(unittest.TestCase):
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
         self.receive_events(start_response_msg_data[1])
 
-    @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
+    @mock.patch(
+        "spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR",
+        new_callable=mock.PropertyMock,
+    )
     def test_loop_calls(self, mock_proj_dir):
         """Tests executing the Hellow World project (DC -> Tool) five times in a row."""
         mock_proj_dir.return_value = self._temp_dir.name
@@ -170,12 +179,7 @@ class TestRemoteExecutionService(unittest.TestCase):
 
     def make_default_item_dict(self, item_type):
         """Keep up-to-date with spinetoolbox.project_item.project_item.item_dict()."""
-        return {
-            "type": item_type,
-            "description": "",
-            "x": random.uniform(0, 100),
-            "y": random.uniform(0, 100),
-        }
+        return {"type": item_type, "description": "", "x": random.uniform(0, 100), "y": random.uniform(0, 100)}
 
     def make_dc_item_dict(self, file_ref=None):
         """Make a Data Connection item_dict.
@@ -209,18 +213,20 @@ class TestRemoteExecutionService(unittest.TestCase):
 
     def make_ds_item_dict(self):
         d = self.make_default_item_dict("Data Store")
-        d["url"] = {"dialect": "sqlite", "username": "", "password": "", "host": "", "port": "", "database": {"type": "path", "relative": True, "path": ".spinetoolbox/items/ds1/DS1.sqlite"}}
+        d["url"] = {
+            "dialect": "sqlite",
+            "username": "",
+            "password": "",
+            "host": "",
+            "port": "",
+            "database": {"type": "path", "relative": True, "path": ".spinetoolbox/items/ds1/DS1.sqlite"},
+        }
         return d
 
     @staticmethod
     def make_python_tool_spec_dict(
-            name,
-            includes,
-            input_files,
-            exec_in_work,
-            includes_main_path,
-            def_file_path,
-            exec_settings=None):
+        name, includes, input_files, exec_in_work, includes_main_path, def_file_path, exec_settings=None
+    ):
         return {
             "name": name,
             "tooltype": "python",
@@ -241,19 +247,31 @@ class TestRemoteExecutionService(unittest.TestCase):
         d = dict()
         d["name"] = "Importer 1 - units.xlsx"
         d["item_type"] = "Importer"
-        d["mapping"] = {"table_mappings":
-                            {"Sheet1":
-                                 [
-                                     {"": {"mapping": [{"map_type": "ObjectClass", "position": 0},
-                                                       {"map_type": "Object", "position": 1},
-                                                       {"map_type": "ObjectMetadata", "position": "hidden"}]}}
-                                 ]
-                            },
+        d["mapping"] = {
+            "table_mappings": {
+                "Sheet1": [
+                    {
+                        "": {
+                            "mapping": [
+                                {"map_type": "ObjectClass", "position": 0},
+                                {"map_type": "Object", "position": 1},
+                                {"map_type": "ObjectMetadata", "position": "hidden"},
+                            ]
+                        }
+                    }
+                ]
+            },
             "selected_tables": ["Sheet1"],
-            "table_options": {"Sheet1": {}}, "table_types": {"Sheet1": {"0": "string", "1": "string"}},
-            "table_default_column_type": {}, "table_row_types": {}, "source_type": "ExcelConnector"}
-        d["description"] = "",
-        d["definition_file_path"] = "C:\\data\\SpineToolboxData\\Projects\\Simple Importer\\Importer 1 - units.xlsx.json"
+            "table_options": {"Sheet1": {}},
+            "table_types": {"Sheet1": {"0": "string", "1": "string"}},
+            "table_default_column_type": {},
+            "table_row_types": {},
+            "source_type": "ExcelConnector",
+        }
+        d["description"] = ("",)
+        d[
+            "definition_file_path"
+        ] = "C:\\data\\SpineToolboxData\\Projects\\Simple Importer\\Importer 1 - units.xlsx.json"
         return d
 
     def make_engine_data_for_helloworld_project(self):
@@ -264,13 +282,15 @@ class TestRemoteExecutionService(unittest.TestCase):
         """
         tool_item_dict = self.make_tool_item_dict("Simple Tool Spec", False)
         dc_item_dict = self.make_dc_item_dict(file_ref=[{"type": "path", "relative": True, "path": "input_file.txt"}])
-        spec_dict = self.make_python_tool_spec_dict(name="Simple Tool Spec",
-                                                    includes=["simple_script.py"],
-                                                    input_files=["input_file.txt"],
-                                                    exec_in_work=True,
-                                                    includes_main_path="../../..",
-                                                    def_file_path="C:/data/temp/.spinetoolbox/specifications/Tool/simple_tool_spec.json",
-                                                    exec_settings={"env": "", "kernel_spec_name": "py38", "use_jupyter_console": False, "executable": ""})
+        spec_dict = self.make_python_tool_spec_dict(
+            name="Simple Tool Spec",
+            includes=["simple_script.py"],
+            input_files=["input_file.txt"],
+            exec_in_work=True,
+            includes_main_path="../../..",
+            def_file_path="C:/data/temp/.spinetoolbox/specifications/Tool/simple_tool_spec.json",
+            exec_settings={"env": "", "kernel_spec_name": "py38", "use_jupyter_console": False, "executable": ""},
+        )
         item_dicts = dict()
         item_dicts["Data Connection 1"] = dc_item_dict
         item_dicts["Simple Tool"] = tool_item_dict
@@ -279,7 +299,13 @@ class TestRemoteExecutionService(unittest.TestCase):
         engine_data = {
             "items": item_dicts,
             "specifications": specification_dicts,
-            "connections": [{"name": "from Data Connection 1 to Simple Tool", "from": ["Data Connection 1", "right"], "to": ["Simple Tool", "left"]}],
+            "connections": [
+                {
+                    "name": "from Data Connection 1 to Simple Tool",
+                    "from": ["Data Connection 1", "right"],
+                    "to": ["Simple Tool", "left"],
+                }
+            ],
             "jumps": [],
             "execution_permits": {"Data Connection 1": True, "Simple Tool": True},
             "items_module_name": "spine_items",
@@ -307,7 +333,15 @@ class TestRemoteExecutionService(unittest.TestCase):
         engine_data = {
             "items": item_dicts,
             "specifications": specification_dicts,
-            "connections":  [{"name": "from Raw data to Importer 1", "from": ["Raw data", "right"], "to": ["Importer 1", "left"]}, {"name": "from Importer 1 to DS1", "from": ["Importer 1", "right"], "to": ["DS1", "left"], "options": {"purge_before_writing": True, "purge_settings": None}}],
+            "connections": [
+                {"name": "from Raw data to Importer 1", "from": ["Raw data", "right"], "to": ["Importer 1", "left"]},
+                {
+                    "name": "from Importer 1 to DS1",
+                    "from": ["Importer 1", "right"],
+                    "to": ["DS1", "left"],
+                    "options": {"purge_before_writing": True, "purge_settings": None},
+                },
+            ],
             "jumps": [],
             "execution_permits": {"Importer 1": True, "DS1": True, "Raw data": True},
             "items_module_name": "spine_items",

@@ -225,7 +225,10 @@ class PersistentManagerBase:
         if catch_exception:
             cmd = self._catch_exception_command(cmd) if cmd else ""
         cmd += os.linesep
-        self._persistent.stdin.write(cmd.encode("UTF8"))
+        try:
+            self._persistent.stdin.write(cmd.encode("UTF8"))
+        except ValueError:
+            return False
         try:
             self._persistent.stdin.flush()
             return True
@@ -722,7 +725,6 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             commands (list): List of commands to execute in the persistent process
             alias (str): an alias name for the manager
             group_id (str, optional): item group that will execute using this kernel
-            server_ip (str): Engine Server IP address
         """
         super().__init__(logger)
         self._args = args

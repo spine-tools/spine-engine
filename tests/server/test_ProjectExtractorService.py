@@ -27,7 +27,6 @@ from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 
 
 class TestProjectExtractorService(unittest.TestCase):
-
     def setUp(self):
         self._temp_dir = TemporaryDirectory()
         self.service = EngineServer("tcp", 5559, ServerSecurityModel.NONE, "")
@@ -43,7 +42,10 @@ class TestProjectExtractorService(unittest.TestCase):
         if not self.context.closed:
             self.context.term()
 
-    @mock.patch("spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR", new_callable=mock.PropertyMock)
+    @mock.patch(
+        "spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR",
+        new_callable=mock.PropertyMock,
+    )
     def test_project_extraction(self, mock_proj_dir):
         mock_proj_dir.return_value = self._temp_dir.name
         with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
@@ -92,4 +94,3 @@ class TestProjectExtractorService(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

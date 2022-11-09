@@ -22,7 +22,6 @@ from spine_engine.server.util.zip_handler import ZipHandler
 
 
 class TestZipHandler(unittest.TestCase):
-
     def test_package(self):
         src = os.path.join(str(Path(__file__).parent), "projectforpackagingtests")
         dst = os.path.join(src, os.pardir)

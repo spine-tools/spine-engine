@@ -21,7 +21,6 @@ from spine_engine.server.start_server import main
 
 
 class TestStartServer(unittest.TestCase):
-
     def test_start_server(self):
         server = Process(target=main, args=(["", "5001"],))
         server.start()
