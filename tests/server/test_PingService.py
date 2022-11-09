@@ -22,7 +22,6 @@ from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 
 
 class TestPingService(unittest.TestCase):
-
     def setUp(self):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.DEALER)
