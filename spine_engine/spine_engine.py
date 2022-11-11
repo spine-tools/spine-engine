@@ -37,6 +37,7 @@ from dagster import (
     execute_pipeline_iterator,
 )
 from spinedb_api import append_filter_config, name_from_dict
+from spinedb_api.spine_db_server import start_managers, shutdown_managers
 from spinedb_api.filters.tools import filter_config
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
@@ -171,6 +172,7 @@ class SpineEngine:
         self._answered_prompts = {}
         self.resources_per_item = {}  # Tuples of (forward resources, backward resources) from last execution
         self._timestamp = create_timestamp()
+        self._thread = threading.Thread(target=self.run)
         self._event_stream = self._get_event_stream()
 
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
@@ -231,19 +233,31 @@ class SpineEngine:
         Yields:
             tuple: event type and data
         """
-        threading.Thread(target=self.run).start()
+        self._thread.start()
         while True:
             msg = self._queue.get()
             yield msg
             if msg[0] == "dag_exec_finished":
                 break
+        self._thread.join()
 
     def answer_prompt(self, item_name, accepted):
         """Answers the prompt for the specified item, either accepting or rejecting it."""
         self._prompt_queues[item_name].put(accepted)
 
+    def wait(self):
+        if self._thread.is_alive():
+            self._thread.join()
+
     def run(self):
         """Runs this engine."""
+        start_managers()
+        try:
+            self._do_run()
+        finally:
+            shutdown_managers()
+
+    def _do_run(self):
         self._state = SpineEngineState.RUNNING
         run_config = {
             "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},

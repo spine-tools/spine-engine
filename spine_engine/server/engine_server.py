@@ -21,8 +21,8 @@ import time
 import threading
 import ipaddress
 import enum
-import zmq
 import uuid
+import zmq
 from zmq.auth.thread import ThreadAuthenticator
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.request import Request
@@ -62,16 +62,16 @@ class EngineServer(threading.Thread):
             self.secret_keys_dir = os.path.join(base_dir, 'private_keys')
             if not os.path.exists(self.keys_dir):
                 raise ValueError(f"Security folder: {self.keys_dir} does not exist")
-            elif not os.path.exists(self.public_keys_dir):
+            if not os.path.exists(self.public_keys_dir):
                 raise ValueError(f"Security folder: {self.public_keys_dir} does not exist")
-            elif not os.path.exists(self.secret_keys_dir):
+            if not os.path.exists(self.secret_keys_dir):
                 raise ValueError(f"Security folder: {self.secret_keys_dir} does not exist")
             self._sec_folder = sec_folder
             self._sec_model_state = ServerSecurityModel.STONEHOUSE
         self.protocol = protocol
         self.port = port
         self.auth = None
-        # NOTE: Contexts are thread-safe! Sockets are NOT!. Do not use or close
+        # NOTE: Contexts are thread-safe! Sockets are NOT! Do not use or close
         # sockets except in the thread that created them.
         self._context = zmq.Context()
         self.ctrl_msg_sender = self._context.socket(zmq.PAIR)
