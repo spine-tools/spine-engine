@@ -22,7 +22,6 @@ from spine_engine import SpineEngine
 from spine_engine.utils.helpers import get_file_size
 from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.event_data_converter import EventDataConverter
-from spine_engine.server.util.zip_handler import ZipHandler
 
 
 class RemoteExecutionService(threading.Thread, ServiceBase):
@@ -38,7 +37,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
             project_dir (str): Absolute path to a server directory where the project has been extracted to
             persistent_exec_mngr_q (queue.Queue): Queue for storing persistent exec. managers (consumed in frontend)
         """
-        super(RemoteExecutionService, self).__init__(name="RemoteExecutionServiceThread")
+        super().__init__(name="RemoteExecutionServiceThread")
         ServiceBase.__init__(self, context, request, job_id)
         self.engine = None
         self.push_socket = self.context.socket(zmq.PUSH)  # Transmits events and files directly to client
@@ -96,8 +95,8 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
             self.worker_socket, ("remote_execution_started", str(push_port), self.job_id), (self.job_id, "in_progress")
         )
         converted_data = self.convert_input(engine_data, self.local_project_dir)
+        self.engine = SpineEngine(**converted_data)
         try:
-            self.engine = SpineEngine(**converted_data)
             while True:
                 event_type, data = self.engine.get_event()  # Get next event and associated data from spine engine
                 self.collect_persistent_keys(event_type, data)
@@ -121,11 +120,13 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
             self.push_socket.send_multipart([json_error_event.encode("utf-8")])
             self.send_completed()
             return
+        finally:
+            self.engine.wait()
         if data != "USER_STOPPED":
             resources = self.collect_resources()
             self.persist_q.put(self.persistent_exec_mngrs)  # Put new persistent execution managers to queue
             # Send file resources back to client except for Data Connections
-            for item_name, type_and_pir in resources.items():
+            for type_and_pir in resources.values():
                 if type_and_pir[0] == "Data Connection":
                     continue
                 for resource in type_and_pir[1]:

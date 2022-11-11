@@ -15,7 +15,6 @@ Unit tests for RemoteExecutionService class.
 :date:   24.8.2021
 """
 
-import time
 import unittest
 import json
 import os
