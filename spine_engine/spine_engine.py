@@ -37,6 +37,7 @@ from dagster import (
     execute_pipeline_iterator,
 )
 from spinedb_api import append_filter_config, name_from_dict
+from spinedb_api.spine_db_server import start_managers, shutdown_managers
 from spinedb_api.filters.tools import filter_config
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
@@ -244,6 +245,13 @@ class SpineEngine:
 
     def run(self):
         """Runs this engine."""
+        start_managers()
+        try:
+            self._do_run()
+        finally:
+            shutdown_managers()
+
+    def _do_run(self):
         self._state = SpineEngineState.RUNNING
         run_config = {
             "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},
