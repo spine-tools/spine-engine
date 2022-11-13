@@ -252,11 +252,12 @@ class SpineEngine:
 
     def run(self):
         """Runs this engine."""
-        self._db_server_manager_address = start_db_server_manager()
+        mngr = start_db_server_manager()
+        self._db_server_manager_address = mngr.address
         try:
             self._do_run()
         finally:
-            shutdown_db_server_manager(self._db_server_manager_address)
+            shutdown_db_server_manager(mngr)
 
     def _do_run(self):
         self._state = SpineEngineState.RUNNING
@@ -417,6 +418,8 @@ class SpineEngine:
             context.log.info(f"Item Name: {item_name}")
             item = self.make_item(item_name, ED.BACKWARD)
             resources = item.output_resources(ED.BACKWARD)
+            for r in resources:
+                r.metadata["db_server_manager_address"] = self._db_server_manager_address
             yield Output(value=resources, output_name=f"{ED.BACKWARD}_output")
 
         input_defs = []
@@ -557,6 +560,7 @@ class SpineEngine:
         for resource in output_resources:
             resource.metadata["filter_stack"] = filter_stack
             resource.metadata["filter_id"] = item.filter_id
+            resource.metadata["db_server_manager_address"] = self._db_server_manager_address
         output_resources_list.append(output_resources)
         success[0] = item_finish_state  # FIXME: We need a Lock here
         self._running_items.remove(item)
@@ -692,8 +696,6 @@ class SpineEngine:
         Returns:
             list of ProjectItemResource: converted resources
         """
-        for r in resources:
-            r.metadata["db_server_manager_address"] = self._db_server_manager_address
         connections = self._connections_by_source.get(item_name, [])
         resources_by_provider = {}
         for r in resources:
@@ -721,8 +723,6 @@ class SpineEngine:
         Returns:
             list of ProjectItemResource: converted resources
         """
-        for r in resources:
-            r.metadata["db_server_manager_address"] = self._db_server_manager_address
         connections = self._connections_by_destination.get(item_name, [])
         resources_by_provider = {}
         for r in resources:
