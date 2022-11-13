@@ -37,7 +37,7 @@ from dagster import (
     execute_pipeline_iterator,
 )
 from spinedb_api import append_filter_config, name_from_dict
-from spinedb_api.spine_db_server import start_managers, shutdown_managers
+from spinedb_api.spine_db_server import start_db_server_manager, shutdown_db_server_manager
 from spinedb_api.filters.tools import filter_config
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
@@ -172,6 +172,7 @@ class SpineEngine:
         self._answered_prompts = {}
         self.resources_per_item = {}  # Tuples of (forward resources, backward resources) from last execution
         self._timestamp = create_timestamp()
+        self._db_server_manager_address = None
         self._thread = threading.Thread(target=self.run)
         self._event_stream = self._get_event_stream()
 
@@ -251,11 +252,11 @@ class SpineEngine:
 
     def run(self):
         """Runs this engine."""
-        start_managers()
+        self._db_server_manager_address = start_db_server_manager()
         try:
             self._do_run()
         finally:
-            shutdown_managers()
+            shutdown_db_server_manager(self._db_server_manager_address)
 
     def _do_run(self):
         self._state = SpineEngineState.RUNNING
@@ -691,6 +692,8 @@ class SpineEngine:
         Returns:
             list of ProjectItemResource: converted resources
         """
+        for r in resources:
+            r.metadata["db_server_manager_address"] = self._db_server_manager_address
         connections = self._connections_by_source.get(item_name, [])
         resources_by_provider = {}
         for r in resources:
@@ -718,6 +721,8 @@ class SpineEngine:
         Returns:
             list of ProjectItemResource: converted resources
         """
+        for r in resources:
+            r.metadata["db_server_manager_address"] = self._db_server_manager_address
         connections = self._connections_by_destination.get(item_name, [])
         resources_by_provider = {}
         for r in resources:

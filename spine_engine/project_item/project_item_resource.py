@@ -74,8 +74,9 @@ class ProjectItemResource:
                 "current": self.metadata.get("current"),
                 "precursors": self.metadata.get("precursors", set()),
             }
+            db_server_manager_address = self.metadata["db_server_manager_address"]
             with closing_spine_db_server(
-                self.url, memory=self.metadata.get("memory", False), ordering=ordering
+                db_server_manager_address, self.url, memory=self.metadata.get("memory", False), ordering=ordering
             ) as server_url:
                 if db_checkin:
                     SpineDBClient.from_server_url(server_url).db_checkin()
@@ -90,13 +91,14 @@ class ProjectItemResource:
     def quick_db_checkout(self):
         if self.type_ != "database":
             return
+        db_server_manager_address = self.metadata["db_server_manager_address"]
         ordering = {
             "id": self._identifier,
             "part_count": self.metadata.get("part_count", PartCount()),
             "current": self.metadata.get("current"),
             "precursors": self.metadata.get("precursors", set()),
         }
-        quick_db_checkout(ordering)
+        quick_db_checkout(db_server_manager_address, ordering)
 
     def clone(self, additional_metadata=None):
         """Clones this resource and optionally updates the clone's metadata.
