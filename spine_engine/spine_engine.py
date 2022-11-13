@@ -37,7 +37,7 @@ from dagster import (
     execute_pipeline_iterator,
 )
 from spinedb_api import append_filter_config, name_from_dict
-from spinedb_api.spine_db_server import start_db_server_manager, shutdown_db_server_manager
+from spinedb_api.spine_db_server import db_server_manager
 from spinedb_api.filters.tools import filter_config
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
@@ -252,12 +252,8 @@ class SpineEngine:
 
     def run(self):
         """Runs this engine."""
-        mngr = start_db_server_manager()
-        self._db_server_manager_address = mngr.address
-        try:
+        with db_server_manager() as self._db_server_manager_address:
             self._do_run()
-        finally:
-            shutdown_db_server_manager(mngr)
 
     def _do_run(self):
         self._state = SpineEngineState.RUNNING
