@@ -172,7 +172,7 @@ class SpineEngine:
         self._answered_prompts = {}
         self.resources_per_item = {}  # Tuples of (forward resources, backward resources) from last execution
         self._timestamp = create_timestamp()
-        self._db_server_manager_address = None
+        self._db_server_manager_queue = None
         self._thread = threading.Thread(target=self.run)
         self._event_stream = self._get_event_stream()
 
@@ -252,7 +252,7 @@ class SpineEngine:
 
     def run(self):
         """Runs this engine."""
-        with db_server_manager() as self._db_server_manager_address:
+        with db_server_manager() as self._db_server_manager_queue:
             self._do_run()
 
     def _do_run(self):
@@ -415,7 +415,7 @@ class SpineEngine:
             item = self.make_item(item_name, ED.BACKWARD)
             resources = item.output_resources(ED.BACKWARD)
             for r in resources:
-                r.metadata["db_server_manager_address"] = self._db_server_manager_address
+                r.metadata["db_server_manager_queue"] = self._db_server_manager_queue
             yield Output(value=resources, output_name=f"{ED.BACKWARD}_output")
 
         input_defs = []
@@ -556,7 +556,7 @@ class SpineEngine:
         for resource in output_resources:
             resource.metadata["filter_stack"] = filter_stack
             resource.metadata["filter_id"] = item.filter_id
-            resource.metadata["db_server_manager_address"] = self._db_server_manager_address
+            resource.metadata["db_server_manager_queue"] = self._db_server_manager_queue
         output_resources_list.append(output_resources)
         success[0] = item_finish_state  # FIXME: We need a Lock here
         self._running_items.remove(item)
