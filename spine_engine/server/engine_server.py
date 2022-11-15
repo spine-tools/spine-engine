@@ -31,6 +31,7 @@ from spine_engine.server.ping_service import PingService
 from spine_engine.server.project_extractor_service import ProjectExtractorService
 from spine_engine.server.project_retriever_service import ProjectRetrieverService
 from spine_engine.server.persistent_execution_service import PersistentExecutionService
+from spine_engine.server.project_remover_service import ProjectRemoverService
 
 
 class ServerSecurityModel(enum.Enum):
@@ -178,6 +179,14 @@ class EngineServer(threading.Thread):
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
                         worker = PersistentExecutionService(self._context, request, job_id, exec_mngr)
+                    elif request.cmd() == "remove_project":
+                        project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
+                        if not project_dir:
+                            print(f"Project for job_id:{request.request_id()} not found")
+                            msg = (f"Project directory for job_id {request.request_id()} not found")
+                            self.send_init_failed_reply(frontend, request.connection_id(), msg)
+                            continue
+                        worker = ProjectRemoverService(self._context, request, job_id, project_dir)
                     else:
                         print(f"Unknown command {request.cmd()} requested")
                         msg = f"Server error: Unknown command '{request.cmd()}' requested"
