@@ -144,14 +144,6 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         else:
             print(f"Executing DAG [{self.job_id}] stopped")
         self.send_completed()
-        # delete extracted directory. NOTE: This will delete the local project directory. Do we ever need to do this?
-        # try:
-        #     ZipHandler.delete_folder(self.local_project_dir)
-        #     print(f"RemoteExecutionService._execute(): Deleted folder {self.local_project_dir}")
-        # except Exception as e:
-        #     print(f"RemoteExecutionService._execute(): Couldn't delete directory {self.local_project_dir}. Error:\n{e}")
-        # execStopTimeMs=round(time.time()*1000.0)
-        # print("RemoteExecutionService._execute(): duration %d ms"%(execStopTimeMs-execStartTimeMs))
 
     def send_completed(self):
         """Sends a 'completed' message to frontend to notify that this worker has finished and it can be cleaned up.
