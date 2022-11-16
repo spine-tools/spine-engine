@@ -183,7 +183,7 @@ class EngineServer(threading.Thread):
                         project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
                         if not project_dir:
                             print(f"Project for job_id:{request.request_id()} not found")
-                            msg = (f"Project directory for job_id {request.request_id()} not found")
+                            msg = f"Project directory for job_id {request.request_id()} not found"
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
                         worker = ProjectRemoverService(self._context, request, job_id, project_dir)
