@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9, "3.10"]
+        python-version: [3.7, 3.8, 3.9, "3.10", 3.11]
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
@@ -28,9 +28,9 @@ jobs:
         PYTHONUTF8: 1
       run: |
         python -m pip install --upgrade pip
-        pip install git+https://github.com/Spine-project/Spine-Database-API.git#egg=spinedb_api
+        pip install git+https://github.com/Spine-project/Spine-Database-API.git@python311#egg=spinedb_api
         pip install .
-        pip install --no-deps git+https://github.com/Spine-project/spine-items.git#egg=spine_items
+        pip install --no-deps git+https://github.com/Spine-project/spine-items.git@qt6#egg=spine_items
         pip install coverage
         pip install codecov
     - name: Display coverage version
@@ -48,7 +48,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9, "3.10"]
+        python-version: [3.7, 3.8, 3.9, "3.10", 3.11]
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
@@ -64,9 +64,9 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install git+https://github.com/Spine-project/Spine-Database-API.git#egg=spinedb_api
+        pip install git+https://github.com/Spine-project/Spine-Database-API.git@python311#egg=spinedb_api
         pip install .
-        pip install --no-deps git+https://github.com/Spine-project/spine-items.git#egg=spine_items
+        pip install --no-deps git+https://github.com/Spine-project/spine-items.git@qt6#egg=spine_items
         pip install coverage
         pip install codecov
     - name: Display coverage version
