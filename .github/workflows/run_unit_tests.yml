@@ -47,6 +47,7 @@ jobs:
           export QT_QPA_PLATFORM=offscreen
         fi
         coverage run -m unittest discover --verbose
+      shell: bash
     - name: Upload coverage report to Codecov
       run:
         codecov
