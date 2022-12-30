@@ -11,6 +11,7 @@ jobs:
     name: Unit tests
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: true
       matrix:
         os: [windows-latest, ubuntu-22.04]
         python-version: [3.8, 3.9, "3.10", 3.11]
@@ -41,8 +42,11 @@ jobs:
       run:
         pip list
     - name: Run tests
-      run:
-        QT_QPA_PLATFORM=offscreen coverage run -m unittest discover --verbose
+      run: |
+        if [ "$RUNNER_OS" != "Windows" ]; then
+          export QT_QPA_PLATFORM=offscreen
+        fi
+        coverage run -m unittest discover --verbose
     - name: Upload coverage report to Codecov
       run:
         codecov
