@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 from contextlib import ExitStack
 from datapackage import Package
+from multiprocessing import Lock
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
@@ -522,7 +523,7 @@ class Jump(ConnectionBase):
         }
         condition_tool = self._engine.do_make_item(self.name, item_dict, self._logger)
         return (
-            condition_tool.execute(list(self._resources_from_source), list(self._resources_from_destination))
+            condition_tool.execute(list(self._resources_from_source), list(self._resources_from_destination), Lock())
             == ItemExecutionFinishState.SUCCESS
         )
 
