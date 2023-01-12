@@ -702,17 +702,25 @@ class TestSpineEngine(unittest.TestCase):
         connections = []
         jumps = [Jump("item", "bottom", "item", "top", self._LOOP_TWICE).to_dict()]
         execution_permits = {"item": True}
-        engine = SpineEngine(
-            items=items,
-            connections=connections,
-            jumps=jumps,
-            execution_permits=execution_permits,
-            items_module_name="items_module",
-        )
-        engine.make_item = lambda name, direction: engine._items[name]
-        engine.run()
-        self.assertEqual(mock_item.execute.call_args_list, 2 * [call([], [])])
-        self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
+        with patch("spine_engine.spine_engine.mp.Manager") as mock_multiprocessing_manager:
+            mock_lock = object()
+
+            class MockLockConstructor:
+                def Lock(self):
+                    return mock_lock
+
+            mock_multiprocessing_manager.return_value = MockLockConstructor()
+            engine = SpineEngine(
+                items=items,
+                connections=connections,
+                jumps=jumps,
+                execution_permits=execution_permits,
+                items_module_name="items_module",
+            )
+            engine.make_item = lambda name, direction: engine._items[name]
+            engine.run()
+            self.assertEqual(mock_item.execute.call_args_list, 2 * [call([], [], mock_lock)])
+            self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     @unittest.skip("Hangs because something's not right in SpineDBServer")
     def test_jump_resources_get_passed_correctly(self):

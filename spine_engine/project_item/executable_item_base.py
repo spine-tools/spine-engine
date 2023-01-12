@@ -97,7 +97,7 @@ class ExecutableItemBase:
         """Executes tasks that should be done before going into a next iteration of the loop."""
         return True
 
-    def execute(self, forward_resources, backward_resources):
+    def execute(self, forward_resources, backward_resources, lock):
         """Executes this item using the given resources and returns a boolean indicating the outcome.
 
         Subclasses can implement this method to do the appropriate work.
@@ -105,6 +105,7 @@ class ExecutableItemBase:
         Args:
             forward_resources (list): a list of ProjectItemResources from predecessors (forward)
             backward_resources (list): a list of ProjectItemResources from successors (backward)
+            lock (Lock): shared lock for parallel executions
 
         Returns:
             ItemExecutionFinishState: State depending on operation success
@@ -112,7 +113,7 @@ class ExecutableItemBase:
         self._logger.msg.emit(f"***Executing {self.item_type()} <b>{self._name}</b>***")
         return ItemExecutionFinishState.SUCCESS
 
-    def exclude_execution(self, forward_resources, backward_resources):
+    def exclude_execution(self, forward_resources, backward_resources, lock):
         """Excludes execution of this item.
 
         This method is called when the item is not selected (i.e EXCLUDED) for execution.
@@ -124,6 +125,7 @@ class ExecutableItemBase:
         Args:
             forward_resources (list): a list of ProjectItemResources from predecessors (forward)
             backward_resources (list): a list of ProjectItemResources from successors (backward)
+            lock (Lock): shared lock for parallel executions
         """
 
     def finish_execution(self, state):
