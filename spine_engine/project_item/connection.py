@@ -14,6 +14,7 @@ Provides connection classes for linking project items.
 :authors: A. Soininen (VTT)
 :date:    12.2.2021
 """
+from dataclasses import asdict, dataclass, field
 import os
 import subprocess
 import tempfile
@@ -147,15 +148,46 @@ class ConnectionBase:
         self._logger.flash.emit()
 
 
+@dataclass
+class FilterSettings:
+    """Filter settings for resource converting connections."""
+
+    known_filters: dict = field(default_factory=dict)
+    """mapping from resource labels and filter types to filter online statuses"""
+    auto_online: bool = True
+    """if True, set unknown filters automatically online"""
+
+    def has_filters(self):
+        for filters_by_type in self.known_filters.values():
+            for filters in filters_by_type.values():
+                if filters:
+                    return True
+        return False
+
+    def to_dict(self):
+        """Stores the settings to a dict.
+
+        Returns:
+            dict: serialized settings
+        """
+        return asdict(self)
+
+    @staticmethod
+    def from_dict(settings_dict):
+        """Restores the settings from a dict.
+
+        Args:
+            settings_dict (dict): serialized settings
+
+        Returns:
+            FilterSettings: restored settings
+        """
+        return FilterSettings(**settings_dict)
+
+
 class ResourceConvertingConnection(ConnectionBase):
     def __init__(
-        self,
-        source_name,
-        source_position,
-        destination_name,
-        destination_position,
-        options=None,
-        disabled_filter_names=None,
+        self, source_name, source_position, destination_name, destination_position, options=None, filter_settings=None
     ):
         """
         Args:
@@ -164,11 +196,10 @@ class ResourceConvertingConnection(ConnectionBase):
             destination_name (str): destination project item's name
             destination_position (str): destination anchor's position
             options (dict, optional): any additional options
-            disabled_filter_names (dict, optional): mapping from resource labels and filter types
-                to offline filter names
+            filter_settings (FilterSettings, optional): filter settings
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
-        self._disabled_filter_names = disabled_filter_names if disabled_filter_names is not None else {}
+        self._filter_settings = filter_settings if filter_settings is not None else FilterSettings()
         self.options = options if options is not None else dict()
         self._resources = set()
 
@@ -176,9 +207,7 @@ class ResourceConvertingConnection(ConnectionBase):
         if not isinstance(other, ResourceConvertingConnection):
             return NotImplemented
         return (
-            super().__eq__(other)
-            and self._disabled_filter_names == other._disabled_filter_names
-            and self.options == other.options
+            super().__eq__(other) and self._filter_settings == other._filter_settings and self.options == other.options
         )
 
     @property
@@ -209,17 +238,10 @@ class ResourceConvertingConnection(ConnectionBase):
         """
         return self.options.get("write_index", 1)
 
-    def _has_disabled_filters(self):
-        """Return True if connection has disabled filters.
-
-        Returns:
-            bool: True if connection has disabled filters, False otherwise
-        """
-        for names_by_filter_type in self._disabled_filter_names.values():
-            for names in names_by_filter_type.values():
-                if names:
-                    return True
-        return False
+    @property
+    def is_filter_online_by_default(self):
+        """True if new filters should be online by default."""
+        return self._filter_settings.auto_online
 
     def receive_resources_from_source(self, resources):
         """See base class."""
@@ -317,8 +339,8 @@ class ResourceConvertingConnection(ConnectionBase):
         d = super().to_dict()
         if self.options:
             d["options"] = self.options.copy()
-        if self._has_disabled_filters():
-            d["disabled_filters"] = _sets_to_lists(self._disabled_filter_names)
+        if self._filter_settings.has_filters():
+            d["filter_settings"] = self._filter_settings.to_dict()
         return d
 
     @staticmethod
@@ -326,8 +348,14 @@ class ResourceConvertingConnection(ConnectionBase):
         """See base class."""
         kw_args = ConnectionBase._constructor_args_from_dict(connection_dict)
         kw_args["options"] = connection_dict.get("options")
-        disabled_names = connection_dict.get("disabled_filters")
-        kw_args["disabled_filter_names"] = _lists_to_sets(disabled_names) if disabled_names is not None else None
+        filter_settings = connection_dict.get("filter_settings")
+        if filter_settings is not None:
+            kw_args["filter_settings"] = FilterSettings.from_dict(filter_settings)
+        else:
+            disabled_names = connection_dict.get("disabled_filters")
+            if disabled_names is not None:
+                known_filters = _restore_legacy_disabled_filters(disabled_names)
+                kw_args["filter_settings"] = FilterSettings(known_filters)
         return kw_args
 
 
@@ -335,13 +363,7 @@ class Connection(ResourceConvertingConnection):
     """Represents a connection between two project items."""
 
     def __init__(
-        self,
-        source_name,
-        source_position,
-        destination_name,
-        destination_position,
-        options=None,
-        disabled_filter_names=None,
+        self, source_name, source_position, destination_name, destination_position, options=None, filter_settings=None
     ):
         """
         Args:
@@ -350,12 +372,9 @@ class Connection(ResourceConvertingConnection):
             destination_name (str): destination project item's name
             destination_position (str): destination anchor's position
             options (dict, optional): any additional options
-            disabled_filter_names (dict, optional): mapping from resource labels and filter types
-                to offline filter names
+            filter_settings (FilterSettings, optional): filter settings
         """
-        super().__init__(
-            source_name, source_position, destination_name, destination_position, options, disabled_filter_names
-        )
+        super().__init__(source_name, source_position, destination_name, destination_position, options, filter_settings)
         self._enabled_filter_names = None
         self._source_visited = False
 
@@ -394,22 +413,28 @@ class Connection(ResourceConvertingConnection):
             except (SpineDBAPIError, SpineDBVersionError):
                 continue
             try:
-                disabled_scenarios = self._disabled_filter_names.get(resource.label, {}).get(
-                    SCENARIO_FILTER_TYPE, set()
+                scenario_filter_settings = self._filter_settings.known_filters.get(resource.label, {}).get(
+                    SCENARIO_FILTER_TYPE, {}
                 )
                 available_scenarios = {row.name for row in db_map.query(db_map.scenario_sq)}
-                enabled_scenarios = available_scenarios - disabled_scenarios
+                enabled_scenarios = set()
+                for name in available_scenarios:
+                    if scenario_filter_settings.get(name, self._filter_settings.auto_online):
+                        enabled_scenarios.add(name)
                 if enabled_scenarios:
                     self._enabled_filter_names.setdefault(resource.label, {})[SCENARIO_FILTER_TYPE] = sorted(
                         list(enabled_scenarios)
                     )
-                disabled_tools = set(self._disabled_filter_names.get(resource.label, {}).get(TOOL_FILTER_TYPE, set()))
+                tool_filter_settings = self._filter_settings.known_filters.get(resource.label, {}).get(
+                    TOOL_FILTER_TYPE, {}
+                )
                 available_tools = {row.name for row in db_map.query(db_map.tool_sq)}
-                enabled_tools = available_tools - disabled_tools
+                enabled_tools = set()
+                for name in available_tools:
+                    if tool_filter_settings.get(name, self._filter_settings.auto_online):
+                        enabled_tools.add(name)
                 if enabled_tools:
-                    self._enabled_filter_names.setdefault(resource.label, {})[TOOL_FILTER_TYPE] = sorted(
-                        list(enabled_tools)
-                    )
+                    self._enabled_filter_names.setdefault(resource.label, {})[TOOL_FILTER_TYPE] = sorted(enabled_tools)
             finally:
                 db_map.connection.close()
 
@@ -479,6 +504,7 @@ class Jump(ConnectionBase):
         Returns:
             bool: True if jump should be executed, False otherwise
         """
+        iterate = False
         if self.condition["type"] == "python-script":
             iterate = self._is_python_script_condition_true(jump_counter)
         elif self.condition["type"] == "tool-specification":
@@ -556,35 +582,18 @@ class Jump(ConnectionBase):
         return d
 
 
-def _sets_to_lists(disabled_filter_names):
-    """Converts name sets to sorted name lists.
-
-    Args:
-        disabled_filter_names (dict): connection's disabled filter names
-
-    Returns:
-        dict: converted disabled filter names
-    """
-    converted = {}
-    for label, names_by_type in disabled_filter_names.items():
-        converted_names_by_type = converted.setdefault(label, {})
-        for filter_type, names in names_by_type.items():
-            converted_names_by_type[filter_type] = sorted(list(names))
-    return converted
-
-
-def _lists_to_sets(disabled_filter_names):
-    """Converts name lists to name sets.
+def _restore_legacy_disabled_filters(disabled_filter_names):
+    """Converts legacy serialized disabled filter names to known filters dict.
 
     Args:
         disabled_filter_names (dict): disabled filter names with names stored as lists
 
     Returns:
-        dict: converted disabled filter names
+        dict: known filters
     """
     converted = {}
     for label, names_by_type in disabled_filter_names.items():
         converted_names_by_type = converted.setdefault(label, {})
         for filter_type, names in names_by_type.items():
-            converted_names_by_type[filter_type] = set(names)
+            converted_names_by_type[filter_type] = {name: False for name in names}
     return converted
