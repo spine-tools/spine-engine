@@ -253,6 +253,7 @@ class SpineEngine:
     def wait(self):
         if self._thread.is_alive():
             self._thread.join()
+            self._multiprocess_manager.shutdown()
 
     def run(self):
         """Runs this engine."""
