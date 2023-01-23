@@ -22,6 +22,8 @@ from spinedb_api import DatabaseMapping, import_scenarios, import_tools, import_
 from spine_engine.project_item.connection import Connection, FilterSettings, Jump
 from spine_engine.project_item.project_item_resource import database_resource
 from spine_engine.spine_engine import SpineEngine
+from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
+from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
 
 
 class TestConnection(unittest.TestCase):
@@ -34,6 +36,55 @@ class TestConnection(unittest.TestCase):
         self.assertEqual(restored.destination, "destination")
         self.assertEqual(restored.destination_position, "top")
         self.assertEqual(restored.options, {"option": 23})
+
+    def test_ready_to_execute_returns_false_when_required_filters_do_not_exist(self):
+        options = {"require_" + SCENARIO_FILTER_TYPE: True}
+        connection = Connection("source", "bottom", "destination", "top", options)
+        self.assertFalse(connection.ready_to_execute())
+
+    def test_ready_to_execute_returns_false_when_required_filters_are_offline(self):
+        options = {"require_" + SCENARIO_FILTER_TYPE: True}
+        filter_settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": False}}})
+        connection = Connection("source", "bottom", "destination", "top", options, filter_settings)
+        self.assertFalse(connection.ready_to_execute())
+
+    def test_ready_to_execute_returns_true_when_required_filters_are_online(self):
+        options = {"require_" + SCENARIO_FILTER_TYPE: True}
+        filter_settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}})
+        connection = Connection("source", "bottom", "destination", "top", options, filter_settings)
+        self.assertTrue(connection.ready_to_execute())
+
+    def test_require_filter_online(self):
+        options = {"require_" + SCENARIO_FILTER_TYPE: True}
+        filter_settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}})
+        connection = Connection("source", "bottom", "destination", "top", options, filter_settings)
+        self.assertTrue(connection.require_filter_online(SCENARIO_FILTER_TYPE))
+        self.assertFalse(connection.require_filter_online(TOOL_FILTER_TYPE))
+
+    def test_require_filter_online_default_value(self):
+        filter_settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}})
+        connection = Connection("source", "bottom", "destination", "top", {}, filter_settings)
+        self.assertIsNotNone(connection.require_filter_online(SCENARIO_FILTER_TYPE))
+        self.assertIsNotNone(connection.require_filter_online(TOOL_FILTER_TYPE))
+        self.assertFalse(connection.require_filter_online(SCENARIO_FILTER_TYPE))
+        self.assertFalse(connection.require_filter_online(TOOL_FILTER_TYPE))
+
+    def test_notification_when_filter_validation_fails(self):
+        options = {"require_" + SCENARIO_FILTER_TYPE: True, "require_" + TOOL_FILTER_TYPE: True}
+        filter_settings = FilterSettings()
+        connection = Connection("source", "bottom", "destination", "top", options, filter_settings)
+        self.assertEqual(
+            connection.notifications(),
+            ["At least one scenario filter must be active.", "At least one tool filter must be active."],
+        )
+
+    def test_nothing_to_notify(self):
+        filter_settings = FilterSettings(
+            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}, TOOL_FILTER_TYPE: {"tool_1": True}}}
+        )
+        options = {"require_" + SCENARIO_FILTER_TYPE: True, "require_" + TOOL_FILTER_TYPE: True}
+        connection = Connection("source", "bottom", "destination", "top", options, filter_settings)
+        self.assertEqual(connection.notifications(), [])
 
 
 class TestConnectionWithDatabase(unittest.TestCase):
@@ -177,6 +228,37 @@ class TestJump(unittest.TestCase):
         self.assertEqual(new_jump.source_position, jump.source_position)
         self.assertEqual(new_jump.destination_position, jump.destination_position)
         self.assertEqual(new_jump.condition, jump.condition)
+
+
+class TestFilterSettings(unittest.TestCase):
+    def test_has_filters_returns_false_when_no_filters_exist(self):
+        settings = FilterSettings()
+        self.assertFalse(settings.has_filters())
+
+    def test_has_filters_returns_true_when_filters_exist(self):
+        settings = FilterSettings({"database@Data Store": {TOOL_FILTER_TYPE: {"tool_1": True}}})
+        self.assertTrue(settings.has_filters())
+
+    def test_has_filters_online_returns_false_when_no_filters_exist(self):
+        settings = FilterSettings()
+        self.assertFalse(settings.has_filter_online(SCENARIO_FILTER_TYPE))
+
+    def test_has_filters_online_returns_false_when_filters_are_offline(self):
+        settings = FilterSettings(
+            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}, TOOL_FILTER_TYPE: {"tool_1": False}}}
+        )
+        self.assertFalse(settings.has_filter_online(TOOL_FILTER_TYPE))
+
+    def test_has_filters_online_returns_true_when_filters_are_online(self):
+        settings = FilterSettings(
+            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": False}, TOOL_FILTER_TYPE: {"tool_1": True}}}
+        )
+        self.assertTrue(settings.has_filter_online(TOOL_FILTER_TYPE))
+
+    def test_has_filter_online_works_when_there_are_no_known_filters(self):
+        settings = FilterSettings()
+        self.assertFalse(settings.has_filter_online(SCENARIO_FILTER_TYPE))
+        self.assertFalse(settings.has_filter_online(TOOL_FILTER_TYPE))
 
 
 if __name__ == "__main__":

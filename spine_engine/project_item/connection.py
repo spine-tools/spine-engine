@@ -94,6 +94,24 @@ class ConnectionBase:
     def __hash__(self):
         return hash((self.source, self._source_position, self.destination, self._destination_position))
 
+    def ready_to_execute(self):
+        """Validates the internal state of connection before execution.
+
+        Subclasses can implement this method to do the appropriate work.
+
+        Returns:
+            bool: True if connection is ready for execution, False otherwise
+        """
+        return True
+
+    def notifications(self):
+        """Returns connection validation messages.
+
+        Returns:
+            list of str: notifications
+        """
+        return []
+
     def to_dict(self):
         """Returns a dictionary representation of this connection.
 
@@ -158,10 +176,29 @@ class FilterSettings:
     """if True, set unknown filters automatically online"""
 
     def has_filters(self):
+        """Tests if there are filters.
+
+        Returns:
+            bool: True if filters of any type exists, False otherwise
+        """
         for filters_by_type in self.known_filters.values():
             for filters in filters_by_type.values():
                 if filters:
                     return True
+        return False
+
+    def has_filter_online(self, filter_type):
+        """Tests if any filter of given type is online.
+
+        Args:
+            filter_type (str): filter type to test
+
+        Returns:
+            bool: True if any scenario filter is online, False otherwise
+        """
+        for filters_by_type in self.known_filters.values():
+            if any(online for online in filters_by_type.get(filter_type, {}).values()):
+                return True
         return False
 
     def to_dict(self):
@@ -242,6 +279,26 @@ class ResourceConvertingConnection(ConnectionBase):
     def is_filter_online_by_default(self):
         """True if new filters should be online by default."""
         return self._filter_settings.auto_online
+
+    def require_filter_online(self, filter_type):
+        """Tests if online filters of given type are required for execution.
+
+        Args:
+            filter_type (str): filter type
+
+        Returns:
+            bool: True if online filters are required, False otherwise
+        """
+        return self.options.get("require_" + filter_type, False)
+
+    def notifications(self):
+        """See base class."""
+        notifications = []
+        for filter_type in (SCENARIO_FILTER_TYPE, TOOL_FILTER_TYPE):
+            if self.require_filter_online(filter_type) and not self._filter_settings.has_filter_online(filter_type):
+                filter_name = {SCENARIO_FILTER_TYPE: "scenario", TOOL_FILTER_TYPE: "tool"}[filter_type]
+                notifications.append(f"At least one {filter_name} filter must be active.")
+        return notifications
 
     def receive_resources_from_source(self, resources):
         """See base class."""
@@ -329,6 +386,13 @@ class ResourceConvertingConnection(ConnectionBase):
         package_resource.metadata = resources[0].metadata
         final_resources.append(package_resource)
         return final_resources
+
+    def ready_to_execute(self):
+        """See base class."""
+        for filter_type in (SCENARIO_FILTER_TYPE, TOOL_FILTER_TYPE):
+            if self.require_filter_online(filter_type) and not self._filter_settings.has_filter_online(filter_type):
+                return False
+        return True
 
     def to_dict(self):
         """Returns a dictionary representation of this Connection.
@@ -464,7 +528,7 @@ class Jump(ConnectionBase):
             source_position (str): source anchor's position
             destination_name (str): destination project item's name
             destination_position (str): destination anchor's position
-            condition (str): jump condition
+            condition (dict): jump condition
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
         self.condition = condition if condition is not None else {"type": "python-script", "script": "exit(1)"}

@@ -128,12 +128,15 @@ class SpineEngine:
         self._connections_by_destination = dict()
         node_successors = {item_name: list() for item_name in self._items}
         for connection in self._connections:
+            if not connection.ready_to_execute():
+                notifications = " ".join(connection.notifications())
+                raise EngineInitFailed(f"Link {connection.name} is not ready for execution. {notifications}")
             source, destination = connection.source, connection.destination
             self._connections_by_source.setdefault(source, list()).append(connection)
             self._connections_by_destination.setdefault(destination, list()).append(connection)
-            sucessors = node_successors.get(source)
-            if sucessors is not None:
-                sucessors.append(destination)
+            successors = node_successors.get(source)
+            if successors is not None:
+                successors.append(destination)
         self._settings = AppSettings(settings if settings is not None else {})
         _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
         enable_persistent_process_creation()
@@ -836,6 +839,8 @@ def validate_single_jump(jump, jumps, dag, items_by_jump=None):
         dag (DiGraph): jumps' DAG
         items_by_jump (dict): mapping jumps to a set of items in between destination and source
     """
+    if not jump.ready_to_execute():
+        raise EngineInitFailed(f"Jump {jump.name} is not ready for execution.")
     if items_by_jump is None:
         items_by_jump = _get_items_by_jump(jumps, dag)
     for other in jumps:
