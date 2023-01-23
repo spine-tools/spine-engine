@@ -11,7 +11,6 @@ jobs:
     name: Unit tests
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: true
       matrix:
         os: [windows-latest, ubuntu-22.04]
         python-version: [3.8, 3.9, "3.10", 3.11]
