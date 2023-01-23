@@ -31,7 +31,7 @@ install_requires = [
     "networkx>2.5.1",
     "datapackage>=1.15.2, <1.16",
     "jupyter_client<7.0",
-    "spinedb_api>=0.24.0",
+    "spinedb_api>=0.28.0",
     "pyzmq >=21.0",
     "markupsafe < 2.1",  # dagster 0.12.8 requires Jinja2<3.0, which tries to import soft_unicode, which has been removed in markupsafe 2.1
 ]
@@ -44,7 +44,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Spine Project consortium",
     author_email="spine_info@vtt.fi",
-    url="https://github.com/Spine-project/spine-engine",
+    url="https://github.com/spine-tools/spine-engine",
     packages=find_packages(exclude=("tests", "tests.*")),
     package_data={'spine_engine': ['execution_managers/spine_repl.jl']},
     license="LGPL-3.0-or-later",
@@ -58,7 +58,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     project_urls={
-        "Issue Tracker": "https://github.com/Spine-project/spine-engine/issues",
+        "Issue Tracker": "https://github.com/spine-tools/spine-engine/issues",
         #"Documentation": ""
     },
 )
