@@ -44,7 +44,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Spine Project consortium",
     author_email="spine_info@vtt.fi",
-    url="https://github.com/Spine-project/spine-engine",
+    url="https://github.com/spine-tools/spine-engine",
     packages=find_packages(exclude=("tests", "tests.*")),
     package_data={'spine_engine': ['execution_managers/spine_repl.jl']},
     license="LGPL-3.0-or-later",
@@ -58,7 +58,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     project_urls={
-        "Issue Tracker": "https://github.com/Spine-project/spine-engine/issues",
+        "Issue Tracker": "https://github.com/spine-tools/spine-engine/issues",
         #"Documentation": ""
     },
 )
