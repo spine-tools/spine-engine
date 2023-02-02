@@ -30,7 +30,7 @@ class ProjectItemInfo:
     @staticmethod
     def item_type():
         """
-        Returns the item type string, e.g., "Gimlet".
+        Returns the item type string, e.g., "Importer".
 
         Returns:
             str: item's type
