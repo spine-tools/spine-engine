@@ -46,6 +46,3 @@ EMBEDDED_PYTHON = os.path.join(APPLICATION_PATH, "tools", "python.exe")
 
 # Tool output directory name
 TOOL_OUTPUT_DIR = "output"
-
-# Gimlet default work directory name
-GIMLET_WORK_DIR_NAME = "work"

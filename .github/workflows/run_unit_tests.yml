@@ -34,7 +34,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install git+https://github.com/spine-tools/Spine-Database-API.git#egg=spinedb_api
         pip install .
-        pip install --no-deps git+https://github.com/spine-tools/spine-items.git#egg=spine_items
+        pip install --no-deps git+https://github.com/spine-tools/spine-items.git@get_rid_of_gimlet#egg=spine_items
         pip install coverage
         pip install codecov
     - name: List packages
