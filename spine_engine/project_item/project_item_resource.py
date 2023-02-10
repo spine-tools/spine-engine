@@ -341,22 +341,25 @@ def make_cmd_line_arg(arg_spec):
 
 
 def labelled_resource_args(resources, stack, db_checkin=False, db_checkout=False):
-    """
+    """Generates command line arguments for each resource.
+
     Args:
         resources (Iterable of ProjectItemResource): resources to process
-        stack (ExitStack)
+        stack (ExitStack): context manager to ensure resources get closed properly
+        db_checkin (bool): is database checkin required
+        db_checkout (bool): is database checkout required
 
     Yields:
-        dict: mapping from resource label to resource args.
+        dict: mapping from resource label to a list of resource args.
     """
     result = {}
     single_resources, pack_resources = extract_packs(resources)
     for resource in single_resources:
-        result[resource.label] = stack.enter_context(resource.open(db_checkin=db_checkin, db_checkout=db_checkout))
+        result[resource.label] = [stack.enter_context(resource.open(db_checkin=db_checkin, db_checkout=db_checkout))]
     for label, resources_ in pack_resources.items():
-        result[label] = " ".join(
+        result[label] = [
             stack.enter_context(r.open(db_checkin=db_checkin, db_checkout=db_checkout)) for r in resources_
-        )
+        ]
     return result
 
 
@@ -365,7 +368,7 @@ def expand_cmd_line_args(args, label_to_arg, logger):
 
     Args:
         args (list of CmdLineArg): command line arguments
-        label_to_arg (dict): a mapping from resource label to cmd line argument
+        label_to_arg (dict): a mapping from resource label to list of cmd line arguments
         logger (LoggerInterface): a logger
 
     Returns:
@@ -381,5 +384,5 @@ def expand_cmd_line_args(args, label_to_arg, logger):
             logger.msg_warning.emit(f"No resources matching argument '{arg}'.")
             continue
         if expanded:
-            expanded_args.append(expanded)
+            expanded_args.extend(expanded)
     return expanded_args
