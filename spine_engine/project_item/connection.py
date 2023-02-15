@@ -295,7 +295,12 @@ class ResourceConvertingConnection(ConnectionBase):
         """See base class."""
         notifications = []
         for filter_type in (SCENARIO_FILTER_TYPE, TOOL_FILTER_TYPE):
-            if self.require_filter_online(filter_type) and not self._filter_settings.has_filter_online(filter_type):
+            filter_settings = self._filter_settings
+            if self.require_filter_online(filter_type) and (
+                not filter_settings.has_filter_online(filter_type)
+                if filter_settings.has_filters()
+                else not filter_settings.auto_online
+            ):
                 filter_name = {SCENARIO_FILTER_TYPE: "scenario", TOOL_FILTER_TYPE: "tool"}[filter_type]
                 notifications.append(f"At least one {filter_name} filter must be active.")
         return notifications
