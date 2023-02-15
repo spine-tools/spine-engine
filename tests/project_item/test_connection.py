@@ -19,7 +19,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import Mock
 from spinedb_api import DatabaseMapping, import_scenarios, import_tools, import_alternatives, import_object_classes
-from spine_engine.project_item.connection import Connection, FilterSettings, Jump
+from spine_engine.project_item.connection import Connection, FilterSettings, Jump, ResourceConvertingConnection
 from spine_engine.project_item.project_item_resource import database_resource
 from spine_engine.spine_engine import SpineEngine
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
@@ -71,7 +71,7 @@ class TestConnection(unittest.TestCase):
 
     def test_notification_when_filter_validation_fails(self):
         options = {"require_" + SCENARIO_FILTER_TYPE: True, "require_" + TOOL_FILTER_TYPE: True}
-        filter_settings = FilterSettings()
+        filter_settings = FilterSettings(auto_online=False)
         connection = Connection("source", "bottom", "destination", "top", options, filter_settings)
         self.assertEqual(
             connection.notifications(),
@@ -85,6 +85,12 @@ class TestConnection(unittest.TestCase):
         options = {"require_" + SCENARIO_FILTER_TYPE: True, "require_" + TOOL_FILTER_TYPE: True}
         connection = Connection("source", "bottom", "destination", "top", options, filter_settings)
         self.assertEqual(connection.notifications(), [])
+
+    def test_emtpy_notifications_when_scenario_filter_is_automatically_online(self):
+        options = {"require_scenario_filter": True}
+        connection = Connection("A", "bottom", "B", "top", options)
+        notifications = connection.notifications()
+        self.assertEqual(notifications, [])
 
 
 class TestConnectionWithDatabase(unittest.TestCase):
