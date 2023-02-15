@@ -24,6 +24,8 @@ from pathlib import Path
 from enum import Enum, auto, unique
 import networkx
 from jupyter_client.kernelspec import find_kernel_specs
+
+from spinedb_api.spine_io.gdx_utils import find_gams_directory
 from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON
 
 
@@ -145,13 +147,22 @@ def resolve_julia_executable(julia_path):
 
 
 def resolve_gams_executable(gams_path):
-    """if given gams_path is empty, tries to find the path to Gams
-    in user's PATH env variable. If Gams is not found in PATH,
-    returns an empty string.
+    """If given gams_path is empty, tries to find the path to GAMS executable.
+
+    If GAMS is not found, returns an empty string.
+
+    Args:
+        gams_path (str): current path to GAMS executable
+
+    Returns:
+        str: resolved path to GAMS executable
     """
     if gams_path != "":
         return gams_path
-    return resolve_executable_from_path(GAMS_EXECUTABLE)
+    gams_dir = find_gams_directory()
+    if gams_dir is None:
+        return ""
+    return os.path.join(gams_dir, GAMS_EXECUTABLE)
 
 
 def resolve_executable_from_path(executable_name):

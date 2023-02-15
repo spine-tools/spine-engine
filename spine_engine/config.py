@@ -31,7 +31,6 @@ def _executable(name):
 
 # GAMS
 GAMS_EXECUTABLE = _executable("gams")
-GAMSIDE_EXECUTABLE = _executable("gamside")
 
 # Julia
 JULIA_EXECUTABLE = _executable("julia")
