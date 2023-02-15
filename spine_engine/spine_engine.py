@@ -837,7 +837,7 @@ def validate_single_jump(jump, jumps, dag, items_by_jump=None):
         jump (Jump): the jump to check
         jumps (list of Jump): all jumps in dag
         dag (DiGraph): jumps' DAG
-        items_by_jump (dict): mapping jumps to a set of items in between destination and source
+        items_by_jump (dict, optional): mapping jumps to a set of items in between destination and source
     """
     if not jump.ready_to_execute():
         raise EngineInitFailed(f"Jump {jump.name} is not ready for execution.")
@@ -851,7 +851,7 @@ def validate_single_jump(jump, jumps, dag, items_by_jump=None):
         jump_items = items_by_jump[jump]
         other_items = items_by_jump[other]
         intersection = jump_items & other_items
-        if intersection not in ({}, jump_items, other_items):
+        if intersection not in (set(), jump_items, other_items):
             raise EngineInitFailed(f"{jump.name} cannot partially overlap {other.name}.")
     if not dag.has_node(jump.destination):
         raise EngineInitFailed(f"Loop destination '{jump.destination}' not found in DAG")
