@@ -10,7 +10,7 @@
 ######################################################################################################################
 
 """
-Unit tests for SpineEngine class.
+Unit tests for `spine_engine` module.
 
 Inspired from tests for spinetoolbox.ExecutionInstance and spinetoolbox.ResourceMap,
 and intended to supersede them.
@@ -29,6 +29,9 @@ from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.filters.tool_filter import tool_filter_config
 from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.tools import clear_filter_configs
+from spine_engine.exception import EngineInitFailed
+from spine_engine.spine_engine import validate_single_jump
+from spine_engine.utils.helpers import make_dag
 from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState, ItemExecutionFinishState
 from spine_engine.project_item.connection import Jump, Connection
 from spine_engine.project_item.project_item_resource import ProjectItemResource
@@ -818,6 +821,18 @@ class TestSpineEngine(unittest.TestCase):
                     self.assertEqual(clear_filter_configs(resource.url), expected_resource.url)
                     for key, value in expected_resource.metadata.items():
                         self.assertEqual(resource.metadata[key], value)
+
+
+class TestValidateSingleJump(unittest.TestCase):
+    def test_bug(self):
+        node_successors = {"a": ["b"], "b": ["c"], "c": "d"}
+        dag = make_dag(node_successors)
+        jumps = [Jump("b", "top", "a", "top"), Jump("d", "top", "c", "top")]
+        jump_to_check = jumps[0]
+        try:
+            validate_single_jump(jump_to_check, jumps, dag)
+        except EngineInitFailed:
+            self.fail("validate_single_jump shouldn't have raised")
 
 
 if __name__ == '__main__':
