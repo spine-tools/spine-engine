@@ -110,33 +110,25 @@ class SpineEngine:
             settings (dict): Toolbox execution settings.
             project_dir (str): Path to project directory.
             execution_permits (dict(str,bool)): A mapping from item name to a boolean value, False indicating that
-                the item is not executed, only its resources are collected.
+                the item is not executed
             debug (bool): Whether debug mode is active or not.
 
         Raises:
-            EngineInitFailed: raised if initialization failed
+            EngineInitFailed: Raised if initialization fails
         """
         super().__init__()
         self._queue = mp.Queue()
         if items is None:
             items = {}
         self._items = items
-        if connections is None:
-            connections = []
-        self._connections = list(map(Connection.from_dict, connections))
+        if execution_permits is None:
+            execution_permits = {}
+        self._execution_permits = execution_permits
+        self._connections = self._make_connections(connections)
         self._connections_by_source = dict()
         self._connections_by_destination = dict()
-        node_successors = {item_name: list() for item_name in self._items}
-        for connection in self._connections:
-            if not connection.ready_to_execute():
-                notifications = " ".join(connection.notifications())
-                raise EngineInitFailed(f"Link {connection.name} is not ready for execution. {notifications}")
-            source, destination = connection.source, connection.destination
-            self._connections_by_source.setdefault(source, list()).append(connection)
-            self._connections_by_destination.setdefault(destination, list()).append(connection)
-            successors = node_successors.get(source)
-            if successors is not None:
-                successors.append(destination)
+        self._validate_and_sort_connections()
+        dag_edges = self._get_dag_edges()  # Mapping of a source node (item) to a list of destination nodes (items)
         self._settings = AppSettings(settings if settings is not None else {})
         _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
         enable_persistent_process_creation()
@@ -148,13 +140,9 @@ class SpineEngine:
         self._item_specifications = self._make_item_specifications(
             specifications, project_item_loader, items_module_name
         )
-        self._solid_names = {item_name: str(i) for i, item_name in enumerate(items)}
-        self._item_names = {solid_name: item_name for item_name, solid_name in self._solid_names.items()}
-        if execution_permits is None:
-            execution_permits = {}
-        self._execution_permits = {self._solid_names[name]: permits for name, permits in execution_permits.items()}
-        self._dag = make_dag(node_successors)
+        self._dag = make_dag(dag_edges, self._execution_permits)
         _validate_dag(self._dag)
+        self._dag_nodes = list(self._dag)  # Nodes in DAG, names of permitted items and their neighbors
         if jumps is None:
             jumps = []
         self._jumps = list(map(Jump.from_dict, jumps))
@@ -163,8 +151,13 @@ class SpineEngine:
             x.make_logger(self._queue)
         for x in self._jumps:
             x.set_engine(self)
+        # Mapping of item name to solid name
+        self._solids_by_items = {item_name: str(i) for i, item_name in enumerate(self._dag_nodes)}
+        # Mapping of solid name to item name
+        self._items_by_solids = {solid_name: item_name for item_name, solid_name in self._solids_by_items.items()}
+        # Same as dag_edges but item names are swapped to solid names
         self._back_injectors = {
-            self._solid_names[key]: [self._solid_names[x] for x in value] for key, value in node_successors.items()
+            self._solids_by_items[key]: [self._solids_by_items[x] for x in value] for key, value in dag_edges.items()
         }
         self._forth_injectors = inverted(self._back_injectors)
         self._pipeline = self._make_pipeline()
@@ -180,6 +173,55 @@ class SpineEngine:
         self._event_stream = self._get_event_stream()
         self._multiprocess_manager = mp.Manager()
 
+    def _make_connections(self, connections):
+        """Returns a list of Connection instances based on given
+        serialized connections and permitted items. Creates Connection
+        instances only for connections that are coming from permitted items
+        or leaving from permitted items.
+
+        Args:
+            connections (list): Serialized connections in the DAG
+
+        Returns:
+            list: List of permitted Connections or an empty list if the DAG contains no connections
+        """
+        if not connections:
+            return list()
+        # List of item names that are permitted, i.e. selected for execution
+        permitted_items = [n for n, n_permitted in self._execution_permits.items() if n_permitted]
+        # List of serialized connections that have a permitted item as its source or destination item
+        connections = [
+            conn for conn in connections if conn["from"][0] in permitted_items or conn["to"][0] in permitted_items
+        ]
+        return list(map(Connection.from_dict, connections))
+
+    def _validate_and_sort_connections(self):
+        """Checks and sorts Connections by source and destination.
+
+        Raises:
+            EngineInitFailed: If connection is not ready
+        """
+        for connection in self._connections:
+            if not connection.ready_to_execute():
+                notifications = " ".join(connection.notifications())
+                raise EngineInitFailed(f"Link {connection.name} is not ready for execution. {notifications}")
+            source, destination = connection.source, connection.destination
+            self._connections_by_source.setdefault(source, list()).append(connection)
+            self._connections_by_destination.setdefault(destination, list()).append(connection)
+
+    def _get_dag_edges(self):
+        """Collects DAG edges based on Connection instances.
+
+        Returns:
+            dict: DAG edges. mapping of source item (node) to a list of destination items (nodes)
+
+        """
+        edges = dict()
+        for connection in self._connections:
+            source, destination = connection.source, connection.destination
+            edges.setdefault(source, list()).append(destination)
+        return edges
+
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
         """Instantiates item specifications.
 
@@ -189,7 +231,7 @@ class SpineEngine:
             items_module_name (str): name of the Python module that contains the project items
 
         Returns:
-            dict: mapping from item type to a dict that maps specification names to specification instances
+            dict: Mapping from item type to a dict that maps specification names to specification instances
         """
         specification_factories = project_item_loader.load_item_specification_factories(items_module_name)
         item_specifications = {}
@@ -223,11 +265,11 @@ class SpineEngine:
 
     def get_event(self):
         """Returns the next event in the stream. Calling this after receiving the event of type "dag_exec_finished"
-        will raise StopIterationError.
-        """
+        will raise StopIterationError."""
         return next(self._event_stream)
 
     def state(self):
+        """Returns Spine Engine state."""
         return self._state
 
     def _get_event_stream(self):
@@ -251,16 +293,18 @@ class SpineEngine:
         self._prompt_queues[item_name].put(accepted)
 
     def wait(self):
+        """Waits until engine execution has finished."""
         if self._thread.is_alive():
             self._thread.join()
             self._multiprocess_manager.shutdown()
 
     def run(self):
-        """Runs this engine."""
+        """Starts db server manager the engine."""
         with db_server_manager() as self._db_server_manager_queue:
             self._do_run()
 
     def _do_run(self):
+        """Runs this engine."""
         self._state = SpineEngineState.RUNNING
         run_config = {
             "loggers": {"console": {"config": {"log_level": "CRITICAL"}}},
@@ -273,19 +317,18 @@ class SpineEngine:
         self._queue.put(("dag_exec_finished", str(self._state)))
 
     def _process_event(self, event):
-        """
-        Processes events from a pipeline.
+        """Processes events from a pipeline.
 
         Args:
             event (DagsterEvent): an event
         """
         if event.event_type == DagsterEventType.STEP_START:
             direction, _, solid_name = event.solid_name.partition("_")
-            item_name = self._item_names[solid_name]
+            item_name = self._items_by_solids[solid_name]
             self._queue.put(('exec_started', {"item_name": item_name, "direction": direction}))
         elif event.event_type == DagsterEventType.STEP_FAILURE and self._state != SpineEngineState.USER_STOPPED:
             direction, _, solid_name = event.solid_name.partition("_")
-            item_name = self._item_names[solid_name]
+            item_name = self._items_by_solids[solid_name]
             self._state = SpineEngineState.FAILED
             self._queue.put(
                 (
@@ -308,8 +351,8 @@ class SpineEngine:
             direction, _, solid_name = event.solid_name.partition("_")
             if direction != "BACKWARD":
                 return
-            item_name = self._item_names[solid_name]
-            if not self._execution_permits[solid_name]:
+            item_name = self._items_by_solids[solid_name]
+            if not self._execution_permits[item_name]:
                 item_finish_state = ItemExecutionFinishState.EXCLUDED
             else:
                 item_finish_state = ItemExecutionFinishState.SUCCESS
@@ -329,7 +372,7 @@ class SpineEngine:
             direction, _, solid_name = event.solid_name.partition("_")
             if direction != "FORWARD":
                 return
-            item_name = self._item_names[solid_name]
+            item_name = self._items_by_solids[solid_name]
             state_value = event.asset_key.path[0]
             item_finish_state = ItemExecutionFinishState[state_value]
             self._queue.put(
@@ -353,6 +396,7 @@ class SpineEngine:
         self._queue.put(("dag_exec_finished", str(self._state)))
 
     def _stop_item(self, item):
+        """Stops given project item."""
         item.stop_execution()
         self._queue.put(
             (
@@ -367,15 +411,14 @@ class SpineEngine:
         )
 
     def _make_pipeline(self):
-        """
-        Returns a _JumpPipelineDefinition for executing this engine.
+        """Returns a _JumpPipelineDefinition for executing this engine.
 
         Returns:
             _JumpPipelineDefinition
         """
         solid_defs = [
             make_solid_def(item_name)
-            for item_name in self._items
+            for item_name in self._dag_nodes
             for make_solid_def in (self._make_forward_solid_def, self._make_backward_solid_def)
         ]
         dependencies = self._make_dependencies()
@@ -401,9 +444,9 @@ class SpineEngine:
             jump.item_names = {dst, src}
             for path in nx.all_simple_paths(self._dag, dst, src):
                 jump.item_names.update(path)
-            jump.solid_names = {f"{ED.FORWARD}_{self._solid_names[n]}" for n in jump.item_names}
-            jump.source_solid = f"{ED.FORWARD}_{self._solid_names[src]}"
-            jump.destination_solid = f"{ED.BACKWARD}_{self._solid_names[dst]}"
+            jump.solid_names = {f"{ED.FORWARD}_{self._solids_by_items[n]}" for n in jump.item_names}
+            jump.source_solid = f"{ED.FORWARD}_{self._solids_by_items[src]}"
+            jump.destination_solid = f"{ED.BACKWARD}_{self._solids_by_items[dst]}"
 
     def _make_backward_solid_def(self, item_name):
         """Returns a SolidDefinition for executing the given item in the backward sweep.
@@ -426,7 +469,7 @@ class SpineEngine:
         input_defs = []
         output_defs = [OutputDefinition(name=f"{ED.BACKWARD}_output")]
         return SolidDefinition(
-            name=f"{ED.BACKWARD}_{self._solid_names[item_name]}",
+            name=f"{ED.BACKWARD}_{self._solids_by_items[item_name]}",
             input_defs=input_defs,
             compute_fn=compute_fn,
             output_defs=output_defs,
@@ -468,14 +511,14 @@ class SpineEngine:
 
         input_defs = [
             InputDefinition(name=f"{ED.FORWARD}_input_from_{inj}")
-            for inj in self._forth_injectors.get(self._solid_names[item_name], [])
+            for inj in self._forth_injectors.get(self._solids_by_items[item_name], [])
         ] + [
             InputDefinition(name=f"{ED.BACKWARD}_input_from_{inj}")
-            for inj in self._back_injectors.get(self._solid_names[item_name], [])
+            for inj in self._back_injectors.get(self._solids_by_items[item_name], [])
         ]
         output_defs = [OutputDefinition(name=f"{ED.FORWARD}_output")]
         return SolidDefinition(
-            name=f"{ED.FORWARD}_{self._solid_names[item_name]}",
+            name=f"{ED.FORWARD}_{self._solids_by_items[item_name]}",
             input_defs=input_defs,
             compute_fn=compute_fn,
             output_defs=output_defs,
@@ -505,7 +548,7 @@ class SpineEngine:
         """
         item = self.make_item(item_name, ED.NONE)
         if not item.ready_to_execute(self._settings):
-            if not self._execution_permits[self._solid_names[item_name]]:
+            if not self._execution_permits[item_name]:
                 return ItemExecutionFinishState.EXCLUDED, []
             context.log.error(f"compute_fn() FAILURE with '{item_name}', not ready for forward execution")
             return ItemExecutionFinishState.FAILURE, []
@@ -552,7 +595,7 @@ class SpineEngine:
             success (list): A list of one element, to write the outcome of the execution.
         """
         self._running_items.append(item)
-        if self._execution_permits[self._solid_names[item.name]]:
+        if self._execution_permits[item.name]:
             item_finish_state = item.execute(filtered_forward_resources, filtered_backward_resources, item_lock)
             item.finish_execution(item_finish_state)
         else:
@@ -707,7 +750,7 @@ class SpineEngine:
             resources_from_destination = resources_by_provider.get(c.destination)
             if resources_from_destination is None:
                 continue
-            if self._execution_permits[self._solid_names[item_name]]:
+            if self._execution_permits[item_name]:
                 c.clean_up_backward_resources(resources_from_destination)
             sibling_connections = [x for x in self._connections_by_destination.get(c.destination, []) if x != c]
             resources_by_provider[c.destination] = c.convert_backward_resources(

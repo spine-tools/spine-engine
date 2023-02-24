@@ -250,22 +250,28 @@ def get_julia_env(settings):
     return julia, project
 
 
-def make_dag(node_successors):
-    """Builds a DAG from node successors.
+def make_dag(edges, permitted_nodes=None):
+    """Builds a DAG from edges or if no edges exist, from permitted_nodes.
 
     Args:
-        node_successors (dict): mapping from item name to list of its successors' names
+        edges (dict): Mapping from item name to list of its successors' names
+        permitted_nodes (dict): Mapping from item name to boolean value indicating if item is selected
 
     Returns:
-        DiGraph: directed acyclic graph
+        DiGraph: Directed acyclic graph
     """
     graph = networkx.DiGraph()
-    graph.add_nodes_from(node_successors)
-    for node, successors in node_successors.items():
-        if successors is None:
-            continue
-        for successor in successors:
-            graph.add_edge(node, successor)
+    if not edges:
+        # Make a single node DAG with no edges
+        nodes = [node_name for node_name, permitted in permitted_nodes.items() if permitted]
+        graph.add_nodes_from(nodes)
+    else:
+        graph.add_nodes_from(edges)
+        for node, successors in edges.items():
+            if successors is None:
+                continue
+            for successor in successors:
+                graph.add_edge(node, successor)
     return graph
 
 

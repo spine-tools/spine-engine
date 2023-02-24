@@ -104,7 +104,6 @@ class MultithreadExecutor(Executor):
                 loop_iteration_counters = {}
                 steps_by_key = {}
                 while not active_execution.is_complete or active_iters:
-
                     # start iterators
                     while len(active_iters) < limit:
                         candidate_steps = active_execution.get_steps_to_execute(limit=(limit - len(active_iters)))

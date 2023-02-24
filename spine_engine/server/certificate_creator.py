@@ -56,7 +56,6 @@ class CertificateCreator:
 
 
 def main(args):
-
     if len(args) < 2:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         base_dir = os.path.join(script_dir, "certs")

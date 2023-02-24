@@ -825,8 +825,8 @@ class TestSpineEngine(unittest.TestCase):
 
 class TestValidateSingleJump(unittest.TestCase):
     def test_bug(self):
-        node_successors = {"a": ["b"], "b": ["c"], "c": "d"}
-        dag = make_dag(node_successors)
+        edges = {"a": ["b"], "b": ["c"], "c": "d"}
+        dag = make_dag(edges)
         jumps = [Jump("b", "top", "a", "top"), Jump("d", "top", "c", "top")]
         jump_to_check = jumps[0]
         try:
