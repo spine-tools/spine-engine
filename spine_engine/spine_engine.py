@@ -142,7 +142,7 @@ class SpineEngine:
         )
         self._dag = make_dag(dag_edges, self._execution_permits)
         _validate_dag(self._dag)
-        self._dag_nodes = list(self._dag)  # Nodes in DAG, names of permitted items and their neighbors
+        self._dag_nodes = list(self._dag)  # Names of permitted items and their neighbors
         if jumps is None:
             jumps = []
         self._jumps = list(map(Jump.from_dict, jumps))
@@ -213,8 +213,7 @@ class SpineEngine:
         """Collects DAG edges based on Connection instances.
 
         Returns:
-            dict: DAG edges. mapping of source item (node) to a list of destination items (nodes)
-
+            dict: DAG edges. Mapping of source item (node) to a list of destination items (nodes)
         """
         edges = dict()
         for connection in self._connections:
