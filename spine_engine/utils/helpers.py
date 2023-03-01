@@ -255,7 +255,7 @@ def make_dag(edges, permitted_nodes=None):
 
     Args:
         edges (dict): Mapping from item name to list of its successors' names
-        permitted_nodes (dict): Mapping from item name to boolean value indicating if item is selected
+        permitted_nodes (dict, optional): Mapping from item name to boolean value indicating if item is selected
 
     Returns:
         DiGraph: Directed acyclic graph
