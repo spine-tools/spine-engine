@@ -43,9 +43,10 @@ class ProjectItemResource:
             provider_name (str): The name of the item that provides the resource
             type_ (str): The resource type, currently available types:
 
-                - "file": url points to the file's path
+                - "file": url points to a local file
                 - "file_pack": resource is part of a pack; url points to the file's path
                 - "database": url is the databases url
+                - "url": url is a generic URL
             label (str): A label that identifies the resource.
             url (str, optional): The url of the resource.
             metadata (dict): Additional metadata providing extra information about the resource.
@@ -85,6 +86,8 @@ class ProjectItemResource:
                 finally:
                     if db_checkout:
                         SpineDBClient.from_server_url(server_url).db_checkout()
+        elif self.type_ == "url":
+            yield self.url
         else:
             yield self.path if self.hasfilepath else ""
 
@@ -220,7 +223,7 @@ class LabelArg(CmdLineArg):
 
 def database_resource(provider_name, url, label=None, filterable=False):
     """
-    Constructs a database resource.
+    Constructs a Spine database resource.
 
     Args:
         provider_name (str): resource provider's name
@@ -231,6 +234,18 @@ def database_resource(provider_name, url, label=None, filterable=False):
     if label is None:
         label = clear_filter_configs(url)
     return ProjectItemResource(provider_name, "database", label, url, filterable=filterable)
+
+
+def url_resource(provider_name, url, label):
+    """
+    Constructs a generic URL resource.
+
+    Args:
+        provider_name (str): resource provider's name
+        url (str): database URL
+        label (str): resource label
+    """
+    return ProjectItemResource(provider_name, "url", label, url)
 
 
 def file_resource(provider_name, file_path, label=None):
@@ -316,8 +331,9 @@ def get_labelled_sources(resources):
         dict: a mapping from resource label to list of URLs or file paths
     """
     d = {}
+    url_resources = ("database", "url")
     for resource in resources:
-        if resource.type_ == "database":
+        if resource.type_ in url_resources:
             d.setdefault(resource.label, []).append(resource.url)
         elif resource.hasfilepath:
             d.setdefault(resource.label, []).append(resource.path)

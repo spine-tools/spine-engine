@@ -27,6 +27,7 @@ from spine_engine.project_item.project_item_resource import (
     get_labelled_sources,
     LabelArg,
     labelled_resource_args,
+    url_resource,
 )
 from spinedb_api.spine_db_server import db_server_manager
 
@@ -38,6 +39,11 @@ class TestGetLabelledSources(unittest.TestCase):
     def test_single_database_resource_gets_collected(self):
         resources = [database_resource("provider", "sqlite:///file.sqlite", "my database")]
         expected = {"my database": ["sqlite:///file.sqlite"]}
+        self.assertEqual(get_labelled_sources(resources), expected)
+
+    def test_url_resource_gets_collected(self):
+        resources = [url_resource("provider", "sqlite:///file.sqlite", "my non-Spine database")]
+        expected = {"my non-Spine database": ["sqlite:///file.sqlite"]}
         self.assertEqual(get_labelled_sources(resources), expected)
 
     def test_single_file_resource_gets_collected(self):
@@ -65,16 +71,18 @@ class TestLabelledResourceArgs(unittest.TestCase):
 
     def test_single_resources(self):
         single_file_resource = file_resource("my provider", "/path/to/file")
+        remote_resource = url_resource("so-called cloud", "ftp://ftp.sausage.org/wurst", "food-url")
         with db_server_manager() as db_server_manager_queue:
             db_resource = database_resource("db provider", "sqlite://")
             db_resource.metadata["db_server_manager_queue"] = db_server_manager_queue
-            resources = [single_file_resource, db_resource]
+            resources = [single_file_resource, db_resource, remote_resource]
             with ExitStack() as exit_stack:
                 labelled_args = labelled_resource_args(resources, exit_stack)
-            self.assertEqual(len(labelled_args), 2)
+            self.assertEqual(len(labelled_args), 3)
             self.assertEqual(labelled_args["/path/to/file"], [single_file_resource.path])
             self.assertEqual(len(labelled_args["sqlite://"]), 1)
             self.assertTrue(labelled_args["sqlite://"][0].startswith("http://127.0.0.1:"))
+            self.assertEqual(labelled_args["food-url"], ["ftp://ftp.sausage.org/wurst"])
 
     def test_pack_resource(self):
         file_1 = file_resource_in_pack("my provider", "pack", "/path/to/file1")
