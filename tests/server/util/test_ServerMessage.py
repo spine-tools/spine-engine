@@ -54,7 +54,6 @@ class TestServerMessage(unittest.TestCase):
                         'inputfiles_opt': [],
                         'outputfiles': [],
                         'cmdline_args': [],
-                        'execute_in_work': False,
                         'includes_main_path': '.',
                         'execution_settings': {
                             'env': '',

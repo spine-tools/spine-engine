@@ -224,7 +224,7 @@ class TestRemoteExecutionService(unittest.TestCase):
 
     @staticmethod
     def make_python_tool_spec_dict(
-        name, includes, input_files, exec_in_work, includes_main_path, def_file_path, exec_settings=None
+        name, includes, input_files, includes_main_path, def_file_path, exec_settings=None
     ):
         return {
             "name": name,
@@ -235,7 +235,6 @@ class TestRemoteExecutionService(unittest.TestCase):
             "inputfiles_opt": [],
             "outputfiles": [],
             "cmdline_args": [],
-            "execute_in_work": exec_in_work,
             "includes_main_path": includes_main_path,
             "execution_settings": exec_settings if exec_settings is not None else dict(),
             "definition_file_path": def_file_path,
@@ -285,7 +284,6 @@ class TestRemoteExecutionService(unittest.TestCase):
             name="Simple Tool Spec",
             includes=["simple_script.py"],
             input_files=["input_file.txt"],
-            exec_in_work=True,
             includes_main_path="../../..",
             def_file_path="C:/data/temp/.spinetoolbox/specifications/Tool/simple_tool_spec.json",
             exec_settings={"env": "", "kernel_spec_name": "py38", "use_jupyter_console": False, "executable": ""},

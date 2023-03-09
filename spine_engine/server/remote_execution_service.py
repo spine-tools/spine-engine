@@ -192,28 +192,21 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                     # depends on OS. Note2: '/' must be added to remote folder here.
                     rel_def_file_path = original_def_file_path.replace(remote_folder + "/", "")
                     modified = os.path.join(local_project_dir, rel_def_file_path)  # Absolute path on server machine
-                    # print(f"\noriginal def_file_path: {original_def_file_path}")
-                    # print(f"remote_folder: {remote_folder}")
-                    # print(f"relative def_file_path: {rel_def_file_path}")
-                    # print(f"updated def_file_path: {modified}\n")
                     input_data["specifications"][specs_key][i]["definition_file_path"] = modified
-                # Force execute_in_work to False
-                if "execute_in_work" in specItemInfo:
-                    input_data["specifications"][specs_key][i]["execute_in_work"] = False
                 i += 1
+                # Modify Python executable path and kernel spec because those refer to paths on client's machine
                 if "execution_settings" in specItemInfo and specItemInfo["tooltype"] == "python":
                     if specItemInfo["execution_settings"]["use_jupyter_console"]:
                         # Replace kernel_spec_name with the default kernel spec 'python3' (must be available on server)
                         specItemInfo["execution_settings"]["kernel_spec_name"] = "python3"
                     else:
-                        # Replace Python executable exec with "" because client's Python is not be available on server
+                        # Replace Python executable exec with "" because client's Python is not available on server
                         specItemInfo["execution_settings"]["executable"] = ""
         # Loop items
         items_keys = input_data["items"].keys()
         for items_key in items_keys:
-            # force execute_in_work to False in items
+            # Force execute in source dir
             if "execute_in_work" in input_data["items"][items_key]:
-                # print("RemoteExecutionService.convert_input() execute_in_work in an item")
                 input_data["items"][items_key]["execute_in_work"] = False
         # Edit app settings dictionary
         # Replace Julia path and Julia project path with an empty string so that the server uses the Julia in PATH

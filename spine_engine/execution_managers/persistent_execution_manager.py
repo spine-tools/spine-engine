@@ -253,7 +253,9 @@ class PersistentManagerBase:
         host, port = queue.get()  # This blocks until the server is listening
         ping = self._ping_command(host, port)
         if not self._issue_command(ping, catch_exception=False):
+            # Ping failed because pipe is broken, i.e. kernel died
             thread.join()
+            self._msg_queue.put({"type": "stdout", "data": "Kernel died (×_×)"})
             return False
         result = queue.get()  # This blocks until the server is done
         thread.join()
