@@ -22,8 +22,8 @@ RUNNER_COMMAND = ["python", "-m", "spine_engine.execution_managers.conda_kernel_
 
 
 class CondaKernelSpecManager(KernelSpecManager):
-    """ A custom KernelSpecManager able to search for conda environments and
-        create kernelspecs for them.
+    """A custom KernelSpecManager able to search for conda environments and
+    create kernelspecs for them.
     """
 
     conda_only = Bool(
@@ -102,8 +102,8 @@ class CondaKernelSpecManager(KernelSpecManager):
 
     @staticmethod
     def clean_kernel_name(kname):
-        """ Replaces invalid characters in the Jupyter kernelname, with
-            a bit of effort to preserve readability.
+        """Replaces invalid characters in the Jupyter kernelname, with
+        a bit of effort to preserve readability.
         """
         try:
             kname.encode('ascii')
@@ -119,10 +119,10 @@ class CondaKernelSpecManager(KernelSpecManager):
 
     @property
     def _conda_info(self):
-        """ Get and parse the whole conda information output
+        """Get and parse the whole conda information output
 
-            Caches the information for CACHE_TIMEOUT seconds, as this is
-            relatively expensive.
+        Caches the information for CACHE_TIMEOUT seconds, as this is
+        relatively expensive.
         """
 
         expiry = self._conda_info_cache_expiry
@@ -149,10 +149,10 @@ class CondaKernelSpecManager(KernelSpecManager):
         return self._conda_info_cache
 
     def _all_envs(self):
-        """ Find all of the environments we should be checking. We skip
-            environments in the conda-bld directory as well as environments
-            that match our env_filter regex. Returns a dict with canonical
-            environment names as keys, and full paths as values.
+        """Find all of the environments we should be checking. We skip
+        environments in the conda-bld directory as well as environments
+        that match our env_filter regex. Returns a dict with canonical
+        environment names as keys, and full paths as values.
         """
         conda_info = self._conda_info
         envs = conda_info['envs']
@@ -196,14 +196,14 @@ class CondaKernelSpecManager(KernelSpecManager):
         return all_envs
 
     def _all_specs(self):
-        """ Find the all kernel specs in all environments.
+        """Find the all kernel specs in all environments.
 
-            Returns a dict with unique env names as keys, and the kernel.json
-            content as values, modified so that they can be run properly in
-            their native environments.
+        Returns a dict with unique env names as keys, and the kernel.json
+        content as values, modified so that they can be run properly in
+        their native environments.
 
-            Caches the information for CACHE_TIMEOUT seconds, as this is
-            relatively expensive.
+        Caches the information for CACHE_TIMEOUT seconds, as this is
+        relatively expensive.
         """
 
         all_specs = {}
@@ -319,10 +319,10 @@ class CondaKernelSpecManager(KernelSpecManager):
         return kspecs
 
     def find_kernel_specs(self):
-        """ Returns a dict mapping kernel names to resource directories.
+        """Returns a dict mapping kernel names to resource directories.
 
-            The update process also adds the resource dir for the conda
-            environments.
+        The update process also adds the resource dir for the conda
+        environments.
         """
         if self.conda_only:
             kspecs = {}
@@ -339,10 +339,10 @@ class CondaKernelSpecManager(KernelSpecManager):
         return kspecs
 
     def get_kernel_spec(self, kernel_name):
-        """ Returns a :class:`KernelSpec` instance for the given kernel_name.
+        """Returns a :class:`KernelSpec` instance for the given kernel_name.
 
-            Additionally, conda kernelspecs are generated on the fly
-            accordingly with the detected environments.
+        Additionally, conda kernelspecs are generated on the fly
+        accordingly with the detected environments.
         """
 
         res = self._conda_kspecs.get(kernel_name)
@@ -355,9 +355,9 @@ class CondaKernelSpecManager(KernelSpecManager):
         return res
 
     def get_all_specs(self):
-        """ Returns a dict mapping kernel names to dictionaries with two
-            entries: "resource_dir" and "spec". This was added to fill out
-            the full public interface to KernelManagerSpec.
+        """Returns a dict mapping kernel names to dictionaries with two
+        entries: "resource_dir" and "spec". This was added to fill out
+        the full public interface to KernelManagerSpec.
         """
         res = {}
         for name, resource_dir in self.find_kernel_specs().items():
