@@ -70,7 +70,7 @@ class ZipHandler:
     @staticmethod
     def delete_folder(folder):
         """Removes the provided directory and all it's contents.
-        
+
         Args:
             folder: Directory to be removed
         """

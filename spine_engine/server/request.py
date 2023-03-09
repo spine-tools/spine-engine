@@ -45,9 +45,9 @@ class Request:
 
     def msg(self):
         """Returns a list containing three binary frames.
-         First frame is the connection id (added by the frontend ROUTER socket at receiver).
-         The second frame is empty (added by the frontend ROUTER socket at receiver).
-         The third frame contains the data sent by client."""
+        First frame is the connection id (added by the frontend ROUTER socket at receiver).
+        The second frame is empty (added by the frontend ROUTER socket at receiver).
+        The third frame contains the data sent by client."""
         return self._msg
 
     def cmd(self):
