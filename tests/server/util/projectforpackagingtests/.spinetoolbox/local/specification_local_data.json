@@ -1,0 +1,15 @@
+{
+    "Tool": {
+        "helloworld": {
+            "execution_settings": {}
+        },
+        "helloworld2": {
+            "execution_settings": {
+                "kernel_spec_name": "python3",
+                "env": "",
+                "use_jupyter_console": true,
+                "executable": ""
+            }
+        }
+    }
+}
