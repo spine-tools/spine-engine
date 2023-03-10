@@ -19,16 +19,21 @@ Functions to (de)serialize stuff.
 import os
 import sys
 import urllib
+from pathlib import Path
 from urllib.parse import urljoin
 
 
 def path_in_dir(path, directory):
-    """Returns True if the given path is in the given directory."""
-    try:
-        retval = os.path.samefile(os.path.commonpath((path, directory)), directory)
-    except ValueError:
-        return False
-    return retval
+    """Returns True if the given path is in the given directory.
+
+    Args:
+        path (str): path to test
+        directory (str): directory to test against
+
+    Returns:
+        bool: True if path is in directory, False otherwise
+    """
+    return Path(os.path.commonpath((path, directory))) == Path(directory)
 
 
 def serialize_path(path, project_dir):
