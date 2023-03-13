@@ -295,7 +295,7 @@ class SpineEngine:
         """Waits until engine execution has finished."""
         if self._thread.is_alive():
             self._thread.join()
-            self._multiprocess_manager.shutdown()
+        self._multiprocess_manager.shutdown()
 
     def run(self):
         """Starts db server manager the engine."""
