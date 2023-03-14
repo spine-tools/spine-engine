@@ -37,6 +37,10 @@ if sys.platform == "win32":
     from subprocess import CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW
 
 
+class PersistentIsDead(Exception):
+    pass
+
+
 class PersistentManagerBase:
     def __init__(self, args, group_id):
         """
@@ -158,12 +162,20 @@ class PersistentManagerBase:
         cmd = os.linesep.join(lines)
         if len(lines) == 1:
             cmd += os.linesep
-        result = self._communicate("is_complete", cmd)
+        try:
+            result = self._communicate("is_complete", cmd)
+        except PersistentIsDead:
+            return None
         if result.strip() != "true":
             return None
         return cmd
 
     def drain_queue(self):
+        """Empties the message queue.
+
+        Yields:
+            dict: messages still in the queue
+        """
         while True:
             try:
                 yield self._msg_queue.get(timeout=0.02)
@@ -181,6 +193,7 @@ class PersistentManagerBase:
         Args:
             cmd (str)
             add_history (bool)
+            catch_exception (bool)
 
         Yields:
             dict: message
@@ -203,13 +216,17 @@ class PersistentManagerBase:
         Args:
             cmd (str): Command to pass to the persistent process
             add_history (bool): Whether to add the command to history
+            catch_exception (bool): whether to catch and report exceptions in the REPL as errors
         """
         with self._lock:
             self._msg_queue.put({"type": "stdin", "data": cmd})
             self.command_successful = self._issue_command(cmd, catch_exception=catch_exception)
             if self.command_successful:
                 if add_history:
-                    self._communicate("add_history", cmd, receive=False)
+                    try:
+                        self._communicate("add_history", cmd, receive=False)
+                    except PersistentIsDead:
+                        return
                 self.command_successful &= self._wait()
         self._msg_queue.put({"type": "command_finished"})
 
@@ -218,6 +235,7 @@ class PersistentManagerBase:
 
         Args:
             cmd (str): Command to pass to the persistent process
+            catch_exception (bool):
 
         Returns:
             bool: True if command was issued successfully, False otherwise
@@ -312,6 +330,8 @@ class PersistentManagerBase:
         Returns:
             str or NoneType: response, or None if the ``receive`` argument is False
         """
+        if not self.is_persistent_alive():
+            raise PersistentIsDead()
         req_args_sep = '\u001f'  # Unit separator
         args_sep = '\u0091'  # Private Use 1
         args = args_sep.join(args)
@@ -337,7 +357,10 @@ class PersistentManagerBase:
         Returns:
             list(str): List of options
         """
-        result = self._communicate("completions", text)
+        try:
+            result = self._communicate("completions", text)
+        except PersistentIsDead:
+            return []
         if result is None:
             return []
         return result.strip().split(" ")
@@ -354,10 +377,21 @@ class PersistentManagerBase:
             str
         """
         sense = "backwards" if backwards else "forward"
-        return self._communicate("history_item", text, prefix, sense).strip()
+        try:
+            return self._communicate("history_item", text, prefix, sense).strip()
+        except PersistentIsDead:
+            return ""
 
     def restart_persistent(self):
-        """Restarts the persistent process."""
+        """Restarts the persistent process.
+
+        Yields:
+            dict: messages still in the queue
+        """
+        if not self.is_persistent_alive():
+            self._start_persistent()
+            self._wait()
+            return
         self._persistent.kill()
         self._persistent.wait()
         self._persistent.stdout = os.devnull
@@ -582,6 +616,17 @@ class _PersistentManagerFactory(metaclass=Singleton):
             return
         pm.interrupt_persistent()
 
+    def kill_persistent(self, key):
+        """Kills a persistent process.
+
+        Args:
+            key (tuple): persistent identifier
+        """
+        pm = self.persistent_managers.get(key)
+        if pm is None:
+            return
+        pm.kill_process()
+
     def issue_persistent_command(self, key, cmd):
         """Issues a command to a persistent process.
 
@@ -675,6 +720,11 @@ def restart_persistent(key):
 def interrupt_persistent(key):
     """See _PersistentManagerFactory."""
     _persistent_manager_factory.interrupt_persistent(key)
+
+
+def kill_persistent(key):
+    """See _PersistentManagerFactory."""
+    _persistent_manager_factory.kill_persistent(key)
 
 
 def kill_persistent_processes():
