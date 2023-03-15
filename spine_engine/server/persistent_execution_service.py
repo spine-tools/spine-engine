@@ -71,6 +71,9 @@ class PersistentExecutionService(threading.Thread, ServiceBase):
         elif cmd_type == "interrupt_persistent":
             pm.interrupt_persistent()
             retval_tuple = cmd_type, "ok"
+        elif cmd_type == "kill_persistent":
+            pm.kill_process()
+            retval_tuple = cmd_type, "ok"
         else:
             print(f"Command type {cmd_type} does not have a handler. cmd:{cmd}")
             retval_tuple = cmd_type, "No handler for command"

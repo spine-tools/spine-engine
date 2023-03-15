@@ -223,9 +223,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         return d
 
     @staticmethod
-    def make_python_tool_spec_dict(
-        name, includes, input_files, includes_main_path, def_file_path, exec_settings=None
-    ):
+    def make_python_tool_spec_dict(name, includes, input_files, includes_main_path, def_file_path, exec_settings=None):
         return {
             "name": name,
             "tooltype": "python",
