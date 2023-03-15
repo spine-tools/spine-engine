@@ -11,10 +11,7 @@
 """Unit tests for ``persistent_execution_manager`` module."""
 import unittest
 from unittest.mock import MagicMock
-from spine_engine.execution_managers.persistent_execution_manager import (
-    PythonPersistentExecutionManager,
-    issue_persistent_command,
-)
+from spine_engine.execution_managers.persistent_execution_manager import PythonPersistentExecutionManager
 from spine_engine.utils.execution_resources import persistent_process_semaphore
 
 
@@ -22,11 +19,16 @@ class TestPythonPersistentExecutionManager(unittest.TestCase):
     def test_reuse_process(self):
         logger = MagicMock()
         exec_mngr1 = PythonPersistentExecutionManager(
-            logger, ["python"], ['print("hello")'], "alias", group_id="SomeGroup"
+            logger, ["python"], ['print("hello")'], "alias", kill_completed_processes=False, group_id="SomeGroup"
         )
         exec_mngr1.run_until_complete()
         exec_mngr2 = PythonPersistentExecutionManager(
-            logger, ["python"], ['print("hello again")'], "another alias", group_id="SomeGroup"
+            logger,
+            ["python"],
+            ['print("hello again")'],
+            "another alias",
+            kill_completed_processes=False,
+            group_id="SomeGroup",
         )
         self.assertEqual(exec_mngr1._persistent_manager, exec_mngr2._persistent_manager)
         logger.msg_warning.emit.assert_called_once()
@@ -36,10 +38,15 @@ class TestPythonPersistentExecutionManager(unittest.TestCase):
         persistent_process_semaphore.set_limit(2)
         logger = MagicMock()
         exec_mngr1 = PythonPersistentExecutionManager(
-            logger, ["python"], ['print("hello")'], "alias", group_id="SomeGroup"
+            logger, ["python"], ['print("hello")'], "alias", kill_completed_processes=False, group_id="SomeGroup"
         )
         exec_mngr2 = PythonPersistentExecutionManager(
-            logger, ["python"], ['print("hello again")'], "another alias", group_id="SomeGroup"
+            logger,
+            ["python"],
+            ['print("hello again")'],
+            "another alias",
+            kill_completed_processes=False,
+            group_id="SomeGroup",
         )
         self.assertNotEqual(exec_mngr1._persistent_manager, exec_mngr2._persistent_manager)
         exec_mngr1._persistent_manager.kill_process()
@@ -48,7 +55,7 @@ class TestPythonPersistentExecutionManager(unittest.TestCase):
     def test_failing_process(self):
         logger = MagicMock()
         exec_mngr = PythonPersistentExecutionManager(
-            logger, ["python"], ["exit(666)"], "my execution", group_id="SomeGroup"
+            logger, ["python"], ["exit(666)"], "my execution", kill_completed_processes=False, group_id="SomeGroup"
         )
         self.assertEqual(exec_mngr.run_until_complete(), -1)
         self.assertTrue(exec_mngr.killed)

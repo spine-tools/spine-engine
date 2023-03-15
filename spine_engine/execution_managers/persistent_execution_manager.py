@@ -769,13 +769,14 @@ def get_persistent_history_item(key, text, prefix, backwards):
 class PersistentExecutionManagerBase(ExecutionManagerBase):
     """Base class for managing execution of commands on a persistent process."""
 
-    def __init__(self, logger, args, commands, alias, group_id=None):
+    def __init__(self, logger, args, commands, alias, kill_completed_processes, group_id=None):
         """
         Args:
             logger (LoggerInterface): a logger instance
             args (list): List of args to start the persistent process
             commands (list): List of commands to execute in the persistent process
             alias (str): an alias name for the manager
+            kill_completed_processes (bool): if True, the persistent process will be killed after execution
             group_id (str, optional): item group that will execute using this kernel
         """
         super().__init__(logger)
@@ -785,6 +786,7 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
         self._persistent_manager = _persistent_manager_factory.new_persistent_manager(
             self.persistent_manager_factory, logger, args, group_id
         )
+        self._kill_completed = kill_completed_processes
 
     @property
     def alias(self):
@@ -820,11 +822,17 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             return 0
         finally:
             self._persistent_manager.set_running_until_completion(False)
+            if self._kill_completed:
+                self._persistent_manager.kill_process()
+                self._logger.msg_persistent_execution.emit({"type": "persistent_killed"})
 
     def stop_execution(self):
         """See base class."""
         if self._persistent_manager is not None:
             self._persistent_manager.interrupt_persistent()
+            if self._kill_completed:
+                self._persistent_manager.kill_process()
+                self._logger.msg_persistent_execution.emit({"type": "persistent_killed"})
 
 
 class JuliaPersistentExecutionManager(PersistentExecutionManagerBase):
