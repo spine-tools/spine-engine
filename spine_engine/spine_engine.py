@@ -178,7 +178,6 @@ class SpineEngine:
         self._db_server_manager_queue = None
         self._thread = threading.Thread(target=self.run)
         self._event_stream = self._get_event_stream()
-        self._multiprocess_manager = mp.Manager()
 
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
         """Instantiates item specifications.
@@ -253,7 +252,6 @@ class SpineEngine:
     def wait(self):
         if self._thread.is_alive():
             self._thread.join()
-        self._multiprocess_manager.shutdown()
 
     def run(self):
         """Runs this engine."""
@@ -515,20 +513,21 @@ class SpineEngine:
         resources_iterator = self._filtered_resources_iterator(
             item_name, forward_resource_stacks, backward_resources, self._timestamp
         )
-        item_lock = self._multiprocess_manager.Lock()
-        for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
-            self.resources_per_item[item_name] = (flt_fwd_resources, flt_bwd_resources)
-            item = self.make_item(item_name, ED.FORWARD)
-            item.filter_id = filter_id
-            thread = threading.Thread(
-                target=self._execute_item_filtered,
-                args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, item_lock, success),
-            )
-            threads.append(thread)
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
+        with mp.Manager() as multiprocess_manager:
+            item_lock = multiprocess_manager.Lock()
+            for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
+                self.resources_per_item[item_name] = (flt_fwd_resources, flt_bwd_resources)
+                item = self.make_item(item_name, ED.FORWARD)
+                item.filter_id = filter_id
+                thread = threading.Thread(
+                    target=self._execute_item_filtered,
+                    args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, item_lock, success),
+                )
+                threads.append(thread)
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
         if success[0] == ItemExecutionFinishState.FAILURE:
             context.log.error(f"compute_fn() FAILURE with {item_name}, failed to execute")
             raise Failure()
