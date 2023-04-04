@@ -137,6 +137,7 @@ class SpineEngine:
             successors = node_successors.get(source)
             if successors is not None:
                 successors.append(destination)
+        self._check_write_index()
         self._settings = AppSettings(settings if settings is not None else {})
         _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
         enable_persistent_process_creation()
@@ -178,6 +179,49 @@ class SpineEngine:
         self._db_server_manager_queue = None
         self._thread = threading.Thread(target=self.run)
         self._event_stream = self._get_event_stream()
+
+    def _descendants(self, name):
+        """Yields descendant item names.
+
+        Args:
+            name (str): name of the project item whose descendants to collect
+
+        Yields:
+            str: descendant name
+        """
+        for c in self._connections_by_source.get(name, ()):
+            yield c.destination
+            yield from self._descendants(c.destination)
+
+    def _check_write_index(self):
+        """Checks if write indexes are valid."""
+        conflicting_by_item = {}
+        for item_name in self._items:
+            conflicting = {}
+            descendants = self._descendants(item_name)
+            for conn in self._connections_by_source.get(item_name, ()):
+                sibling_connections = [
+                    x for x in self._connections_by_destination.get(conn.destination, []) if x != conn
+                ]
+                conflicting.update(
+                    {
+                        c.source: c.destination
+                        for c in sibling_connections
+                        if c.write_index < conn.write_index and c.source in descendants
+                    }
+                )
+            if conflicting:
+                conflicting_by_item[item_name] = conflicting
+        rows = []
+        for item_name, conflicting in conflicting_by_item.items():
+            row = []
+            for other_item_name, dest in conflicting.items():
+                row.append(f"{other_item_name} but needs to wait for it to write to {dest}")
+            if row:
+                rows.append(f"Item {item_name} cannot execute because it is a dependency for " + ", ".join(row))
+        msg = "\n".join(rows)
+        if msg:
+            raise EngineInitFailed(msg)
 
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
         """Instantiates item specifications.
