@@ -157,6 +157,10 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         """Stops DAG execution."""
         self.engine.stop()
 
+    def answer_prompt(self, item_name, accepted):
+        """Answers prompt."""
+        self.engine.answer_prompt(item_name, accepted)
+
     def close(self):
         """Cleans up sockets after worker is finished."""
         super().close()
