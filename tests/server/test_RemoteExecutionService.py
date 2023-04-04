@@ -80,7 +80,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         start_response_msg = ServerMessage.parse(start_response[1])
         start_response_msg_data = start_response_msg.getData()
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
-        self.receive_events(start_response_msg_data[1])
+        self.receive_events(start_response_msg_data[1], start_response_msg_data[2])
 
     @mock.patch(
         "spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR",
@@ -108,7 +108,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         start_response_msg = ServerMessage.parse(start_response[1])
         start_response_msg_data = start_response_msg.getData()
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
-        self.receive_events(start_response_msg_data[1])
+        self.receive_events(start_response_msg_data[1], start_response_msg_data[2])
 
     @mock.patch(
         "spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR",
@@ -137,11 +137,11 @@ class TestRemoteExecutionService(unittest.TestCase):
             start_response_msg = ServerMessage.parse(start_response[1])
             start_response_msg_data = start_response_msg.getData()
             self.assertEqual("remote_execution_started", start_response_msg_data[0])
-            self.receive_events(start_response_msg_data[1])
+            self.receive_events(start_response_msg_data[1], start_response_msg_data[2])
             self.service.kill_persistent_exec_mngrs()
             # TODO: Check that we use the same persistent exec manager in all 5 execution iterations
 
-    def receive_events(self, publish_port):
+    def receive_events(self, publish_port, job_id):
         """Receives events from server until DAG execution has finished.
 
         Args:
@@ -156,6 +156,11 @@ class TestRemoteExecutionService(unittest.TestCase):
                 if len(rcv) > 1:  # Discard 'incoming_file', 'END' and file data messages
                     continue
                 event_deconverted = EventDataConverter.deconvert(*rcv)
+                if event_deconverted[0] == "prompt":
+                    # Accept whatever prompt
+                    item_name = event_deconverted[1]["item_name"]
+                    accept_prompt_msg = ServerMessage("answer_prompt", job_id, json.dumps((item_name, True)), None)
+                    self.socket.send_multipart([accept_prompt_msg.to_bytes()])
                 if event_deconverted[0] == "dag_exec_finished":
                     self.assertEqual("COMPLETED", event_deconverted[1])
             if socks.get(self.socket) == zmq.POLLIN:
@@ -166,7 +171,6 @@ class TestRemoteExecutionService(unittest.TestCase):
                 self.assertEqual("remote_execution_event", resp_msg_data[0])
                 self.assertEqual("completed", resp_msg_data[1])
                 break
-        return
 
     def assert_error_response(self, expected_event_type, expected_start_of_error_msg):
         """Waits for a response from server and checks that the error msg is as expected."""

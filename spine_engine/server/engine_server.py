@@ -156,6 +156,16 @@ class EngineServer(threading.Thread):
                         worker.stop_engine()
                         request.send_response(frontend, ("server_status_msg", "DAG worker stopped"))
                         continue
+                    elif request.cmd() == "answer_prompt":
+                        worker = workers.get(request.request_id(), None)  # Get DAG execution worker based on job Id
+                        if not worker:
+                            print(f"Worker for job_id:{request.request_id()} not found")
+                            msg = f"Answering prompt failed. Worker for job_id:{request.request_id()} not found."
+                            self.send_init_failed_reply(frontend, request.connection_id(), msg)
+                            continue
+                        item_name, accepted = request.data()
+                        worker.answer_prompt(item_name, accepted)
+                        continue
                     elif request.cmd() == "retrieve_project":
                         project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
                         if not project_dir:
@@ -253,9 +263,7 @@ class EngineServer(threading.Thread):
         b_json_str_server_msg = msg[1]  # binary string
         if len(b_json_str_server_msg) <= 10:  # Message size too small
             print(f"User data frame too small [{len(msg[1])}]. msg:{msg}")
-            self.send_init_failed_reply(
-                socket, msg[0], f"User data frame too small " f"- Malformed message sent to server."
-            )
+            self.send_init_failed_reply(socket, msg[0], "User data frame too small. Malformed message sent to server.")
             return None
         try:
             json_str_server_msg = b_json_str_server_msg.decode("utf-8")  # json string
