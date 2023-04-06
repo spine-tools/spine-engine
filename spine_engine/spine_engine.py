@@ -129,6 +129,7 @@ class SpineEngine:
         self._connections_by_destination = dict()
         self._validate_and_sort_connections()
         dag_edges = self._get_dag_edges()  # Mapping of a source node (item) to a list of destination nodes (items)
+        self._check_write_index()
         self._settings = AppSettings(settings if settings is not None else {})
         _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
         enable_persistent_process_creation()
@@ -171,7 +172,49 @@ class SpineEngine:
         self._db_server_manager_queue = None
         self._thread = threading.Thread(target=self.run)
         self._event_stream = self._get_event_stream()
-        self._multiprocess_manager = mp.Manager()
+
+    def _descendants(self, name):
+        """Yields descendant item names.
+
+        Args:
+            name (str): name of the project item whose descendants to collect
+
+        Yields:
+            str: descendant name
+        """
+        for c in self._connections_by_source.get(name, ()):
+            yield c.destination
+            yield from self._descendants(c.destination)
+
+    def _check_write_index(self):
+        """Checks if write indexes are valid."""
+        conflicting_by_item = {}
+        for item_name in self._items:
+            conflicting = {}
+            descendants = self._descendants(item_name)
+            for conn in self._connections_by_source.get(item_name, ()):
+                sibling_connections = [
+                    x for x in self._connections_by_destination.get(conn.destination, []) if x != conn
+                ]
+                conflicting.update(
+                    {
+                        c.source: c.destination
+                        for c in sibling_connections
+                        if c.write_index < conn.write_index and c.source in descendants
+                    }
+                )
+            if conflicting:
+                conflicting_by_item[item_name] = conflicting
+        rows = []
+        for item_name, conflicting in conflicting_by_item.items():
+            row = []
+            for other_item_name, dest in conflicting.items():
+                row.append(f"{other_item_name} but needs to wait for it to write to {dest}")
+            if row:
+                rows.append(f"Item {item_name} cannot execute because it is a dependency for " + ", ".join(row))
+        msg = "\n".join(rows)
+        if msg:
+            raise EngineInitFailed(msg)
 
     def _make_connections(self, connections):
         """Returns a list of Connection instances based on given
@@ -295,7 +338,6 @@ class SpineEngine:
         """Waits until engine execution has finished."""
         if self._thread.is_alive():
             self._thread.join()
-        self._multiprocess_manager.shutdown()
 
     def run(self):
         """Starts db server manager the engine."""
@@ -557,20 +599,21 @@ class SpineEngine:
         resources_iterator = self._filtered_resources_iterator(
             item_name, forward_resource_stacks, backward_resources, self._timestamp
         )
-        item_lock = self._multiprocess_manager.Lock()
-        for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
-            self.resources_per_item[item_name] = (flt_fwd_resources, flt_bwd_resources)
-            item = self.make_item(item_name, ED.FORWARD)
-            item.filter_id = filter_id
-            thread = threading.Thread(
-                target=self._execute_item_filtered,
-                args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, item_lock, success),
-            )
-            threads.append(thread)
-        for thread in threads:
-            thread.start()
-        for thread in threads:
-            thread.join()
+        with mp.Manager() as multiprocess_manager:
+            item_lock = multiprocess_manager.Lock()
+            for flt_fwd_resources, flt_bwd_resources, filter_id in resources_iterator:
+                self.resources_per_item[item_name] = (flt_fwd_resources, flt_bwd_resources)
+                item = self.make_item(item_name, ED.FORWARD)
+                item.filter_id = filter_id
+                thread = threading.Thread(
+                    target=self._execute_item_filtered,
+                    args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, item_lock, success),
+                )
+                threads.append(thread)
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
         if success[0] == ItemExecutionFinishState.FAILURE:
             context.log.error(f"compute_fn() FAILURE with {item_name}, failed to execute")
             raise Failure()

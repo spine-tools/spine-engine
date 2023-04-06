@@ -403,19 +403,32 @@ class PersistentManagerBase:
 
     def interrupt_persistent(self):
         """Interrupts the persistent process."""
-        threading.Thread(target=self._do_interrupt_persistent).start()
+        queue = Queue()
+        thread = threading.Thread(target=self._do_interrupt_persistent, args=(queue,))
+        thread.start()
+        # Wait till the process becomes idle, then put None to the queue
         self._wait()
+        queue.put(None)
+        thread.join()
 
-    def _do_interrupt_persistent(self):
+    def _do_interrupt_persistent(self, queue):
         persistent = self._persistent  # Make local copy; other threads may set self._persistent to None while sleeping.
         if persistent is None:
             return
-        if sys.platform == "win32":
-            p = Process(target=_send_ctrl_c, args=(persistent.pid,))
-            p.start()
-            p.join()
-        else:
-            persistent.send_signal(signal.SIGINT)
+        while True:
+            if sys.platform == "win32":
+                p = Process(target=_send_ctrl_c, args=(persistent.pid,))
+                p.start()
+                p.join()
+            else:
+                persistent.send_signal(signal.SIGINT)
+            try:
+                # Wait 2 seconds to get an item from the queue, which means the process has become idle...
+                # Otherwise just keep interrupting it
+                queue.get(timeout=2)
+                break
+            except Empty:
+                pass
         self.set_running_until_completion(False)
 
     def is_persistent_alive(self):
