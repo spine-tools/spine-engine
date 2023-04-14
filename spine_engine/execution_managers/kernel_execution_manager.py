@@ -30,26 +30,27 @@ class _KernelManagerFactory(metaclass=Singleton):
     _kernel_managers = {}
     """Maps tuples (kernel name, group id) to associated KernelManager."""
     _key_by_connection_file = {}
-    """Maps connection file string to tuple (kernel_name, group_id). Mostly for fast lookup in ``restart_kernel()``"""
+    """Maps connection file path to filter_id (str). Mostly for fast lookup in ``restart_kernel()``"""
 
-    def _make_kernel_manager(self, kernel_name, group_id, server_ip):
+    def _make_kernel_manager(self, kernel_name, group_id, server_ip, f_id):
         """Creates a new kernel manager for given kernel and group id if none exists, and returns it.
 
         Args:
             kernel_name (str): the kernel
             group_id (str): item group that will execute using this kernel
             server_ip (str): Engine Server IP address. '127.0.0.1' when execution happens locally
+            f_id (str): Filter ID for storing a new kernel manager
 
         Returns:
             KernelManager
         """
+        # TODO: Check if group_id is needed here? Should it be if filter_id == "":
         if group_id is None:
             # Execute in isolation
             return KernelManager(kernel_name=kernel_name, ip=server_ip)
-        key = (kernel_name, group_id)
-        if key not in self._kernel_managers:
-            self._kernel_managers[key] = KernelManager(kernel_name=kernel_name, ip=server_ip)
-        return self._kernel_managers[key]
+        if f_id not in self._kernel_managers:
+            self._kernel_managers[f_id] = KernelManager(kernel_name=kernel_name, ip=server_ip)
+        return self._kernel_managers[f_id]
 
     def new_kernel_manager(self, kernel_name, group_id, logger, extra_switches=None, environment="", **kwargs):
         """Creates a new kernel manager for given kernel and group id if none exists.
@@ -68,7 +69,8 @@ class _KernelManagerFactory(metaclass=Singleton):
             KernelManager
         """
         server_ip = kwargs.pop("server_ip", "")
-        km = self._make_kernel_manager(kernel_name, group_id, server_ip)
+        filter_id = logger.msg_kernel_execution.filter_id
+        km = self._make_kernel_manager(kernel_name, group_id, server_ip, filter_id)
         conda_exe = kwargs.pop("conda_exe", "")
         if environment == "conda":
             try:
@@ -100,7 +102,7 @@ class _KernelManagerFactory(metaclass=Singleton):
                 # Insert switches right after the julia program
                 km.kernel_spec.argv[1:1] = extra_switches
             km.start_kernel(**kwargs)
-            self._key_by_connection_file[km.connection_file] = (kernel_name, group_id)
+            self._key_by_connection_file[km.connection_file] = filter_id
         msg = dict(type="kernel_started", connection_file=km.connection_file, **msg_head)
         logger.msg_kernel_execution.emit(msg)
         return km
@@ -169,6 +171,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         super().__init__(logger)
         self._msg_head = dict(kernel_name=kernel_name)
         self._commands = commands
+        print(commands)
         self._cmd_failed = False
         kwargs["stdout"] = open(os.devnull, 'w')
         kwargs["stderr"] = open(os.devnull, 'w')
