@@ -171,7 +171,6 @@ class KernelExecutionManager(ExecutionManagerBase):
         super().__init__(logger)
         self._msg_head = dict(kernel_name=kernel_name)
         self._commands = commands
-        print(commands)
         self._cmd_failed = False
         kwargs["stdout"] = open(os.devnull, 'w')
         kwargs["stderr"] = open(os.devnull, 'w')
