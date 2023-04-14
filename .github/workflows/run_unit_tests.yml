@@ -36,7 +36,6 @@ jobs:
         pip install .
         pip install --no-deps git+https://github.com/spine-tools/spine-items.git#egg=spine_items
         pip install coverage
-        pip install codecov
     - name: List packages
       run:
         pip list
@@ -48,5 +47,4 @@ jobs:
         coverage run -m unittest discover --verbose
       shell: bash
     - name: Upload coverage report to Codecov
-      run:
-        codecov
+      uses: codecov/codecov-action@v3
