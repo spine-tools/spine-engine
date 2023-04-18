@@ -11,8 +11,6 @@
 
 """
 Unit tests for ServerMessage class.
-:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   25.8.2021
 """
 
 import unittest

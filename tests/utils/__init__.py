@@ -12,6 +12,4 @@
 """
 Init file for utils package. Intentionally empty.
 
-:author: M. Marin (KTH)
-:date:   24.11.2019
 """

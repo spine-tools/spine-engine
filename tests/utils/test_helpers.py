@@ -12,8 +12,6 @@
 """
 Unit tests for chunk module.
 
-:authors: A. Soininen (VTT)
-:date:    21.6.2021
 """
 import unittest
 from spinedb_api.helpers import remove_credentials_from_url

@@ -11,8 +11,6 @@
 
 """
 Contains a class for extracting a project ZIP file into a new directory on server.
-:authors: P. Savolainen (VTT)
-:date:   29.8.2022
 """
 
 import os

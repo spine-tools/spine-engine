@@ -11,8 +11,6 @@
 
 """
 Unit tests for FileExtractor class.
-:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   23.8.2021
 """
 
 import unittest

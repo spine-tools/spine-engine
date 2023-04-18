@@ -12,8 +12,6 @@
 """
 Module contains MultithreadExecutor.
 
-:author: M. Marin (KTH)
-:date:   1.11.2020
 """
 
 import os

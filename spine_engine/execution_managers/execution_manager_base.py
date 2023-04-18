@@ -12,8 +12,6 @@
 """
 Contains the ExecutionManagerBase class.
 
-:authors: M. Marin (KTH)
-:date:   12.10.2020
 """
 
 

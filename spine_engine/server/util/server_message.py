@@ -11,8 +11,6 @@
 
 """
 Contains a helper class for JSON-based messages exchanged between server and clients.
-:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   23.08.2021
 """
 
 import json

@@ -11,8 +11,6 @@
 
 """
 Contains static methods for converting event and data information to JSON format and back.
-:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   27.08.2021
 """
 
 import base64

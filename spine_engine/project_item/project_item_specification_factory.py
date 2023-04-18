@@ -12,8 +12,6 @@
 """
 Contains project item specification factory.
 
-:authors: A. Soininen (VTT)
-:date:   6.5.2020
 """
 
 
