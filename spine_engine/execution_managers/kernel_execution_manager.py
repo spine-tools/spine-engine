@@ -19,6 +19,7 @@ Contains the KernelExecutionManager class and subclasses, and some convenience f
 import os
 import sys
 import subprocess
+import uuid
 from jupyter_client.manager import KernelManager
 from jupyter_client.kernelspec import NoSuchKernel
 from ..utils.helpers import Singleton
@@ -26,31 +27,56 @@ from .execution_manager_base import ExecutionManagerBase
 from spine_engine.execution_managers.conda_kernel_spec_manager import CondaKernelSpecManager
 
 
+class GroupedKernelManager(KernelManager):
+    """Kernel Manager that supports group ID's."""
+    def __init__(self, *args, **kwargs):
+        group_id = kwargs.pop("group_id", "")
+        super().__init__(*args, **kwargs)
+        self._group_id = group_id
+        self._is_busy = False
+
+    def group_id(self):
+        """Returns the group ID of this kernel manager."""
+        return self._group_id
+
+    def set_busy(self, f):
+        """Sets km busy. This is set according to the
+        status messages received from the IOPUB channel."""
+        self._is_busy = f
+
+    def is_busy(self):
+        """Returns whether km is busy or not."""
+        return self._is_busy
+
+
 class _KernelManagerFactory(metaclass=Singleton):
     _kernel_managers = {}
-    """Maps tuples (kernel name, group id) to associated KernelManager."""
+    """Maps filter_id (str) to associated KernelManager"""
     _key_by_connection_file = {}
-    """Maps connection file path to filter_id (str). Mostly for fast lookup in ``restart_kernel()``"""
+    """Maps connection file path to filter_id (str)"""
 
-    def _make_kernel_manager(self, kernel_name, group_id, server_ip, f_id):
-        """Creates a new kernel manager for given kernel and group id if none exists, and returns it.
+    def _make_kernel_manager(self, kernel_name, group_id, server_ip):
+        """Creates a new kernel manager if necessary or returns an existing one.
 
         Args:
             kernel_name (str): the kernel
             group_id (str): item group that will execute using this kernel
             server_ip (str): Engine Server IP address. '127.0.0.1' when execution happens locally
-            f_id (str): Filter ID for storing a new kernel manager
 
         Returns:
             KernelManager
         """
-        # TODO: Check if group_id is needed here? Should it be if filter_id == "":
-        if group_id is None:
-            # Execute in isolation
-            return KernelManager(kernel_name=kernel_name, ip=server_ip)
-        if f_id not in self._kernel_managers:
-            self._kernel_managers[f_id] = KernelManager(kernel_name=kernel_name, ip=server_ip)
-        return self._kernel_managers[f_id]
+        for k in self._kernel_managers:
+            # Reuse kernel manager if using same group id and kernel and it's idle
+            km = self._kernel_managers[k]
+            if km.group_id() == group_id and km.kernel_name == kernel_name:
+                if not km.is_busy():
+                    return km
+        # Spawn a new kernel manager
+        key = uuid.uuid4().hex
+        km = self._kernel_managers[key] = GroupedKernelManager(kernel_name=kernel_name, ip=server_ip, group_id=group_id)
+        self._key_by_connection_file[km.connection_file] = key
+        return km
 
     def new_kernel_manager(self, kernel_name, group_id, logger, extra_switches=None, environment="", **kwargs):
         """Creates a new kernel manager for given kernel and group id if none exists.
@@ -69,8 +95,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             KernelManager
         """
         server_ip = kwargs.pop("server_ip", "")
-        filter_id = logger.msg_kernel_execution.filter_id
-        km = self._make_kernel_manager(kernel_name, group_id, server_ip, filter_id)
+        km = self._make_kernel_manager(kernel_name, group_id, server_ip)
         conda_exe = kwargs.pop("conda_exe", "")
         if environment == "conda":
             try:
@@ -78,32 +103,32 @@ class _KernelManagerFactory(metaclass=Singleton):
             except Exception as err:
                 logger.msg_kernel_execution.emit(msg=dict(type="conda_not_found", error=err))
                 raise RuntimeError
-        msg_head = dict(kernel_name=kernel_name)
+        msg = dict(kernel_name=kernel_name)
         if not km.is_alive():
             try:
                 if not km.kernel_spec:
                     # Happens when a conda kernel spec with the requested name cannot be dynamically created
                     # i.e. the conda environment does not exist
-                    msg = dict(type="kernel_spec_not_found", **msg_head)
+                    msg["type"] = "kernel_spec_not_found"
                     logger.msg_kernel_execution.emit(msg)
                     raise RuntimeError
             except NoSuchKernel:
-                msg = dict(type="kernel_spec_not_found", **msg_head)
+                msg["type"] = "kernel_spec_not_found"
                 logger.msg_kernel_execution.emit(msg)
                 raise RuntimeError
             # Check that kernel spec executable is referring to a file that actually exists
             exe_path = km.kernel_spec.argv[0]
             if not os.path.exists(exe_path) and os.path.isabs(exe_path):
-                msg_head["kernel_exe_path"] = exe_path
-                msg = dict(type="kernel_spec_exe_not_found", **msg_head)
+                msg["type"] = "kernel_spec_exe_not_found"
+                msg["kernel_exe_path"] = exe_path
                 logger.msg_kernel_execution.emit(msg)
                 raise RuntimeError
             if extra_switches:
                 # Insert switches right after the julia program
                 km.kernel_spec.argv[1:1] = extra_switches
             km.start_kernel(**kwargs)
-            self._key_by_connection_file[km.connection_file] = filter_id
-        msg = dict(type="kernel_started", connection_file=km.connection_file, **msg_head)
+        msg["type"] = "kernel_started"
+        msg["connection_file"] = km.connection_file
         logger.msg_kernel_execution.emit(msg)
         return km
 
@@ -131,6 +156,21 @@ class _KernelManagerFactory(metaclass=Singleton):
         """
         key = self._key_by_connection_file.pop(connection_file, None)
         return self._kernel_managers.pop(key, None)
+
+    def kill_kernel_managers(self):
+        """Shuts down all kernel managers stored in the factory."""
+        while True:
+            try:
+                key, km = self._kernel_managers.popitem()
+                if km.is_alive():
+                    km.shutdown_kernel()
+            except KeyError:
+                break
+        self._key_by_connection_file.clear()
+
+    def n_kernel_managers(self):
+        """Returns the number of open kernel managers stored in the factory."""
+        return len(self._kernel_managers)
 
 
 _kernel_manager_factory = _KernelManagerFactory()
@@ -172,8 +212,8 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._msg_head = dict(kernel_name=kernel_name)
         self._commands = commands
         self._cmd_failed = False
-        kwargs["stdout"] = open(os.devnull, 'w')
-        kwargs["stderr"] = open(os.devnull, 'w')
+        self.std_out = kwargs["stdout"] = open(os.devnull, 'w')
+        self.std_err = kwargs["stderr"] = open(os.devnull, 'w')
         # Don't show console when frozen
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(
@@ -214,10 +254,18 @@ class KernelExecutionManager(ExecutionManagerBase):
         return True
 
     def _output_hook(self, msg):
-        """Catches messages from the IOPUB (PUB/SUB) channel and handle case when message type is 'error'.
-        'error' msg is a response to an execute_input msg."""
+        """Catches messages from the IOPUB (PUB/SUB) channel and
+        handles 'error' and 'status message tyoe cases. 'error'
+        msg is a response to an execute_input msg."""
         if msg["header"]["msg_type"] == "error":
             self._cmd_failed = True
+        elif msg["header"]["msg_type"] == "status":
+            # Set kernel manager busy if execution is starting or in progress
+            exec_state = msg["content"]["execution_state"]
+            if exec_state == "busy" or exec_state == "starting":
+                self._kernel_manager.set_busy(True)
+            else:  # exec_state == 'idle'
+                self._kernel_manager.set_busy(False)
 
     def stop_execution(self):
         if self._kernel_manager is not None:
