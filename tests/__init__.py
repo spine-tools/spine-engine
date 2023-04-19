@@ -12,6 +12,4 @@
 """
 Init file for tests package. Intentionally empty.
 
-:author: M. Marin (KTH)
-:date:   24.11.2019
 """

@@ -11,6 +11,4 @@
 
 """
 Init file for spine_engine.tests.server package.
-:author: P. Pääkkönen (VTT)
-:date:   18.08.2021
 """

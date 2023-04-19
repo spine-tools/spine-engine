@@ -11,8 +11,6 @@
 
 """
 Contains static methods for handling ZIP files.
-:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   23.08.2021
 """
 
 import os

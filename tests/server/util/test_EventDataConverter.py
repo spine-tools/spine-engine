@@ -11,8 +11,6 @@
 
 """
 Unit tests for EventDataConverter class.
-:author: P. Savolainen (VTT)
-:date:   27.8.2021
 """
 
 import unittest

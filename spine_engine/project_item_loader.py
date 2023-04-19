@@ -12,8 +12,6 @@
 """
 Contains :class:`ProjectItemLoader`.
 
-:author: A. Soininen (VTT)
-:date:   11.2.2021
 """
 from multiprocessing import Lock
 from .load_project_items import load_executable_item_classes, load_item_specification_factories

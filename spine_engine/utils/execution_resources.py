@@ -12,8 +12,6 @@
 """
 Utilities for managing execution resources such as processes.
 
-:authors: A. Soininen (VTT)
-:date:    9.11.2021
 """
 import threading
 

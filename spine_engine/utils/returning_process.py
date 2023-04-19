@@ -12,8 +12,6 @@
 """
 The ReturningProcess class.
 
-:authors: M. Marin (KTH)
-:date:    3.11.2020
 """
 
 import multiprocessing as mp

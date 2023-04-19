@@ -11,8 +11,6 @@
 """
 Contains Engine's IO manager.
 
-:authors: A. Soininen (VTT)
-:date:    6.7.2021
 """
 from dagster import IOManager, io_manager
 

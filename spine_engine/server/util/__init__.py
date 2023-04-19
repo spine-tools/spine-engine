@@ -12,6 +12,4 @@
 """
 This package contains utility classes of remote server part of the Spine Engine.
 
-:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:    23.8.2021
 """

@@ -12,8 +12,6 @@
 """
 Functions to (de)serialize stuff.
 
-:authors: P. Savolainen (VTT)
-:date:   10.1.2018
 """
 
 import os

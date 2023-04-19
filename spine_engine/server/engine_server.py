@@ -11,8 +11,6 @@
 
 """
 Contains EngineServer class for running a Zero-MQ server with Spine Engine.
-:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   19.08.2021
 """
 import json.decoder
 import os

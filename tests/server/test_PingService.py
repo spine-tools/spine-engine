@@ -11,8 +11,6 @@
 
 """
 Unit tests for PingService class.
-:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   13.09.2021
 """
 
 import unittest

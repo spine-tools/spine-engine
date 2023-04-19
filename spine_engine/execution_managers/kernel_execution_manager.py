@@ -12,8 +12,6 @@
 """
 Contains the KernelExecutionManager class and subclasses, and some convenience functions.
 
-:authors: M. Marin (KTH)
-:date:   12.10.2020
 """
 
 import os
