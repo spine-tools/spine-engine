@@ -31,6 +31,7 @@ class TestKernelExecutionManager(unittest.TestCase):
 
     def test_kernel_execution_manager(self):
         logger = MagicMock()
+        logger.msg_kernel_execution.filter_id = ""
         with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file:
             script_file.write('print("hello")')
             script_file.seek(0)
@@ -54,7 +55,9 @@ class TestKernelExecutionManager(unittest.TestCase):
 
     def test_kernel_manager_sharing(self):
         logger1 = MagicMock()
+        logger1.msg_kernel_execution.filter_id = ""
         logger2 = MagicMock()
+        logger2.msg_kernel_execution.filter_id = ""
         with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file1, tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file2:
             script_file1.write('print("hello")')
             script_file1.seek(0)
@@ -93,7 +96,9 @@ class TestKernelExecutionManager(unittest.TestCase):
 
     def test_two_kernel_managers(self):
         logger1 = MagicMock()
+        logger1.msg_kernel_execution.filter_id = ""
         logger2 = MagicMock()
+        logger2.msg_kernel_execution.filter_id = ""
         with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file1, tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file2:
             script_file1.write('print("hello")')
             script_file1.seek(0)
