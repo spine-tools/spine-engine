@@ -55,17 +55,20 @@ class _KernelManagerFactory(metaclass=Singleton):
     _key_by_connection_file = {}
     """Maps connection file path to filter_id (str)"""
 
-    def _make_kernel_manager(self, kernel_name, group_id, server_ip):
+    def _make_kernel_manager(self, kernel_name, group_id, server_ip, filter_id):
         """Creates a new kernel manager if necessary or returns an existing one.
 
         Args:
-            kernel_name (str): the kernel
-            group_id (str): item group that will execute using this kernel
+            kernel_name (str): The kernel
+            group_id (str): Item group that will execute using this kernel
             server_ip (str): Engine Server IP address. '127.0.0.1' when execution happens locally
+            filter_id (str): Filter Id
 
         Returns:
-            KernelManager
+            GroupedKernelManager
         """
+        if not filter_id == "":
+            group_id = filter_id  # Ignore group ID in case filter ID exists
         for k in self._kernel_managers:
             # Reuse kernel manager if using same group id and kernel and it's idle
             km = self._kernel_managers[k]
@@ -95,7 +98,8 @@ class _KernelManagerFactory(metaclass=Singleton):
             KernelManager
         """
         server_ip = kwargs.pop("server_ip", "")
-        km = self._make_kernel_manager(kernel_name, group_id, server_ip)
+        filter_id = logger.msg_kernel_execution.filter_id
+        km = self._make_kernel_manager(kernel_name, group_id, server_ip, filter_id)
         conda_exe = kwargs.pop("conda_exe", "")
         if environment == "conda":
             try:
