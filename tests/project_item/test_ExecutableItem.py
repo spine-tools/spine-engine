@@ -12,8 +12,6 @@
 """
 Unit tests for ExecutableItem.
 
-:author: A. Soininen (VTT)
-:date:   6.4.2020
 """
 from tempfile import TemporaryDirectory
 import unittest

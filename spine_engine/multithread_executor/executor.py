@@ -12,8 +12,6 @@
 """
 Module contains multithread_executor.
 
-:author: M. Marin (KTH)
-:date:   1.11.2020
 """
 
 from dagster.core.definitions.executor import Int, Field, RetryMode, check, executor, get_retries_config

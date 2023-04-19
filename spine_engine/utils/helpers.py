@@ -12,8 +12,6 @@
 """
 Helpers functions and classes.
 
-:authors: M. Marin (KTH)
-:date:   20.11.2019
 """
 import os
 import sys

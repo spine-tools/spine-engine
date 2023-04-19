@@ -12,8 +12,6 @@
 """
 Unit tests for command line args module.
 
-:author: M. Marin (KTH)
-:date:   12.10.2020
 """
 
 import unittest

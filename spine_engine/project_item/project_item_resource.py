@@ -12,8 +12,6 @@
 """
 Provides the ProjectItemResource class.
 
-:authors: M. Marin (KTH)
-:date:   29.4.2020
 """
 import copy
 import uuid

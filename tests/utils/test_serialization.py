@@ -12,8 +12,6 @@
 """
 Unit tests for serialization module.
 
-:author: A. Soininen (VTT)
-:date:   22.5.2021
 """
 import sys
 import unittest

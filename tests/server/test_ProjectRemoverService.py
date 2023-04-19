@@ -11,8 +11,6 @@
 
 """
 Unit tests for ProjectRemoverService class.
-:author: P. Savolainen (VTT)
-:date:   16.11.2022
 """
 
 import unittest

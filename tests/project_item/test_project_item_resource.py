@@ -11,8 +11,6 @@
 """
 Unit tests for ``project_item_resource`` module.
 
-:authors: A. Soininen
-:date:    8.8.2022
 """
 from contextlib import ExitStack
 from pathlib import Path

@@ -12,8 +12,6 @@
 """
 Functions to load project item modules.
 
-:author: A. Soininen (VTT)
-:date:   29.4.2020
 """
 import pathlib
 import importlib

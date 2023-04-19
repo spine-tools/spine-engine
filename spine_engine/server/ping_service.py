@@ -11,8 +11,6 @@
 
 """
 Contains a class for handling ping requests.
-:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   13.09.2021
 """
 
 import threading

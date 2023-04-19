@@ -11,8 +11,6 @@
 """
 Provides the ProjectItemInfo class.
 
-:authors: A. Soininen (VTT)
-:date:   29.4.2020
 """
 
 

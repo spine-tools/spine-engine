@@ -12,8 +12,6 @@
 """
 Setup script for Python's setuptools.
 
-:authors: M. Marin (KTH)
-:date:   20.11.2019
 """
 
 from setuptools import setup, find_packages

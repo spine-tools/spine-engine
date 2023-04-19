@@ -12,8 +12,6 @@
 """
 Contains ExecutableItem, a project item's counterpart in execution as well as support utilities.
 
-:authors: A. Soininen (VTT)
-:date:    30.3.2020
 """
 from hashlib import sha1
 from pathlib import Path

@@ -11,8 +11,6 @@
 """
 Contains Engine's exceptions.
 
-:authors: A. Soininen (VTT)
-:date:    30.6.2021
 """
 
 

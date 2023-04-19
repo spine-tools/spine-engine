@@ -12,8 +12,6 @@
 """
 Split command line arguments.
 
-:authors: P. Savolainen (VTT)
-:date:   10.1.2018
 """
 
 

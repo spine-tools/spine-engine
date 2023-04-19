@@ -12,8 +12,6 @@
 """
 Start script for Spine Engine Server.
 
-:author: P. Savolainen (VTT)
-:date:   01.09.2021
 """
 
 import sys
