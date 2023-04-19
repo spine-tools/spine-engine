@@ -29,6 +29,7 @@ from spine_engine.execution_managers.conda_kernel_spec_manager import CondaKerne
 
 class GroupedKernelManager(KernelManager):
     """Kernel Manager that supports group ID's."""
+
     def __init__(self, *args, **kwargs):
         group_id = kwargs.pop("group_id", "")
         super().__init__(*args, **kwargs)

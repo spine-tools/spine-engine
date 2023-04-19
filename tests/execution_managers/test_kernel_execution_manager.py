@@ -18,7 +18,6 @@ from jupyter_client.kernelspec import NATIVE_KERNEL_NAME  # =='python3'
 
 
 class TestKernelExecutionManager(unittest.TestCase):
-
     @staticmethod
     def release_exec_mngr_resources(mngr):
         """Frees resources after exec_mngr has been used. Consider putting
@@ -58,7 +57,9 @@ class TestKernelExecutionManager(unittest.TestCase):
         logger1.msg_kernel_execution.filter_id = ""
         logger2 = MagicMock()
         logger2.msg_kernel_execution.filter_id = ""
-        with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file1, tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file2:
+        with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file1, tempfile.NamedTemporaryFile(
+            "w+", encoding="utf-8"
+        ) as script_file2:
             script_file1.write('print("hello")')
             script_file1.seek(0)
             script_file2.write('print("hello again")')
@@ -99,7 +100,9 @@ class TestKernelExecutionManager(unittest.TestCase):
         logger1.msg_kernel_execution.filter_id = ""
         logger2 = MagicMock()
         logger2.msg_kernel_execution.filter_id = ""
-        with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file1, tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file2:
+        with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file1, tempfile.NamedTemporaryFile(
+            "w+", encoding="utf-8"
+        ) as script_file2:
             script_file1.write('print("hello")')
             script_file1.seek(0)
             script_file2.write('print("hello again")')
