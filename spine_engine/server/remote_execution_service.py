@@ -11,8 +11,6 @@
 
 """
 Contains RemoteExecutionService class that executes a single DAG on the Spine Engine Server.
-:authors: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   24.08.2021
 """
 
 import os

@@ -11,8 +11,6 @@
 
 """
 Contains a class for client requests received at server.
-:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   19.8.2021
 """
 
 import json

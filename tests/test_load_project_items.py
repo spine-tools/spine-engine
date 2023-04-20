@@ -12,8 +12,6 @@
 """
 Unit tests for `load_project_items` module.
 
-:author: A. Soininen (VTT)
-:date:   11.2.2021
 """
 import os.path
 import unittest

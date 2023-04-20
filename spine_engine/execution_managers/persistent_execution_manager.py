@@ -13,8 +13,6 @@
 Contains PersistentManagerBase, PersistentExecutionManagerBase classes and subclasses,
 as well as some convenience functions.
 
-:authors: M. Marin (KTH)
-:date:   12.10.2020
 """
 import uuid
 import socket

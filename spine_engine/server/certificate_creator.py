@@ -14,8 +14,6 @@ The function of this class can be used for generation of keys for enabling secur
 of the remote spine_server. The code has been copied based on an example at (by Chris Laws):
 https://github.com/zeromq/pyzmq/blob/main/examples/security/generate_certificates.py
 
-:authors: P. Pääkkönen (VTT)
-:date:   15.09.2021
 """
 
 import os

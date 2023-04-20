@@ -12,8 +12,6 @@
 """
 Contains the SpineEngine class for running Spine Toolbox DAGs.
 
-:authors: M. Marin (KTH)
-:date:   20.11.2019
 """
 
 from enum import Enum, unique

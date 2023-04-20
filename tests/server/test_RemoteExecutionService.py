@@ -11,8 +11,6 @@
 
 """
 Unit tests for RemoteExecutionService class.
-:author: P. Pääkkönen (VTT), P. Savolainen (VTT)
-:date:   24.8.2021
 """
 
 import unittest

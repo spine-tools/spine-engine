@@ -12,8 +12,6 @@
 """
 Contains the ProcessExecutionManager class.
 
-:authors: M. Marin (KTH)
-:date:   12.10.2020
 """
 
 import sys

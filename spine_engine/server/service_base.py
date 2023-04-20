@@ -11,8 +11,6 @@
 
 """
 Contains a base class for different services provided by the Spine Engine Server.
-:authors: P. Savolainen (VTT)
-:date:   30.9.2021
 """
 
 import zmq

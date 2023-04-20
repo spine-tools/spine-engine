@@ -15,8 +15,6 @@ Unit tests for `spine_engine` module.
 Inspired from tests for spinetoolbox.ExecutionInstance and spinetoolbox.ResourceMap,
 and intended to supersede them.
 
-:author: M. Marin (KTH)
-:date:   11.9.2019
 """
 import os.path
 import sys

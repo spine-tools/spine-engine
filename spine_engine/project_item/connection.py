@@ -11,8 +11,6 @@
 """
 Provides connection classes for linking project items.
 
-:authors: A. Soininen (VTT)
-:date:    12.2.2021
 """
 from dataclasses import asdict, dataclass, field
 import os

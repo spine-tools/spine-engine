@@ -11,8 +11,6 @@
 
 """
 Contains a class for remote persistent execution manager related actions.
-:authors: P. Savolainen (VTT)
-:date:   26.9.2022
 """
 
 import threading

@@ -11,8 +11,6 @@
 """
 Uni tests for the ``connection`` module.
 
-:authors: A. Soininen (VTT)
-:date:    18.2.2021
 """
 import os.path
 from tempfile import TemporaryDirectory

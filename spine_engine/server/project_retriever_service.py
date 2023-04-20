@@ -11,8 +11,6 @@
 
 """
 Contains a class for sending a finished project back to client.
-:authors: P. Savolainen (VTT)
-:date:   13.09.2021
 """
 
 import os

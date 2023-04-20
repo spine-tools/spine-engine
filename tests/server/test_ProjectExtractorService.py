@@ -11,8 +11,6 @@
 
 """
 Unit tests for ProjectExtractorService class.
-:author: P. Savolainen (VTT)
-:date:   9.9.2022
 """
 
 import unittest

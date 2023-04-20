@@ -11,8 +11,6 @@
 
 """
 Unit tests for start_server.py script.
-:author: P. Savolainen (VTT)
-:date:   28.10.2022
 """
 import unittest
 import time
