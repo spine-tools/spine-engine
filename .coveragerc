@@ -5,3 +5,6 @@ concurrency = multiprocessing, thread
 
 [report]
 ignore_errors = True
+
+[xml]
+output = ./coverage.xml
