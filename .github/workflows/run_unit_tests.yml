@@ -51,5 +51,4 @@ jobs:
         coverage run -m unittest discover --verbose
       shell: bash
     - name: Upload coverage report to Codecov
-      run:
-        uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v3
