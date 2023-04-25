@@ -22,7 +22,6 @@ from pathlib import Path
 from enum import Enum, auto, unique
 import networkx
 from jupyter_client.kernelspec import find_kernel_specs
-
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
 from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON
 
@@ -246,6 +245,57 @@ def get_julia_env(settings):
             return None
     project = settings.value("appSettings/juliaProjectPath", defaultValue="")
     return julia, project
+
+
+def make_connections(connections, execution_permits):
+    """Returns a list of Connections based on permitted
+    items. Creates Connections only for connections that
+    are coming from permitted items or leaving from
+    permitted items.
+
+    Args:
+        connections (list(Connection): Serialized connections in the DAG
+        execution_permits (dict):
+
+    Returns:
+        list: List of permitted Connections or an empty list if the DAG contains no connections
+    """
+    if not connections:
+        return list()
+    # List of item names that are permitted, i.e. selected for execution
+    permitted_items = [n for n, n_permitted in execution_permits.items() if n_permitted]
+    connections = connections_to_selected_items(connections, permitted_items)
+    return connections
+
+
+def connections_to_selected_items(connections, selected_items):
+    """Returns a list of Connections that have a permitted item
+    as its source or destination item.
+
+    Args:
+        connections (list(Connection): List of Connections
+        selected_items (list): List of project item names
+
+    returns:
+        list(Connection): Connections allowed in the current DAG
+    """
+    return [conn for conn in connections if conn.source in selected_items or conn.destination in selected_items]
+
+
+def dag_edges(connections):
+    """Collects DAG edges based on Connection instances.
+
+    Args:
+        connections (list(Connection): Connections
+
+    Returns:
+        dict: DAG edges. Mapping of source item (node) to a list of destination items (nodes)
+    """
+    edges = dict()
+    for connection in connections:
+        source, destination = connection.source, connection.destination
+        edges.setdefault(source, list()).append(destination)
+    return edges
 
 
 def make_dag(edges, permitted_nodes=None):

@@ -51,6 +51,8 @@ from .utils.helpers import (
     make_dag,
     ExecutionDirection as ED,
     ItemExecutionFinishState,
+    dag_edges,
+    make_connections,
 )
 from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
 from .utils.queue_logger import QueueLogger
@@ -122,11 +124,12 @@ class SpineEngine:
         if execution_permits is None:
             execution_permits = {}
         self._execution_permits = execution_permits
-        self._connections = self._make_connections(connections)
+        connections = list(map(Connection.from_dict, connections))  # Deserialize connections
+        self._connections = make_connections(connections, self._execution_permits)
         self._connections_by_source = dict()
         self._connections_by_destination = dict()
         self._validate_and_sort_connections()
-        dag_edges = self._get_dag_edges()  # Mapping of a source node (item) to a list of destination nodes (items)
+        edges = dag_edges(self._connections)  # Mapping of a source node (item) to a list of destination nodes (items)
         self._check_write_index()
         self._settings = AppSettings(settings if settings is not None else {})
         _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
@@ -139,7 +142,7 @@ class SpineEngine:
         self._item_specifications = self._make_item_specifications(
             specifications, project_item_loader, items_module_name
         )
-        self._dag = make_dag(dag_edges, self._execution_permits)
+        self._dag = make_dag(edges, self._execution_permits)
         _validate_dag(self._dag)
         self._dag_nodes = list(self._dag)  # Names of permitted items and their neighbors
         if jumps is None:
@@ -154,9 +157,9 @@ class SpineEngine:
         self._solids_by_items = {item_name: str(i) for i, item_name in enumerate(self._dag_nodes)}
         # Mapping of solid name to item name
         self._items_by_solids = {solid_name: item_name for item_name, solid_name in self._solids_by_items.items()}
-        # Same as dag_edges but item names are swapped to solid names
+        # Same as edges but item names are swapped to solid names
         self._back_injectors = {
-            self._solids_by_items[key]: [self._solids_by_items[x] for x in value] for key, value in dag_edges.items()
+            self._solids_by_items[key]: [self._solids_by_items[x] for x in value] for key, value in edges.items()
         }
         self._forth_injectors = inverted(self._back_injectors)
         self._pipeline = self._make_pipeline()
@@ -214,28 +217,6 @@ class SpineEngine:
         if msg:
             raise EngineInitFailed(msg)
 
-    def _make_connections(self, connections):
-        """Returns a list of Connection instances based on given
-        serialized connections and permitted items. Creates Connection
-        instances only for connections that are coming from permitted items
-        or leaving from permitted items.
-
-        Args:
-            connections (list): Serialized connections in the DAG
-
-        Returns:
-            list: List of permitted Connections or an empty list if the DAG contains no connections
-        """
-        if not connections:
-            return list()
-        # List of item names that are permitted, i.e. selected for execution
-        permitted_items = [n for n, n_permitted in self._execution_permits.items() if n_permitted]
-        # List of serialized connections that have a permitted item as its source or destination item
-        connections = [
-            conn for conn in connections if conn["from"][0] in permitted_items or conn["to"][0] in permitted_items
-        ]
-        return list(map(Connection.from_dict, connections))
-
     def _validate_and_sort_connections(self):
         """Checks and sorts Connections by source and destination.
 
@@ -249,18 +230,6 @@ class SpineEngine:
             source, destination = connection.source, connection.destination
             self._connections_by_source.setdefault(source, list()).append(connection)
             self._connections_by_destination.setdefault(destination, list()).append(connection)
-
-    def _get_dag_edges(self):
-        """Collects DAG edges based on Connection instances.
-
-        Returns:
-            dict: DAG edges. Mapping of source item (node) to a list of destination items (nodes)
-        """
-        edges = dict()
-        for connection in self._connections:
-            source, destination = connection.source, connection.destination
-            edges.setdefault(source, list()).append(destination)
-        return edges
 
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
         """Instantiates item specifications.
