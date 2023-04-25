@@ -2,9 +2,7 @@
 branch = True
 source = spine_engine
 concurrency = multiprocessing, thread
+disable_warnings = no-data-collected
 
 [report]
 ignore_errors = True
-
-[xml]
-output = ./coverage.xml
