@@ -22,7 +22,6 @@ from pathlib import Path
 from enum import Enum, auto, unique
 import networkx
 from jupyter_client.kernelspec import find_kernel_specs
-
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
 from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON
 
@@ -248,22 +247,79 @@ def get_julia_env(settings):
     return julia, project
 
 
-def make_dag(node_successors):
-    """Builds a DAG from node successors.
+def make_connections(connections, execution_permits):
+    """Returns a list of Connections based on permitted
+    items. Creates Connections only for connections that
+    are coming from permitted items or leaving from
+    permitted items.
 
     Args:
-        node_successors (dict): mapping from item name to list of its successors' names
+        connections (list(Connection): Serialized connections in the DAG
+        execution_permits (dict):
 
     Returns:
-        DiGraph: directed acyclic graph
+        list: List of permitted Connections or an empty list if the DAG contains no connections
+    """
+    if not connections:
+        return list()
+    # List of item names that are permitted, i.e. selected for execution
+    permitted_items = [n for n, n_permitted in execution_permits.items() if n_permitted]
+    connections = connections_to_selected_items(connections, permitted_items)
+    return connections
+
+
+def connections_to_selected_items(connections, selected_items):
+    """Returns a list of Connections that have a permitted item
+    as its source or destination item.
+
+    Args:
+        connections (list(Connection): List of Connections
+        selected_items (list): List of project item names
+
+    returns:
+        list(Connection): Connections allowed in the current DAG
+    """
+    return [conn for conn in connections if conn.source in selected_items or conn.destination in selected_items]
+
+
+def dag_edges(connections):
+    """Collects DAG edges based on Connection instances.
+
+    Args:
+        connections (list(Connection): Connections
+
+    Returns:
+        dict: DAG edges. Mapping of source item (node) to a list of destination items (nodes)
+    """
+    edges = dict()
+    for connection in connections:
+        source, destination = connection.source, connection.destination
+        edges.setdefault(source, list()).append(destination)
+    return edges
+
+
+def make_dag(edges, permitted_nodes=None):
+    """Builds a DAG from edges or if no edges exist, from permitted_nodes.
+
+    Args:
+        edges (dict): Mapping from item name to list of its successors' names
+        permitted_nodes (dict, optional): Mapping from item name to boolean value indicating if item is selected
+
+    Returns:
+        DiGraph: Directed acyclic graph
     """
     graph = networkx.DiGraph()
-    graph.add_nodes_from(node_successors)
-    for node, successors in node_successors.items():
-        if successors is None:
-            continue
-        for successor in successors:
-            graph.add_edge(node, successor)
+    if not edges:
+        # Make a single node DAG with no edges
+        nodes = [node_name for node_name, permitted in permitted_nodes.items() if permitted]
+        graph.add_nodes_from(nodes)
+    else:
+        graph.add_nodes_from(edges)
+        for node, successors in edges.items():
+            if successors is None:
+                continue
+            for successor in successors:
+                graph.add_edge(node, successor)
     return graph
 
 

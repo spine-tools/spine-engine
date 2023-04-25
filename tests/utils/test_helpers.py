@@ -19,27 +19,35 @@ from spine_engine.utils.helpers import make_dag, gather_leaf_data, get_file_size
 
 
 class TestMakeDAG(unittest.TestCase):
-    def test_empty_dag(self):
-        node_successors = {}
-        dag = make_dag(node_successors)
-        self.assertFalse(dag)
-
     def test_single_node(self):
-        node_successors = {"a": None}
-        dag = make_dag(node_successors)
+        edges = {"a": None}
+        dag = make_dag(edges)
         self.assertEqual(len(dag), 1)
 
     def test_two_nodes(self):
-        node_successors = {"a": ["b"], "b": None}
-        dag = make_dag(node_successors)
+        edges = {"a": ["b"], "b": None}
+        dag = make_dag(edges)
         self.assertEqual(set(dag.nodes), {"a", "b"})
         self.assertEqual(list(dag.edges), [("a", "b")])
 
     def test_branch(self):
-        node_successors = {"a": ["b", "c"], "b": None, "c": None}
-        dag = make_dag(node_successors)
+        edges = {"a": ["b", "c"], "b": None, "c": None}
+        dag = make_dag(edges)
         self.assertEqual(set(dag.nodes), {"a", "b", "c"})
         self.assertEqual(set(dag.edges), {("a", "b"), ("a", "c")})
+
+    def test_no_edges_one_node(self):
+        edges = {}
+        permitted_nodes = {"a": True}
+        dag = make_dag(edges, permitted_nodes)
+        self.assertEqual(len(dag), 1)
+
+    def test_no_edges_two_nodes(self):
+        # Note: This does not happen in practice because unconnected nodes will be executed on different Engines
+        edges = {}
+        permitted_nodes = {"a": True, "b": True}
+        dag = make_dag(edges, permitted_nodes)
+        self.assertEqual(len(dag), 2)
 
 
 class TestRemoveCredentialsFromUrl(unittest.TestCase):
