@@ -74,10 +74,9 @@ class _KernelManagerFactory(metaclass=Singleton):
             if km.group_id() == group_id and km.kernel_name == kernel_name:
                 if not km.is_busy():
                     return km
-        # Spawn a new kernel manager
         key = uuid.uuid4().hex
+        # Spawn a new kernel manager
         km = self._kernel_managers[key] = GroupedKernelManager(kernel_name=kernel_name, ip=server_ip, group_id=group_id)
-        self._key_by_connection_file[km.connection_file] = key
         return km
 
     def new_kernel_manager(self, kernel_name, group_id, logger, extra_switches=None, environment="", **kwargs):
@@ -130,10 +129,28 @@ class _KernelManagerFactory(metaclass=Singleton):
                 # Insert switches right after the julia program
                 km.kernel_spec.argv[1:1] = extra_switches
             km.start_kernel(**kwargs)
+            key = self.get_kernel_manager_key(km)
+            if not key:
+                raise RuntimeError  # Logic error
+            self._key_by_connection_file[km.connection_file] = key
         msg["type"] = "kernel_started"
         msg["connection_file"] = km.connection_file
         logger.msg_kernel_execution.emit(msg)
         return km
+
+    def get_kernel_manager_key(self, km):
+        """Returns the key of the given kernel manager stored in this factory.
+
+        Args:
+            km (GroupedKernelManager): Kernel managers
+
+        Returns:
+            str: Kernel Manager's 32 character key
+        """
+        for key, kernman in self._kernel_managers.items():
+            if kernman == km:
+                return key
+        return None
 
     def get_kernel_manager(self, connection_file):
         """Returns a kernel manager for given connection file if any.
@@ -142,10 +159,10 @@ class _KernelManagerFactory(metaclass=Singleton):
             connection_file (str): path of connection file
 
         Returns:
-            KernelManager or None
+            GroupedKernelManager or None
         """
-        key = self._key_by_connection_file.get(connection_file)
-        return self._kernel_managers.get(key)
+        key = self._key_by_connection_file.get(connection_file, None)
+        return self._kernel_managers.get(key, None)
 
     def pop_kernel_manager(self, connection_file):
         """Returns a kernel manager for given connection file if any.
@@ -155,10 +172,26 @@ class _KernelManagerFactory(metaclass=Singleton):
             connection_file (str): path of connection file
 
         Returns:
-            KernelManager or None
+            GroupedKernelManager or None
         """
         key = self._key_by_connection_file.pop(connection_file, None)
         return self._kernel_managers.pop(key, None)
+
+    def shutdown_kernel_manager(self, connection_file):
+        """Pops a kernel manager from factory and shuts it down.
+
+        Args:
+            connection_file (str): path of connection file
+
+        Returns:
+            bool: True if operation succeeded, False otherwise
+        """
+        km = self.pop_kernel_manager(connection_file)
+        if not km:  # Just to be safe
+            return
+        if km.is_alive():
+            km.shutdown_kernel(now=True)
+        return
 
     def kill_kernel_managers(self):
         """Shuts down all kernel managers stored in the factory."""
@@ -166,7 +199,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             try:
                 key, km = self._kernel_managers.popitem()
                 if km.is_alive():
-                    km.shutdown_kernel()
+                    km.shutdown_kernel(now=True)
             except KeyError:
                 break
         self._key_by_connection_file.clear()
@@ -185,6 +218,18 @@ def get_kernel_manager(connection_file):
 
 def pop_kernel_manager(connection_file):
     return _kernel_manager_factory.pop_kernel_manager(connection_file)
+
+
+def n_kernel_managers():
+    return _kernel_manager_factory.n_kernel_managers()
+
+
+def kill_all_kernel_managers():
+    _kernel_manager_factory.kill_kernel_managers()
+
+
+def shutdown_kernel_manager(connection_file):
+    return _kernel_manager_factory.shutdown_kernel_manager(connection_file)
 
 
 class KernelExecutionManager(ExecutionManagerBase):

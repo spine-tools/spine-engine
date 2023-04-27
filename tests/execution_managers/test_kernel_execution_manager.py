@@ -36,16 +36,18 @@ class TestKernelExecutionManager(unittest.TestCase):
             script_file.seek(0)
             d, fname = os.path.split(script_file.name)
             cmds = [f"%cd -q {d}", f"%run {fname}"]
+            # exec_mngr represents the manager on spine-items side
             exec_mngr = KernelExecutionManager(logger, NATIVE_KERNEL_NAME, *cmds, group_id="SomeGroup")
             self.assertTrue(exec_mngr._kernel_manager.is_alive())
             exec_mngr = self.replace_client(exec_mngr)
             retval = exec_mngr.run_until_complete()  # Run commands
             self.assertEqual(0, retval)
             self.assertTrue(exec_mngr._kernel_manager.is_alive())
+            connection_file = exec_mngr._kernel_manager.connection_file
             exec_mngr = self.release_exec_mngr_resources(exec_mngr)
             exec_mngr = None
             self.assertEqual(1, _kernel_manager_factory.n_kernel_managers())
-            _kernel_manager_factory.kill_kernel_managers()
+            _kernel_manager_factory.shutdown_kernel_manager(connection_file)
             self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
             message_emits = logger.msg_kernel_execution.emit.call_args_list
             expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
