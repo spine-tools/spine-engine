@@ -210,9 +210,9 @@ class SpineEngine:
         for item_name, conflicting in conflicting_by_item.items():
             row = []
             for other_item_name, dest in conflicting.items():
-                row.append(f"{other_item_name} but needs to wait for it to write to {dest}")
+                row.append(f"{other_item_name}, but {other_item_name} is set to write ealier to {dest}")
             if row:
-                rows.append(f"Item {item_name} cannot execute because it is a dependency for " + ", ".join(row))
+                rows.append(f"Item {item_name} cannot execute because it is a dependency to " + ", ".join(row))
         msg = "\n".join(rows)
         if msg:
             raise EngineInitFailed(msg)
