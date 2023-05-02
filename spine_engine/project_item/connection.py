@@ -17,11 +17,10 @@ import os
 import subprocess
 import tempfile
 from contextlib import ExitStack
-from datapackage import Package
 from multiprocessing import Lock
+from datapackage import Package
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
-from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
 from spinedb_api.purge import purge_url
 from spine_engine.project_item.project_item_resource import (
     file_resource,
@@ -292,14 +291,14 @@ class ResourceConvertingConnection(ConnectionBase):
     def notifications(self):
         """See base class."""
         notifications = []
-        for filter_type in (SCENARIO_FILTER_TYPE, TOOL_FILTER_TYPE):
+        for filter_type in (SCENARIO_FILTER_TYPE,):
             filter_settings = self._filter_settings
             if self.require_filter_online(filter_type) and (
                 not filter_settings.has_filter_online(filter_type)
                 if filter_settings.has_filters()
                 else not filter_settings.auto_online
             ):
-                filter_name = {SCENARIO_FILTER_TYPE: "scenario", TOOL_FILTER_TYPE: "tool"}[filter_type]
+                filter_name = {SCENARIO_FILTER_TYPE: "scenario"}[filter_type]
                 notifications.append(f"At least one {filter_name} filter must be active.")
         return notifications
 
@@ -392,7 +391,7 @@ class ResourceConvertingConnection(ConnectionBase):
 
     def ready_to_execute(self):
         """See base class."""
-        for filter_type in (SCENARIO_FILTER_TYPE, TOOL_FILTER_TYPE):
+        for filter_type in (SCENARIO_FILTER_TYPE,):
             if self.require_filter_online(filter_type) and not self._filter_settings.has_filter_online(filter_type):
                 return False
         return True
@@ -492,16 +491,6 @@ class Connection(ResourceConvertingConnection):
                     self._enabled_filter_names.setdefault(resource.label, {})[SCENARIO_FILTER_TYPE] = sorted(
                         list(enabled_scenarios)
                     )
-                tool_filter_settings = self._filter_settings.known_filters.get(resource.label, {}).get(
-                    TOOL_FILTER_TYPE, {}
-                )
-                available_tools = {row.name for row in db_map.query(db_map.tool_sq)}
-                enabled_tools = set()
-                for name in available_tools:
-                    if tool_filter_settings.get(name, self._filter_settings.auto_online):
-                        enabled_tools.add(name)
-                if enabled_tools:
-                    self._enabled_filter_names.setdefault(resource.label, {})[TOOL_FILTER_TYPE] = sorted(enabled_tools)
             finally:
                 db_map.connection.close()
 
