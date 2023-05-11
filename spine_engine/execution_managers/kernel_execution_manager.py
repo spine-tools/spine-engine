@@ -156,7 +156,7 @@ class _KernelManagerFactory(metaclass=Singleton):
         """Returns a kernel manager for given connection file if any.
 
         Args:
-            connection_file (str): path of connection file
+            connection_file (str): Path of connection file
 
         Returns:
             GroupedKernelManager or None
@@ -169,7 +169,7 @@ class _KernelManagerFactory(metaclass=Singleton):
         It also removes it from cache.
 
         Args:
-            connection_file (str): path of connection file
+            connection_file (str): Path of connection file
 
         Returns:
             GroupedKernelManager or None
@@ -181,17 +181,35 @@ class _KernelManagerFactory(metaclass=Singleton):
         """Pops a kernel manager from factory and shuts it down.
 
         Args:
-            connection_file (str): path of connection file
+            connection_file (str): Path of connection file
 
         Returns:
             bool: True if operation succeeded, False otherwise
         """
         km = self.pop_kernel_manager(connection_file)
-        if not km:  # Just to be safe
-            return
+        if not km:
+            return False
         if km.is_alive():
             km.shutdown_kernel(now=True)
-        return
+            return True
+        return False
+
+    def restart_kernel_manager(self, connection_file):
+        """Restarts kernel manager.
+
+        Args:
+            connection_file (str): Path of connection file
+
+        Returns:
+            bool: True if operation succeeded, False otherwise
+        """
+        km = self.get_kernel_manager(connection_file)
+        if not km:
+            return False
+        if km.is_alive():
+            km.restart_kernel(now=True)
+            return True
+        return False
 
     def kill_kernel_managers(self):
         """Shuts down all kernel managers stored in the factory."""
@@ -230,6 +248,10 @@ def kill_all_kernel_managers():
 
 def shutdown_kernel_manager(connection_file):
     return _kernel_manager_factory.shutdown_kernel_manager(connection_file)
+
+
+def restart_kernel_manager(connection_file):
+    return _kernel_manager_factory.restart_kernel_manager(connection_file)
 
 
 class KernelExecutionManager(ExecutionManagerBase):
