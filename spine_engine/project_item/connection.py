@@ -492,7 +492,7 @@ class Connection(ResourceConvertingConnection):
                         list(enabled_scenarios)
                     )
             finally:
-                db_map.connection.close()
+                db_map.close()
 
     @classmethod
     def from_dict(cls, connection_dict):
