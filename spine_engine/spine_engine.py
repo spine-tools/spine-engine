@@ -544,10 +544,10 @@ class SpineEngine:
         Args:
             context
             item_name (str)
-            forward_resource_stacks (list(tuple(ProjectItemResource))): resources comming from predecessor items -
+            forward_resource_stacks (list(tuple(ProjectItemResource))): resources coming from predecessor items -
                 one tuple of ProjectItemResource per item, where each element in the tuple corresponds to a filtered
                 execution of the item.
-            backward_resources (list(ProjectItemResource)): resources comming from successor items - just one
+            backward_resources (list(ProjectItemResource)): resources coming from successor items - just one
                 resource per item.
 
         Returns:
@@ -628,10 +628,10 @@ class SpineEngine:
 
         Args:
             item_name (str)
-            forward_resource_stacks (list(tuple(ProjectItemResource))): resources comming from predecessor items -
+            forward_resource_stacks (list(tuple(ProjectItemResource))): resources coming from predecessor items -
                 one tuple of ProjectItemResource per item, where each element in the tuple corresponds to a filtered
                 execution of the item.
-            backward_resources (list(ProjectItemResource)): resources comming from successor items - just one
+            backward_resources (list(ProjectItemResource)): resources coming from successor items - just one
                 resource per item.
             timestamp (str): timestamp for the execution filter
 
