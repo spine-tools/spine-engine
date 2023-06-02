@@ -14,8 +14,80 @@ Unit tests for chunk module.
 
 """
 import unittest
+
+from spine_engine.project_item.connection import Connection, FilterSettings
+from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.helpers import remove_credentials_from_url
-from spine_engine.utils.helpers import make_dag, gather_leaf_data, get_file_size
+from spine_engine.utils.helpers import make_dag, gather_leaf_data, get_file_size, required_items_for_execution
+
+
+class TestRequiredItemsForExecution(unittest.TestCase):
+    class NormalItem:
+        @staticmethod
+        def is_filter_terminus():
+            return False
+
+    class TerminusItem:
+        @staticmethod
+        def is_filter_terminus():
+            return True
+
+    _item_classes = {
+        "Normal": NormalItem,
+        "Terminus": TerminusItem,
+    }
+
+    def test_single_permitted_item(self):
+        items = {"item a": {"type": "Normal"}}
+        connections = []
+        permits = {"item a": True}
+        items = required_items_for_execution(items, connections, self._item_classes, permits)
+        self.assertEqual(items, {"item a"})
+
+    def test_two_connected_items_last_one_permitted(self):
+        items = {"item a": {"type": "Normal"}, "item b": {"type": "Normal"}}
+        connections = [Connection("item a", "right", "item b", "left")]
+        permits = {"item b": True}
+        items = required_items_for_execution(items, connections, self._item_classes, permits)
+        self.assertEqual(items, {"item b"})
+
+    def test_filtered_chain_last_item_permitted(self):
+        items = {"item a": {"type": "Normal"}, "item b": {"type": "Normal"}, "item c": {"type": "Normal"}}
+        filter_settings = FilterSettings({"resource@a": {SCENARIO_FILTER_TYPE: {"filter 1": True}}})
+        connections = [
+            Connection("item a", "right", "item b", "left", filter_settings=filter_settings),
+            Connection("item b", "right", "item c", "left"),
+        ]
+        permits = {"item c": True}
+        items = required_items_for_execution(items, connections, self._item_classes, permits)
+        self.assertEqual(items, {"item b", "item c"})
+
+    def test_filter_terminus_ends_filtered_fork(self):
+        items = {"item a": {"type": "Normal"}, "item b": {"type": "Terminus"}, "item c": {"type": "Normal"}}
+        filter_settings = FilterSettings({"resource@a": {SCENARIO_FILTER_TYPE: {"filter 1": True}}})
+        connections = [
+            Connection("item a", "right", "item b", "left", filter_settings=filter_settings),
+            Connection("item b", "right", "item c", "left"),
+        ]
+        permits = {"item c": True}
+        items = required_items_for_execution(items, connections, self._item_classes, permits)
+        self.assertEqual(items, {"item c"})
+
+    def test_filter_terminus_ends_filtered_fork_with_longer_chain(self):
+        items = {
+            "item a": {"type": "Normal"},
+            "item b": {"type": "Normal"},
+            "item c": {"type": "Terminus", "item d": {"type": "Normal"}},
+        }
+        filter_settings = FilterSettings({"resource@a": {SCENARIO_FILTER_TYPE: {"filter 1": True}}})
+        connections = [
+            Connection("item a", "right", "item b", "left", filter_settings=filter_settings),
+            Connection("item b", "right", "item c", "left"),
+            Connection("item c", "right", "item d", "left"),
+        ]
+        permits = {"item d": True}
+        items = required_items_for_execution(items, connections, self._item_classes, permits)
+        self.assertEqual(items, {"item d"})
 
 
 class TestMakeDAG(unittest.TestCase):

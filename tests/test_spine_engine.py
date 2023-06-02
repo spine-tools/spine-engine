@@ -99,7 +99,7 @@ class TestSpineEngine(unittest.TestCase):
         }
         return resource
 
-    def _run_engine(self, items, connections, execution_permits=None, jumps=None):
+    def _run_engine(self, items, connections, item_instances, execution_permits=None, jumps=None):
         if execution_permits is None:
             execution_permits = {item_name: True for item_name in items}
         with patch("spine_engine.spine_engine.create_timestamp") as mock_create_timestamp:
@@ -114,8 +114,8 @@ class TestSpineEngine(unittest.TestCase):
 
         def make_item(name, direction):
             if direction == ExecutionDirection.FORWARD:
-                return engine._items[name].pop(0)
-            return engine._items[name][0]
+                return item_instances[name].pop(0)
+            return item_instances[name][0]
 
         engine.make_item = make_item
         engine.run()
@@ -132,9 +132,10 @@ class TestSpineEngine(unittest.TestCase):
         url_a_fw = _make_url_resource("db:///url_a_fw")
         url_a_bw = _make_url_resource("db:///url_b_fw")
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
-        items = {"item_a": [mock_item_a]}
+        item_instances = {"item_a": [mock_item_a]}
+        items = {"item_a": {"type": "TestItem"}}
         connections = []
-        self._run_engine(items, connections)
+        self._run_engine(items, connections, item_instances)
         item_a_execute_args = [[[], []]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         mock_item_a.exclude_execution.assert_not_called()
@@ -151,12 +152,13 @@ class TestSpineEngine(unittest.TestCase):
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
-        items = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
+        item_instances = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
+        items = {"item_a": {"type": "TestItem"}, "item_b": {"type": "TestItem"}, "item_c": {"type": "TestItem"}}
         connections = [
             {"from": ("item_a", "right"), "to": ("item_b", "left")},
             {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
         ]
-        self._run_engine(items, connections)
+        self._run_engine(items, connections, item_instances)
         expected_bw_resource = self._default_backward_url_resource("db:///url_b_bw", "item_a", "item_b")
         item_a_execute_args = [[[], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
@@ -185,12 +187,13 @@ class TestSpineEngine(unittest.TestCase):
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
-        items = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
+        item_instances = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
+        items = {"item_a": {"type": "TestItem"}, "item_b": {"type": "TestItem"}, "item_c": {"type": "TestItem"}}
         connections = [
             {"from": ("item_a", "right"), "to": ("item_b", "left")},
             {"from": ("item_a", "bottom"), "to": ("item_c", "left")},
         ]
-        self._run_engine(items, connections)
+        self._run_engine(items, connections, item_instances)
         expected_bw_resource1 = self._default_backward_url_resource("db:///url_b_bw", "item_a", "item_b")
         expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_a", "item_c")
         item_a_execute_args = [[[], [expected_bw_resource1, expected_bw_resource2]]]
@@ -218,12 +221,13 @@ class TestSpineEngine(unittest.TestCase):
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
-        items = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
+        item_instances = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
+        items = {"item_a": {"type": "TestItem"}, "item_b": {"type": "TestItem"}, "item_c": {"type": "TestItem"}}
         connections = [
             {"from": ("item_a", "right"), "to": ("item_c", "left")},
             {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
         ]
-        self._run_engine(items, connections)
+        self._run_engine(items, connections, item_instances)
         expected_bw_resource = self._default_backward_url_resource("db:///url_c_bw", "item_a", "item_c")
         item_a_execute_args = [[[], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
@@ -249,13 +253,14 @@ class TestSpineEngine(unittest.TestCase):
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
-        items = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
+        item_instances = {"item_a": [mock_item_a], "item_b": [mock_item_b], "item_c": [mock_item_c]}
+        items = {"item_a": {"type": "TestItem"}, "item_b": {"type": "TestItem"}, "item_c": {"type": "TestItem"}}
         connections = [
             {"from": ("item_a", "right"), "to": ("item_b", "left")},
             {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
         ]
         execution_permits = {"item_a": True, "item_b": False, "item_c": True}
-        self._run_engine(items, connections, execution_permits=execution_permits)
+        self._run_engine(items, connections, item_instances, execution_permits=execution_permits)
         expected_bw_resource = self._default_backward_url_resource("db:///url_b_bw", "item_a", "item_b")
         item_a_execute_args = [[[], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
@@ -289,10 +294,15 @@ class TestSpineEngine(unittest.TestCase):
             mock_item_b2 = self._mock_item("item_b", resources_forward=[url_b_fw2], resources_backward=[])
             mock_item_c1 = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
             mock_item_c2 = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
-            items = {
+            item_instances = {
                 "item_a": [mock_item_a],
                 "item_b": [mock_item_b1, mock_item_b2],
                 "item_c": [mock_item_c1, mock_item_c2],
+            }
+            items = {
+                "item_a": {"type": "TestItem"},
+                "item_b": {"type": "TestItem"},
+                "item_c": {"type": "TestItem"},
             }
             connections = [
                 {
@@ -302,7 +312,7 @@ class TestSpineEngine(unittest.TestCase):
                 },
                 {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
             ]
-            self._run_engine(items, connections)
+            self._run_engine(items, connections, item_instances)
             item_a_execution_args = [[[], []]]
             self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execution_args)
             self.assertEqual(mock_item_a.filter_id, "")
@@ -353,7 +363,12 @@ class TestSpineEngine(unittest.TestCase):
             mock_item_b1 = self._mock_item("item_b", resources_forward=[], resources_backward=[])
             mock_item_b2 = self._mock_item("item_b", resources_forward=[], resources_backward=[])
             mock_item_c = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
-            items = {"item_a": [mock_item_a], "item_b": [mock_item_b1, mock_item_b2], "item_c": [mock_item_c]}
+            item_instances = {"item_a": [mock_item_a], "item_b": [mock_item_b1, mock_item_b2], "item_c": [mock_item_c]}
+            items = {
+                "item_a": {"type": "TestItem"},
+                "item_b": {"type": "TestItem"},
+                "item_c": {"type": "TestItem"},
+            }
             connections = [
                 {
                     "from": ("item_a", "right"),
@@ -362,7 +377,7 @@ class TestSpineEngine(unittest.TestCase):
                 },
                 {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
             ]
-            self._run_engine(items, connections)
+            self._run_engine(items, connections, item_instances)
             item_a_execution_args = [[[], []]]
             self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execution_args)
             self.assertEqual(mock_item_a.filter_id, "")
@@ -409,10 +424,15 @@ class TestSpineEngine(unittest.TestCase):
             )
             mock_item_c1 = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
             mock_item_c2 = self._mock_item("item_c", resources_forward=[], resources_backward=[url_c_bw])
-            items = {
+            item_instances = {
                 "item_a": [mock_item_a],
                 "item_b": [mock_item_b1, mock_item_b2],
                 "item_c": [mock_item_c1, mock_item_c2],
+            }
+            items = {
+                "item_a": {"type": "TestItem"},
+                "item_b": {"type": "TestItem"},
+                "item_c": {"type": "TestItem"},
             }
             connections = [
                 {
@@ -422,7 +442,7 @@ class TestSpineEngine(unittest.TestCase):
                 },
                 {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
             ]
-            self._run_engine(items, connections)
+            self._run_engine(items, connections, item_instances)
             item_a_execution_args = [[[], []]]
             self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execution_args)
             self.assertEqual(mock_item_a.filter_id, "")
@@ -491,10 +511,15 @@ class TestSpineEngine(unittest.TestCase):
             mock_item_c2 = self._mock_item("item_c", resources_forward=[], resources_backward=[])
             mock_item_c3 = self._mock_item("item_c", resources_forward=[], resources_backward=[])
             mock_item_c4 = self._mock_item("item_c", resources_forward=[], resources_backward=[])
-            items = {
+            item_instances = {
                 "item_a": [mock_item_a],
                 "item_b": [mock_item_b],
                 "item_c": [mock_item_c1, mock_item_c2, mock_item_c3, mock_item_c4],
+            }
+            items = {
+                "item_a": {"type": "TestItem"},
+                "item_b": {"type": "TestItem"},
+                "item_c": {"type": "TestItem"},
             }
             connections = [
                 {
@@ -508,7 +533,7 @@ class TestSpineEngine(unittest.TestCase):
                     "disabled_filters": {url_b_fw.label: {"scenario_filter": [], "tool_filter": []}},
                 },
             ]
-            self._run_engine(items, connections)
+            self._run_engine(items, connections, item_instances)
             item_a_execution_args = [[[], []]]
             self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execution_args)
             item_b_execution_args = [[[], []]]
@@ -577,12 +602,19 @@ class TestSpineEngine(unittest.TestCase):
             mock_item_e2 = self._mock_item("item_e", resources_forward=[], resources_backward=[])
             mock_item_e3 = self._mock_item("item_e", resources_forward=[], resources_backward=[])
             mock_item_e4 = self._mock_item("item_e", resources_forward=[], resources_backward=[])
-            items = {
+            item_instances = {
                 "item_a": [mock_item_a],
                 "item_b": [mock_item_b],
                 "item_c": [mock_item_c1, mock_item_c2],
                 "item_d": [mock_item_d1, mock_item_d2],
                 "item_e": [mock_item_e1, mock_item_e2, mock_item_e3, mock_item_e4],
+            }
+            items = {
+                "item_a": {"type": "TestItem"},
+                "item_b": {"type": "TestItem"},
+                "item_c": {"type": "TestItem"},
+                "item_d": {"type": "TestItem"},
+                "item_e": {"type": "TestItem"},
             }
             connections = [
                 {
@@ -598,7 +630,7 @@ class TestSpineEngine(unittest.TestCase):
                 {"from": ("item_c", "right"), "to": ("item_e", "left")},
                 {"from": ("item_d", "bottom"), "to": ("item_e", "top")},
             ]
-            self._run_engine(items, connections)
+            self._run_engine(items, connections, item_instances)
             item_a_execution_args = [[[], []]]
             self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execution_args)
             self.assertEqual(mock_item_a.filter_id, "")
@@ -699,11 +731,10 @@ class TestSpineEngine(unittest.TestCase):
 
     def test_self_jump_succeeds(self):
         mock_item = self._mock_item("item", resources_forward=[], resources_backward=[])
-        items = {"item": mock_item}
+        items = {"item": {"type": "TestItem"}}
         connections = []
         jumps = [Jump("item", "bottom", "item", "top", self._LOOP_TWICE).to_dict()]
         execution_permits = {"item": True}
-        mock_lock = object()
 
         engine = SpineEngine(
             items=items,
@@ -712,7 +743,7 @@ class TestSpineEngine(unittest.TestCase):
             execution_permits=execution_permits,
             items_module_name="items_module",
         )
-        engine.make_item = lambda name, direction: engine._items[name]
+        engine.make_item = lambda name, direction: mock_item
         engine.run()
         lock_1 = mock_item.execute.call_args_list[0].args[-1]
         lock_2 = mock_item.execute.call_args_list[1].args[-1]
@@ -733,7 +764,13 @@ class TestSpineEngine(unittest.TestCase):
         resource_fw_d = _make_url_resource("db:///fw_d")
         resource_bw_d = _make_url_resource("db:///bw_d")
         item_d = self._mock_item("d", resources_forward=[resource_fw_d], resources_backward=[resource_bw_d])
-        items = {"a": [item_a], "b": [item_b, item_b], "c": [item_c, item_c], "d": [item_d]}
+        item_instances = {"a": [item_a], "b": [item_b, item_b], "c": [item_c, item_c], "d": [item_d]}
+        items = {
+            "a": {"type": "TestItem"},
+            "b": {"type": "TestItem"},
+            "c": {"type": "TestItem"},
+            "d": {"type": "TestItem"},
+        }
         connections = [
             c.to_dict()
             for c in (
@@ -743,7 +780,7 @@ class TestSpineEngine(unittest.TestCase):
             )
         ]
         jumps = [Jump("c", "right", "b", "right", self._LOOP_TWICE).to_dict()]
-        self._run_engine(items, connections, jumps=jumps)
+        self._run_engine(items, connections, item_instances, jumps=jumps)
         self._assert_resource_args(
             item_a.execute.call_args_list, [[[], [self._default_backward_url_resource("db:///bw_b", "a", "b")]]]
         )
@@ -782,7 +819,8 @@ class TestSpineEngine(unittest.TestCase):
         resource_fw_c = _make_url_resource("db:///fw_c")
         resource_bw_c = _make_url_resource("db:///bw_c")
         item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
-        items = {"a": 2 * [item_a], "b": 4 * [item_b], "c": 2 * [item_c]}
+        item_instances = {"a": 2 * [item_a], "b": 4 * [item_b], "c": 2 * [item_c]}
+        items = {"a": {"type": "TestItem"}, "b": {"type": "TestItem"}, "c": {"type": "TestItem"}}
         connections = [
             c.to_dict() for c in (Connection("a", "right", "b", "left"), Connection("b", "bottom", "c", "top"))
         ]
@@ -790,7 +828,7 @@ class TestSpineEngine(unittest.TestCase):
             Jump("c", "right", "a", "right", self._LOOP_TWICE).to_dict(),
             Jump("b", "top", "b", "top", self._LOOP_TWICE).to_dict(),
         ]
-        self._run_engine(items, connections, jumps=jumps)
+        self._run_engine(items, connections, item_instances, jumps=jumps)
         expected = 2 * [[[], [self._default_backward_url_resource("db:///bw_b", "a", "b")]]]
         self._assert_resource_args(item_a.execute.call_args_list, expected)
         expected = 4 * [
