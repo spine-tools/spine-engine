@@ -264,6 +264,18 @@ class TestFilterSettings(unittest.TestCase):
         self.assertFalse(settings.has_filter_online(SCENARIO_FILTER_TYPE))
         self.assertFalse(settings.has_filter_online(TOOL_FILTER_TYPE))
 
+    def test_has_any_filter_online_returns_true_when_filters_are_online(self):
+        settings = FilterSettings(
+            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": False}, TOOL_FILTER_TYPE: {"tool_1": True}}}
+        )
+        self.assertTrue(settings.has_any_filter_online())
+
+    def test_has_any_filter_online_returns_false_when_all_filters_are_offline(self):
+        settings = FilterSettings(
+            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": False}, TOOL_FILTER_TYPE: {"tool_1": False}}}
+        )
+        self.assertFalse(settings.has_any_filter_online())
+
 
 if __name__ == "__main__":
     unittest.main()

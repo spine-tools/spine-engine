@@ -185,6 +185,18 @@ class FilterSettings:
                     return True
         return False
 
+    def has_any_filter_online(self):
+        """Tests in any filter is online.
+
+        Returns:
+            bool: True if any filter is online, False otherwise
+        """
+        for filters_by_type in self.known_filters.values():
+            for filters in filters_by_type.values():
+                if any(filters.values()):
+                    return True
+        return False
+
     def has_filter_online(self, filter_type):
         """Tests if any filter of given type is online.
 
@@ -192,10 +204,10 @@ class FilterSettings:
             filter_type (str): filter type to test
 
         Returns:
-            bool: True if any scenario filter is online, False otherwise
+            bool: True if any filter of filter_type is online, False otherwise
         """
         for filters_by_type in self.known_filters.values():
-            if any(online for online in filters_by_type.get(filter_type, {}).values()):
+            if any(filters_by_type.get(filter_type, {}).values()):
                 return True
         return False
 
@@ -277,6 +289,14 @@ class ResourceConvertingConnection(ConnectionBase):
     def is_filter_online_by_default(self):
         """True if new filters should be online by default."""
         return self._filter_settings.auto_online
+
+    def has_filters_online(self):
+        """Tests if connection has any online filters.
+
+        Returns:
+            bool: True if there are online filters, False otherwise
+        """
+        return self._filter_settings.has_any_filter_online()
 
     def require_filter_online(self, filter_type):
         """Tests if online filters of given type are required for execution.
