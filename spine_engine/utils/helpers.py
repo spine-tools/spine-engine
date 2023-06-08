@@ -13,9 +13,11 @@
 Helpers functions and classes.
 
 """
+import collections
 import os
 import sys
 import datetime
+import itertools
 import time
 import json
 from pathlib import Path
@@ -247,23 +249,132 @@ def get_julia_env(settings):
     return julia, project
 
 
-def make_connections(connections, execution_permits):
+def required_items_for_execution(items, connections, executable_item_classes, execution_permits):
+    """Builds a list of names of items that are required for execution.
+
+    An item is required if
+
+    - it has an execution permit
+    - the item is part of a filtered fork that contains an item that has an execution permit
+
+    Args:
+        items (dict): mapping from item name to item dict
+        connections (list of Connection): connections
+        executable_item_classes (dict): mapping from item type to its executable class
+        execution_permits (dict): item execution permits
+
+    Returns:
+        set of str: names of required items
+    """
+    first_filter_fork_nodes = _first_filter_fork_nodes(connections)
+    filter_fork_terminus_nodes = _filter_fork_termini(items, executable_item_classes)
+    dependent_paths = _filtered_fork_paths(
+        make_dag(dag_edges(connections), execution_permits), first_filter_fork_nodes, filter_fork_terminus_nodes
+    )
+    items_required_predecessors = _dependent_items_per_item(dependent_paths)
+    required_items = {item for item, is_permitted in execution_permits.items() if is_permitted}
+    for item in list(required_items):
+        required_items |= items_required_predecessors.get(item, set())
+    return required_items
+
+
+def _first_filter_fork_nodes(connections):
+    """Collects nodes that start a filtered fork.
+
+    Args:
+        connections (Iterable of Connection): connections
+
+    Returns:
+        set of str: item names
+    """
+    nodes = set()
+    for connection in connections:
+        if connection.has_filters_online():
+            nodes.add(connection.destination)
+    return nodes
+
+
+def _filter_fork_termini(items, executable_item_classes):
+    """Collects nodes that terminate a filtered fork.
+
+    Args:
+        items (dict): mapping from item name to item dict
+        executable_item_classes (dict): mapping from item type to corresponding executable item class
+
+    Returns:
+        set of str: item names
+    """
+    termini = set()
+    for name, item_dict in items.items():
+        if executable_item_classes[item_dict["type"]].is_filter_terminus():
+            termini.add(name)
+    return termini
+
+
+def _filtered_fork_paths(dag, first_filter_fork_nodes, filter_fork_terminus_nodes):
+    """Collects all simple paths within given DAG that will be forked.
+
+    Args:
+        dag (DiGraph): DAG
+        first_filter_fork_nodes (set of str): names of fork staring items
+        filter_fork_terminus_nodes (set of str): names of fork ending items
+
+    Returns:
+        list of list of str: items names along the paths
+    """
+    sources = [node for node, in_degree in dag.in_degree if in_degree == 0]
+    targets = [node for node, out_degree in dag.out_degree if out_degree == 0]
+    paths = []
+    for source, target in itertools.product(sources, targets):
+        for path in networkx.all_simple_paths(dag, source, target):
+            gather = False
+            gathered = []
+            for node in path:
+                if node in first_filter_fork_nodes:
+                    gather = True
+                if node in filter_fork_terminus_nodes and gather:
+                    if gathered:
+                        paths.append(gathered)
+                        gathered = []
+                    gather = False
+                if gather:
+                    gathered.append(node)
+            if gathered:
+                paths.append(gathered)
+    return paths
+
+
+def _dependent_items_per_item(fork_paths):
+    """Collects dependent items for each project item.
+
+    Args:
+        fork_paths (list of list of str): item names along fork paths
+
+    Returns:
+        dict: mapping from item name to a set of the names of its dependant items
+    """
+    items_dependent_nodes = collections.defaultdict(set)
+    for path in fork_paths:
+        for i, node in enumerate(path[1:]):
+            items_dependent_nodes[node] |= set(path[: i + 1])
+    return items_dependent_nodes
+
+
+def make_connections(connections, permitted_items):
     """Returns a list of Connections based on permitted
     items. Creates Connections only for connections that
     are coming from permitted items or leaving from
     permitted items.
 
     Args:
-        connections (list(Connection): Serialized connections in the DAG
-        execution_permits (dict):
+        connections (list of Connection): connections in the DAG
+        permitted_items (set of str): names of permitted items
 
     Returns:
-        list: List of permitted Connections or an empty list if the DAG contains no connections
+        list of Connection: List of permitted Connections or an empty list if the DAG contains no connections
     """
     if not connections:
         return list()
-    # List of item names that are permitted, i.e. selected for execution
-    permitted_items = [n for n, n_permitted in execution_permits.items() if n_permitted]
     connections = connections_to_selected_items(connections, permitted_items)
     return connections
 
@@ -274,10 +385,10 @@ def connections_to_selected_items(connections, selected_items):
 
     Args:
         connections (list(Connection): List of Connections
-        selected_items (list): List of project item names
+        selected_items (set of str): names of permitted items
 
-    returns:
-        list(Connection): Connections allowed in the current DAG
+    Returns:
+        list of Connection: Connections allowed in the current DAG
     """
     return [conn for conn in connections if conn.source in selected_items or conn.destination in selected_items]
 
