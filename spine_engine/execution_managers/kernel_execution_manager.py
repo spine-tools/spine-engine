@@ -103,7 +103,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             if not os.path.exists(conda_exe):
                 logger.msg_kernel_execution.emit(msg=dict(type="conda_not_found"))
                 self._kernel_managers.pop(self.get_kernel_manager_key(km))
-                raise RuntimeError
+                return None
             km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
         msg = dict(kernel_name=kernel_name)
         if not km.is_alive():
@@ -114,12 +114,12 @@ class _KernelManagerFactory(metaclass=Singleton):
                     msg["type"] = "conda_kernel_spec_not_found"
                     logger.msg_kernel_execution.emit(msg)
                     self._kernel_managers.pop(self.get_kernel_manager_key(km))  # Delete failed kernel manager
-                    raise RuntimeError
+                    return None
             except NoSuchKernel:
                 msg["type"] = "kernel_spec_not_found"
                 logger.msg_kernel_execution.emit(msg)
                 self._kernel_managers.pop(self.get_kernel_manager_key(km))
-                raise RuntimeError
+                return None
             # Check that kernel spec executable is referring to a file that actually exists
             exe_path = km.kernel_spec.argv[0]
             if not os.path.exists(exe_path) and os.path.isabs(exe_path):
@@ -127,14 +127,14 @@ class _KernelManagerFactory(metaclass=Singleton):
                 msg["kernel_exe_path"] = exe_path
                 logger.msg_kernel_execution.emit(msg)
                 self._kernel_managers.pop(self.get_kernel_manager_key(km))
-                raise RuntimeError
+                return None
             if extra_switches:
                 # Insert switches right after the julia program
                 km.kernel_spec.argv[1:1] = extra_switches
             km.start_kernel(**kwargs)
             key = self.get_kernel_manager_key(km)
             if not key:
-                raise RuntimeError  # Logic error
+                return None  # Logic error
             self._key_by_connection_file[km.connection_file] = key
         msg["type"] = "kernel_started"
         msg["connection_file"] = km.connection_file
