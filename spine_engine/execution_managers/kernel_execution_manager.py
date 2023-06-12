@@ -100,23 +100,25 @@ class _KernelManagerFactory(metaclass=Singleton):
         km = self._make_kernel_manager(kernel_name, group_id, server_ip, filter_id)
         conda_exe = kwargs.pop("conda_exe", "")
         if environment == "conda":
-            try:
-                km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
-            except Exception as err:
-                logger.msg_kernel_execution.emit(msg=dict(type="conda_not_found", error=err))
+            if not os.path.exists(conda_exe):
+                logger.msg_kernel_execution.emit(msg=dict(type="conda_not_found"))
+                self._kernel_managers.pop(self.get_kernel_manager_key(km))
                 raise RuntimeError
+            km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
         msg = dict(kernel_name=kernel_name)
         if not km.is_alive():
             try:
                 if not km.kernel_spec:
                     # Happens when a conda kernel spec with the requested name cannot be dynamically created
                     # i.e. the conda environment does not exist
-                    msg["type"] = "kernel_spec_not_found"
+                    msg["type"] = "conda_kernel_spec_not_found"
                     logger.msg_kernel_execution.emit(msg)
+                    self._kernel_managers.pop(self.get_kernel_manager_key(km))  # Delete failed kernel manager
                     raise RuntimeError
             except NoSuchKernel:
                 msg["type"] = "kernel_spec_not_found"
                 logger.msg_kernel_execution.emit(msg)
+                self._kernel_managers.pop(self.get_kernel_manager_key(km))
                 raise RuntimeError
             # Check that kernel spec executable is referring to a file that actually exists
             exe_path = km.kernel_spec.argv[0]
@@ -124,6 +126,7 @@ class _KernelManagerFactory(metaclass=Singleton):
                 msg["type"] = "kernel_spec_exe_not_found"
                 msg["kernel_exe_path"] = exe_path
                 logger.msg_kernel_execution.emit(msg)
+                self._kernel_managers.pop(self.get_kernel_manager_key(km))
                 raise RuntimeError
             if extra_switches:
                 # Insert switches right after the julia program
@@ -142,7 +145,7 @@ class _KernelManagerFactory(metaclass=Singleton):
         """Returns the key of the given kernel manager stored in this factory.
 
         Args:
-            km (GroupedKernelManager): Kernel managers
+            km (GroupedKernelManager): Kernel manager
 
         Returns:
             str: Kernel Manager's 32 character key
