@@ -148,6 +148,15 @@ class ExecutableItemBase:
         """Returns the item's type identifier string."""
         raise NotImplementedError()
 
+    @staticmethod
+    def is_filter_terminus():
+        """Tests if the item 'terminates' a forked execution.
+
+        Returns:
+            bool: True if forked executions should be joined before the item, False otherwise
+        """
+        return False
+
     def output_resources(self, direction):
         """Returns output resources in the given direction.
 

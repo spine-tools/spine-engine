@@ -13,7 +13,6 @@
 Contains the SpineEngine class for running Spine Toolbox DAGs.
 
 """
-
 from enum import Enum, unique
 import os
 import threading
@@ -46,6 +45,7 @@ from .execution_managers.persistent_execution_manager import (
 )
 from .utils.helpers import (
     AppSettings,
+    required_items_for_execution,
     inverted,
     create_timestamp,
     make_dag,
@@ -102,7 +102,7 @@ class SpineEngine:
     ):
         """
         Args:
-            items (list(dict)): List of executable item dicts.
+            items (dict): A mapping from item name to item dict
             specifications (dict(str,list(dict))): A mapping from item type to list of specification dicts.
             connections (list of dict): List of connection dicts
             jumps (list of dict, optional): List of jump dicts
@@ -125,7 +125,12 @@ class SpineEngine:
             execution_permits = {}
         self._execution_permits = execution_permits
         connections = list(map(Connection.from_dict, connections))  # Deserialize connections
-        self._connections = make_connections(connections, self._execution_permits)
+        project_item_loader = ProjectItemLoader()
+        self._executable_item_classes = project_item_loader.load_executable_item_classes(items_module_name)
+        required_items = required_items_for_execution(
+            self._items, connections, self._executable_item_classes, self._execution_permits
+        )
+        self._connections = make_connections(connections, required_items)
         self._connections_by_source = dict()
         self._connections_by_destination = dict()
         self._validate_and_sort_connections()
@@ -135,8 +140,6 @@ class SpineEngine:
         _set_resource_limits(self._settings, SpineEngine._resource_limit_lock)
         enable_persistent_process_creation()
         self._project_dir = project_dir
-        project_item_loader = ProjectItemLoader()
-        self._executable_item_classes = project_item_loader.load_executable_item_classes(items_module_name)
         if specifications is None:
             specifications = {}
         self._item_specifications = self._make_item_specifications(
@@ -442,11 +445,7 @@ class SpineEngine:
         )
 
     def _complete_jumps(self):
-        """Returns a dictionary mapping Jump objects to a set of solid names corresponding to items within the loop.
-
-        Returns:
-            dict
-        """
+        """Updates jumps with item and corresponding solid information."""
         for jump in self._jumps:
             src, dst = jump.source, jump.destination
             jump.item_names = {dst, src}
@@ -461,6 +460,9 @@ class SpineEngine:
 
         Args:
             item_name (str): The project item that gets executed by the solid.
+
+        Returns:
+            SolidDefinition: solid's definition
         """
 
         def compute_fn(context, inputs):
@@ -544,10 +546,10 @@ class SpineEngine:
         Args:
             context
             item_name (str)
-            forward_resource_stacks (list(tuple(ProjectItemResource))): resources comming from predecessor items -
+            forward_resource_stacks (list(tuple(ProjectItemResource))): resources coming from predecessor items -
                 one tuple of ProjectItemResource per item, where each element in the tuple corresponds to a filtered
                 execution of the item.
-            backward_resources (list(ProjectItemResource)): resources comming from successor items - just one
+            backward_resources (list(ProjectItemResource)): resources coming from successor items - just one
                 resource per item.
 
         Returns:
@@ -628,10 +630,10 @@ class SpineEngine:
 
         Args:
             item_name (str)
-            forward_resource_stacks (list(tuple(ProjectItemResource))): resources comming from predecessor items -
+            forward_resource_stacks (list(tuple(ProjectItemResource))): resources coming from predecessor items -
                 one tuple of ProjectItemResource per item, where each element in the tuple corresponds to a filtered
                 execution of the item.
-            backward_resources (list(ProjectItemResource)): resources comming from successor items - just one
+            backward_resources (list(ProjectItemResource)): resources coming from successor items - just one
                 resource per item.
             timestamp (str): timestamp for the execution filter
 
