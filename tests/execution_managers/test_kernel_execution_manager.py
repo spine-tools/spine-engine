@@ -54,6 +54,29 @@ class TestKernelExecutionManager(unittest.TestCase):
             self.assertEqual(2, len(message_emits))
             self.assertEqual(expected_msg, message_emits[1][0][0])
 
+    def test_kernel_execution_manager_kill_completed(self):
+        logger = MagicMock()
+        logger.msg_kernel_execution.filter_id = ""
+        with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file:
+            script_file.write('print("hello")')
+            script_file.seek(0)
+            d, fname = os.path.split(script_file.name)
+            cmds = [f"%cd -q {d}", f"%run {fname}"]
+            # exec_mngr represents the manager on spine-items side
+            exec_mngr = KernelExecutionManager(logger, NATIVE_KERNEL_NAME, *cmds, kill_completed=True, group_id="a")
+            self.assertTrue(exec_mngr._kernel_manager.is_alive())
+            exec_mngr = self.replace_client(exec_mngr)
+            retval = exec_mngr.run_until_complete()  # Run commands
+            self.assertEqual(0, retval)
+            self.assertFalse(exec_mngr._kernel_manager.is_alive())
+            exec_mngr = self.release_exec_mngr_resources(exec_mngr)
+            exec_mngr = None
+            self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
+            message_emits = logger.msg_kernel_execution.emit.call_args_list
+            expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
+            self.assertEqual(3, len(message_emits))  # + 'kernel_shutdown' message
+            self.assertEqual(expected_msg, message_emits[1][0][0])
+
     def test_kernel_manager_sharing(self):
         logger1 = MagicMock()
         logger1.msg_kernel_execution.filter_id = ""

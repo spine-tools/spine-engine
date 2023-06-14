@@ -84,9 +84,9 @@ class _KernelManagerFactory(metaclass=Singleton):
         Starts the kernel if not started, and returns it.
 
         Args:
-            kernel_name (str): the kernel
-            group_id (str): item group that will execute using this kernel
-            logger (LoggerInterface): for logging
+            kernel_name (str): The kernel
+            group_id (str): Item group that will execute using this kernel
+            logger (LoggerInterface): For logging
             extra_switches (list, optional): List of additional switches to julia or python.
                 These come before the 'programfile'.
             environment (str): "conda" to launch a Conda kernel spec. "" for a regular kernel spec
@@ -263,6 +263,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         logger,
         kernel_name,
         *commands,
+        kill_completed=False,
         group_id=None,
         startup_timeout=60,
         extra_switches=None,
@@ -271,10 +272,11 @@ class KernelExecutionManager(ExecutionManagerBase):
     ):
         """
         Args:
-            logger (LoggerInterface)
-            kernel_name (str): the kernel
+            logger (LoggerInterface): For logging
+            kernel_name (str): The Kernel
             *commands: Commands to execute in the kernel
-            group_id (str, optional): item group that will execute using this kernel
+            kill_completed (bool): Whether to kill completed persistent processes
+            group_id (str, optional): Item group that will execute using this kernel
             startup_timeout (int, optional): How much to wait for the kernel, used in ``KernelClient.wait_for_ready()``
             extra_switches (list, optional): List of additional switches to launch julia.
                 These come before the 'programfile'.
@@ -294,6 +296,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         )
         self._kernel_client = self._kernel_manager.client() if self._kernel_manager is not None else None
         self._startup_timeout = startup_timeout
+        self._kill_completed = kill_completed
 
     def run_until_complete(self):
         if self._kernel_client is None:
@@ -301,6 +304,10 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._kernel_client.start_channels()
         run_succeeded = self._do_run()
         self._kernel_client.stop_channels()
+        if self._kill_completed:
+            conn_file = self._kernel_manager.connection_file
+            shutdown_kernel_manager(conn_file)
+            self._logger.msg_kernel_execution.emit(dict(type="kernel_shutdown", **self._msg_head))
         if self._cmd_failed or not run_succeeded:
             return -1
         return 0
@@ -343,3 +350,7 @@ class KernelExecutionManager(ExecutionManagerBase):
     def stop_execution(self):
         if self._kernel_manager is not None:
             self._kernel_manager.interrupt_kernel()
+            if self._kill_completed:
+                conn_file = self._kernel_manager.connection_file
+                shutdown_kernel_manager(conn_file)
+                self._logger.msg_kernel_execution.emit(dict(type="kernel_shutdown", **self._msg_head))
