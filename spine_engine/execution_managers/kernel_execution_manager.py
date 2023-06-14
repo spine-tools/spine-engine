@@ -84,9 +84,9 @@ class _KernelManagerFactory(metaclass=Singleton):
         Starts the kernel if not started, and returns it.
 
         Args:
-            kernel_name (str): the kernel
-            group_id (str): item group that will execute using this kernel
-            logger (LoggerInterface): for logging
+            kernel_name (str): The kernel
+            group_id (str): Item group that will execute using this kernel
+            logger (LoggerInterface): For logging
             extra_switches (list, optional): List of additional switches to julia or python.
                 These come before the 'programfile'.
             environment (str): "conda" to launch a Conda kernel spec. "" for a regular kernel spec
@@ -100,38 +100,41 @@ class _KernelManagerFactory(metaclass=Singleton):
         km = self._make_kernel_manager(kernel_name, group_id, server_ip, filter_id)
         conda_exe = kwargs.pop("conda_exe", "")
         if environment == "conda":
-            try:
-                km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
-            except Exception as err:
-                logger.msg_kernel_execution.emit(msg=dict(type="conda_not_found", error=err))
-                raise RuntimeError
+            if not os.path.exists(conda_exe):
+                logger.msg_kernel_execution.emit(msg=dict(type="conda_not_found"))
+                self._kernel_managers.pop(self.get_kernel_manager_key(km))
+                return None
+            km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
         msg = dict(kernel_name=kernel_name)
         if not km.is_alive():
             try:
                 if not km.kernel_spec:
                     # Happens when a conda kernel spec with the requested name cannot be dynamically created
                     # i.e. the conda environment does not exist
-                    msg["type"] = "kernel_spec_not_found"
+                    msg["type"] = "conda_kernel_spec_not_found"
                     logger.msg_kernel_execution.emit(msg)
-                    raise RuntimeError
+                    self._kernel_managers.pop(self.get_kernel_manager_key(km))  # Delete failed kernel manager
+                    return None
             except NoSuchKernel:
                 msg["type"] = "kernel_spec_not_found"
                 logger.msg_kernel_execution.emit(msg)
-                raise RuntimeError
+                self._kernel_managers.pop(self.get_kernel_manager_key(km))
+                return None
             # Check that kernel spec executable is referring to a file that actually exists
             exe_path = km.kernel_spec.argv[0]
             if not os.path.exists(exe_path) and os.path.isabs(exe_path):
                 msg["type"] = "kernel_spec_exe_not_found"
                 msg["kernel_exe_path"] = exe_path
                 logger.msg_kernel_execution.emit(msg)
-                raise RuntimeError
+                self._kernel_managers.pop(self.get_kernel_manager_key(km))
+                return None
             if extra_switches:
                 # Insert switches right after the julia program
                 km.kernel_spec.argv[1:1] = extra_switches
             km.start_kernel(**kwargs)
             key = self.get_kernel_manager_key(km)
             if not key:
-                raise RuntimeError  # Logic error
+                return None  # Logic error
             self._key_by_connection_file[km.connection_file] = key
         msg["type"] = "kernel_started"
         msg["connection_file"] = km.connection_file
@@ -142,7 +145,7 @@ class _KernelManagerFactory(metaclass=Singleton):
         """Returns the key of the given kernel manager stored in this factory.
 
         Args:
-            km (GroupedKernelManager): Kernel managers
+            km (GroupedKernelManager): Kernel manager
 
         Returns:
             str: Kernel Manager's 32 character key
@@ -156,7 +159,7 @@ class _KernelManagerFactory(metaclass=Singleton):
         """Returns a kernel manager for given connection file if any.
 
         Args:
-            connection_file (str): path of connection file
+            connection_file (str): Path of connection file
 
         Returns:
             GroupedKernelManager or None
@@ -169,7 +172,7 @@ class _KernelManagerFactory(metaclass=Singleton):
         It also removes it from cache.
 
         Args:
-            connection_file (str): path of connection file
+            connection_file (str): Path of connection file
 
         Returns:
             GroupedKernelManager or None
@@ -181,17 +184,35 @@ class _KernelManagerFactory(metaclass=Singleton):
         """Pops a kernel manager from factory and shuts it down.
 
         Args:
-            connection_file (str): path of connection file
+            connection_file (str): Path of connection file
 
         Returns:
             bool: True if operation succeeded, False otherwise
         """
         km = self.pop_kernel_manager(connection_file)
-        if not km:  # Just to be safe
-            return
+        if not km:
+            return False
         if km.is_alive():
             km.shutdown_kernel(now=True)
-        return
+            return True
+        return False
+
+    def restart_kernel_manager(self, connection_file):
+        """Restarts kernel manager.
+
+        Args:
+            connection_file (str): Path of connection file
+
+        Returns:
+            bool: True if operation succeeded, False otherwise
+        """
+        km = self.get_kernel_manager(connection_file)
+        if not km:
+            return False
+        if km.is_alive():
+            km.restart_kernel(now=True)
+            return True
+        return False
 
     def kill_kernel_managers(self):
         """Shuts down all kernel managers stored in the factory."""
@@ -232,12 +253,17 @@ def shutdown_kernel_manager(connection_file):
     return _kernel_manager_factory.shutdown_kernel_manager(connection_file)
 
 
+def restart_kernel_manager(connection_file):
+    return _kernel_manager_factory.restart_kernel_manager(connection_file)
+
+
 class KernelExecutionManager(ExecutionManagerBase):
     def __init__(
         self,
         logger,
         kernel_name,
         *commands,
+        kill_completed=False,
         group_id=None,
         startup_timeout=60,
         extra_switches=None,
@@ -246,10 +272,11 @@ class KernelExecutionManager(ExecutionManagerBase):
     ):
         """
         Args:
-            logger (LoggerInterface)
-            kernel_name (str): the kernel
+            logger (LoggerInterface): For logging
+            kernel_name (str): The Kernel
             *commands: Commands to execute in the kernel
-            group_id (str, optional): item group that will execute using this kernel
+            kill_completed (bool): Whether to kill completed persistent processes
+            group_id (str, optional): Item group that will execute using this kernel
             startup_timeout (int, optional): How much to wait for the kernel, used in ``KernelClient.wait_for_ready()``
             extra_switches (list, optional): List of additional switches to launch julia.
                 These come before the 'programfile'.
@@ -269,6 +296,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         )
         self._kernel_client = self._kernel_manager.client() if self._kernel_manager is not None else None
         self._startup_timeout = startup_timeout
+        self._kill_completed = kill_completed
 
     def run_until_complete(self):
         if self._kernel_client is None:
@@ -276,6 +304,10 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._kernel_client.start_channels()
         run_succeeded = self._do_run()
         self._kernel_client.stop_channels()
+        if self._kill_completed:
+            conn_file = self._kernel_manager.connection_file
+            shutdown_kernel_manager(conn_file)
+            self._logger.msg_kernel_execution.emit(dict(type="kernel_shutdown", **self._msg_head))
         if self._cmd_failed or not run_succeeded:
             return -1
         return 0
@@ -318,3 +350,7 @@ class KernelExecutionManager(ExecutionManagerBase):
     def stop_execution(self):
         if self._kernel_manager is not None:
             self._kernel_manager.interrupt_kernel()
+            if self._kill_completed:
+                conn_file = self._kernel_manager.connection_file
+                shutdown_kernel_manager(conn_file)
+                self._logger.msg_kernel_execution.emit(dict(type="kernel_shutdown", **self._msg_head))
