@@ -19,7 +19,7 @@ using REPL.LineEdit
 
 _exception = false
 # History related stuff. This works with julia 1.0 to 1.6 at least
-term = TerminalBuffer(IOBuffer())
+term = TTYTerminal("", stdin, IOBuffer(), stderr)
 repl = LineEditREPL(term, false)
 repl.history_file = true
 interface = REPL.setup_interface(repl)
