@@ -7,12 +7,10 @@
 
 A Python package to coordinate the execution of [Spine Toolbox](https://github.com/spine-tools/Spine-Toolbox) workflows.
 
-<center>
-<picture>
+<p align="center" width="100%">
   <source media="(prefers-color-scheme: dark)" srcset="./fig/spineengine_logo.svg" width="50%">
   <img alt="Spine Engine" src="./fig/spineengine_on_wht.svg" width="50%">
-</picture>
-</center>
+</p>
 
 ## License
 
