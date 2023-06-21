@@ -52,6 +52,13 @@ exclude = [
 	"tests*",
 ]
 
+[tool.coverage.run]
+source = ["spine_engine"]
+branch = true
+
+[tool.coverage.report]
+ignore_errors = true
+
 [tool.black]
 line-length = 120
 skip-string-normalization = true
