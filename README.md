@@ -7,6 +7,13 @@
 
 A Python package to coordinate the execution of [Spine Toolbox](https://github.com/spine-tools/Spine-Toolbox) workflows.
 
+<p align="center" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./fig/spineengine_logo.svg" width="50%">
+    <img alt="Spine Engine" src="./fig/spineengine_on_wht.svg" width="50%">
+  </picture>
+</p>
+
 ## License
 
 Spine Engine is released under the GNU Lesser General Public License (LGPL) license. All accompanying
