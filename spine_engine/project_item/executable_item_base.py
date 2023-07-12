@@ -33,9 +33,9 @@ class ExecutableItemBase:
         data_dir = Path(self._project_dir, ".spinetoolbox", "items", shorten(name))
         data_dir.mkdir(parents=True, exist_ok=True)
         self._data_dir = str(data_dir)
-        log_dir = Path(self._data_dir, "logs")
-        log_dir.mkdir(parents=True, exist_ok=True)
-        self._logs_dir = str(log_dir)
+        logs_dir = Path(self._data_dir, "logs")
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        self._logs_dir = str(logs_dir)
         self._logger = logger
         self._group_id = name if group_id is None else group_id
         self._filter_id = ""
