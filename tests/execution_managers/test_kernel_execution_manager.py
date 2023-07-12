@@ -51,7 +51,7 @@ class TestKernelExecutionManager(unittest.TestCase):
             self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
             message_emits = logger.msg_kernel_execution.emit.call_args_list
             expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(2, len(message_emits))
+            self.assertEqual(5, len(message_emits))
             self.assertEqual(expected_msg, message_emits[1][0][0])
 
     def test_kernel_execution_manager_kill_completed(self):
@@ -74,7 +74,7 @@ class TestKernelExecutionManager(unittest.TestCase):
             self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
             message_emits = logger.msg_kernel_execution.emit.call_args_list
             expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(3, len(message_emits))  # + 'kernel_shutdown' message
+            self.assertEqual(6, len(message_emits))  # + 'kernel_shutdown' message
             self.assertEqual(expected_msg, message_emits[1][0][0])
 
     def test_kernel_manager_sharing(self):
@@ -114,10 +114,10 @@ class TestKernelExecutionManager(unittest.TestCase):
             # Check emitted messages
             logger1_message_emits = logger1.msg_kernel_execution.emit.call_args_list
             expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(2, len(logger1_message_emits))
+            self.assertEqual(5, len(logger1_message_emits))
             self.assertEqual(expected_msg, logger1_message_emits[1][0][0])
             logger2_message_emits = logger2.msg_kernel_execution.emit.call_args_list
-            self.assertEqual(2, len(logger2_message_emits))
+            self.assertEqual(5, len(logger2_message_emits))
             self.assertEqual(expected_msg, logger2_message_emits[1][0][0])
 
     def test_two_kernel_managers(self):
@@ -157,10 +157,10 @@ class TestKernelExecutionManager(unittest.TestCase):
             # Check emitted messages
             logger1_message_emits = logger1.msg_kernel_execution.emit.call_args_list
             expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(2, len(logger1_message_emits))
+            self.assertEqual(5, len(logger1_message_emits))
             self.assertEqual(expected_msg, logger1_message_emits[1][0][0])
             logger2_message_emits = logger2.msg_kernel_execution.emit.call_args_list
-            self.assertEqual(2, len(logger2_message_emits))
+            self.assertEqual(5, len(logger2_message_emits))
             self.assertEqual(expected_msg, logger2_message_emits[1][0][0])
 
     @staticmethod
