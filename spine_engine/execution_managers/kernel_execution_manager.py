@@ -346,6 +346,11 @@ class KernelExecutionManager(ExecutionManagerBase):
                 self._kernel_manager.set_busy(True)
             else:  # exec_state == 'idle'
                 self._kernel_manager.set_busy(False)
+        elif msg["header"]["msg_type"] == "execute_input":
+            execution_count, code = msg["content"]["execution_count"], msg["content"]["code"]
+            self._logger.msg_kernel_execution.emit({"type": "stdin", "data": f"In [{execution_count}]: {code}"})
+        elif msg["header"]["msg_type"] == "stream":
+            self._logger.msg_kernel_execution.emit({"type": msg["content"]["name"], "data": msg["content"]["text"]})
 
     def stop_execution(self):
         if self._kernel_manager is not None:
