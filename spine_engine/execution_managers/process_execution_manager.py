@@ -57,6 +57,8 @@ class ProcessExecutionManager(ExecutionManagerBase):
                 return 1
             msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
             self._logger.msg_standard_execution.emit(msg)
+            running = "# Running" + " ".join([self._program, *self._args])
+            self._logger.msg_standard_execution.emit({"type": "stdin", "data": running})
             Thread(target=self._log_stdout, args=(self._process.stdout,), daemon=True).start()
             Thread(target=self._log_stderr, args=(self._process.stderr,), daemon=True).start()
             return self._process.wait()
@@ -68,10 +70,14 @@ class ProcessExecutionManager(ExecutionManagerBase):
 
     def _log_stdout(self, stdout):
         for line in iter(stdout.readline, b''):
-            self._logger.msg_proc.emit(line.decode("UTF8", "replace").strip())
+            line = line.decode("UTF8", "replace").strip()
+            self._logger.msg_proc.emit(line)
+            self._logger.msg_standard_execution.emit({"type": "stdout", "data": line})
         stdout.close()
 
     def _log_stderr(self, stderr):
         for line in iter(stderr.readline, b''):
-            self._logger.msg_proc_error.emit(line.decode("UTF8", "replace").strip())
+            line = line.decode("UTF8", "replace").strip()
+            self._logger.msg_proc_error.emit(line)
+            self._logger.msg_standard_execution.emit({"type": "stderr", "data": line})
         stderr.close()
