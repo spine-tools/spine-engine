@@ -23,8 +23,7 @@ from spinedb_api.filters.tools import clear_filter_configs
 from spinedb_api.spine_db_server import closing_spine_db_server, quick_db_checkout
 from spinedb_api.spine_db_client import SpineDBClient
 from ..utils.helpers import PartCount
-
-
+import os.path
 class ProjectItemResource:
     """Class to hold a resource made available by a project item and that may be consumed by another project item.
 
@@ -161,7 +160,7 @@ class ProjectItemResource:
     @property
     def path(self):
         """Returns the resource path in the local syntax, as obtained from parsing the url."""
-        return url2pathname(self._parsed_url.path)
+        return os.path.normpath(self._parsed_url.path[1:])
 
     @property
     def scheme(self):
