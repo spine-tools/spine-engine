@@ -59,6 +59,7 @@ class ProjectItemResource:
         self.type_ = type_
         self.label = label
         self._url = url
+        self._filepath = None
         self._parsed_url = urlparse(self._url)
         self.metadata = metadata if metadata is not None else dict()
         self._filterable = filterable
@@ -157,11 +158,14 @@ class ProjectItemResource:
     def url(self, url):
         self._url = url
         self._parsed_url = urlparse(self._url)
+        self._filepath = url2pathname(self._parsed_url.path)
 
     @property
     def path(self):
         """Returns the resource path in the local syntax, as obtained from parsing the url."""
-        return url2pathname(self._parsed_url.path)
+        if not self._filepath:
+            self._filepath = url2pathname(self._parsed_url.path)
+        return self._filepath
 
     @property
     def scheme(self):
