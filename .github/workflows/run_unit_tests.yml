@@ -36,7 +36,7 @@ jobs:
         PYTHONUTF8: 1
       run: |
         python -m pip install --upgrade pip
-        pip install git+https://github.com/spine-tools/Spine-Database-API.git#egg=spinedb_api
+        pip install git+https://github.com/spine-tools/Spine-Database-API.git@toolbox_1934_automate_deployment#egg=spinedb_api
         pip install .[dev]
         pip install --no-deps git+https://github.com/spine-tools/spine-items.git#egg=spine_items
     - name: List packages
