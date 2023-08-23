@@ -207,13 +207,16 @@ def get_julia_command(settings):
         settings (QSettings, AppSettings)
 
     Returns:
-        list: e.g. ["path/to/julia", "--project=path/to/project/"]
+        list of str: e.g. ["path/to/julia", "--project=path/to/project/"]
     """
     env = get_julia_env(settings)
     if env is None:
         return None
     julia, project = env
-    return [julia, f"--project={project}"]
+    command = [julia]
+    if project:
+        command.append(f"--project={project}")
+    return command
 
 
 def get_julia_env(settings):
