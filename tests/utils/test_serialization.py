@@ -18,7 +18,7 @@ import unittest
 from pathlib import Path
 from tempfile import gettempdir, TemporaryDirectory, NamedTemporaryFile
 
-from spine_engine.utils.serialization import deserialize_path, serialize_url, serialize_path
+from spine_engine.utils.serialization import deserialize_path, path_in_dir, serialize_url, serialize_path
 
 
 class TestSerialization(unittest.TestCase):
@@ -127,6 +127,20 @@ class TestSerialization(unittest.TestCase):
         deserialized = deserialize_path(serialized, project_dir)
         expected = "sqlite:///" + str(Path(project_dir, "subdir", "database.sqlite")) + "?filter=kax"
         self.assertEqual(deserialized, expected)
+
+
+class TestPathInDir(unittest.TestCase):
+    @unittest.skipIf(sys.platform != "win32", "This test uses Windows paths.")
+    def test_windows_paths_on_different_drives(self):
+        self.assertFalse(path_in_dir(r"Z:\path\to\file.xt", r"C:\path\\"))
+
+    @unittest.skipIf(sys.platform != "win32", "This test uses Windows paths.")
+    def test_windows_paths_on_same_drive_but_different_casing(self):
+        self.assertTrue(path_in_dir(r"c:\path\to\file.xt", r"C:\path\\"))
+
+    def test_unix_paths(self):
+        self.assertTrue(path_in_dir("/path/to/my/file.dat", "/path/to"))
+        self.assertFalse(path_in_dir("/path/to/my/file.dat", "/another/path"))
 
 
 if __name__ == '__main__':
