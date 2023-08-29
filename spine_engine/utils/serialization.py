@@ -31,6 +31,10 @@ def path_in_dir(path, directory):
     Returns:
         bool: True if path is in directory, False otherwise
     """
+    path = Path(path)
+    directory = Path(directory)
+    if path.drive.casefold() != directory.drive.casefold():
+        return False
     return Path(os.path.commonpath((path, directory))) == Path(directory)
 
 
