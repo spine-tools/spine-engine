@@ -16,12 +16,11 @@ import os.path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import Mock
-from spinedb_api import DatabaseMapping, import_scenarios, import_tools, import_alternatives, import_object_classes
-from spine_engine.project_item.connection import Connection, FilterSettings, Jump, ResourceConvertingConnection
+from spinedb_api import DatabaseMapping, import_entity_classes, import_scenarios, import_alternatives
+from spine_engine.project_item.connection import Connection, FilterSettings, Jump
 from spine_engine.project_item.project_item_resource import database_resource
 from spine_engine.spine_engine import SpineEngine
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
-from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
 
 
 class TestConnection(unittest.TestCase):
@@ -57,30 +56,25 @@ class TestConnection(unittest.TestCase):
         filter_settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}})
         connection = Connection("source", "bottom", "destination", "top", options, filter_settings)
         self.assertTrue(connection.require_filter_online(SCENARIO_FILTER_TYPE))
-        self.assertFalse(connection.require_filter_online(TOOL_FILTER_TYPE))
 
     def test_require_filter_online_default_value(self):
         filter_settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}})
         connection = Connection("source", "bottom", "destination", "top", {}, filter_settings)
         self.assertIsNotNone(connection.require_filter_online(SCENARIO_FILTER_TYPE))
-        self.assertIsNotNone(connection.require_filter_online(TOOL_FILTER_TYPE))
         self.assertFalse(connection.require_filter_online(SCENARIO_FILTER_TYPE))
-        self.assertFalse(connection.require_filter_online(TOOL_FILTER_TYPE))
 
     def test_notification_when_filter_validation_fails(self):
-        options = {"require_" + SCENARIO_FILTER_TYPE: True, "require_" + TOOL_FILTER_TYPE: True}
+        options = {"require_" + SCENARIO_FILTER_TYPE: True}
         filter_settings = FilterSettings(auto_online=False)
         connection = Connection("source", "bottom", "destination", "top", options, filter_settings)
         self.assertEqual(
             connection.notifications(),
-            ["At least one scenario filter must be active.", "At least one tool filter must be active."],
+            ["At least one scenario filter must be active."],
         )
 
     def test_nothing_to_notify(self):
-        filter_settings = FilterSettings(
-            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}, TOOL_FILTER_TYPE: {"tool_1": True}}}
-        )
-        options = {"require_" + SCENARIO_FILTER_TYPE: True, "require_" + TOOL_FILTER_TYPE: True}
+        filter_settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}})
+        options = {"require_" + SCENARIO_FILTER_TYPE: True}
         connection = Connection("source", "bottom", "destination", "top", options, filter_settings)
         self.assertEqual(connection.notifications(), [])
 
@@ -98,7 +92,7 @@ class TestConnectionWithDatabase(unittest.TestCase):
         self._db_map = DatabaseMapping(self._url, create=True)
 
     def tearDown(self):
-        self._db_map.connection.close()
+        self._db_map.close()
         self._temp_dir.cleanup()
 
     def test_serialization_with_filters(self):
@@ -136,46 +130,28 @@ class TestConnectionWithDatabase(unittest.TestCase):
         connection.receive_resources_from_source(resources)
         self.assertEqual(connection.enabled_filters("my_database"), {"scenario_filter": ["scenario_1"]})
 
-    def test_enabled_tools_with_auto_enable_on(self):
-        import_tools(self._db_map, ("tool_1", "tool_2"))
-        self._db_map.commit_session("Add test data.")
-        filter_settings = FilterSettings({"my_database": {"tool_filter": {"tool_1": False}}})
-        connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
-        resources = [database_resource("unit_test", self._url, "my_database", filterable=True)]
-        connection.receive_resources_from_source(resources)
-        self.assertEqual(connection.enabled_filters("my_database"), {"tool_filter": ["tool_2"]})
-
-    def test_enabled_tools_with_auto_enable_off(self):
-        import_tools(self._db_map, ("tool_1", "tool_2"))
-        self._db_map.commit_session("Add test data.")
-        filter_settings = FilterSettings({"my_database": {"tool_filter": {"tool_1": True}}}, auto_online=False)
-        connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
-        resources = [database_resource("unit_test", self._url, "my_database", filterable=True)]
-        connection.receive_resources_from_source(resources)
-        self.assertEqual(connection.enabled_filters("my_database"), {"tool_filter": ["tool_1"]})
-
     def test_purge_data_before_writing(self):
         import_alternatives(self._db_map, ("my_alternative",))
-        import_object_classes(self._db_map, ("my_object_class",))
+        import_entity_classes(self._db_map, ("my_object_class",))
         self._db_map.commit_session("Add test data.")
-        self._db_map.connection.close()
+        self._db_map.close()
         connection = Connection(
             "source",
             "bottom",
             "destination",
             "top",
-            options={"purge_before_writing": True, "purge_settings": {"object_class": True}},
+            options={"purge_before_writing": True, "purge_settings": {"entity_class": True}},
         )
         resources = [database_resource("unit_test", self._url, "my_database")]
         connection.clean_up_backward_resources(resources)
         database_map = DatabaseMapping(self._url)
-        object_class_list = database_map.query(database_map.object_class_sq).all()
-        self.assertEqual(len(object_class_list), 0)
+        entity_class_list = database_map.query(database_map.entity_class_sq).all()
+        self.assertEqual(len(entity_class_list), 0)
         alternative_list = database_map.query(database_map.alternative_sq).all()
         self.assertEqual(len(alternative_list), 2)
         self.assertEqual(alternative_list[0].name, "Base")
         self.assertEqual(alternative_list[1].name, "my_alternative")
-        database_map.connection.close()
+        database_map.close()
 
 
 class TestJump(unittest.TestCase):
@@ -240,7 +216,7 @@ class TestFilterSettings(unittest.TestCase):
         self.assertFalse(settings.has_filters())
 
     def test_has_filters_returns_true_when_filters_exist(self):
-        settings = FilterSettings({"database@Data Store": {TOOL_FILTER_TYPE: {"tool_1": True}}})
+        settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}})
         self.assertTrue(settings.has_filters())
 
     def test_has_filters_online_returns_false_when_no_filters_exist(self):
@@ -248,31 +224,26 @@ class TestFilterSettings(unittest.TestCase):
         self.assertFalse(settings.has_filter_online(SCENARIO_FILTER_TYPE))
 
     def test_has_filters_online_returns_false_when_filters_are_offline(self):
-        settings = FilterSettings(
-            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}, TOOL_FILTER_TYPE: {"tool_1": False}}}
-        )
-        self.assertFalse(settings.has_filter_online(TOOL_FILTER_TYPE))
+        settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": False}}})
+        self.assertFalse(settings.has_filter_online(SCENARIO_FILTER_TYPE))
 
     def test_has_filters_online_returns_true_when_filters_are_online(self):
-        settings = FilterSettings(
-            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": False}, TOOL_FILTER_TYPE: {"tool_1": True}}}
-        )
-        self.assertTrue(settings.has_filter_online(TOOL_FILTER_TYPE))
+        settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}})
+        self.assertTrue(settings.has_filter_online(SCENARIO_FILTER_TYPE))
 
     def test_has_filter_online_works_when_there_are_no_known_filters(self):
         settings = FilterSettings()
         self.assertFalse(settings.has_filter_online(SCENARIO_FILTER_TYPE))
-        self.assertFalse(settings.has_filter_online(TOOL_FILTER_TYPE))
 
     def test_has_any_filter_online_returns_true_when_filters_are_online(self):
         settings = FilterSettings(
-            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": False}, TOOL_FILTER_TYPE: {"tool_1": True}}}
+            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": False, "scenario_2": True}}}
         )
         self.assertTrue(settings.has_any_filter_online())
 
     def test_has_any_filter_online_returns_false_when_all_filters_are_offline(self):
         settings = FilterSettings(
-            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": False}, TOOL_FILTER_TYPE: {"tool_1": False}}}
+            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": False, "scenario_2": False}}}
         )
         self.assertFalse(settings.has_any_filter_online())
 
