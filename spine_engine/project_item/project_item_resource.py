@@ -76,7 +76,10 @@ class ProjectItemResource:
             }
             db_server_manager_queue = self.metadata["db_server_manager_queue"]
             with closing_spine_db_server(
-                db_server_manager_queue, self.url, memory=self.metadata.get("memory", False), ordering=ordering
+                self.url,
+                memory=self.metadata.get("memory", False),
+                ordering=ordering,
+                db_server_manager_queue=db_server_manager_queue,
             ) as server_url:
                 if db_checkin:
                     SpineDBClient.from_server_url(server_url).db_checkin()
