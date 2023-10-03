@@ -532,7 +532,7 @@ class Jump(ConnectionBase):
     """Represents a conditional jump between two project items."""
 
     def __init__(
-        self, source_name, source_position, destination_name, destination_position, condition=None, cmd_line_args=()
+        self, source_name, source_position, destination_name, destination_position, condition={}, cmd_line_args=()
     ):
         """
         Args:
@@ -543,7 +543,8 @@ class Jump(ConnectionBase):
             condition (dict): jump condition
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
-        self.condition = condition if condition is not None else {"type": "python-script", "script": "exit(1)"}
+        default_condition = {"type": "python-script", "script": "exit(1)", "specification": ""}
+        self.condition = condition if condition else default_condition
         self._resources_from_source = set()
         self._resources_from_destination = set()
         self.cmd_line_args = list(cmd_line_args)
