@@ -79,7 +79,7 @@ class ProjectItemResource:
                 self.url,
                 memory=self.metadata.get("memory", False),
                 ordering=ordering,
-                db_server_manager_queue=db_server_manager_queue,
+                server_manager_queue=db_server_manager_queue,
             ) as server_url:
                 if db_checkin:
                     SpineDBClient.from_server_url(server_url).db_checkin()
