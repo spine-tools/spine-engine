@@ -361,6 +361,8 @@ class ResourceConvertingConnection(ConnectionBase):
             to_urls = (r.url for r in resources if r.type_ == "database")
             for url in to_urls:
                 purge_url(url, self.purge_settings, self._logger)
+            return to_urls
+        return []
 
     def _apply_use_memory_db(self, resources):
         if not self.use_memory_db:
