@@ -172,31 +172,32 @@ class TestJump(unittest.TestCase):
         jump.make_logger(Mock())
         self.assertTrue(jump.is_condition_true(23))
 
-    @unittest.skip("Doesn't work in github actions: ModuleNotFoundError: No module named 'spine_items'")
     def test_tool_spec_condition(self):
         condition = {"type": "tool-specification", "specification": "loop_twice"}
         jump = Jump("source", "bottom", "destination", "top", condition)
         jump.make_logger(Mock())
         with TemporaryDirectory() as temp_dir:
-            main_program_file_path = "script"
-            temp_file_path = os.path.join(temp_dir, main_program_file_path)
-            with open(temp_file_path, "w+") as program_file:
-                program_file.write('if ARGS[1] == "23" exit(0) else exit(1) end')
+            main_file = "script.py"
+            main_file_path = os.path.join(temp_dir, main_file)
+            with open(main_file_path, "w+") as program_file:
+                program_file.writelines(
+                    ['import sys\n', 'counter = int(sys.argv[1])\n', 'exit(0 if counter == 23 else 1)\n']
+                )
             engine = SpineEngine(
-                settings={"appSettings/useJuliaKernel": "1"},
                 project_dir=temp_dir,
                 specifications={
                     "Tool": [
                         {
                             "name": "loop_twice",
-                            "tooltype": "julia",
+                            "tooltype": "python",
                             "includes_main_path": temp_dir,
-                            "includes": [main_program_file_path],
+                            "includes": [main_file],
                         }
                     ]
                 },
+                connections=list(),
             )
-            jump.prepare_condition(engine)
+            jump.set_engine(engine)
             self.assertTrue(jump.is_condition_true(23))
 
     def test_dictionary(self):

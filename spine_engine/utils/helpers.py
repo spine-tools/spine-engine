@@ -201,34 +201,16 @@ def inverted(input_):
     return output
 
 
-def get_julia_command(settings):
-    """
-    Args:
-        settings (QSettings, AppSettings)
-
-    Returns:
-        list of str: e.g. ["path/to/julia", "--project=path/to/project/"]
-    """
-    env = get_julia_env(settings)
-    if env is None:
-        return None
-    julia, project = env
-    command = [julia]
-    if project:
-        command.append(f"--project={project}")
-    return command
-
-
 def get_julia_env(settings):
     """
     Args:
         settings (QSettings, AppSettings)
 
     Returns:
-        tuple, NoneType: (julia_exe, julia_project), or None if none found
+        Union[tuple, None]: (julia_exe, julia_project), or None if none found
     """
-    use_julia_kernel = settings.value("appSettings/useJuliaKernel", defaultValue="2") == "2"
-    if use_julia_kernel:
+    use_jupyter_console = settings.value("appSettings/useJuliaKernel", defaultValue="0") == "2"
+    if use_jupyter_console:
         kernel_name = settings.value("appSettings/juliaKernel", defaultValue="")
         resource_dir = find_kernel_specs().get(kernel_name)
         if resource_dir is None:
