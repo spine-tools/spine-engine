@@ -52,6 +52,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         except RecursionError:
             print("RecursionError due to a PermissionError on Windows. Server resources not cleaned up properly.")
 
+    @unittest.skip("Requires spine-items")
     @mock.patch(
         "spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR",
         new_callable=mock.PropertyMock,
@@ -80,6 +81,7 @@ class TestRemoteExecutionService(unittest.TestCase):
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
         self.receive_events(start_response_msg_data[1], start_response_msg_data[2])
 
+    @unittest.skip("Requires spine-items")
     @mock.patch(
         "spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR",
         new_callable=mock.PropertyMock,
@@ -108,12 +110,13 @@ class TestRemoteExecutionService(unittest.TestCase):
         self.assertEqual("remote_execution_started", start_response_msg_data[0])
         self.receive_events(start_response_msg_data[1], start_response_msg_data[2])
 
+    @unittest.skip("Requires spine-items")
     @mock.patch(
         "spine_engine.server.project_extractor_service.ProjectExtractorService.INTERNAL_PROJECT_DIR",
         new_callable=mock.PropertyMock,
     )
     def test_loop_calls(self, mock_proj_dir):
-        """Tests executing the Hellow World project (DC -> Tool) five times in a row."""
+        """Tests executing the Hello World project (DC -> Tool) five times in a row."""
         mock_proj_dir.return_value = self._temp_dir.name
         engine_data = self.make_engine_data_for_helloworld_project()
         engine_data_json = json.dumps(engine_data)
