@@ -60,8 +60,12 @@ class TestKernelExecutionManager(unittest.TestCase):
         message_emits = logger.msg_kernel_execution.emit.call_args_list
         expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
         last_expected_msg = {"type": "stdout", "data": 'hello\n'}
-        print(f"#1: {message_emits}")
-        self.assertEqual(5, len(message_emits))
+        # NOTE: In GitHub unittest runner on Ubuntu Python 3.9+ there is an extra warning message in message_emits
+        # This makes the number of message_emits inconsistent between Pythons so
+        # we don't do test self.assertEqual(5, len(message_emits))
+        # {'type': 'stderr', 'data': "/opt/hostedtoolcache/Python/3.9.18/x64/lib/python3.9/site-packages/IPython/core
+        # /magics/osm.py:417: UserWarning: using dhist requires you to install the `pickleshare` library.\n
+        # self.shell.db['dhist'] = compress_dhist(dhist)[-100:]\n"}
         self.assertEqual(expected_msg, message_emits[1][0][0])
         self.assertEqual(last_expected_msg, message_emits[-1][0][0])
 
@@ -86,8 +90,6 @@ class TestKernelExecutionManager(unittest.TestCase):
         message_emits = logger.msg_kernel_execution.emit.call_args_list
         expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
         last_expected_msg = {'type': 'kernel_shutdown', 'kernel_name': 'python3'}
-        print(f"#2: {message_emits}")
-        self.assertEqual(6, len(message_emits))  # + 'kernel_shutdown' message
         self.assertEqual(expected_msg, message_emits[1][0][0])
         self.assertEqual(last_expected_msg, message_emits[-1][0][0])
 
@@ -129,13 +131,9 @@ class TestKernelExecutionManager(unittest.TestCase):
         logger2_message_emits = logger2.msg_kernel_execution.emit.call_args_list
         expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
         last_logger1_expected_msg = {'type': 'stdout', 'data': 'hello\n'}
-        print(f"#3.1: {logger1_message_emits}")
-        print(f"#3.2: {logger2_message_emits}")
-        self.assertEqual(5, len(logger1_message_emits))
+        last_logger2_expected_msg = {'type': 'stdout', 'data': 'hello again\n'}
         self.assertEqual(expected_msg, logger1_message_emits[1][0][0])
         self.assertEqual(last_logger1_expected_msg, logger1_message_emits[-1][0][0])
-        last_logger2_expected_msg = {'type': 'stdout', 'data': 'hello again\n'}
-        self.assertEqual(5, len(logger2_message_emits))
         self.assertEqual(expected_msg, logger2_message_emits[1][0][0])
         self.assertEqual(last_logger2_expected_msg, logger2_message_emits[-1][0][0])
 
@@ -177,13 +175,9 @@ class TestKernelExecutionManager(unittest.TestCase):
         logger2_message_emits = logger2.msg_kernel_execution.emit.call_args_list
         expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
         last_logger1_expected_msg = {'type': 'stdout', 'data': 'hello\n'}
-        print(f"#4.1: {logger1_message_emits}")
-        print(f"#4.2: {logger2_message_emits}")
-        self.assertEqual(5, len(logger1_message_emits))
+        last_logger2_expected_msg = {'type': 'stdout', 'data': 'hello again\n'}
         self.assertEqual(expected_msg, logger1_message_emits[1][0][0])
         self.assertEqual(last_logger1_expected_msg, logger1_message_emits[-1][0][0])
-        last_logger2_expected_msg = {'type': 'stdout', 'data': 'hello again\n'}
-        self.assertEqual(5, len(logger2_message_emits))
         self.assertEqual(expected_msg, logger2_message_emits[1][0][0])
         self.assertEqual(last_logger2_expected_msg, logger2_message_emits[-1][0][0])
 
