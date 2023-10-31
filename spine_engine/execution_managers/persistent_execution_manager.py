@@ -566,7 +566,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
             constructor (Callable): the persistent manager constructor
             logger (LoggerInterface)
             args (list): the arguments to launch the persistent process
-            group_id (str): item group that will execute using this persistent
+            group_id (str): Item group for sharing this persistent process
 
         Returns:
             PersistentManagerBase: persistent manager or None if factory has been closed
@@ -781,12 +781,12 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
     def __init__(self, logger, args, commands, alias, kill_completed_processes, group_id=None):
         """
         Args:
-            logger (LoggerInterface): a logger instance
-            args (list): List of args to start the persistent process
-            commands (list): List of commands to execute in the persistent process
-            alias (str): an alias name for the manager
-            kill_completed_processes (bool): if True, the persistent process will be killed after execution
-            group_id (str, optional): item group that will execute using this kernel
+            logger (LoggerInterface): Logger instance
+            args (list): Program and cmd line args for the persistent process
+            commands (list): List of commands to execute in the persistent process (including the script cmd line args)
+            alias (str): Alias name for the manager
+            kill_completed_processes (bool): If True, the persistent process will be killed after execution
+            group_id (str, optional): Item group for sharing this persistent process
         """
         super().__init__(logger)
         self._args = args

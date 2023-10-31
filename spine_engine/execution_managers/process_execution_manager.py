@@ -22,13 +22,14 @@ from ..utils.execution_resources import one_shot_process_semaphore
 
 
 class ProcessExecutionManager(ExecutionManagerBase):
-    def __init__(self, logger, program, *args, workdir=None):
+    def __init__(self, logger, program, args, workdir=None):
         """Class constructor.
 
         Args:
-            logger (LoggerInterface): a logger instance
-            program (str): Path to program to run in the subprocess (e.g. julia.exe)
-            *args: List of arguments for the program (e.g. path to script file)
+            logger (LoggerInterface): Logger instance
+            program (str): Path to program to run in the subprocess (e.g. 'path/to/julia')
+            args (list): List of arguments for the program (e.g. path to script file)
+            workdir (str): Work directory for the subprocess.Popen process
         """
         super().__init__(logger)
         self._process = None
@@ -45,7 +46,7 @@ class ProcessExecutionManager(ExecutionManagerBase):
                 return 0
             try:
                 self._process = subprocess.Popen(
-                    [self._program, *self._args],
+                    [self._program] + self._args,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     cwd=self._workdir,
@@ -57,7 +58,7 @@ class ProcessExecutionManager(ExecutionManagerBase):
                 return 1
             msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
             self._logger.msg_standard_execution.emit(msg)
-            running = "# Running" + " ".join([self._program, *self._args])
+            running = "# Running" + " ".join([self._program] + self._args)
             self._logger.msg_standard_execution.emit({"type": "stdin", "data": running})
             Thread(target=self._log_stdout, args=(self._process.stdout,), daemon=True).start()
             Thread(target=self._log_stderr, args=(self._process.stderr,), daemon=True).start()

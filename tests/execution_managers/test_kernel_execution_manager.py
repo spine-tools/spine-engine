@@ -37,7 +37,7 @@ class TestKernelExecutionManager(unittest.TestCase):
             d, fname = os.path.split(script_file.name)
             cmds = [f"%cd -q {d}", f"%run {fname}"]
             # exec_mngr represents the manager on spine-items side
-            exec_mngr = KernelExecutionManager(logger, NATIVE_KERNEL_NAME, *cmds, group_id="SomeGroup")
+            exec_mngr = KernelExecutionManager(logger, NATIVE_KERNEL_NAME, cmds, group_id="SomeGroup")
             self.assertTrue(exec_mngr._kernel_manager.is_alive())
             exec_mngr = self.replace_client(exec_mngr)
             retval = exec_mngr.run_until_complete()  # Run commands
@@ -63,7 +63,7 @@ class TestKernelExecutionManager(unittest.TestCase):
             d, fname = os.path.split(script_file.name)
             cmds = [f"%cd -q {d}", f"%run {fname}"]
             # exec_mngr represents the manager on spine-items side
-            exec_mngr = KernelExecutionManager(logger, NATIVE_KERNEL_NAME, *cmds, kill_completed=True, group_id="a")
+            exec_mngr = KernelExecutionManager(logger, NATIVE_KERNEL_NAME, cmds, kill_completed=True, group_id="a")
             self.assertTrue(exec_mngr._kernel_manager.is_alive())
             exec_mngr = self.replace_client(exec_mngr)
             retval = exec_mngr.run_until_complete()  # Run commands
@@ -94,11 +94,11 @@ class TestKernelExecutionManager(unittest.TestCase):
             exec_mngr1_cmds = [f"%cd -q {d1}", f"%run {fname1}"]
             exec_mngr2_cmds = [f"%cd -q {d2}", f"%run {fname2}"]
             kernel_name = NATIVE_KERNEL_NAME
-            exec_mngr1 = KernelExecutionManager(logger1, kernel_name, *exec_mngr1_cmds, group_id="SomeGroup")
+            exec_mngr1 = KernelExecutionManager(logger1, kernel_name, exec_mngr1_cmds, group_id="SomeGroup")
             exec_mngr1 = self.replace_client(exec_mngr1)
             retval1 = exec_mngr1.run_until_complete()  # Run commands
             self.assertEqual(0, retval1)
-            exec_mngr2 = KernelExecutionManager(logger2, kernel_name, *exec_mngr2_cmds, group_id="SomeGroup")
+            exec_mngr2 = KernelExecutionManager(logger2, kernel_name, exec_mngr2_cmds, group_id="SomeGroup")
             exec_mngr2 = self.replace_client(exec_mngr2)
             self.assertEqual(1, _kernel_manager_factory.n_kernel_managers())
             self.assertEqual(exec_mngr1._kernel_manager, exec_mngr2._kernel_manager)
@@ -137,11 +137,11 @@ class TestKernelExecutionManager(unittest.TestCase):
             exec_mngr1_cmds = [f"%cd -q {d1}", f"%run {fname1}"]
             exec_mngr2_cmds = [f"%cd -q {d2}", f"%run {fname2}"]
             kernel_name = NATIVE_KERNEL_NAME
-            exec_mngr1 = KernelExecutionManager(logger1, kernel_name, *exec_mngr1_cmds, group_id="SomeGroup")
+            exec_mngr1 = KernelExecutionManager(logger1, kernel_name, exec_mngr1_cmds, group_id="SomeGroup")
             exec_mngr1 = self.replace_client(exec_mngr1)
             retval1 = exec_mngr1.run_until_complete()  # Run commands
             self.assertEqual(0, retval1)
-            exec_mngr2 = KernelExecutionManager(logger2, kernel_name, *exec_mngr2_cmds, group_id="AnotherGroup")
+            exec_mngr2 = KernelExecutionManager(logger2, kernel_name, exec_mngr2_cmds, group_id="AnotherGroup")
             exec_mngr2 = self.replace_client(exec_mngr2)
             self.assertEqual(2, _kernel_manager_factory.n_kernel_managers())
             self.assertNotEqual(exec_mngr1._kernel_manager, exec_mngr2._kernel_manager)
@@ -168,7 +168,7 @@ class TestKernelExecutionManager(unittest.TestCase):
         """Reloads the connection file, and replaces the kernel client with a new one, just like
         we do on Toolbox side. Don't really understand why we need to do this, but I think
         it's because of the 'classic' race condition in jupyter-client < 7.0.
-        This maybe fixed in a more recent version of jupyter-client."""
+        This may be fixed in a more recent version of jupyter-client."""
         # exec_mngr._kernel_client.stop_channels()
         # exec_mngr._kernel_client.context.term()  # ResourceWarning: Unclosed <zmq.Context() happens without this
         exec_mngr._kernel_manager.load_connection_file()
