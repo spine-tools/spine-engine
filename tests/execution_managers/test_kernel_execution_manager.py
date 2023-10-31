@@ -9,15 +9,23 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for ``kernel_execution_manager`` module."""
-import os
+
 import unittest
-import tempfile
 from unittest.mock import MagicMock
+from tempfile import TemporaryDirectory
+from pathlib import Path
 from spine_engine.execution_managers.kernel_execution_manager import KernelExecutionManager, _kernel_manager_factory
 from jupyter_client.kernelspec import NATIVE_KERNEL_NAME  # =='python3'
 
 
 class TestKernelExecutionManager(unittest.TestCase):
+
+    def setUp(self):
+        self._temp_dir = TemporaryDirectory()
+
+    def tearDown(self):
+        self._temp_dir.cleanup()
+
     @staticmethod
     def release_exec_mngr_resources(mngr):
         """Frees resources after exec_mngr has been used. Consider putting
@@ -31,137 +39,147 @@ class TestKernelExecutionManager(unittest.TestCase):
     def test_kernel_execution_manager(self):
         logger = MagicMock()
         logger.msg_kernel_execution.filter_id = ""
-        with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file:
-            script_file.write('print("hello")')
-            script_file.seek(0)
-            d, fname = os.path.split(script_file.name)
-            cmds = [f"%cd -q {d}", f"%run {fname}"]
-            # exec_mngr represents the manager on spine-items side
-            exec_mngr = KernelExecutionManager(logger, NATIVE_KERNEL_NAME, cmds, group_id="SomeGroup")
-            self.assertTrue(exec_mngr._kernel_manager.is_alive())
-            exec_mngr = self.replace_client(exec_mngr)
-            retval = exec_mngr.run_until_complete()  # Run commands
-            self.assertEqual(0, retval)
-            self.assertTrue(exec_mngr._kernel_manager.is_alive())
-            connection_file = exec_mngr._kernel_manager.connection_file
-            exec_mngr = self.release_exec_mngr_resources(exec_mngr)
-            exec_mngr = None
-            self.assertEqual(1, _kernel_manager_factory.n_kernel_managers())
-            _kernel_manager_factory.shutdown_kernel_manager(connection_file)
-            self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
-            message_emits = logger.msg_kernel_execution.emit.call_args_list
-            expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(5, len(message_emits))
-            self.assertEqual(expected_msg, message_emits[1][0][0])
+        f_name = "hello.py"
+        file_path = Path(self._temp_dir.name, f_name)
+        with open(file_path, "w") as fp:
+            fp.writelines(["print('hello')\n"])
+        cmds = [f"%cd -q {self._temp_dir.name}", f"%run {f_name}"]
+        # exec_mngr represents the manager on spine-items side
+        exec_mngr = KernelExecutionManager(logger, NATIVE_KERNEL_NAME, cmds, group_id="SomeGroup")
+        self.assertTrue(exec_mngr._kernel_manager.is_alive())
+        exec_mngr = self.replace_client(exec_mngr)
+        retval = exec_mngr.run_until_complete()  # Run commands
+        self.assertEqual(0, retval)
+        self.assertTrue(exec_mngr._kernel_manager.is_alive())
+        connection_file = exec_mngr._kernel_manager.connection_file
+        exec_mngr = self.release_exec_mngr_resources(exec_mngr)
+        exec_mngr = None
+        self.assertEqual(1, _kernel_manager_factory.n_kernel_managers())
+        _kernel_manager_factory.shutdown_kernel_manager(connection_file)
+        self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
+        message_emits = logger.msg_kernel_execution.emit.call_args_list
+        expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
+        last_expected_msg = {"type": "stdout", "data": 'hello\n'}
+        self.assertEqual(5, len(message_emits))
+        self.assertEqual(expected_msg, message_emits[1][0][0])
+        self.assertEqual(last_expected_msg, message_emits[-1][0][0])
 
     def test_kernel_execution_manager_kill_completed(self):
         logger = MagicMock()
         logger.msg_kernel_execution.filter_id = ""
-        with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file:
-            script_file.write('print("hello")')
-            script_file.seek(0)
-            d, fname = os.path.split(script_file.name)
-            cmds = [f"%cd -q {d}", f"%run {fname}"]
-            # exec_mngr represents the manager on spine-items side
-            exec_mngr = KernelExecutionManager(logger, NATIVE_KERNEL_NAME, cmds, kill_completed=True, group_id="a")
-            self.assertTrue(exec_mngr._kernel_manager.is_alive())
-            exec_mngr = self.replace_client(exec_mngr)
-            retval = exec_mngr.run_until_complete()  # Run commands
-            self.assertEqual(0, retval)
-            self.assertFalse(exec_mngr._kernel_manager.is_alive())
-            exec_mngr = self.release_exec_mngr_resources(exec_mngr)
-            exec_mngr = None
-            self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
-            message_emits = logger.msg_kernel_execution.emit.call_args_list
-            expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(6, len(message_emits))  # + 'kernel_shutdown' message
-            self.assertEqual(expected_msg, message_emits[1][0][0])
+        f_name = "hello.py"
+        file_path = Path(self._temp_dir.name, f_name)
+        with open(file_path, "w") as fp:
+            fp.writelines(["print('hello')\n"])
+        cmds = [f"%cd -q {self._temp_dir.name}", f"%run {f_name}"]
+        # exec_mngr represents the manager on spine-items side
+        exec_mngr = KernelExecutionManager(logger, NATIVE_KERNEL_NAME, cmds, kill_completed=True, group_id="a")
+        self.assertTrue(exec_mngr._kernel_manager.is_alive())
+        exec_mngr = self.replace_client(exec_mngr)
+        retval = exec_mngr.run_until_complete()  # Run commands
+        self.assertEqual(0, retval)
+        self.assertFalse(exec_mngr._kernel_manager.is_alive())
+        exec_mngr = self.release_exec_mngr_resources(exec_mngr)
+        exec_mngr = None
+        self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
+        message_emits = logger.msg_kernel_execution.emit.call_args_list
+        expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
+        last_expected_msg = {'type': 'kernel_shutdown', 'kernel_name': 'python3'}
+        self.assertEqual(6, len(message_emits))  # + 'kernel_shutdown' message
+        self.assertEqual(expected_msg, message_emits[1][0][0])
+        self.assertEqual(last_expected_msg, message_emits[-1][0][0])
 
     def test_kernel_manager_sharing(self):
         logger1 = MagicMock()
         logger1.msg_kernel_execution.filter_id = ""
         logger2 = MagicMock()
         logger2.msg_kernel_execution.filter_id = ""
-        with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file1, tempfile.NamedTemporaryFile(
-            "w+", encoding="utf-8"
-        ) as script_file2:
-            script_file1.write('print("hello")')
-            script_file1.seek(0)
-            script_file2.write('print("hello again")')
-            script_file2.seek(0)
-            d1, fname1 = os.path.split(script_file1.name)
-            d2, fname2 = os.path.split(script_file2.name)
-            exec_mngr1_cmds = [f"%cd -q {d1}", f"%run {fname1}"]
-            exec_mngr2_cmds = [f"%cd -q {d2}", f"%run {fname2}"]
-            kernel_name = NATIVE_KERNEL_NAME
-            exec_mngr1 = KernelExecutionManager(logger1, kernel_name, exec_mngr1_cmds, group_id="SomeGroup")
-            exec_mngr1 = self.replace_client(exec_mngr1)
-            retval1 = exec_mngr1.run_until_complete()  # Run commands
-            self.assertEqual(0, retval1)
-            exec_mngr2 = KernelExecutionManager(logger2, kernel_name, exec_mngr2_cmds, group_id="SomeGroup")
-            exec_mngr2 = self.replace_client(exec_mngr2)
-            self.assertEqual(1, _kernel_manager_factory.n_kernel_managers())
-            self.assertEqual(exec_mngr1._kernel_manager, exec_mngr2._kernel_manager)
-            retval2 = exec_mngr2.run_until_complete()  # Run commands
-            self.assertEqual(0, retval2)
-            # Close
-            exec_mngr1 = self.release_exec_mngr_resources(exec_mngr1)
-            exec_mngr2 = self.release_exec_mngr_resources(exec_mngr2)
-            exec_mngr1 = None
-            exec_mngr2 = None
-            _kernel_manager_factory.kill_kernel_managers()
-            self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
-            # Check emitted messages
-            logger1_message_emits = logger1.msg_kernel_execution.emit.call_args_list
-            expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(5, len(logger1_message_emits))
-            self.assertEqual(expected_msg, logger1_message_emits[1][0][0])
-            logger2_message_emits = logger2.msg_kernel_execution.emit.call_args_list
-            self.assertEqual(5, len(logger2_message_emits))
-            self.assertEqual(expected_msg, logger2_message_emits[1][0][0])
+        f_name1 = "hello.py"
+        f_name2 = "hello_again.py"
+        file_path1 = Path(self._temp_dir.name, f_name1)
+        file_path2 = Path(self._temp_dir.name, f_name2)
+        with open(file_path1, "w") as fp1:
+            fp1.writelines(["print('hello')\n"])
+        with open(file_path2, "w") as fp2:
+            fp2.writelines(["print('hello again')\n"])
+        exec_mngr1_cmds = [f"%cd -q {self._temp_dir.name}", f"%run {f_name1}"]
+        exec_mngr2_cmds = [f"%cd -q {self._temp_dir.name}", f"%run {f_name2}"]
+        kernel_name = NATIVE_KERNEL_NAME
+        exec_mngr1 = KernelExecutionManager(logger1, kernel_name, exec_mngr1_cmds, group_id="SomeGroup")
+        exec_mngr1 = self.replace_client(exec_mngr1)
+        retval1 = exec_mngr1.run_until_complete()  # Run commands
+        self.assertEqual(0, retval1)
+        exec_mngr2 = KernelExecutionManager(logger2, kernel_name, exec_mngr2_cmds, group_id="SomeGroup")
+        exec_mngr2 = self.replace_client(exec_mngr2)
+        self.assertEqual(1, _kernel_manager_factory.n_kernel_managers())
+        self.assertEqual(exec_mngr1._kernel_manager, exec_mngr2._kernel_manager)
+        retval2 = exec_mngr2.run_until_complete()  # Run commands
+        self.assertEqual(0, retval2)
+        # Close
+        exec_mngr1 = self.release_exec_mngr_resources(exec_mngr1)
+        exec_mngr2 = self.release_exec_mngr_resources(exec_mngr2)
+        exec_mngr1 = None
+        exec_mngr2 = None
+        _kernel_manager_factory.kill_kernel_managers()
+        self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
+        # Check emitted messages
+        logger1_message_emits = logger1.msg_kernel_execution.emit.call_args_list
+        expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
+        last_logger1_expected_msg = {'type': 'stdout', 'data': 'hello\n'}
+        self.assertEqual(5, len(logger1_message_emits))
+        self.assertEqual(expected_msg, logger1_message_emits[1][0][0])
+        self.assertEqual(last_logger1_expected_msg, logger1_message_emits[-1][0][0])
+        logger2_message_emits = logger2.msg_kernel_execution.emit.call_args_list
+        last_logger2_expected_msg = {'type': 'stdout', 'data': 'hello again\n'}
+        self.assertEqual(5, len(logger2_message_emits))
+        self.assertEqual(expected_msg, logger2_message_emits[1][0][0])
+        self.assertEqual(last_logger2_expected_msg, logger2_message_emits[-1][0][0])
 
     def test_two_kernel_managers(self):
         logger1 = MagicMock()
         logger1.msg_kernel_execution.filter_id = ""
         logger2 = MagicMock()
         logger2.msg_kernel_execution.filter_id = ""
-        with tempfile.NamedTemporaryFile("w+", encoding="utf-8") as script_file1, tempfile.NamedTemporaryFile(
-            "w+", encoding="utf-8"
-        ) as script_file2:
-            script_file1.write('print("hello")')
-            script_file1.seek(0)
-            script_file2.write('print("hello again")')
-            script_file2.seek(0)
-            d1, fname1 = os.path.split(script_file1.name)
-            d2, fname2 = os.path.split(script_file2.name)
-            exec_mngr1_cmds = [f"%cd -q {d1}", f"%run {fname1}"]
-            exec_mngr2_cmds = [f"%cd -q {d2}", f"%run {fname2}"]
-            kernel_name = NATIVE_KERNEL_NAME
-            exec_mngr1 = KernelExecutionManager(logger1, kernel_name, exec_mngr1_cmds, group_id="SomeGroup")
-            exec_mngr1 = self.replace_client(exec_mngr1)
-            retval1 = exec_mngr1.run_until_complete()  # Run commands
-            self.assertEqual(0, retval1)
-            exec_mngr2 = KernelExecutionManager(logger2, kernel_name, exec_mngr2_cmds, group_id="AnotherGroup")
-            exec_mngr2 = self.replace_client(exec_mngr2)
-            self.assertEqual(2, _kernel_manager_factory.n_kernel_managers())
-            self.assertNotEqual(exec_mngr1._kernel_manager, exec_mngr2._kernel_manager)
-            retval2 = exec_mngr2.run_until_complete()  # Run commands
-            self.assertEqual(0, retval2)
-            # Close
-            exec_mngr1 = self.release_exec_mngr_resources(exec_mngr1)
-            exec_mngr2 = self.release_exec_mngr_resources(exec_mngr2)
-            exec_mngr1 = None
-            exec_mngr2 = None
-            _kernel_manager_factory.kill_kernel_managers()
-            self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
-            # Check emitted messages
-            logger1_message_emits = logger1.msg_kernel_execution.emit.call_args_list
-            expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(5, len(logger1_message_emits))
-            self.assertEqual(expected_msg, logger1_message_emits[1][0][0])
-            logger2_message_emits = logger2.msg_kernel_execution.emit.call_args_list
-            self.assertEqual(5, len(logger2_message_emits))
-            self.assertEqual(expected_msg, logger2_message_emits[1][0][0])
+        f_name1 = "hello.py"
+        f_name2 = "hello_again.py"
+        file_path1 = Path(self._temp_dir.name, f_name1)
+        file_path2 = Path(self._temp_dir.name, f_name2)
+        with open(file_path1, "w") as fp1:
+            fp1.writelines(["print('hello')\n"])
+        with open(file_path2, "w") as fp2:
+            fp2.writelines(["print('hello again')\n"])
+        exec_mngr1_cmds = [f"%cd -q {self._temp_dir.name}", f"%run {f_name1}"]
+        exec_mngr2_cmds = [f"%cd -q {self._temp_dir.name}", f"%run {f_name2}"]
+        kernel_name = NATIVE_KERNEL_NAME
+        exec_mngr1 = KernelExecutionManager(logger1, kernel_name, exec_mngr1_cmds, group_id="SomeGroup")
+        exec_mngr1 = self.replace_client(exec_mngr1)
+        retval1 = exec_mngr1.run_until_complete()  # Run commands
+        self.assertEqual(0, retval1)
+        exec_mngr2 = KernelExecutionManager(logger2, kernel_name, exec_mngr2_cmds, group_id="AnotherGroup")
+        exec_mngr2 = self.replace_client(exec_mngr2)
+        self.assertEqual(2, _kernel_manager_factory.n_kernel_managers())
+        self.assertNotEqual(exec_mngr1._kernel_manager, exec_mngr2._kernel_manager)
+        retval2 = exec_mngr2.run_until_complete()  # Run commands
+        self.assertEqual(0, retval2)
+        # Close
+        exec_mngr1 = self.release_exec_mngr_resources(exec_mngr1)
+        exec_mngr2 = self.release_exec_mngr_resources(exec_mngr2)
+        exec_mngr1 = None
+        exec_mngr2 = None
+        _kernel_manager_factory.kill_kernel_managers()
+        self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
+        # Check emitted messages
+        logger1_message_emits = logger1.msg_kernel_execution.emit.call_args_list
+        expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
+        last_logger1_expected_msg = {'type': 'stdout', 'data': 'hello\n'}
+        self.assertEqual(5, len(logger1_message_emits))
+        self.assertEqual(expected_msg, logger1_message_emits[1][0][0])
+        self.assertEqual(last_logger1_expected_msg, logger1_message_emits[-1][0][0])
+        logger2_message_emits = logger2.msg_kernel_execution.emit.call_args_list
+        last_logger2_expected_msg = {'type': 'stdout', 'data': 'hello again\n'}
+        self.assertEqual(5, len(logger2_message_emits))
+        self.assertEqual(expected_msg, logger2_message_emits[1][0][0])
+        self.assertEqual(last_logger2_expected_msg, logger2_message_emits[-1][0][0])
 
     @staticmethod
     def replace_client(exec_mngr):
