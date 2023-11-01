@@ -38,9 +38,9 @@ class TestProjectRemoverService(unittest.TestCase):
 
     def test_remove_project_service(self):
         """Extracts a project into received_projects folder, then removes it using the ProjectRemoverService."""
-        with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "zippedproject.zip"), "rb") as f:
             file_data = f.read()
-        msg = ServerMessage("prepare_execution", "1", json.dumps("helloworld"), ["helloworld.zip"])
+        msg = ServerMessage("prepare_execution", "1", json.dumps("project_name"), ["zippedproject.zip"])
         self.socket.send_multipart([msg.to_bytes(), file_data])
         r1 = self.socket.recv_multipart()
         r1_msg = ServerMessage.parse(r1[1])
