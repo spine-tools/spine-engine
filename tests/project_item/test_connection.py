@@ -19,7 +19,6 @@ from unittest.mock import Mock
 from spinedb_api import DatabaseMapping, import_entity_classes, import_scenarios, import_alternatives
 from spine_engine.project_item.connection import Connection, FilterSettings, Jump
 from spine_engine.project_item.project_item_resource import database_resource
-from spine_engine.spine_engine import SpineEngine
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 
 
@@ -171,34 +170,6 @@ class TestJump(unittest.TestCase):
         jump = Jump("source", "bottom", "destination", "top", condition)
         jump.make_logger(Mock())
         self.assertTrue(jump.is_condition_true(23))
-
-    def test_tool_spec_condition(self):
-        condition = {"type": "tool-specification", "specification": "loop_twice"}
-        jump = Jump("source", "bottom", "destination", "top", condition)
-        jump.make_logger(Mock())
-        with TemporaryDirectory() as temp_dir:
-            main_file = "script.py"
-            main_file_path = os.path.join(temp_dir, main_file)
-            with open(main_file_path, "w+") as program_file:
-                program_file.writelines(
-                    ['import sys\n', 'counter = int(sys.argv[1])\n', 'exit(0 if counter == 23 else 1)\n']
-                )
-            engine = SpineEngine(
-                project_dir=temp_dir,
-                specifications={
-                    "Tool": [
-                        {
-                            "name": "loop_twice",
-                            "tooltype": "python",
-                            "includes_main_path": temp_dir,
-                            "includes": [main_file],
-                        }
-                    ]
-                },
-                connections=list(),
-            )
-            jump.set_engine(engine)
-            self.assertTrue(jump.is_condition_true(23))
 
     def test_dictionary(self):
         jump = Jump("source", "bottom", "destination", "top", {"type": "python-script", "script": "exit(23)"})

@@ -87,8 +87,7 @@ class _KernelManagerFactory(metaclass=Singleton):
             kernel_name (str): The kernel
             group_id (str): Item group that will execute using this kernel
             logger (LoggerInterface): For logging
-            extra_switches (list, optional): List of additional switches to julia or python.
-                These come before the 'programfile'.
+            extra_switches (list, optional): List of additional switches for the kernel (i.e. Julia or Python)
             environment (str): "conda" to launch a Conda kernel spec. "" for a regular kernel spec
             `**kwargs`: optional. Keyword arguments passed to ``KernelManager.start_kernel()``
 
@@ -262,25 +261,24 @@ class KernelExecutionManager(ExecutionManagerBase):
         self,
         logger,
         kernel_name,
-        *commands,
+        commands,
         kill_completed=False,
         group_id=None,
         startup_timeout=60,
-        extra_switches=None,
         environment="",
+        extra_switches=None,
         **kwargs,
     ):
         """
         Args:
-            logger (LoggerInterface): For logging
-            kernel_name (str): The Kernel
-            *commands: Commands to execute in the kernel
+            logger (LoggerInterface): Logger instance
+            kernel_name (str): Kernel name
+            commands (list): Commands to execute in the kernel
             kill_completed (bool): Whether to kill completed persistent processes
             group_id (str, optional): Item group that will execute using this kernel
             startup_timeout (int, optional): How much to wait for the kernel, used in ``KernelClient.wait_for_ready()``
-            extra_switches (list, optional): List of additional switches to launch julia.
-                These come before the 'programfile'.
             environment (str): "conda" to launch a Conda kernel spec. "" for a regular kernel spec.
+            extra_switches (list, optional): List of additional switches for the kernel (i.e. Julia or Python)
             **kwargs (optional): Keyword arguments passed to ``KernelManager.start_kernel()``
         """
         super().__init__(logger)

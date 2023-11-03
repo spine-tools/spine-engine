@@ -30,7 +30,7 @@ class TestZipHandler(unittest.TestCase):
         self.assertFalse(os.path.isfile(zip_file))
 
     def test_extract_and_delete_folder(self):
-        zip_file_path = str(Path(__file__).parent.parent / "helloworld.zip")
+        zip_file_path = str(Path(__file__).parent.parent / "zippedproject.zip")
         output_dir_path = str(Path(__file__).parent / "output")
         ZipHandler.extract(zip_file_path, output_dir_path)
         self.assertEqual(os.path.isdir(output_dir_path), True)
