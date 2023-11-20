@@ -19,7 +19,6 @@ from jupyter_client.kernelspec import NATIVE_KERNEL_NAME  # =='python3'
 
 
 class TestKernelExecutionManager(unittest.TestCase):
-
     def setUp(self):
         self._temp_dir = TemporaryDirectory()
 
