@@ -8,11 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Provides the ProjectItemResource class.
-
-"""
+""" Provides the ProjectItemResource class. """
 import copy
 import uuid
 from contextlib import contextmanager
@@ -43,7 +39,7 @@ class ProjectItemResource:
 
                 - "file": url points to a local file
                 - "file_pack": resource is part of a pack; url points to the file's path
-                - "database": url is the databases url
+                - "database": url is a Spine database url
                 - "url": url is a generic URL
             label (str): A label that identifies the resource.
             url (str, optional): The url of the resource.
@@ -52,6 +48,7 @@ class ProjectItemResource:
 
                 - filter_stack (str): resource's filter stack
                 - filter_id (str): filter id
+                - schema (str): database schema if resource is a database resource
             filterable (bool): If True, the resource provides opportunity for filtering
             identifier (str): an identifier of the original instance, shared also by all the clones
         """
@@ -223,7 +220,7 @@ class LabelArg(CmdLineArg):
         return {"type": "resource", "arg": self.arg}
 
 
-def database_resource(provider_name, url, label=None, filterable=False):
+def database_resource(provider_name, url, label=None, filterable=False, schema=None):
     """
     Constructs a Spine database resource.
 
@@ -232,13 +229,18 @@ def database_resource(provider_name, url, label=None, filterable=False):
         url (str): database URL
         label (str, optional): resource label
         filterable (bool): is resource filterable
+        schema (str, optional): database schema
+
+    Returns:
+        ProjectItemResources: Spine database resource
     """
     if label is None:
         label = clear_filter_configs(url)
-    return ProjectItemResource(provider_name, "database", label, url, filterable=filterable)
+    metadata = None if not schema else {"schema": schema}
+    return ProjectItemResource(provider_name, "database", label, url, metadata=metadata, filterable=filterable)
 
 
-def url_resource(provider_name, url, label):
+def url_resource(provider_name, url, label, schema=None):
     """
     Constructs a generic URL resource.
 
@@ -246,8 +248,10 @@ def url_resource(provider_name, url, label):
         provider_name (str): resource provider's name
         url (str): database URL
         label (str): resource label
+        schema (str, optional): database schema if URL is a database URL
     """
-    return ProjectItemResource(provider_name, "url", label, url)
+    metadata = None if not schema else {"schema": schema}
+    return ProjectItemResource(provider_name, "url", label, url, metadata=metadata)
 
 
 def file_resource(provider_name, file_path, label=None):
@@ -323,8 +327,11 @@ def labelled_resource_filepaths(resources):
     return {resource.label: resource.path for resource in resources if resource.hasfilepath}
 
 
-def get_labelled_sources(resources):
-    """Organizes resources into URLs or file paths keyed by resource label.
+_DATABASE_RESOURCE_TYPES = ("database", "url")
+
+
+def get_labelled_source_resources(resources):
+    """Collects URL and file resources and keys them by resource label.
 
     Args:
         resources (Iterable of ProjectItemResource): resources to organize
@@ -333,13 +340,40 @@ def get_labelled_sources(resources):
         dict: a mapping from resource label to list of URLs or file paths
     """
     d = {}
-    url_resources = ("database", "url")
     for resource in resources:
-        if resource.type_ in url_resources:
-            d.setdefault(resource.label, []).append(resource.url)
-        elif resource.hasfilepath:
-            d.setdefault(resource.label, []).append(resource.path)
+        if resource.type_ in _DATABASE_RESOURCE_TYPES or resource.hasfilepath:
+            d.setdefault(resource.label, []).append(resource)
     return d
+
+
+def get_source(resource):
+    """Gets source from resource.
+
+    Args:
+        resource (ProjectItemResource): resource
+
+    Returns:
+         str: source file path or URL or None if source is not available
+    """
+    if resource.type_ in _DATABASE_RESOURCE_TYPES:
+        return resource.url
+    elif resource.hasfilepath:
+        return resource.path
+    return None
+
+
+def get_source_extras(resource):
+    """Gets additional source settings from resource.
+
+    Args:
+        resource (ProjectItemResource): resource
+
+    Returns:
+        dict: additional source settings
+    """
+    if resource.type_ in _DATABASE_RESOURCE_TYPES:
+        return {"schema": resource.metadata.get("schema")}
+    return {}
 
 
 def make_cmd_line_arg(arg_spec):
