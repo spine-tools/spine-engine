@@ -243,6 +243,10 @@ class TestKernelExecutionManager(unittest.TestCase):
                 kernel_started_messages.append(message)
             elif msg_type == "kernel_shutdown":
                 kernel_shutdown_messages.append(message)
+            elif msg_type == "stdout":
+                # On Linux, script file output is echoed in stdout
+                # This doesn't happen on Windows for some reason.
+                pass
             else:
                 self.fail(f"unexpected message type {msg_type}")
         return kernel_started_messages, stdin_messages, execution_started_messages, kernel_shutdown_messages
