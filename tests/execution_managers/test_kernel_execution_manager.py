@@ -26,7 +26,6 @@ class TestKernelExecutionManager(unittest.TestCase):
             mngr._kernel_client.context.term()  # ResourceWarning: Unclosed <zmq.Context() happens without this
         mngr.std_out.close()  # Prevents ResourceWarning: unclosed file <_io.TextIOWrapper name='nul' ...
         mngr.std_err.close()  # Prevents ResourceWarning: unclosed file <_io.TextIOWrapper name='nul' ...
-        return mngr
 
     def test_kernel_execution_manager(self):
         logger = MagicMock()
@@ -44,15 +43,22 @@ class TestKernelExecutionManager(unittest.TestCase):
             self.assertEqual(0, retval)
             self.assertTrue(exec_mngr._kernel_manager.is_alive())
             connection_file = exec_mngr._kernel_manager.connection_file
-            exec_mngr = self.release_exec_mngr_resources(exec_mngr)
-            exec_mngr = None
+            self.release_exec_mngr_resources(exec_mngr)
             self.assertEqual(1, _kernel_manager_factory.n_kernel_managers())
             _kernel_manager_factory.shutdown_kernel_manager(connection_file)
             self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
-            message_emits = logger.msg_kernel_execution.emit.call_args_list
+            (
+                kernel_started_messages,
+                stdin_messages,
+                execution_started_messages,
+                kernel_shutdown_messages,
+            ) = self._collect_messages_per_type(logger)
+            self.assertEqual(len(kernel_started_messages), 1)
+            self.assertEqual(kernel_started_messages[0]["kernel_name"], NATIVE_KERNEL_NAME)
+            self.assertEqual(len(stdin_messages), 2)
             expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(5, len(message_emits))
-            self.assertEqual(expected_msg, message_emits[1][0][0])
+            self.assertEqual([expected_msg], execution_started_messages)
+            self.assertEqual(len(kernel_shutdown_messages), 0)
 
     def test_kernel_execution_manager_kill_completed(self):
         logger = MagicMock()
@@ -69,13 +75,21 @@ class TestKernelExecutionManager(unittest.TestCase):
             retval = exec_mngr.run_until_complete()  # Run commands
             self.assertEqual(0, retval)
             self.assertFalse(exec_mngr._kernel_manager.is_alive())
-            exec_mngr = self.release_exec_mngr_resources(exec_mngr)
-            exec_mngr = None
+            self.release_exec_mngr_resources(exec_mngr)
             self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
-            message_emits = logger.msg_kernel_execution.emit.call_args_list
+            (
+                kernel_started_messages,
+                stdin_messages,
+                execution_started_messages,
+                kernel_shutdown_messages,
+            ) = self._collect_messages_per_type(logger)
+            self.assertEqual(len(kernel_started_messages), 1)
+            self.assertEqual(kernel_started_messages[0]["kernel_name"], NATIVE_KERNEL_NAME)
+            self.assertEqual(len(stdin_messages), 2)
             expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(6, len(message_emits))  # + 'kernel_shutdown' message
-            self.assertEqual(expected_msg, message_emits[1][0][0])
+            self.assertEqual([expected_msg], execution_started_messages)
+            self.assertEqual(len(kernel_shutdown_messages), 1)
+            self.assertEqual(kernel_shutdown_messages[0]["kernel_name"], NATIVE_KERNEL_NAME)
 
     def test_kernel_manager_sharing(self):
         logger1 = MagicMock()
@@ -105,20 +119,35 @@ class TestKernelExecutionManager(unittest.TestCase):
             retval2 = exec_mngr2.run_until_complete()  # Run commands
             self.assertEqual(0, retval2)
             # Close
-            exec_mngr1 = self.release_exec_mngr_resources(exec_mngr1)
-            exec_mngr2 = self.release_exec_mngr_resources(exec_mngr2)
-            exec_mngr1 = None
-            exec_mngr2 = None
+            self.release_exec_mngr_resources(exec_mngr1)
+            self.release_exec_mngr_resources(exec_mngr2)
             _kernel_manager_factory.kill_kernel_managers()
             self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
             # Check emitted messages
-            logger1_message_emits = logger1.msg_kernel_execution.emit.call_args_list
+            (
+                kernel_started_messages,
+                stdin_messages,
+                execution_started_messages,
+                kernel_shutdown_messages,
+            ) = self._collect_messages_per_type(logger1)
+            self.assertEqual(len(kernel_started_messages), 1)
+            self.assertEqual(kernel_started_messages[0]["kernel_name"], NATIVE_KERNEL_NAME)
+            self.assertEqual(len(stdin_messages), 2)
             expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(5, len(logger1_message_emits))
-            self.assertEqual(expected_msg, logger1_message_emits[1][0][0])
-            logger2_message_emits = logger2.msg_kernel_execution.emit.call_args_list
-            self.assertEqual(5, len(logger2_message_emits))
-            self.assertEqual(expected_msg, logger2_message_emits[1][0][0])
+            self.assertEqual([expected_msg], execution_started_messages)
+            self.assertEqual(len(kernel_shutdown_messages), 0)
+            (
+                kernel_started_messages,
+                stdin_messages,
+                execution_started_messages,
+                kernel_shutdown_messages,
+            ) = self._collect_messages_per_type(logger2)
+            self.assertEqual(len(kernel_started_messages), 1)
+            self.assertEqual(kernel_started_messages[0]["kernel_name"], NATIVE_KERNEL_NAME)
+            self.assertEqual(len(stdin_messages), 2)
+            expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
+            self.assertEqual([expected_msg], execution_started_messages)
+            self.assertEqual(len(kernel_shutdown_messages), 0)
 
     def test_two_kernel_managers(self):
         logger1 = MagicMock()
@@ -148,20 +177,35 @@ class TestKernelExecutionManager(unittest.TestCase):
             retval2 = exec_mngr2.run_until_complete()  # Run commands
             self.assertEqual(0, retval2)
             # Close
-            exec_mngr1 = self.release_exec_mngr_resources(exec_mngr1)
-            exec_mngr2 = self.release_exec_mngr_resources(exec_mngr2)
-            exec_mngr1 = None
-            exec_mngr2 = None
+            self.release_exec_mngr_resources(exec_mngr1)
+            self.release_exec_mngr_resources(exec_mngr2)
             _kernel_manager_factory.kill_kernel_managers()
             self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
             # Check emitted messages
-            logger1_message_emits = logger1.msg_kernel_execution.emit.call_args_list
+            (
+                kernel_started_messages,
+                stdin_messages,
+                execution_started_messages,
+                kernel_shutdown_messages,
+            ) = self._collect_messages_per_type(logger1)
+            self.assertEqual(len(kernel_started_messages), 1)
+            self.assertEqual(kernel_started_messages[0]["kernel_name"], NATIVE_KERNEL_NAME)
+            self.assertEqual(len(stdin_messages), 2)
             expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
-            self.assertEqual(5, len(logger1_message_emits))
-            self.assertEqual(expected_msg, logger1_message_emits[1][0][0])
-            logger2_message_emits = logger2.msg_kernel_execution.emit.call_args_list
-            self.assertEqual(5, len(logger2_message_emits))
-            self.assertEqual(expected_msg, logger2_message_emits[1][0][0])
+            self.assertEqual([expected_msg], execution_started_messages)
+            self.assertEqual(len(kernel_shutdown_messages), 0)
+            (
+                kernel_started_messages,
+                stdin_messages,
+                execution_started_messages,
+                kernel_shutdown_messages,
+            ) = self._collect_messages_per_type(logger2)
+            self.assertEqual(len(kernel_started_messages), 1)
+            self.assertEqual(kernel_started_messages[0]["kernel_name"], NATIVE_KERNEL_NAME)
+            self.assertEqual(len(stdin_messages), 2)
+            expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
+            self.assertEqual([expected_msg], execution_started_messages)
+            self.assertEqual(len(kernel_shutdown_messages), 0)
 
     @staticmethod
     def replace_client(exec_mngr):
@@ -176,3 +220,29 @@ class TestKernelExecutionManager(unittest.TestCase):
         # kc.start_channels()
         exec_mngr._kernel_client = kc  # Replace the original client
         return exec_mngr
+
+    def _collect_messages_per_type(self, logger):
+        stdin_messages = []
+        execution_started_messages = []
+        kernel_started_messages = []
+        kernel_shutdown_messages = []
+        for i, call in enumerate(logger.msg_kernel_execution.emit.call_args_list):
+            with self.subTest(call_number=i):
+                self.assertEqual(len(call.kwargs), 0)
+                self.assertEqual(len(call.args), 1)
+            message = call.args[0]
+            msg_type = message["type"]
+            if msg_type == "stdin":
+                stdin_messages.append(message)
+            elif msg_type == "execution_started":
+                execution_started_messages.append(message)
+            elif msg_type == "stderr":
+                # UserWarnings are harmless, everything else is suspicious
+                self.assertIn("UserWarning", message["data"])
+            elif msg_type == "kernel_started":
+                kernel_started_messages.append(message)
+            elif msg_type == "kernel_shutdown":
+                kernel_shutdown_messages.append(message)
+            else:
+                self.fail(f"unexpected message type {msg_type}")
+        return kernel_started_messages, stdin_messages, execution_started_messages, kernel_shutdown_messages
