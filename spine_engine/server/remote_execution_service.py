@@ -8,10 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Contains RemoteExecutionService class that executes a single DAG on the Spine Engine Server.
-"""
+""" Contains RemoteExecutionService class that executes a single DAG on the Spine Engine Server. """
 
 import os
 import threading
@@ -178,15 +175,12 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         # Adjust project_dir to point to the local folder
         remote_folder = input_data["project_dir"]  # Project directory on client
         input_data["project_dir"] = local_project_dir  # Project directory on server
-        # Loop specs
-        specs_keys = input_data["specifications"].keys()
-        for specs_key in specs_keys:
+        for specs_key, spec_item in input_data["specifications"].items():
             spec_item = input_data["specifications"][specs_key]
-            i = 0
-            for specItemInfo in spec_item:
+            for i, item_info in enumerate(spec_item):
                 # Adjust definition_file_path in specs to point to the server folder
-                if "definition_file_path" in specItemInfo:
-                    original_def_file_path = specItemInfo["definition_file_path"]  # Absolute path on client machine
+                if "definition_file_path" in item_info:
+                    original_def_file_path = item_info["definition_file_path"]  # Absolute path on client machine
                     # Make sure path separators match the OS separator
                     original_def_file_path = original_def_file_path.replace("\\", os.path.sep)
                     # Remove part of definition file path that references client machine path to get
@@ -195,15 +189,14 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                     rel_def_file_path = original_def_file_path.replace(remote_folder + "/", "")
                     modified = os.path.join(local_project_dir, rel_def_file_path)  # Absolute path on server machine
                     input_data["specifications"][specs_key][i]["definition_file_path"] = modified
-                i += 1
                 # Modify Python executable path and kernel spec because those refer to paths on client's machine
-                if "execution_settings" in specItemInfo and specItemInfo["tooltype"] == "python":
-                    if specItemInfo["execution_settings"]["use_jupyter_console"]:
+                if "execution_settings" in item_info and item_info["tooltype"] == "python":
+                    if item_info["execution_settings"].get("use_jupyter_console", False):
                         # Replace kernel_spec_name with the default kernel spec 'python3' (must be available on server)
-                        specItemInfo["execution_settings"]["kernel_spec_name"] = "python3"
+                        item_info["execution_settings"]["kernel_spec_name"] = "python3"
                     else:
                         # Replace Python executable exec with "" because client's Python is not available on server
-                        specItemInfo["execution_settings"]["executable"] = ""
+                        item_info["execution_settings"]["executable"] = ""
         # Loop items
         items_keys = input_data["items"].keys()
         for items_key in items_keys:
