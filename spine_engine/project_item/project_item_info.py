@@ -34,3 +34,16 @@ class ProjectItemInfo:
             str: item's type
         """
         raise NotImplementedError()
+
+    @staticmethod
+    def specification_icon(specification):
+        """
+        Returns the specification icon resource path.
+
+        Args:
+            specification (ProjectItemSpecification): Item's specification
+
+        Returns:
+            str: Path to the resource
+        """
+        raise NotImplementedError()
