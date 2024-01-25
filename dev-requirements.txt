@@ -1,4 +1,8 @@
-black == 24.4.2
-pre-commit == 2.0.1
-pylint >= 2.3.0
--r "docs/requirements.txt"
+ipykernel
+coverage[toml]
+sphinx
+recommonmark
+sphinx_rtd_theme
+sphinx-autoapi
+pylint
+black == 21.12b

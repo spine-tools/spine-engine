@@ -52,8 +52,8 @@ class TestKernelExecutionManager(unittest.TestCase):
         self.assertEqual(0, retval)
         self.assertTrue(exec_mngr._kernel_manager.is_alive())
         connection_file = exec_mngr._kernel_manager.connection_file
-        exec_mngr = self.release_exec_mngr_resources(exec_mngr)
-        exec_mngr = None
+        self.release_exec_mngr_resources(exec_mngr)
+        del exec_mngr
         self.assertEqual(1, _kernel_manager_factory.n_kernel_managers())
         _kernel_manager_factory.shutdown_kernel_manager(connection_file)
         self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())

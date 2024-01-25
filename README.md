@@ -1,6 +1,6 @@
 # Spine Engine
 
-[![Python](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11-blue.svg)](https://www.python.org/downloads/release/python-379/)
+[![Python](https://img.shields.io/badge/python-3.8%20|%203.9%20|%203.10%20|%203.11|%203.12-blue.svg)](https://www.python.org/downloads/release/python-379/)
 [![Unit tests](https://github.com/spine-tools/spine-engine/workflows/Unit%20tests/badge.svg)](https://github.com/spine-tools/spine-engine/actions?query=workflow%3A"Unit+tests")
 [![codecov](https://codecov.io/gh/spine-tools/spine-engine/branch/master/graph/badge.svg)](https://codecov.io/gh/spine-tools/spine-engine)
 [![PyPI version](https://badge.fury.io/py/spine-engine.svg)](https://badge.fury.io/py/spine-engine)
@@ -27,11 +27,6 @@ To install Spine Engine into an existing Python environment, run
 
     $ pip install spine_engine
 
-### Dependencies
-
-Spine Engine installation will install [dagster](https://dagster.readthedocs.io/en/master/index.html).
-
-&nbsp;
 <hr>
 <center>
 <table width=500px frame="none">
