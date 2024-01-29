@@ -8,10 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Uni tests for the ``connection`` module.
-
-"""
+""" Uni tests for the ``connection`` module. """
 import os.path
 from tempfile import TemporaryDirectory
 import unittest
@@ -191,6 +188,13 @@ class TestFilterSettings(unittest.TestCase):
         settings = FilterSettings({"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}})
         self.assertTrue(settings.has_filters())
 
+    def test_has_filters_returns_false_when_filter_type_is_disabled(self):
+        settings = FilterSettings(
+            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}},
+            enabled_filter_types={SCENARIO_FILTER_TYPE: False},
+        )
+        self.assertFalse(settings.has_filters())
+
     def test_has_filters_online_returns_false_when_no_filters_exist(self):
         settings = FilterSettings()
         self.assertFalse(settings.has_filter_online(SCENARIO_FILTER_TYPE))
@@ -206,6 +210,17 @@ class TestFilterSettings(unittest.TestCase):
     def test_has_filter_online_works_when_there_are_no_known_filters(self):
         settings = FilterSettings()
         self.assertFalse(settings.has_filter_online(SCENARIO_FILTER_TYPE))
+
+    def test_has_any_filter_online_returns_false_when_no_filters_exist(self):
+        settings = FilterSettings()
+        self.assertFalse(settings.has_any_filter_online())
+
+    def test_has_any_filter_online_returns_false_when_filter_type_is_disabled(self):
+        settings = FilterSettings(
+            {"database@Data Store": {SCENARIO_FILTER_TYPE: {"scenario_1": True}}},
+            enabled_filter_types={SCENARIO_FILTER_TYPE: False},
+        )
+        self.assertFalse(settings.has_any_filter_online())
 
     def test_has_any_filter_online_returns_true_when_filters_are_online(self):
         settings = FilterSettings(

@@ -8,11 +8,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Contains the SpineEngine class for running Spine Toolbox DAGs.
-
-"""
+""" Contains the SpineEngine class for running Spine Toolbox DAGs. """
 from enum import Enum, unique
 import os
 import threading
@@ -735,8 +731,8 @@ class SpineEngine:
         if filters is None:
             return []
         filter_configs_list = []
-        for filter_type, names in filters.items():
-            filter_configs = [filter_config(filter_type, name) for name in names]
+        for filter_type, values in filters.items():
+            filter_configs = [filter_config(filter_type, value) for value in values]
             if not filter_configs:
                 continue
             filter_configs_list.append(filter_configs)
