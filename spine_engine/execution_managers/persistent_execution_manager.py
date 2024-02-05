@@ -146,15 +146,21 @@ class PersistentManagerBase:
 
     def _log_stdout(self):
         """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
-        for line in iter(self._persistent.stdout.readline, b''):
-            data = line.decode("UTF8", "replace").rstrip()
-            self._msg_queue.put(dict(type="stdout", data=data))
+        try:
+            for line in iter(self._persistent.stdout.readline, b''):
+                data = line.decode("UTF8", "replace").rstrip()
+                self._msg_queue.put(dict(type="stdout", data=data))
+        except ValueError:
+            pass
 
     def _log_stderr(self):
         """Puts stderr from the process into the queue (it will be consumed by issue_command())."""
-        for line in iter(self._persistent.stderr.readline, b''):
-            data = line.decode("UTF8", "replace").rstrip()
-            self._msg_queue.put(dict(type="stderr", data=data))
+        try:
+            for line in iter(self._persistent.stderr.readline, b''):
+                data = line.decode("UTF8", "replace").rstrip()
+                self._msg_queue.put(dict(type="stderr", data=data))
+        except ValueError:
+            pass
 
     def make_complete_command(self, cmd):
         lines = cmd.splitlines()
