@@ -735,9 +735,11 @@ def _restore_legacy_disabled_filters(disabled_filter_names):
     Returns:
         dict: known filters
     """
+    deprecated_types = {"tool_filter"}
     converted = {}
     for label, names_by_type in disabled_filter_names.items():
         converted_names_by_type = converted.setdefault(label, {})
         for filter_type, names in names_by_type.items():
-            converted_names_by_type[filter_type] = {name: False for name in names}
+            if filter_type not in deprecated_types:
+                converted_names_by_type[filter_type] = {name: False for name in names}
     return converted
