@@ -14,6 +14,7 @@
 The QueueLogger class.
 
 """
+import time
 
 
 class _MessageBase:
@@ -77,11 +78,14 @@ class _Prompt(_MessageBase):
         self._answered_prompts = answered_prompts
 
     def emit(self, prompt):
-        prompt = {"item_name": self._item_name, **prompt}
         key = str(prompt)
         if key not in self._answered_prompts:
+            self._answered_prompts[key] = None
+            prompt = {"item_name": self._item_name, **prompt}
             self._queue.put(("prompt", prompt))
             self._answered_prompts[key] = self._prompt_queue.get()
+        while self._answered_prompts[key] is None:
+            time.sleep(0.02)
         return self._answered_prompts[key]
 
 
