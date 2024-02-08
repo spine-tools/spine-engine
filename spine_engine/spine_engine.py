@@ -467,10 +467,14 @@ class SpineEngine:
                 context.log.error(f"compute_fn() FAILURE with item: {item_name} stopped by the user")
                 raise Failure()
             context.log.info(f"Item Name: {item_name}")
-            item = self.make_item(item_name, ED.BACKWARD)
-            resources = item.output_resources(ED.BACKWARD)
-            for r in resources:
-                r.metadata["db_server_manager_queue"] = self._db_server_manager_queue
+            solid_name = self._solids_by_items[item_name]
+            if solid_name not in self._forth_injectors:
+                resources = []
+            else:
+                item = self.make_item(item_name, ED.BACKWARD)
+                resources = item.output_resources(ED.BACKWARD)
+                for r in resources:
+                    r.metadata["db_server_manager_queue"] = self._db_server_manager_queue
             yield Output(value=resources, output_name=f"{ED.BACKWARD}_output")
 
         input_defs = []
@@ -610,11 +614,15 @@ class SpineEngine:
             item.exclude_execution(filtered_forward_resources, filtered_backward_resources, item_lock)
             item_finish_state = ItemExecutionFinishState.EXCLUDED
         filter_stack = sum((r.metadata.get("filter_stack", ()) for r in filtered_forward_resources), ())
-        output_resources = item.output_resources(ED.FORWARD)
-        for resource in output_resources:
-            resource.metadata["filter_stack"] = filter_stack
-            resource.metadata["filter_id"] = item.filter_id
-            resource.metadata["db_server_manager_queue"] = self._db_server_manager_queue
+        solid_name = self._solids_by_items[item.name]
+        if solid_name not in self._back_injectors:
+            output_resources = []
+        else:
+            output_resources = item.output_resources(ED.FORWARD)
+            for resource in output_resources:
+                resource.metadata["filter_stack"] = filter_stack
+                resource.metadata["filter_id"] = item.filter_id
+                resource.metadata["db_server_manager_queue"] = self._db_server_manager_queue
         output_resources_list.append(output_resources)
         success[0] = item_finish_state  # FIXME: We need a Lock here
         self._running_items.remove(item)
