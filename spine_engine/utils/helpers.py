@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Helpers functions and classes.
-
-"""
+""" Helpers functions and classes. """
 import collections
 import os
 import sys
@@ -114,13 +111,27 @@ def resolve_conda_executable(conda_path):
     return conda_exe
 
 
-def resolve_python_interpreter(python_path):
-    """If given python_path is empty, returns the
-    full path to Python interpreter depending on user's
-    settings and whether the app is frozen or not.
+def resolve_python_interpreter(settings):
+    """Returns a path to Python interpreter in settings or the current executable if none is set.
+
+    Args:
+        settings (AppSettings): settings
+
+    Returns:
+        str: path to Python interpreter
     """
-    if python_path != "":
-        return python_path
+    path = settings.value("appSettings/pythonPath")
+    if path:
+        return path
+    return resolve_current_python_interpreter()
+
+
+def resolve_current_python_interpreter():
+    """Returns a path to current Python interpreter.
+
+    Returns:
+        str: path to Python interpreter
+    """
     if not getattr(sys, "frozen", False):
         return sys.executable  # Use current Python
     # We are frozen
