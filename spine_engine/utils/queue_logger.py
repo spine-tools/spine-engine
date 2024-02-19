@@ -72,19 +72,21 @@ class SuppressedMessage:
 
 
 class _Prompt(_MessageBase):
+    _PENDING = object()
+
     def __init__(self, queue, item_name, prompt_queue, answered_prompts):
         super().__init__(queue, item_name, "prompt")
         self._prompt_queue = prompt_queue
         self._answered_prompts = answered_prompts
 
-    def emit(self, prompt):
-        key = str(prompt)
+    def emit(self, prompt_data):
+        key = str(prompt_data)
         if key not in self._answered_prompts:
-            self._answered_prompts[key] = None
-            prompt = {"item_name": self._item_name, **prompt}
+            self._answered_prompts[key] = self._PENDING
+            prompt = {"item_name": self._item_name, "data": prompt_data}
             self._queue.put(("prompt", prompt))
             self._answered_prompts[key] = self._prompt_queue.get()
-        while self._answered_prompts[key] is None:
+        while self._answered_prompts[key] is self._PENDING:
             time.sleep(0.02)
         return self._answered_prompts[key]
 
