@@ -28,7 +28,7 @@ from spine_engine.project_item.project_item_resource import (
     labelled_resource_args,
 )
 from spine_engine.utils.helpers import (
-    resolve_python_interpreter,
+    resolve_current_python_interpreter,
     ItemExecutionFinishState,
     PartCount,
     ExecutionDirection as ED,
@@ -674,7 +674,7 @@ class Jump(ConnectionBase):
             with tempfile.TemporaryFile("w+", encoding="utf-8") as script_file:
                 script_file.write(script)
                 script_file.seek(0)
-                python = resolve_python_interpreter("")
+                python = resolve_current_python_interpreter()
                 result = subprocess.run(
                     [python, "-", *expanded_args], encoding="utf-8", stdin=script_file, capture_output=True
                 )
