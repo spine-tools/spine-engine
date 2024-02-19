@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Helpers functions and classes. """
+"""Helper functions and classes."""
 import collections
 import os
 import sys
@@ -59,9 +59,7 @@ class Singleton(type):
 
 
 class AppSettings:
-    """
-    A QSettings replacement.
-    """
+    """A QSettings replacement."""
 
     def __init__(self, settings):
         """
@@ -159,12 +157,6 @@ def resolve_default_julia_executable():
 
     Tries to find the path to Julia in user's PATH env variable.
     If Julia is not found in PATH, returns an empty string.
-
-    Note: In the long run, we should decide whether this is something we want to do
-    because adding julia-x.x./bin/ dir to the PATH is not recommended because this
-    also exposes some .dlls to other programs on user's (windows) system. I.e. it
-    may break other programs, and this is why the Julia installer does not
-    add (and does not even offer the chance to add) Julia to PATH.
 
     Returns:
         str: path to Julia executable
