@@ -65,8 +65,6 @@ class AppSettings:
 
     def __init__(self, settings):
         """
-        Init.
-
         Args:
             settings (dict)
         """
@@ -141,19 +139,36 @@ def resolve_current_python_interpreter():
     return EMBEDDED_PYTHON  # Use embedded <app_install_dir>/Tools/python.exe
 
 
-def resolve_julia_executable(julia_path):
-    """if given julia_path is empty, tries to find the path to Julia
-    in user's PATH env variable. If Julia is not found in PATH,
-    returns an empty string.
+def resolve_julia_executable(settings):
+    """Returns path to Julia executable from settings, and, if not set, path to default Julia executable.
+
+    Args:
+        settings (AppSettings): application settings
+
+    Returns:
+        str: path to Julia executable
+    """
+    path = settings.value("appSettings/juliaPath")
+    if path:
+        return path
+    return resolve_default_julia_executable()
+
+
+def resolve_default_julia_executable():
+    """Returns path to default Julia executable.
+
+    Tries to find the path to Julia in user's PATH env variable.
+    If Julia is not found in PATH, returns an empty string.
 
     Note: In the long run, we should decide whether this is something we want to do
     because adding julia-x.x./bin/ dir to the PATH is not recommended because this
     also exposes some .dlls to other programs on user's (windows) system. I.e. it
     may break other programs, and this is why the Julia installer does not
     add (and does not even offer the chance to add) Julia to PATH.
+
+    Returns:
+        str: path to Julia executable
     """
-    if julia_path != "":
-        return julia_path
     return resolve_executable_from_path(JULIA_EXECUTABLE)
 
 
