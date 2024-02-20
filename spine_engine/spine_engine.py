@@ -259,7 +259,9 @@ class SpineEngine:
         Note that this method is called multiple times for each item:
         Once for the backward pipeline, and once for each filtered execution in the forward pipeline."""
         item_dict = self._items[item_name]
-        prompt_queue = self._prompt_queues[item_name] = mp.Queue()
+        if item_name not in self._prompt_queues:
+            self._prompt_queues[item_name] = mp.Queue()
+        prompt_queue = self._prompt_queues[item_name]
         logger = QueueLogger(
             self._queue, item_name, prompt_queue, self._answered_prompts, silent=direction is ED.BACKWARD
         )
