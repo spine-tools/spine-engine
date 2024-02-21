@@ -259,9 +259,8 @@ class SpineEngine:
         Note that this method is called multiple times for each item:
         Once for the backward pipeline, and once for each filtered execution in the forward pipeline."""
         item_dict = self._items[item_name]
-        if item_name not in self._prompt_queues:
-            self._prompt_queues[item_name] = mp.Queue()
-        prompt_queue = self._prompt_queues[item_name]
+        prompt_queue = mp.Queue()
+        self._prompt_queues[id(prompt_queue)] = prompt_queue
         logger = QueueLogger(
             self._queue, item_name, prompt_queue, self._answered_prompts, silent=direction is ED.BACKWARD
         )
@@ -299,9 +298,9 @@ class SpineEngine:
                 break
         self._thread.join()
 
-    def answer_prompt(self, item_name, accepted):
-        """Answers the prompt for the specified item, either accepting or rejecting it."""
-        self._prompt_queues[item_name].put(accepted)
+    def answer_prompt(self, prompter_id, answer):
+        """Answers the prompt for the specified prompter id."""
+        self._prompt_queues[prompter_id].put(answer)
 
     def wait(self):
         """Waits until engine execution has finished."""

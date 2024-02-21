@@ -83,7 +83,7 @@ class _Prompt(_MessageBase):
         key = str(prompt_data)
         if key not in self._answered_prompts:
             self._answered_prompts[key] = self._PENDING
-            prompt = {"item_name": self._item_name, "data": prompt_data}
+            prompt = {"prompter_id": id(self._prompt_queue), "data": prompt_data}
             self._queue.put(("prompt", prompt))
             self._answered_prompts[key] = self._prompt_queue.get()
         while self._answered_prompts[key] is self._PENDING:

@@ -162,8 +162,8 @@ class EngineServer(threading.Thread):
                             msg = f"Answering prompt failed. Worker for job_id:{request.request_id()} not found."
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
-                        item_name, accepted = request.data()
-                        worker.answer_prompt(item_name, accepted)
+                        prompter_id, answer = request.data()
+                        worker.answer_prompt(prompter_id, answer)
                         continue
                     elif request.cmd() == "retrieve_project":
                         project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
