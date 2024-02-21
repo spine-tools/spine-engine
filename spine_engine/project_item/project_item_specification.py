@@ -10,12 +10,8 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains project item specification class.
-
-"""
+"""Contains project item specification class."""
 import json
-
 from spine_engine.utils.helpers import shorten, gather_leaf_data
 
 
@@ -28,19 +24,17 @@ class ProjectItemSpecification:
         definition_file_path (str): specification's JSON file path
     """
 
-    def __init__(self, name, description=None, item_type="", item_category=""):
+    def __init__(self, name, description=None, item_type=""):
         """
         Args:
             name (str): specification name
             description (str): description
             item_type (str): Project item type
-            item_category (str): Project item category
         """
         self.name = name
         self.short_name = shorten(name)
         self.description = description
         self.item_type = item_type
-        self.item_category = item_category
         self.definition_file_path = ""
         self.plugin = None
 

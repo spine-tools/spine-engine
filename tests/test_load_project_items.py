@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for `load_project_items` module.
-
-"""
+"""Unit tests for `load_project_items` module."""
 import os.path
 import unittest
 import sys

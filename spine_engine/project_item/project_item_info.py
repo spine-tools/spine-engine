@@ -17,16 +17,6 @@ Provides the ProjectItemInfo class.
 
 class ProjectItemInfo:
     @staticmethod
-    def item_category():
-        """
-        Returns the item category string, e.g., "Tools".
-
-        Returns:
-            str: item's category
-        """
-        raise NotImplementedError()
-
-    @staticmethod
     def item_type():
         """
         Returns the item type string, e.g., "Importer".
