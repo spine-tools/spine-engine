@@ -23,7 +23,7 @@ from enum import Enum, auto, unique
 import networkx
 from jupyter_client.kernelspec import find_kernel_specs
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
-from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON
+from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON, is_frozen
 
 
 @unique
@@ -128,13 +128,12 @@ def resolve_current_python_interpreter():
     Returns:
         str: path to Python interpreter
     """
-    if not getattr(sys, "frozen", False):
-        return sys.executable  # Use current Python
-    # We are frozen
+    if not is_frozen():
+        return sys.executable
     path = resolve_executable_from_path(PYTHON_EXECUTABLE)
     if path != "":
-        return path  # Use Python from PATH
-    return EMBEDDED_PYTHON  # Use embedded <app_install_dir>/Tools/python.exe
+        return path
+    return EMBEDDED_PYTHON
 
 
 def resolve_julia_executable(settings):
