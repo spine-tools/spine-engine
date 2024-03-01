@@ -458,11 +458,7 @@ class ResourceConvertingConnection(ConnectionBase):
         d = super().to_dict()
         if self.options:
             d["options"] = self.options.copy()
-        if (
-            self._filter_settings.has_filters()
-            or self._filter_settings.enabled_filter_types != DEFAULT_ENABLED_FILTER_TYPES
-        ):
-            d["filter_settings"] = self._filter_settings.to_dict()
+        d["filter_settings"] = self._filter_settings.to_dict()
         return d
 
     @staticmethod
