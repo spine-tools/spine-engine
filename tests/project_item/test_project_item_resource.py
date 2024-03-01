@@ -138,6 +138,17 @@ class TestURLResource(unittest.TestCase):
         resource = url_resource("project item", "sqlite:///path/do/db.sqlite", "my database", schema="my_schema")
         self.assertEqual(resource.metadata, {"schema": "my_schema"})
 
+    def test_url_setter_works_when_url_is_set_to_none(self):
+        resource = url_resource("project item", "sqlite:///path/do/db.sqlite", "my database")
+        resource.url = None
+        self.assertIsNone(resource.url)
+
+
+class TestTransientFileResource(unittest.TestCase):
+    def test_path_works_even_when_resource_has_no_url(self):
+        resource = transient_file_resource("Provider", "files@Provider")
+        self.assertEqual(resource.path, "")
+
 
 class TestGetSource(unittest.TestCase):
     def test_file_resource(self):

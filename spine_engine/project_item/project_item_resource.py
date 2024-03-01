@@ -159,13 +159,12 @@ class ProjectItemResource:
     def url(self, url):
         self._url = url
         self._parsed_url = urlparse(self._url)
-        self._filepath = url2pathname(self._parsed_url.path)
 
     @property
     def path(self):
         """Returns the resource path in the local syntax, as obtained from parsing the url."""
         if not self._filepath:
-            self._filepath = url2pathname(self._parsed_url.path)
+            self._filepath = url2pathname(self._parsed_url.path) if self._parsed_url.path else ""
         return self._filepath
 
     @property
