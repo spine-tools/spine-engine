@@ -22,7 +22,7 @@ dependencies = [
     "networkx>2.5.1",
     "datapackage>=1.15.2, <1.16",
     "jupyter_client>=6.0",
-    "spinedb_api>=0.30.3",
+    "spinedb_api>=0.30.5",
     "pyzmq >=21.0",
     # dagster 0.12.8 requires Jinja2<3.0, which tries to import
     # soft_unicode, which has been removed in markupsafe 2.1
