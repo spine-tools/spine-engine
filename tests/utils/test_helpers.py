@@ -188,5 +188,5 @@ class TestGetFileSize(unittest.TestCase):
         self.assertEqual(expected_output, output)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

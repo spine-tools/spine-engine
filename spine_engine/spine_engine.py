@@ -334,14 +334,14 @@ class SpineEngine:
         if event.event_type == DagsterEventType.STEP_START:
             direction, _, solid_name = event.solid_name.partition("_")
             item_name = self._items_by_solids[solid_name]
-            self._queue.put(('exec_started', {"item_name": item_name, "direction": direction}))
+            self._queue.put(("exec_started", {"item_name": item_name, "direction": direction}))
         elif event.event_type == DagsterEventType.STEP_FAILURE and self._state != SpineEngineState.USER_STOPPED:
             direction, _, solid_name = event.solid_name.partition("_")
             item_name = self._items_by_solids[solid_name]
             self._state = SpineEngineState.FAILED
             self._queue.put(
                 (
-                    'exec_finished',
+                    "exec_finished",
                     {
                         "item_name": item_name,
                         "direction": direction,
@@ -367,7 +367,7 @@ class SpineEngine:
                 item_finish_state = ItemExecutionFinishState.SUCCESS
             self._queue.put(
                 (
-                    'exec_finished',
+                    "exec_finished",
                     {
                         "item_name": item_name,
                         "direction": direction,
@@ -386,7 +386,7 @@ class SpineEngine:
             item_finish_state = ItemExecutionFinishState[state_value]
             self._queue.put(
                 (
-                    'exec_finished',
+                    "exec_finished",
                     {
                         "item_name": item_name,
                         "direction": direction,
@@ -409,7 +409,7 @@ class SpineEngine:
         item.stop_execution()
         self._queue.put(
             (
-                'exec_finished',
+                "exec_finished",
                 {
                     "item_name": item.name,
                     "direction": str(ED.FORWARD),

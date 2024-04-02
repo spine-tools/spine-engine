@@ -57,9 +57,9 @@ class EngineServer(threading.Thread):
             if not sec_folder:
                 raise ValueError("Path to security folder missing")
             base_dir = sec_folder
-            self.keys_dir = os.path.join(base_dir, 'certificates')
-            self.public_keys_dir = os.path.join(base_dir, 'public_keys')
-            self.secret_keys_dir = os.path.join(base_dir, 'private_keys')
+            self.keys_dir = os.path.join(base_dir, "certificates")
+            self.public_keys_dir = os.path.join(base_dir, "public_keys")
+            self.secret_keys_dir = os.path.join(base_dir, "private_keys")
             if not os.path.exists(self.keys_dir):
                 raise ValueError(f"Security folder: {self.keys_dir} does not exist")
             if not os.path.exists(self.public_keys_dir):
@@ -338,7 +338,7 @@ class EngineServer(threading.Thread):
         allowed_str = "\n".join(allowed)
         print(f"StoneHouse security activated. Allowed endpoints ({len(allowed)}):\n{allowed_str}")
         # Tell the authenticator how to handle CURVE requests
-        auth.configure_curve(domain='*', location=zmq.auth.CURVE_ALLOW_ANY)
+        auth.configure_curve(domain="*", location=zmq.auth.CURVE_ALLOW_ANY)
         server_secret_file = os.path.join(self.secret_keys_dir, "server.key_secret")
         server_public, server_secret = zmq.auth.load_certificate(server_secret_file)
         frontend.curve_secretkey = server_secret

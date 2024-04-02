@@ -51,7 +51,7 @@ class PersistentExecutionService(threading.Thread, ServiceBase):
             for msg in pm.issue_command(cmd, add_history=True, catch_exception=False):
                 json_msg = json.dumps(msg)
                 self.push_socket.send(json_msg.encode("utf-8"))  # This blocks until somebody is pulling (receiving)
-            self.push_socket.send(b'END')
+            self.push_socket.send(b"END")
             retval_tuple = cmd_type, "ok"
         elif cmd_type == "get_completions":
             retval = pm.get_completions(cmd)
@@ -65,7 +65,7 @@ class PersistentExecutionService(threading.Thread, ServiceBase):
             for msg in pm.restart_persistent():
                 json_msg = json.dumps(msg)
                 self.push_socket.send(json_msg.encode("utf-8"))
-            self.push_socket.send(b'END')
+            self.push_socket.send(b"END")
             retval_tuple = cmd_type, "ok"
         elif cmd_type == "interrupt_persistent":
             pm.interrupt_persistent()

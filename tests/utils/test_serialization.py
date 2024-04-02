@@ -144,5 +144,5 @@ class TestPathInDir(unittest.TestCase):
         self.assertFalse(path_in_dir("/path/to/my/file.dat", "/another/path"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

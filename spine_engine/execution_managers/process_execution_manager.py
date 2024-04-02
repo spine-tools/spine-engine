@@ -71,14 +71,14 @@ class ProcessExecutionManager(ExecutionManagerBase):
             self._process.terminate()
 
     def _log_stdout(self, stdout):
-        for line in iter(stdout.readline, b''):
+        for line in iter(stdout.readline, b""):
             line = line.decode("UTF8", "replace").strip()
             self._logger.msg_proc.emit(line)
             self._logger.msg_standard_execution.emit({"type": "stdout", "data": line})
         stdout.close()
 
     def _log_stderr(self, stderr):
-        for line in iter(stderr.readline, b''):
+        for line in iter(stderr.readline, b""):
             line = line.decode("UTF8", "replace").strip()
             self._logger.msg_proc_error.emit(line)
             self._logger.msg_standard_execution.emit({"type": "stderr", "data": line})

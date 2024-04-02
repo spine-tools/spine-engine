@@ -186,5 +186,5 @@ class TestGetSourceExtras(unittest.TestCase):
         self.assertEqual(get_source_extras(resource), {})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -147,7 +147,7 @@ class PersistentManagerBase:
     def _log_stdout(self):
         """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
         try:
-            for line in iter(self._persistent.stdout.readline, b''):
+            for line in iter(self._persistent.stdout.readline, b""):
                 data = line.decode("UTF8", "replace").rstrip()
                 self._msg_queue.put(dict(type="stdout", data=data))
         except ValueError:
@@ -156,7 +156,7 @@ class PersistentManagerBase:
     def _log_stderr(self):
         """Puts stderr from the process into the queue (it will be consumed by issue_command())."""
         try:
-            for line in iter(self._persistent.stderr.readline, b''):
+            for line in iter(self._persistent.stderr.readline, b""):
                 data = line.decode("UTF8", "replace").rstrip()
                 self._msg_queue.put(dict(type="stderr", data=data))
         except ValueError:
@@ -337,8 +337,8 @@ class PersistentManagerBase:
         """
         if not self.is_persistent_alive():
             raise PersistentIsDead()
-        req_args_sep = '\u001f'  # Unit separator
-        args_sep = '\u0091'  # Private Use 1
+        req_args_sep = "\u001f"  # Unit separator
+        args_sep = "\u0091"  # Private Use 1
         args = args_sep.join(args)
         msg = f"{request}{req_args_sep}{args}"
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
