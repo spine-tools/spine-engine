@@ -66,7 +66,7 @@ class TestSpineEngine(unittest.TestCase):
             resources_backward = []
         item = NonCallableMagicMock()
         item.name = name
-        item.short_name = name.lower().replace(' ', '_')
+        item.short_name = name.lower().replace(" ", "_")
         item.execute.return_value = execute_outcome
         item.exclude_execution = MagicMock()
         for r in resources_forward + resources_backward:
@@ -81,7 +81,7 @@ class TestSpineEngine(unittest.TestCase):
     def _default_forward_url_resource(url, predecessor_name):
         resource = _make_url_resource(url)
         resource.provider_name = predecessor_name
-        resource.metadata = {'filter_id': '', 'filter_stack': ()}
+        resource.metadata = {"filter_id": "", "filter_stack": ()}
         return resource
 
     @staticmethod
@@ -853,5 +853,5 @@ class TestValidateSingleJump(unittest.TestCase):
             self.fail("validate_single_jump shouldn't have raised")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

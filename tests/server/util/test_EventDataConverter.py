@@ -23,93 +23,93 @@ from spine_engine.server.util.event_data_converter import EventDataConverter
 class TestEventDataConverter(unittest.TestCase):
     def make_event_data(self):
         test_events = [
-            ('exec_started', {'item_name': 'helloworld', 'direction': 'BACKWARD'}),
-            ('exec_started', {'item_name': 'Data Connection 1', 'direction': 'BACKWARD'}),
+            ("exec_started", {"item_name": "helloworld", "direction": "BACKWARD"}),
+            ("exec_started", {"item_name": "Data Connection 1", "direction": "BACKWARD"}),
             (
-                'exec_finished',
+                "exec_finished",
                 {
-                    'item_name': 'helloworld',
-                    'direction': 'BACKWARD',
-                    'state': 'RUNNING',
-                    'item_state': ItemExecutionFinishState.SUCCESS,
+                    "item_name": "helloworld",
+                    "direction": "BACKWARD",
+                    "state": "RUNNING",
+                    "item_state": ItemExecutionFinishState.SUCCESS,
                 },
             ),
             (
-                'exec_finished',
+                "exec_finished",
                 {
-                    'item_name': 'Data Connection 1',
-                    'direction': 'BACKWARD',
-                    'state': 'RUNNING',
-                    'item_state': ItemExecutionFinishState.SUCCESS,
+                    "item_name": "Data Connection 1",
+                    "direction": "BACKWARD",
+                    "state": "RUNNING",
+                    "item_state": ItemExecutionFinishState.SUCCESS,
                 },
             ),
-            ('exec_started', {'item_name': 'Data Connection 1', 'direction': 'FORWARD'}),
+            ("exec_started", {"item_name": "Data Connection 1", "direction": "FORWARD"}),
             (
-                'event_msg',
+                "event_msg",
                 {
-                    'item_name': 'Data Connection 1',
-                    'filter_id': '',
-                    'msg_type': 'msg_success',
-                    'msg_text': 'Executing Data Connection Data Connection 1 finished',
-                },
-            ),
-            (
-                'exec_finished',
-                {
-                    'item_name': 'Data Connection 1',
-                    'direction': 'FORWARD',
-                    'state': 'RUNNING',
-                    'item_state': ItemExecutionFinishState.SUCCESS,
-                },
-            ),
-            ('flash', {'item_name': 'from Data Connection 1 to helloworld'}),
-            ('exec_started', {'item_name': 'helloworld', 'direction': 'FORWARD'}),
-            (
-                'event_msg',
-                {
-                    'item_name': 'helloworld',
-                    'filter_id': '',
-                    'msg_type': 'msg',
-                    'msg_text': "*** Executing Tool specification <b>helloworld2</b> in <a style='color:#99CCFF;' title='C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1'href='file:///C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1'>source directory</a> ***",
+                    "item_name": "Data Connection 1",
+                    "filter_id": "",
+                    "msg_type": "msg_success",
+                    "msg_text": "Executing Data Connection Data Connection 1 finished",
                 },
             ),
             (
-                'persistent_execution_msg',
+                "exec_finished",
                 {
-                    'item_name': 'helloworld',
-                    'filter_id': '',
-                    'type': 'persistent_started',
-                    'key': '6ceeb59271114fc2a0f787266f72dedc',
-                    'language': 'python',
+                    "item_name": "Data Connection 1",
+                    "direction": "FORWARD",
+                    "state": "RUNNING",
+                    "item_state": ItemExecutionFinishState.SUCCESS,
+                },
+            ),
+            ("flash", {"item_name": "from Data Connection 1 to helloworld"}),
+            ("exec_started", {"item_name": "helloworld", "direction": "FORWARD"}),
+            (
+                "event_msg",
+                {
+                    "item_name": "helloworld",
+                    "filter_id": "",
+                    "msg_type": "msg",
+                    "msg_text": "*** Executing Tool specification <b>helloworld2</b> in <a style='color:#99CCFF;' title='C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1'href='file:///C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1'>source directory</a> ***",
                 },
             ),
             (
-                'persistent_execution_msg',
-                {'item_name': 'helloworld', 'filter_id': '', 'type': 'stdin', 'data': '# Running python helloworld.py'},
-            ),
-            (
-                'persistent_execution_msg',
-                {'item_name': 'helloworld', 'filter_id': '', 'type': 'stdout', 'data': 'helloo'},
-            ),
-            (
-                'event_msg',
+                "persistent_execution_msg",
                 {
-                    'item_name': 'helloworld',
-                    'filter_id': '',
-                    'msg_type': 'msg',
-                    'msg_text': "*** Archiving output files to <a style='color:#BB99FF;' title='C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1\\.spinetoolbox\\items\\helloworld\\output\\2022-08-19T13.03.13' href='file:///C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1\\.spinetoolbox\\items\\helloworld\\output\\2022-08-19T13.03.13'>results directory</a> ***",
+                    "item_name": "helloworld",
+                    "filter_id": "",
+                    "type": "persistent_started",
+                    "key": "6ceeb59271114fc2a0f787266f72dedc",
+                    "language": "python",
                 },
             ),
             (
-                'exec_finished',
+                "persistent_execution_msg",
+                {"item_name": "helloworld", "filter_id": "", "type": "stdin", "data": "# Running python helloworld.py"},
+            ),
+            (
+                "persistent_execution_msg",
+                {"item_name": "helloworld", "filter_id": "", "type": "stdout", "data": "helloo"},
+            ),
+            (
+                "event_msg",
                 {
-                    'item_name': 'helloworld',
-                    'direction': 'FORWARD',
-                    'state': 'RUNNING',
-                    'item_state': ItemExecutionFinishState.SUCCESS,
+                    "item_name": "helloworld",
+                    "filter_id": "",
+                    "msg_type": "msg",
+                    "msg_text": "*** Archiving output files to <a style='color:#BB99FF;' title='C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1\\.spinetoolbox\\items\\helloworld\\output\\2022-08-19T13.03.13' href='file:///C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1\\.spinetoolbox\\items\\helloworld\\output\\2022-08-19T13.03.13'>results directory</a> ***",
                 },
             ),
-            ('dag_exec_finished', 'COMPLETED'),
+            (
+                "exec_finished",
+                {
+                    "item_name": "helloworld",
+                    "direction": "FORWARD",
+                    "state": "RUNNING",
+                    "item_state": ItemExecutionFinishState.SUCCESS,
+                },
+            ),
+            ("dag_exec_finished", "COMPLETED"),
         ]
         return test_events
 
@@ -146,5 +146,5 @@ class TestEventDataConverter(unittest.TestCase):
         self.assertEqual(expected_data, deconverted_events)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

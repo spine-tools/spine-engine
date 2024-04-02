@@ -66,7 +66,7 @@ class CondaKernelSpecManager(KernelSpecManager):
         return new_value
 
     name_format = Unicode(
-        '{language} [conda env:{environment}]',
+        "{language} [conda env:{environment}]",
         config=True,
         help="""String name format; available field names within the string:
         '{0}' = Language
@@ -106,15 +106,15 @@ class CondaKernelSpecManager(KernelSpecManager):
         a bit of effort to preserve readability.
         """
         try:
-            kname.encode('ascii')
+            kname.encode("ascii")
         except UnicodeEncodeError:
             # Replace accented characters with unaccented equivalents
             import unicodedata
 
-            nfkd_form = unicodedata.normalize('NFKD', kname)
-            kname = u"".join([c for c in nfkd_form if not unicodedata.combining(c)])
+            nfkd_form = unicodedata.normalize("NFKD", kname)
+            kname = "".join([c for c in nfkd_form if not unicodedata.combining(c)])
         # Replace anything else, including spaces, with underscores
-        kname = re.sub(r'[^a-zA-Z0-9._\-]', '_', kname)
+        kname = re.sub(r"[^a-zA-Z0-9._\-]", "_", kname)
         return kname
 
     @property
@@ -131,15 +131,15 @@ class CondaKernelSpecManager(KernelSpecManager):
             # This is to make sure that subprocess can find 'conda' even if
             # it is a Windows batch file---which is the case in non-root
             # conda environments.
-            shell = self._conda_executable == 'conda' and sys.platform.startswith('win')
+            shell = self._conda_executable == "conda" and sys.platform.startswith("win")
             try:
                 # conda info --json uses the standard JSON escaping
                 # mechanism for non-ASCII characters. So it is always
                 # valid to decode here as 'ascii', since the JSON loads()
                 # method will recover any original Unicode for us.
                 p = subprocess.check_output([self._conda_executable, "info", "--json"], shell=shell).decode("ascii")
-                ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-                result = ansi_escape.sub('', p)  # Remove ANSI Escape Sequences, such as ESC[0m
+                ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+                result = ansi_escape.sub("", p)  # Remove ANSI Escape Sequences, such as ESC[0m
                 conda_info = json.loads(result)
             except Exception as err:
                 conda_info = None
@@ -155,24 +155,24 @@ class CondaKernelSpecManager(KernelSpecManager):
         environment names as keys, and full paths as values.
         """
         conda_info = self._conda_info
-        envs = conda_info['envs']
-        base_prefix = conda_info['conda_prefix']
-        envs_prefix = join(base_prefix, 'envs')
-        build_prefix = join(base_prefix, 'conda-bld', '')
+        envs = conda_info["envs"]
+        base_prefix = conda_info["conda_prefix"]
+        envs_prefix = join(base_prefix, "envs")
+        build_prefix = join(base_prefix, "conda-bld", "")
         # Older versions of conda do not seem to include the base prefix
         # in the environment list, but we do want to scan that
         if base_prefix not in envs:
             envs.insert(0, base_prefix)
-        envs_dirs = conda_info['envs_dirs']
+        envs_dirs = conda_info["envs_dirs"]
         if not envs_dirs:
-            envs_dirs = [join(base_prefix, 'envs')]
+            envs_dirs = [join(base_prefix, "envs")]
         all_envs = {}
         for env_path in envs:
             if self.env_filter is not None:
                 if self._env_filter_regex.search(env_path):
                     continue
             if env_path == base_prefix:
-                env_name = 'root'
+                env_name = "root"
             elif env_path.startswith(build_prefix):
                 # Skip the conda-bld directory entirely
                 continue
@@ -183,13 +183,13 @@ class CondaKernelSpecManager(KernelSpecManager):
                 # directory named 'envs' is a collection of environments
                 # as created by, say, conda or anaconda-project. The name
                 # of the parent directory, then, provides useful context.
-                if basename(env_base) == 'envs' and (env_base != envs_prefix or env_name in all_envs):
-                    env_name = u'{}-{}'.format(basename(dirname(env_base)), env_name)
+                if basename(env_base) == "envs" and (env_base != envs_prefix or env_name in all_envs):
+                    env_name = "{}-{}".format(basename(dirname(env_base)), env_name)
             # Further disambiguate, if necessary, with a counter.
             if env_name in all_envs:
                 base_name = env_name
                 for count in range(len(all_envs)):
-                    env_name = u'{}-{}'.format(base_name, count + 2)
+                    env_name = "{}-{}".format(base_name, count + 2)
                     if env_name not in all_envs:
                         break
             all_envs[env_name] = env_path
@@ -209,16 +209,16 @@ class CondaKernelSpecManager(KernelSpecManager):
         all_specs = {}
         # We need to be able to find conda-run in the base conda environment
         # even if this package is not running there
-        conda_prefix = self._conda_info['conda_prefix']
+        conda_prefix = self._conda_info["conda_prefix"]
         all_envs = self._all_envs()
         for env_name, env_path in all_envs.items():
-            kspec_base = join(env_path, 'share', 'jupyter', 'kernels')
-            kspec_glob = glob.glob(join(kspec_base, '*', 'kernel.json'))
+            kspec_base = join(env_path, "share", "jupyter", "kernels")
+            kspec_glob = glob.glob(join(kspec_base, "*", "kernel.json"))
             for spec_path in kspec_glob:
                 try:
-                    with open(spec_path, 'rb') as fp:
+                    with open(spec_path, "rb") as fp:
                         data = fp.read()
-                    spec = json.loads(data.decode('utf-8'))
+                    spec = json.loads(data.decode("utf-8"))
                 except Exception as err:
                     self.log.error("[nb_conda_kernels] error loading %s:\n%s", spec_path, err)
                     continue
@@ -231,35 +231,35 @@ class CondaKernelSpecManager(KernelSpecManager):
                 # the naming convention is as close as possible to the previous
                 # versions of this package; particularly so that the tests
                 # pass without change.
-                if kernel_name in ('python2', 'python3'):
-                    kernel_name = 'py'
-                elif kernel_name == 'ir':
-                    kernel_name = 'r'
-                kernel_prefix = '' if env_name == 'root' else 'env-'
-                kernel_name = u'conda-{}{}-{}'.format(kernel_prefix, env_name, kernel_name)
+                if kernel_name in ("python2", "python3"):
+                    kernel_name = "py"
+                elif kernel_name == "ir":
+                    kernel_name = "r"
+                kernel_prefix = "" if env_name == "root" else "env-"
+                kernel_name = "conda-{}{}-{}".format(kernel_prefix, env_name, kernel_name)
                 # Replace invalid characters with dashes
                 kernel_name = self.clean_kernel_name(kernel_name)
 
-                display_prefix = spec['display_name']
-                if display_prefix.startswith('Python'):
-                    display_prefix = 'Python'
+                display_prefix = spec["display_name"]
+                if display_prefix.startswith("Python"):
+                    display_prefix = "Python"
                 display_name = self.name_format.format(
                     display_prefix,
                     env_name,
                     conda_kernel=kernel_name,
-                    display_name=spec['display_name'],
+                    display_name=spec["display_name"],
                     environment=env_name,
                     kernel=raw_kernel_name,
                     language=display_prefix,
                 )
                 if env_path == sys.prefix:
-                    display_name += ' *'
-                spec['display_name'] = display_name
+                    display_name += " *"
+                spec["display_name"] = display_name
                 if env_path != sys.prefix:
-                    spec['argv'] = RUNNER_COMMAND + [conda_prefix, env_path] + spec['argv']
-                metadata = spec.get('metadata', {})
-                metadata.update({'conda_env_name': env_name, 'conda_env_path': env_path})
-                spec['metadata'] = metadata
+                    spec["argv"] = RUNNER_COMMAND + [conda_prefix, env_path] + spec["argv"]
+                metadata = spec.get("metadata", {})
+                metadata.update({"conda_env_name": env_name, "conda_env_path": env_path})
+                spec["metadata"] = metadata
 
                 if self.kernelspec_path is not None:
                     # Install the kernel spec
@@ -271,16 +271,16 @@ class CondaKernelSpecManager(KernelSpecManager):
                         kernel_spec = join(destination, "kernel.json")
                         tmp_spec = spec.copy()
                         if env_path == sys.prefix:  # Add the conda runner to the installed kernel spec
-                            tmp_spec['argv'] = RUNNER_COMMAND + [conda_prefix, env_path] + spec['argv']
+                            tmp_spec["argv"] = RUNNER_COMMAND + [conda_prefix, env_path] + spec["argv"]
                         with open(kernel_spec, "w") as f:
                             json.dump(tmp_spec, f)
                     except OSError as error:
                         self.log.warning(
-                            u"[nb_conda_kernels] Fail to install kernel '{}'.".format(kernel_dir), exc_info=error
+                            "[nb_conda_kernels] Fail to install kernel '{}'.".format(kernel_dir), exc_info=error
                         )
 
                 # resource_dir is not part of the spec file, so it is added at the latest time
-                spec['resource_dir'] = abspath(kernel_dir)
+                spec["resource_dir"] = abspath(kernel_dir)
 
                 all_specs[kernel_name] = spec
 
@@ -363,7 +363,7 @@ class CondaKernelSpecManager(KernelSpecManager):
         for name, resource_dir in self.find_kernel_specs().items():
             try:
                 spec = self.get_kernel_spec(name)
-                res[name] = {'resource_dir': resource_dir, 'spec': spec.to_dict()}
+                res[name] = {"resource_dir": resource_dir, "spec": spec.to_dict()}
             except NoSuchKernel:
                 self.log.warning("Error loading kernelspec %r", name, exc_info=True)
         return res

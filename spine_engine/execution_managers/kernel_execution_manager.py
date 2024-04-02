@@ -286,8 +286,8 @@ class KernelExecutionManager(ExecutionManagerBase):
         self._msg_head = dict(kernel_name=kernel_name)
         self._commands = commands
         self._cmd_failed = False
-        self.std_out = kwargs["stdout"] = open(os.devnull, 'w')
-        self.std_err = kwargs["stderr"] = open(os.devnull, 'w')
+        self.std_out = kwargs["stdout"] = open(os.devnull, "w")
+        self.std_err = kwargs["stderr"] = open(os.devnull, "w")
         # Don't show console when frozen
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self._kernel_manager = _kernel_manager_factory.new_kernel_manager(

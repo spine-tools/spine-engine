@@ -32,8 +32,8 @@ class SpineDBServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 class _RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         data = self.request.recv(1024).decode("UTF8")
-        req_args_sep = '\u001f'  # Unit separator
-        args_sep = '\u0091'  # Private Use 1
+        req_args_sep = "\u001f"  # Unit separator
+        args_sep = "\u0091"  # Private Use 1
         request, args = data.split(req_args_sep)
         args = args.split(args_sep)
         handler = {

@@ -42,5 +42,5 @@ class TestLoadProjectItems(unittest.TestCase):
         self.assertTrue(issubclass(factories["TestItem"], ProjectItemSpecificationFactory))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
