@@ -32,9 +32,6 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/spine-tools/spine-engine"
 
-[project.optional-dependencies]
-dev = ["coverage[toml]"]
-
 [build-system]
 requires = ["setuptools>=64", "setuptools_scm[toml]>=6.2", "wheel", "build"]
 build-backend = "setuptools.build_meta"
@@ -60,6 +57,8 @@ exclude = [
 [tool.coverage.run]
 source = ["spine_engine"]
 branch = true
+concurrency = ["multiprocessing", "thread"]
+disable_warnings = ["no-data-collected"]
 
 [tool.coverage.report]
 ignore_errors = true
