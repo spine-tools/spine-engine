@@ -1,5 +1,4 @@
 black == 19.3b0
 pre-commit == 2.0.1
 pylint >= 2.3.0
-coverage[toml]
 -r "docs/requirements.txt"
