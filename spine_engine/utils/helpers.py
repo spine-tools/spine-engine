@@ -163,6 +163,18 @@ def resolve_default_julia_executable():
     return resolve_executable_from_path(JULIA_EXECUTABLE)
 
 
+def resolve_julia_project(settings):
+    """Returns path to Julia environment (project) from settings or an empty string if not available.
+
+    Args:
+        settings (AppSettings): application settings
+
+    Returns:
+        str: path to Julia environment
+    """
+    return settings.value("appSettings/juliaProjectPath")
+
+
 def resolve_gams_executable(gams_path):
     """If given gams_path is empty, tries to find the path to GAMS executable.
 
