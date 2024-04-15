@@ -736,19 +736,18 @@ class TestSpineEngine(unittest.TestCase):
         self.assertEqual(mock_item.execute.call_args_list, [call([], [], lock_1), call([], [], lock_2)])
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
-    @unittest.skip("Hangs because something's not right in SpineDBServer")
     def test_jump_resources_get_passed_correctly(self):
-        resource_fw_a = _make_url_resource("db:///fw_a")
-        resource_bw_a = _make_url_resource("db:///bw_a")
+        resource_fw_a = _make_url_resource("sqlite:///fw_a")
+        resource_bw_a = _make_url_resource("sqlite:///bw_a")
         item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
-        resource_fw_b = _make_url_resource("db:///fw_b")
-        resource_bw_b = _make_url_resource("db:///bw_b")
+        resource_fw_b = _make_url_resource("sqlite:///fw_b")
+        resource_bw_b = _make_url_resource("sqlite:///bw_b")
         item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
-        resource_fw_c = _make_url_resource("db:///fw_c")
-        resource_bw_c = _make_url_resource("db:///bw_c")
+        resource_fw_c = _make_url_resource("sqlite:///fw_c")
+        resource_bw_c = _make_url_resource("sqlite:///bw_c")
         item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
-        resource_fw_d = _make_url_resource("db:///fw_d")
-        resource_bw_d = _make_url_resource("db:///bw_d")
+        resource_fw_d = _make_url_resource("sqlite:///fw_d")
+        resource_bw_d = _make_url_resource("sqlite:///bw_d")
         item_d = self._mock_item("d", resources_forward=[resource_fw_d], resources_backward=[resource_bw_d])
         item_instances = {"a": [item_a], "b": [item_b, item_b], "c": [item_c, item_c], "d": [item_d]}
         items = {
@@ -768,15 +767,15 @@ class TestSpineEngine(unittest.TestCase):
         jumps = [Jump("c", "right", "b", "right", self._LOOP_TWICE).to_dict()]
         self._run_engine(items, connections, item_instances, jumps=jumps)
         self._assert_resource_args(
-            item_a.execute.call_args_list, [[[], [self._default_backward_url_resource("db:///bw_b", "a", "b")]]]
+            item_a.execute.call_args_list, [[[], [self._default_backward_url_resource("sqlite:///bw_b", "a", "b")]]]
         )
         self._assert_resource_args(
             item_b.execute.call_args_list,
             2
             * [
                 [
-                    [self._default_forward_url_resource("db:///fw_a", "a")],
-                    [self._default_backward_url_resource("db:///bw_c", "b", "c")],
+                    [self._default_forward_url_resource("sqlite:///fw_a", "a")],
+                    [self._default_backward_url_resource("sqlite:///bw_c", "b", "c")],
                 ]
             ],
         )
@@ -785,25 +784,24 @@ class TestSpineEngine(unittest.TestCase):
             2
             * [
                 [
-                    [self._default_forward_url_resource("db:///fw_b", "b")],
-                    [self._default_backward_url_resource("db:///bw_d", "c", "d")],
+                    [self._default_forward_url_resource("sqlite:///fw_b", "b")],
+                    [self._default_backward_url_resource("sqlite:///bw_d", "c", "d")],
                 ]
             ],
         )
         self._assert_resource_args(
-            item_d.execute.call_args_list, [[[self._default_forward_url_resource("db:///fw_c", "c")], []]]
+            item_d.execute.call_args_list, [[[self._default_forward_url_resource("sqlite:///fw_c", "c")], []]]
         )
 
-    @unittest.skip("Hangs because something's not right in SpineDBServer")
     def test_nested_jump_with_inner_self_jump(self):
-        resource_fw_a = _make_url_resource("db:///fw_a")
-        resource_bw_a = _make_url_resource("db:///bw_a")
+        resource_fw_a = _make_url_resource("sqlite:///fw_a")
+        resource_bw_a = _make_url_resource("sqlite:///bw_a")
         item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
-        resource_fw_b = _make_url_resource("db:///fw_b")
-        resource_bw_b = _make_url_resource("db:///bw_b")
+        resource_fw_b = _make_url_resource("sqlite:///fw_b")
+        resource_bw_b = _make_url_resource("sqlite:///bw_b")
         item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
-        resource_fw_c = _make_url_resource("db:///fw_c")
-        resource_bw_c = _make_url_resource("db:///bw_c")
+        resource_fw_c = _make_url_resource("sqlite:///fw_c")
+        resource_bw_c = _make_url_resource("sqlite:///bw_c")
         item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
         item_instances = {"a": 2 * [item_a], "b": 4 * [item_b], "c": 2 * [item_c]}
         items = {"a": {"type": "TestItem"}, "b": {"type": "TestItem"}, "c": {"type": "TestItem"}}
@@ -815,16 +813,16 @@ class TestSpineEngine(unittest.TestCase):
             Jump("b", "top", "b", "top", self._LOOP_TWICE).to_dict(),
         ]
         self._run_engine(items, connections, item_instances, jumps=jumps)
-        expected = 2 * [[[], [self._default_backward_url_resource("db:///bw_b", "a", "b")]]]
+        expected = 2 * [[[], [self._default_backward_url_resource("sqlite:///bw_b", "a", "b")]]]
         self._assert_resource_args(item_a.execute.call_args_list, expected)
         expected = 4 * [
             [
-                [self._default_forward_url_resource("db:///fw_a", "a")],
-                [self._default_backward_url_resource("db:///bw_c", "b", "c")],
+                [self._default_forward_url_resource("sqlite:///fw_a", "a")],
+                [self._default_backward_url_resource("sqlite:///bw_c", "b", "c")],
             ]
         ]
         self._assert_resource_args(item_b.execute.call_args_list, expected)
-        expected = 2 * [[[self._default_forward_url_resource("db:///fw_b", "b")], []]]
+        expected = 2 * [[[self._default_forward_url_resource("sqlite:///fw_b", "b")], []]]
         self._assert_resource_args(item_c.execute.call_args_list, expected)
 
     def _assert_resource_args(self, arg_packs, expected_packs):

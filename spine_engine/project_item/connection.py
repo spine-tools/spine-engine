@@ -612,10 +612,7 @@ class Jump(ConnectionBase):
         self._resources_from_destination = set()
         self.cmd_line_args = list(cmd_line_args)
         self._engine = None
-        self.source_solid = None
-        self.destination_solid = None
         self.item_names = set()
-        self.solid_names = set()
 
     def set_engine(self, engine):
         self._engine = engine
