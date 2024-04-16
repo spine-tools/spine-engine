@@ -24,8 +24,8 @@ from .utils.helpers import serializable_error_info_from_exc_info, ExecutionDirec
 class JumpsterEventType(Enum):
     STEP_START = 1
     STEP_FAILURE = 2
-    STEP_SUCCESS = 3
-    ASSET_MATERIALIZATION = 4
+    STEP_FINISH = 3
+    OUTPUT_AVAILABLE = 4
 
 
 class PipelineDefinition:
@@ -72,9 +72,9 @@ class Output:
         self.value = value
 
 
-class AssetMaterialization:
-    def __init__(self, asset_key):
-        self.asset_key = asset_key
+class Finalization:
+    def __init__(self, item_finish_state):
+        self.item_finish_state = item_finish_state
 
 
 class JumpsterThreadError(Exception):
@@ -115,19 +115,19 @@ class MultithreadExecutor:
         return steps
 
     def _handle_event(self, event):
-        if event.event_type in (JumpsterEventType.STEP_SUCCESS, JumpsterEventType.STEP_FAILURE):
+        if event.event_type in (JumpsterEventType.STEP_FINISH, JumpsterEventType.STEP_FAILURE):
             self._in_flight.discard(event.key)
-            if event.event_type == JumpsterEventType.STEP_SUCCESS:
-                self._output_value[event.key] = event.output_value
-                steps = self._steps_by_input_key.get(event.key, {})
-                to_remove = set()
-                for k, step in steps.items():
-                    step.inputs[event.key] = event.output_value
-                    if step.is_ready_to_execute():
-                        self._ready_to_execute[step.key] = step
-                        to_remove.add(k)
-                for k in to_remove:
-                    del steps[k]
+        if event.event_type == JumpsterEventType.OUTPUT_AVAILABLE:
+            self._output_value[event.key] = event.output_value
+            steps = self._steps_by_input_key.get(event.key, {})
+            to_remove = set()
+            for k, step in steps.items():
+                step.inputs[event.key] = event.output_value
+                if step.is_ready_to_execute():
+                    self._ready_to_execute[step.key] = step
+                    to_remove.add(k)
+            for k in to_remove:
+                del steps[k]
 
     def execute(self):
         active_iters = {}
@@ -219,7 +219,7 @@ class MultithreadExecutor:
                                 unfinished_jumps.discard(jump)
                                 loop_iteration_counters.pop(jump, None)
                         iterating_failed.add(step)
-                    elif event_or_none.event_type == JumpsterEventType.STEP_SUCCESS:
+                    elif event_or_none.event_type == JumpsterEventType.STEP_FINISH:
                         # Process loop condition
                         jump = jump_by_source.get(step.item_name)
                         if jump is None:
@@ -297,9 +297,9 @@ class Step:
         try:
             for x in self._solid_def.compute_fn(inputs):
                 if isinstance(x, Output):
-                    yield JumpsterEvent(JumpsterEventType.STEP_SUCCESS, *self.key, output_value=x.value)
-                elif isinstance(x, AssetMaterialization):
-                    yield JumpsterEvent(JumpsterEventType.ASSET_MATERIALIZATION, *self.key, asset_key=x.asset_key)
+                    yield JumpsterEvent(JumpsterEventType.OUTPUT_AVAILABLE, *self.key, output_value=x.value)
+                elif isinstance(x, Finalization):
+                    yield JumpsterEvent(JumpsterEventType.STEP_FINISH, *self.key, item_finish_state=x.item_finish_state)
         except Exception as err:  # pylint: disable=broad-except
             yield JumpsterEvent(JumpsterEventType.STEP_FAILURE, *self.key, error=err)
 

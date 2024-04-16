@@ -48,7 +48,7 @@ from .jumpster import (
     InputDefinition,
     Output,
     Failure,
-    AssetMaterialization,
+    Finalization,
 )
 from .project_item.connection import Connection, Jump
 
@@ -310,17 +310,15 @@ class SpineEngine:
             event (JumpsterEvent): an event
         """
         if event.event_type == JumpsterEventType.STEP_START:
-            direction, item_name = event.direction, event.item_name
-            self._queue.put(("exec_started", {"item_name": item_name, "direction": direction}))
+            self._queue.put(("exec_started", {"item_name": event.item_name, "direction": event.direction}))
         elif event.event_type == JumpsterEventType.STEP_FAILURE and self._state != SpineEngineState.USER_STOPPED:
-            direction, item_name = event.direction, event.item_name
             self._state = SpineEngineState.FAILED
             self._queue.put(
                 (
                     "exec_finished",
                     {
-                        "item_name": item_name,
-                        "direction": direction,
+                        "item_name": event.item_name,
+                        "direction": event.direction,
                         "state": str(self._state),
                         "item_state": ItemExecutionFinishState.FAILURE,
                     },
@@ -331,40 +329,15 @@ class SpineEngine:
                 print("Traceback (most recent call last):")
                 print("".join(error.stack + [error.message]))
                 print("(reported by SpineEngine in debug mode)")
-        elif event.event_type == JumpsterEventType.STEP_SUCCESS:
-            # Notify Toolbox here when BACKWARD execution has finished
-            direction, item_name = event.direction, event.item_name
-            if direction != "BACKWARD":
-                return
-            if not self._execution_permits[item_name]:
-                item_finish_state = ItemExecutionFinishState.EXCLUDED
-            else:
-                item_finish_state = ItemExecutionFinishState.SUCCESS
+        elif event.event_type == JumpsterEventType.STEP_FINISH:
             self._queue.put(
                 (
                     "exec_finished",
                     {
-                        "item_name": item_name,
-                        "direction": direction,
+                        "item_name": event.item_name,
+                        "direction": event.direction,
                         "state": str(self._state),
-                        "item_state": item_finish_state,
-                    },
-                )
-            )
-        elif event.event_type == JumpsterEventType.ASSET_MATERIALIZATION:
-            # Notify Toolbox here when FORWARD execution has finished
-            direction, item_name = event.direction, event.item_name
-            if direction != "FORWARD":
-                return
-            item_finish_state = event.asset_key
-            self._queue.put(
-                (
-                    "exec_finished",
-                    {
-                        "item_name": item_name,
-                        "direction": direction,
-                        "state": str(self._state),
-                        "item_state": item_finish_state,
+                        "item_state": event.item_finish_state,
                     },
                 )
             )
@@ -432,6 +405,11 @@ class SpineEngine:
             for r in resources:
                 r.metadata["db_server_manager_queue"] = self._db_server_manager_queue
             yield Output(value=resources)
+            yield Finalization(
+                item_finish_state=ItemExecutionFinishState.SUCCESS
+                if self._execution_permits[item_name]
+                else ItemExecutionFinishState.EXCLUDED
+            )
 
         return SolidDefinition(item_name=item_name, direction=ED.BACKWARD, input_defs=[], compute_fn=compute_fn)
 
@@ -461,11 +439,11 @@ class SpineEngine:
             item_finish_state, output_resource_stacks = self._execute_item(
                 item_name, forward_resource_stacks, backward_resources
             )
-            yield AssetMaterialization(asset_key=item_finish_state)
             if output_resource_stacks:
                 yield Output(value=output_resource_stacks)
             for conn in self._connections_by_source.get(item_name, []):
                 conn.visit_source()
+            yield Finalization(item_finish_state=item_finish_state)
 
         input_defs = [
             InputDefinition(item_name=inj, direction=ED.FORWARD) for inj in self._forth_injectors.get(item_name, [])
