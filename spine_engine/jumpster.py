@@ -78,7 +78,7 @@ class AssetMaterialization:
 
 
 class JumpsterThreadError(Exception):
-    """An exception has occurred in one or more of the threads dagster manages.
+    """An exception has occurred in one or more of the threads jumpster manages.
     This error forwards the message and stack trace for all of the collected errors.
     """
 
@@ -94,19 +94,16 @@ class MultithreadExecutor:
         self._output_value = {}
         self._ready_to_execute = {}
         self._in_flight = set()
-        self._completed = set()
-        self._succeeded = set()
-        self._counters = {}
+        self._steps_by_input_key = {}
         for solid_def in self._pipeline_def.solid_defs:
-            if not solid_def.input_defs:
-                self._add_step(solid_def)
+            step = Step(solid_def)
+            if step.is_ready_to_execute():
+                self._ready_to_execute[step.key] = step
             else:
-                counter = {"current": 0, "target": len(solid_def.input_defs), "solid_def": solid_def}
                 for input_def in solid_def.input_defs:
-                    self._counters.setdefault(input_def.key, {})[solid_def.key] = counter
+                    self._steps_by_input_key.setdefault(input_def.key, {})[step.key] = step
 
     def _is_complete(self):
-        self._update()
         return not self._in_flight and not self._ready_to_execute
 
     def _get_steps_to_execute(self, limit):
@@ -117,32 +114,20 @@ class MultithreadExecutor:
             steps.append(step)
         return steps
 
-    def _update(self):
-        while self._succeeded:
-            key = self._succeeded.pop()
-            counters = self._counters.get(key, {})
-            to_remove = set()
-            for k, counter in counters.items():
-                counter["current"] += 1
-                if counter["current"] == counter["target"]:
-                    self._add_step(counter["solid_def"])
-                    to_remove.add(k)
-            for k in to_remove:
-                del counters[k]
-
-    def _add_step(self, solid_def):
-        step_inputs = {}
-        for input_def in solid_def.input_defs:
-            step_inputs.setdefault(input_def.direction, []).extend(self._output_value[input_def.key])
-        step = Step(solid_def, step_inputs, self._output_value)
-        self._ready_to_execute[step.key] = step
-
     def _handle_event(self, event):
         if event.event_type in (JumpsterEventType.STEP_SUCCESS, JumpsterEventType.STEP_FAILURE):
-            self._completed.add(event.key)
             self._in_flight.discard(event.key)
             if event.event_type == JumpsterEventType.STEP_SUCCESS:
-                self._succeeded.add(event.key)
+                self._output_value[event.key] = event.output_value
+                steps = self._steps_by_input_key.get(event.key, {})
+                to_remove = set()
+                for k, step in steps.items():
+                    step.inputs[event.key] = event.output_value
+                    if step.is_ready_to_execute():
+                        self._ready_to_execute[step.key] = step
+                        to_remove.add(k)
+                for k in to_remove:
+                    del steps[k]
 
     def execute(self):
         active_iters = {}
@@ -167,12 +152,12 @@ class MultithreadExecutor:
                 jump_by_item_name[item_name] = jump
         unfinished_jumps = set(jumps)
         loop_iteration_counters = {}
-        steps_by_key = {}
+        step_by_key = {}
         while not self._is_complete() or active_iters:
             # start iterators
             while len(active_iters) < self._max_concurrent:
                 candidate_steps = self._get_steps_to_execute(limit=(self._max_concurrent - len(active_iters)))
-                steps_by_key.update({step.key: step for step in candidate_steps})
+                step_by_key.update({step.key: step for step in candidate_steps})
                 # Add all waiting steps
                 candidate_steps += list(waiting.values())
                 # Add iterating steps that don't depend on other pending iterating
@@ -194,7 +179,7 @@ class MultithreadExecutor:
                     predecessor_item_names = {item for jump in predecessor_jumps for item in jump.item_names}
                     predecessor_keys = {
                         k
-                        for k, s in steps_by_key.items()
+                        for k, s in step_by_key.items()
                         if s.direction == ED.FORWARD and s.item_name in predecessor_item_names
                     }
                     dependency_keys = step.get_execution_dependency_keys()
@@ -218,7 +203,7 @@ class MultithreadExecutor:
                         continue
                     yield event_or_none
                     self._handle_event(event_or_none)
-                    step = steps_by_key[key]
+                    step = step_by_key[key]
                     if step.direction == ED.BACKWARD:
                         continue
                     # Handle loops
@@ -248,7 +233,7 @@ class MultithreadExecutor:
                         iteration_counter = loop_iteration_counters.setdefault(jump, 1)
                         if jump.is_condition_true(iteration_counter):
                             # Put all jump steps in the iterating bucket
-                            for k, s in steps_by_key.items():
+                            for k, s in step_by_key.items():
                                 if s.direction == ED.FORWARD and s.item_name in jump.item_names:
                                     iterating[k] = s
                             # Mark all nested jumps unfinished again
@@ -285,10 +270,12 @@ class MultithreadExecutor:
 
 
 class Step:
-    def __init__(self, solid_def, step_inputs, output_value):
+    def __init__(self, solid_def):
         self._solid_def = solid_def
-        self._step_inputs = step_inputs
-        self._output_value = output_value
+        self.inputs = {}
+
+    def is_ready_to_execute(self):
+        return len(self._solid_def.input_defs) == len(self.inputs)
 
     @property
     def item_name(self):
@@ -303,17 +290,18 @@ class Step:
         return self._solid_def.key
 
     def execute(self):
+        inputs = {}
+        for input_def in self._solid_def.input_defs:
+            inputs.setdefault(input_def.direction, []).extend(self.inputs[input_def.key])
         yield JumpsterEvent(JumpsterEventType.STEP_START, *self.key)
         try:
-            for x in self._solid_def.compute_fn(self._step_inputs):
+            for x in self._solid_def.compute_fn(inputs):
                 if isinstance(x, Output):
-                    self._output_value[self.key] = x.value
+                    yield JumpsterEvent(JumpsterEventType.STEP_SUCCESS, *self.key, output_value=x.value)
                 elif isinstance(x, AssetMaterialization):
                     yield JumpsterEvent(JumpsterEventType.ASSET_MATERIALIZATION, *self.key, asset_key=x.asset_key)
         except Exception as err:  # pylint: disable=broad-except
             yield JumpsterEvent(JumpsterEventType.STEP_FAILURE, *self.key, error=err)
-        else:
-            yield JumpsterEvent(JumpsterEventType.STEP_SUCCESS, *self.key)
 
     def get_execution_dependency_keys(self):
         return set(input_def.key for input_def in self._solid_def.input_defs)
@@ -323,29 +311,12 @@ def execute_pipeline_iterator(pipeline_def):
     yield from MultithreadExecutor(pipeline_def).execute()
 
 
-def execute_step_in_thread(step, errors):
-    for ret in execute_thread_step(step):
-        if ret is None or isinstance(ret, JumpsterEvent):
-            yield ret
-        elif isinstance(ret, ThreadEvent):
-            if isinstance(ret, ThreadSystemErrorEvent):
-                errors[ret.tid] = ret.error_info
-
-
 # Thread execution stuff
-class ThreadEvent:
+class ThreadDoneEvent(namedtuple("ThreadDoneEvent", "tid")):
     pass
 
 
-class ThreadStartEvent(namedtuple("ThreadStartEvent", "tid"), ThreadEvent):
-    pass
-
-
-class ThreadDoneEvent(namedtuple("ThreadDoneEvent", "tid"), ThreadEvent):
-    pass
-
-
-class ThreadSystemErrorEvent(namedtuple("ThreadSystemErrorEvent", "tid error_info"), ThreadEvent):
+class ThreadSystemErrorEvent(namedtuple("ThreadSystemErrorEvent", "tid error_info")):
     pass
 
 
@@ -360,23 +331,26 @@ THREAD_DEAD_AND_QUEUE_EMPTY = "THREAD_DEAD_AND_QUEUE_EMPTY"
 """Sentinel value."""
 
 
-def execute_thread_step(step):
+def execute_step_in_thread(step, errors):
     """Executes a Step in a new thread.
 
     Args:
         step (Step): step to execute
     """
     event_queue = queue.Queue()
-    thread = threading.Thread(target=_execute_step_in_thread, args=(event_queue, step))
+    thread = threading.Thread(target=_do_execute_step_in_thread, args=(event_queue, step))
     thread.start()
     completed_properly = False
     while not completed_properly:
         event = _poll_for_event(thread, event_queue)
         if event == THREAD_DEAD_AND_QUEUE_EMPTY:
             break
-        yield event
-        if isinstance(event, (ThreadDoneEvent, ThreadSystemErrorEvent)):
+        if event is None or isinstance(event, JumpsterEvent):
+            yield event
+        elif isinstance(event, (ThreadDoneEvent, ThreadSystemErrorEvent)):
             completed_properly = True
+            if isinstance(event, ThreadSystemErrorEvent):
+                errors[event.tid] = event.error_info
     if not completed_properly:
         raise ThreadCrashException()
     thread.join()
@@ -399,8 +373,8 @@ def _poll_for_event(thread, event_queue):
     return None
 
 
-def _execute_step_in_thread(event_queue, step):
-    """Wraps the execution of a command.
+def _do_execute_step_in_thread(event_queue, step):
+    """Wraps the execution of a step.
 
     Handles errors and communicates across a queue with the parent thread.
 
@@ -409,7 +383,6 @@ def _execute_step_in_thread(event_queue, step):
         step (Step): execution step
     """
     tid = threading.get_ident()
-    event_queue.put(ThreadStartEvent(tid=tid))
     try:
         for step_event in step.execute():
             event_queue.put(step_event)
