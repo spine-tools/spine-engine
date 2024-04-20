@@ -117,7 +117,7 @@ class MultithreadExecutor:
     def _handle_event(self, event):
         if event.event_type in (JumpsterEventType.STEP_FINISH, JumpsterEventType.STEP_FAILURE):
             self._in_flight.discard(event.key)
-        if event.event_type == JumpsterEventType.OUTPUT_AVAILABLE:
+        elif event.event_type == JumpsterEventType.OUTPUT_AVAILABLE:
             self._output_value[event.key] = event.output_value
             steps = self._steps_by_input_key.get(event.key, {})
             to_remove = set()
@@ -274,9 +274,6 @@ class Step:
         self._solid_def = solid_def
         self.inputs = {}
 
-    def is_ready_to_execute(self):
-        return len(self._solid_def.input_defs) == len(self.inputs)
-
     @property
     def item_name(self):
         return self._solid_def.item_name
@@ -288,6 +285,9 @@ class Step:
     @property
     def key(self):
         return self._solid_def.key
+
+    def is_ready_to_execute(self):
+        return len(self._solid_def.input_defs) == len(self.inputs)
 
     def execute(self):
         inputs = {}
