@@ -15,14 +15,12 @@ Unit tests for `spine_engine` module.
 
 Inspired from tests for spinetoolbox.ExecutionInstance and spinetoolbox.ResourceMap,
 and intended to supersede them.
-
 """
 import os.path
 import sys
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock, NonCallableMagicMock, call, patch
-
 from spinedb_api import DatabaseMapping, import_scenarios
 from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.filters.execution_filter import execution_filter_config
@@ -737,93 +735,109 @@ class TestSpineEngine(unittest.TestCase):
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
     def test_jump_resources_get_passed_correctly(self):
-        resource_fw_a = _make_url_resource("sqlite:///fw_a")
-        resource_bw_a = _make_url_resource("sqlite:///bw_a")
-        item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
-        resource_fw_b = _make_url_resource("sqlite:///fw_b")
-        resource_bw_b = _make_url_resource("sqlite:///bw_b")
-        item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
-        resource_fw_c = _make_url_resource("sqlite:///fw_c")
-        resource_bw_c = _make_url_resource("sqlite:///bw_c")
-        item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
-        resource_fw_d = _make_url_resource("sqlite:///fw_d")
-        resource_bw_d = _make_url_resource("sqlite:///bw_d")
-        item_d = self._mock_item("d", resources_forward=[resource_fw_d], resources_backward=[resource_bw_d])
-        item_instances = {"a": [item_a], "b": [item_b, item_b], "c": [item_c, item_c], "d": [item_d]}
-        items = {
-            "a": {"type": "TestItem"},
-            "b": {"type": "TestItem"},
-            "c": {"type": "TestItem"},
-            "d": {"type": "TestItem"},
-        }
-        connections = [
-            c.to_dict()
-            for c in (
-                Connection("a", "right", "b", "left"),
-                Connection("b", "bottom", "c", "top"),
-                Connection("c", "left", "d", "right"),
+        with TemporaryDirectory() as temp_dir:
+            url_fw_a = "sqlite:///" + os.path.join(temp_dir, "fw_a")
+            url_bw_a = "sqlite:///" + os.path.join(temp_dir, "bw_a")
+            url_fw_b = "sqlite:///" + os.path.join(temp_dir, "fw_b")
+            url_bw_b = "sqlite:///" + os.path.join(temp_dir, "bw_b")
+            url_fw_c = "sqlite:///" + os.path.join(temp_dir, "fw_c")
+            url_bw_c = "sqlite:///" + os.path.join(temp_dir, "bw_c")
+            url_fw_d = "sqlite:///" + os.path.join(temp_dir, "fw_d")
+            url_bw_d = "sqlite:///" + os.path.join(temp_dir, "bw_d")
+            resource_fw_a = _make_url_resource(url_fw_a)
+            resource_bw_a = _make_url_resource(url_bw_a)
+            item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
+            resource_fw_b = _make_url_resource(url_fw_b)
+            resource_bw_b = _make_url_resource(url_bw_b)
+            item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
+            resource_fw_c = _make_url_resource(url_fw_c)
+            resource_bw_c = _make_url_resource(url_bw_c)
+            item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
+            resource_fw_d = _make_url_resource(url_fw_d)
+            resource_bw_d = _make_url_resource(url_bw_d)
+            item_d = self._mock_item("d", resources_forward=[resource_fw_d], resources_backward=[resource_bw_d])
+            item_instances = {"a": [item_a], "b": [item_b, item_b], "c": [item_c, item_c], "d": [item_d]}
+            items = {
+                "a": {"type": "TestItem"},
+                "b": {"type": "TestItem"},
+                "c": {"type": "TestItem"},
+                "d": {"type": "TestItem"},
+            }
+            connections = [
+                c.to_dict()
+                for c in (
+                    Connection("a", "right", "b", "left"),
+                    Connection("b", "bottom", "c", "top"),
+                    Connection("c", "left", "d", "right"),
+                )
+            ]
+            jumps = [Jump("c", "right", "b", "right", self._LOOP_TWICE).to_dict()]
+            self._run_engine(items, connections, item_instances, jumps=jumps)
+            self._assert_resource_args(
+                item_a.execute.call_args_list, [[[], [self._default_backward_url_resource(url_bw_b, "a", "b")]]]
             )
-        ]
-        jumps = [Jump("c", "right", "b", "right", self._LOOP_TWICE).to_dict()]
-        self._run_engine(items, connections, item_instances, jumps=jumps)
-        self._assert_resource_args(
-            item_a.execute.call_args_list, [[[], [self._default_backward_url_resource("sqlite:///bw_b", "a", "b")]]]
-        )
-        self._assert_resource_args(
-            item_b.execute.call_args_list,
-            2
-            * [
-                [
-                    [self._default_forward_url_resource("sqlite:///fw_a", "a")],
-                    [self._default_backward_url_resource("sqlite:///bw_c", "b", "c")],
-                ]
-            ],
-        )
-        self._assert_resource_args(
-            item_c.execute.call_args_list,
-            2
-            * [
-                [
-                    [self._default_forward_url_resource("sqlite:///fw_b", "b")],
-                    [self._default_backward_url_resource("sqlite:///bw_d", "c", "d")],
-                ]
-            ],
-        )
-        self._assert_resource_args(
-            item_d.execute.call_args_list, [[[self._default_forward_url_resource("sqlite:///fw_c", "c")], []]]
-        )
+            self._assert_resource_args(
+                item_b.execute.call_args_list,
+                2
+                * [
+                    [
+                        [self._default_forward_url_resource(url_fw_a, "a")],
+                        [self._default_backward_url_resource(url_bw_c, "b", "c")],
+                    ]
+                ],
+            )
+            self._assert_resource_args(
+                item_c.execute.call_args_list,
+                2
+                * [
+                    [
+                        [self._default_forward_url_resource(url_fw_b, "b")],
+                        [self._default_backward_url_resource(url_bw_d, "c", "d")],
+                    ]
+                ],
+            )
+            self._assert_resource_args(
+                item_d.execute.call_args_list, [[[self._default_forward_url_resource(url_fw_c, "c")], []]]
+            )
 
     def test_nested_jump_with_inner_self_jump(self):
-        resource_fw_a = _make_url_resource("sqlite:///fw_a")
-        resource_bw_a = _make_url_resource("sqlite:///bw_a")
-        item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
-        resource_fw_b = _make_url_resource("sqlite:///fw_b")
-        resource_bw_b = _make_url_resource("sqlite:///bw_b")
-        item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
-        resource_fw_c = _make_url_resource("sqlite:///fw_c")
-        resource_bw_c = _make_url_resource("sqlite:///bw_c")
-        item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
-        item_instances = {"a": 2 * [item_a], "b": 4 * [item_b], "c": 2 * [item_c]}
-        items = {"a": {"type": "TestItem"}, "b": {"type": "TestItem"}, "c": {"type": "TestItem"}}
-        connections = [
-            c.to_dict() for c in (Connection("a", "right", "b", "left"), Connection("b", "bottom", "c", "top"))
-        ]
-        jumps = [
-            Jump("c", "right", "a", "right", self._LOOP_TWICE).to_dict(),
-            Jump("b", "top", "b", "top", self._LOOP_TWICE).to_dict(),
-        ]
-        self._run_engine(items, connections, item_instances, jumps=jumps)
-        expected = 2 * [[[], [self._default_backward_url_resource("sqlite:///bw_b", "a", "b")]]]
-        self._assert_resource_args(item_a.execute.call_args_list, expected)
-        expected = 4 * [
-            [
-                [self._default_forward_url_resource("sqlite:///fw_a", "a")],
-                [self._default_backward_url_resource("sqlite:///bw_c", "b", "c")],
+        with TemporaryDirectory() as temp_dir:
+            url_fw_a = "sqlite:///" + os.path.join(temp_dir, "fw_a")
+            url_bw_a = "sqlite:///" + os.path.join(temp_dir, "bw_a")
+            url_fw_b = "sqlite:///" + os.path.join(temp_dir, "fw_b")
+            url_bw_b = "sqlite:///" + os.path.join(temp_dir, "bw_b")
+            url_fw_c = "sqlite:///" + os.path.join(temp_dir, "fw_c")
+            url_bw_c = "sqlite:///" + os.path.join(temp_dir, "bw_c")
+            resource_fw_a = _make_url_resource(url_fw_a)
+            resource_bw_a = _make_url_resource(url_bw_a)
+            item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
+            resource_fw_b = _make_url_resource(url_fw_b)
+            resource_bw_b = _make_url_resource(url_bw_b)
+            item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
+            resource_fw_c = _make_url_resource(url_fw_c)
+            resource_bw_c = _make_url_resource(url_bw_c)
+            item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
+            item_instances = {"a": 2 * [item_a], "b": 4 * [item_b], "c": 2 * [item_c]}
+            items = {"a": {"type": "TestItem"}, "b": {"type": "TestItem"}, "c": {"type": "TestItem"}}
+            connections = [
+                c.to_dict() for c in (Connection("a", "right", "b", "left"), Connection("b", "bottom", "c", "top"))
             ]
-        ]
-        self._assert_resource_args(item_b.execute.call_args_list, expected)
-        expected = 2 * [[[self._default_forward_url_resource("sqlite:///fw_b", "b")], []]]
-        self._assert_resource_args(item_c.execute.call_args_list, expected)
+            jumps = [
+                Jump("c", "right", "a", "right", self._LOOP_TWICE).to_dict(),
+                Jump("b", "top", "b", "top", self._LOOP_TWICE).to_dict(),
+            ]
+            self._run_engine(items, connections, item_instances, jumps=jumps)
+            expected = 2 * [[[], [self._default_backward_url_resource(url_bw_b, "a", "b")]]]
+            self._assert_resource_args(item_a.execute.call_args_list, expected)
+            expected = 4 * [
+                [
+                    [self._default_forward_url_resource(url_fw_a, "a")],
+                    [self._default_backward_url_resource(url_bw_c, "b", "c")],
+                ]
+            ]
+            self._assert_resource_args(item_b.execute.call_args_list, expected)
+            expected = 2 * [[[self._default_forward_url_resource(url_fw_b, "b")], []]]
+            self._assert_resource_args(item_c.execute.call_args_list, expected)
 
     def _assert_resource_args(self, arg_packs, expected_packs):
         self.assertEqual(len(arg_packs), len(expected_packs))
