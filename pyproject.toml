@@ -60,6 +60,8 @@ exclude = [
 [tool.coverage.run]
 source = ["spine_engine"]
 branch = true
+concurrency = ["multiprocessing", "thread"]
+disable_warnings = ["no-data-collected"]
 
 [tool.coverage.report]
 ignore_errors = true
