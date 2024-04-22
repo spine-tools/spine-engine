@@ -10,26 +10,24 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for EventDataConverter class.
-"""
-
+"""Unit tests for EventDataConverter class."""
 import unittest
 from copy import deepcopy
 from spine_engine.spine_engine import ItemExecutionFinishState
 from spine_engine.server.util.event_data_converter import EventDataConverter
+from spine_engine.utils.helpers import ExecutionDirection
 
 
 class TestEventDataConverter(unittest.TestCase):
     def make_event_data(self):
         test_events = [
-            ("exec_started", {"item_name": "helloworld", "direction": "BACKWARD"}),
-            ("exec_started", {"item_name": "Data Connection 1", "direction": "BACKWARD"}),
+            ("exec_started", {"item_name": "helloworld", "direction": ExecutionDirection.BACKWARD}),
+            ("exec_started", {"item_name": "Data Connection 1", "direction": ExecutionDirection.BACKWARD}),
             (
                 "exec_finished",
                 {
                     "item_name": "helloworld",
-                    "direction": "BACKWARD",
+                    "direction": ExecutionDirection.BACKWARD,
                     "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
@@ -38,12 +36,12 @@ class TestEventDataConverter(unittest.TestCase):
                 "exec_finished",
                 {
                     "item_name": "Data Connection 1",
-                    "direction": "BACKWARD",
+                    "direction": ExecutionDirection.BACKWARD,
                     "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
             ),
-            ("exec_started", {"item_name": "Data Connection 1", "direction": "FORWARD"}),
+            ("exec_started", {"item_name": "Data Connection 1", "direction": ExecutionDirection.FORWARD}),
             (
                 "event_msg",
                 {
@@ -57,13 +55,13 @@ class TestEventDataConverter(unittest.TestCase):
                 "exec_finished",
                 {
                     "item_name": "Data Connection 1",
-                    "direction": "FORWARD",
+                    "direction": ExecutionDirection.FORWARD,
                     "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
             ),
             ("flash", {"item_name": "from Data Connection 1 to helloworld"}),
-            ("exec_started", {"item_name": "helloworld", "direction": "FORWARD"}),
+            ("exec_started", {"item_name": "helloworld", "direction": ExecutionDirection.FORWARD}),
             (
                 "event_msg",
                 {
@@ -104,7 +102,7 @@ class TestEventDataConverter(unittest.TestCase):
                 "exec_finished",
                 {
                     "item_name": "helloworld",
-                    "direction": "FORWARD",
+                    "direction": ExecutionDirection.FORWARD,
                     "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
