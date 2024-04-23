@@ -101,7 +101,7 @@ class MultithreadExecutor:
                 self._ready_to_execute[step.key] = step
             else:
                 for input_def in solid_def.input_defs:
-                    self._steps_by_input_key.setdefault(input_def.key, {})[step.key] = step
+                    self._steps_by_input_key.setdefault(input_def.key, []).append(step)
 
     def _is_complete(self):
         return not self._in_flight and not self._ready_to_execute
@@ -119,15 +119,11 @@ class MultithreadExecutor:
             self._in_flight.discard(event.key)
         elif event.event_type == JumpsterEventType.OUTPUT_AVAILABLE:
             self._output_value[event.key] = event.output_value
-            steps = self._steps_by_input_key.get(event.key, {})
-            to_remove = set()
-            for k, step in steps.items():
+            steps = self._steps_by_input_key.get(event.key, ())
+            for step in steps:
                 step.inputs[event.key] = event.output_value
                 if step.is_ready_to_execute():
                     self._ready_to_execute[step.key] = step
-                    to_remove.add(k)
-            for k in to_remove:
-                del steps[k]
 
     def execute(self):
         active_iters = {}
@@ -207,9 +203,9 @@ class MultithreadExecutor:
                     if step.direction == ED.BACKWARD:
                         continue
                     # Handle loops
-                    iterating_active.discard(key)
                     if event_or_none.event_type == JumpsterEventType.STEP_FAILURE:
                         # Mark failed loops as finished
+                        iterating_active.discard(key)
                         failed_jump = jump_by_item_name.get(step.item_name)
                         if failed_jump is None:
                             continue
@@ -221,6 +217,7 @@ class MultithreadExecutor:
                         iterating_failed.add(step)
                     elif event_or_none.event_type == JumpsterEventType.STEP_FINISH:
                         # Process loop condition
+                        iterating_active.discard(key)
                         jump = jump_by_source.get(step.item_name)
                         if jump is None:
                             continue
@@ -273,6 +270,7 @@ class Step:
     def __init__(self, solid_def):
         self._solid_def = solid_def
         self.inputs = {}
+        self._ready_once = False
 
     @property
     def item_name(self):
@@ -287,7 +285,10 @@ class Step:
         return self._solid_def.key
 
     def is_ready_to_execute(self):
-        return len(self._solid_def.input_defs) == len(self.inputs)
+        if self._ready_once:
+            return False
+        self._ready_once = len(self._solid_def.input_defs) == len(self.inputs)
+        return self._ready_once
 
     def execute(self):
         inputs = {}
