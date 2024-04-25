@@ -132,13 +132,14 @@ def convert_execution_finish_state(state):
     Returns:
         ItemExecutionFinishState: Enum if given str is valid, None otherwise.
     """
-    states = dict()
-    states["SUCCESS"] = ItemExecutionFinishState.SUCCESS
-    states["FAILURE"] = ItemExecutionFinishState.FAILURE
-    states["SKIPPED"] = ItemExecutionFinishState.SKIPPED
-    states["EXCLUDED"] = ItemExecutionFinishState.EXCLUDED
-    states["STOPPED"] = ItemExecutionFinishState.STOPPED
-    states["NEVER_FINISHED"] = ItemExecutionFinishState.NEVER_FINISHED
+    states = {
+        "SUCCESS": ItemExecutionFinishState.SUCCESS,
+        "FAILURE": ItemExecutionFinishState.FAILURE,
+        "SKIPPED": ItemExecutionFinishState.SKIPPED,
+        "EXCLUDED": ItemExecutionFinishState.EXCLUDED,
+        "STOPPED": ItemExecutionFinishState.STOPPED,
+        "NEVER_FINISHED": ItemExecutionFinishState.NEVER_FINISHED,
+    }
     return states.get(state, None)
 
 
@@ -151,8 +152,9 @@ def convert_execution_direction(direction):
     Returns:
         ExecutionDirection: Enum if given str is valid, None otherwise.
     """
-    directions = dict()
-    directions["FORWARD"] = ExecutionDirection.FORWARD
-    directions["BACKWARD"] = ExecutionDirection.BACKWARD
-    directions["NONE"] = ExecutionDirection.NONE
+    directions = {
+        "FORWARD": ExecutionDirection.FORWARD,
+        "BACKWARD": ExecutionDirection.BACKWARD,
+        "NONE": ExecutionDirection.NONE,
+    }
     return directions.get(direction, None)

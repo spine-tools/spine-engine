@@ -358,7 +358,7 @@ class SpineEngine:
                 "exec_finished",
                 {
                     "item_name": item.name,
-                    "direction": str(ED.FORWARD),
+                    "direction": ED.FORWARD,
                     "state": str(self._state),
                     "item_state": ItemExecutionFinishState.STOPPED,
                 },
