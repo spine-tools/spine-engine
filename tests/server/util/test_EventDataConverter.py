@@ -119,10 +119,10 @@ class TestEventDataConverter(unittest.TestCase):
             converted_events.append(json_str)
         self.assertEqual(16, len(converted_events))
         # Check that item_state values are cast to strings i.e. ItemExecutionFinishState.SUCCESS -> "SUCCESS"
-        item_execution_finish_states_converted = 0  # Counter for how many ItemExecutionFinishStates were cast to strings
+        item_execution_finish_states_converted = 0
         # Check that direction values are cast to strings i.e. ExecutionDirection.FORWARD -> "FORWARD"
-        execution_direction_backward_converted = 0  # n for how many ExecutionDirection.BACKWARD instances were cast to strings
-        execution_direction_forward_converted = 0  # n for how many ExecutionDirection.FORWARD instances were cast to strings
+        execution_direction_backward_converted = 0
+        execution_direction_forward_converted = 0
         for converted_event in converted_events:
             if converted_event.startswith('{"event_type": "exec_started"'):
                 if '"direction": "BACKWARD"' in converted_event:
