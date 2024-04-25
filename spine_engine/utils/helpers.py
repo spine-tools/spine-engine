@@ -543,3 +543,7 @@ class PartCount:
 
     def __repr__(self):
         return str(self._count)
+
+
+def serializable_error_info_from_exc_info(exc_info):
+    return exc_info

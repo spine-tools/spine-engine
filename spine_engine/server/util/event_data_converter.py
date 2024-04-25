@@ -10,13 +10,11 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains static methods for converting event and data information to JSON format and back.
-"""
-
+"""Contains static methods for converting event and data information to JSON format and back."""
 import base64
 import json
 from spine_engine.spine_engine import ItemExecutionFinishState
+from spine_engine.utils.helpers import ExecutionDirection
 
 
 class EventDataConverter:
@@ -94,6 +92,8 @@ def break_event_data(event_type, data):
                     data["connection_file_dict"] = connection_file_dict
                 except json.decoder.JSONDecodeError:
                     print(f"Error loading connection file {data['connection_file']}. Invalid JSON.")
+        if "direction" in data.keys():
+            data["direction"] = str(data["direction"])  # Cast ExecutionDirection instance to string
         for key in data.keys():
             # Print warning if there are any tuples used as keys in the data dictionary.
             # Tuples are converted to lists by json.dumps(). Lists must be converted back to tuples
@@ -118,6 +118,8 @@ def fix_event_data(event):
         return event
     if "item_state" in event[1].keys():
         event[1]["item_state"] = convert_execution_finish_state(event[1]["item_state"])
+    if "direction" in event[1].keys():
+        event[1]["direction"] = convert_execution_direction(event[1]["direction"])
     return event
 
 
@@ -130,11 +132,29 @@ def convert_execution_finish_state(state):
     Returns:
         ItemExecutionFinishState: Enum if given str is valid, None otherwise.
     """
-    states = dict()
-    states["SUCCESS"] = ItemExecutionFinishState.SUCCESS
-    states["FAILURE"] = ItemExecutionFinishState.FAILURE
-    states["SKIPPED"] = ItemExecutionFinishState.SKIPPED
-    states["EXCLUDED"] = ItemExecutionFinishState.EXCLUDED
-    states["STOPPED"] = ItemExecutionFinishState.STOPPED
-    states["NEVER_FINISHED"] = ItemExecutionFinishState.NEVER_FINISHED
+    states = {
+        "SUCCESS": ItemExecutionFinishState.SUCCESS,
+        "FAILURE": ItemExecutionFinishState.FAILURE,
+        "SKIPPED": ItemExecutionFinishState.SKIPPED,
+        "EXCLUDED": ItemExecutionFinishState.EXCLUDED,
+        "STOPPED": ItemExecutionFinishState.STOPPED,
+        "NEVER_FINISHED": ItemExecutionFinishState.NEVER_FINISHED,
+    }
     return states.get(state, None)
+
+
+def convert_execution_direction(direction):
+    """Transforms direction string into an ExecutionDirection enum.
+
+    Args:
+        direction (str): Direction as string
+
+    Returns:
+        ExecutionDirection: Enum if given str is valid, None otherwise.
+    """
+    directions = {
+        "FORWARD": ExecutionDirection.FORWARD,
+        "BACKWARD": ExecutionDirection.BACKWARD,
+        "NONE": ExecutionDirection.NONE,
+    }
+    return directions.get(direction, None)

@@ -10,26 +10,24 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for EventDataConverter class.
-"""
-
+"""Unit tests for EventDataConverter class."""
 import unittest
 from copy import deepcopy
 from spine_engine.spine_engine import ItemExecutionFinishState
 from spine_engine.server.util.event_data_converter import EventDataConverter
+from spine_engine.utils.helpers import ExecutionDirection
 
 
 class TestEventDataConverter(unittest.TestCase):
     def make_event_data(self):
         test_events = [
-            ("exec_started", {"item_name": "helloworld", "direction": "BACKWARD"}),
-            ("exec_started", {"item_name": "Data Connection 1", "direction": "BACKWARD"}),
+            ("exec_started", {"item_name": "helloworld", "direction": ExecutionDirection.BACKWARD}),
+            ("exec_started", {"item_name": "Data Connection 1", "direction": ExecutionDirection.BACKWARD}),
             (
                 "exec_finished",
                 {
                     "item_name": "helloworld",
-                    "direction": "BACKWARD",
+                    "direction": ExecutionDirection.BACKWARD,
                     "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
@@ -38,12 +36,12 @@ class TestEventDataConverter(unittest.TestCase):
                 "exec_finished",
                 {
                     "item_name": "Data Connection 1",
-                    "direction": "BACKWARD",
+                    "direction": ExecutionDirection.BACKWARD,
                     "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
             ),
-            ("exec_started", {"item_name": "Data Connection 1", "direction": "FORWARD"}),
+            ("exec_started", {"item_name": "Data Connection 1", "direction": ExecutionDirection.FORWARD}),
             (
                 "event_msg",
                 {
@@ -57,13 +55,13 @@ class TestEventDataConverter(unittest.TestCase):
                 "exec_finished",
                 {
                     "item_name": "Data Connection 1",
-                    "direction": "FORWARD",
+                    "direction": ExecutionDirection.FORWARD,
                     "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
             ),
             ("flash", {"item_name": "from Data Connection 1 to helloworld"}),
-            ("exec_started", {"item_name": "helloworld", "direction": "FORWARD"}),
+            ("exec_started", {"item_name": "helloworld", "direction": ExecutionDirection.FORWARD}),
             (
                 "event_msg",
                 {
@@ -104,7 +102,7 @@ class TestEventDataConverter(unittest.TestCase):
                 "exec_finished",
                 {
                     "item_name": "helloworld",
-                    "direction": "FORWARD",
+                    "direction": ExecutionDirection.FORWARD,
                     "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
@@ -121,12 +119,26 @@ class TestEventDataConverter(unittest.TestCase):
             converted_events.append(json_str)
         self.assertEqual(16, len(converted_events))
         # Check that item_state values are cast to strings i.e. ItemExecutionFinishState.SUCCESS -> "SUCCESS"
-        n = 0  # Counter for how many ItemExecutionFinishStates were cast to strings
+        item_execution_finish_states_converted = 0
+        # Check that direction values are cast to strings i.e. ExecutionDirection.FORWARD -> "FORWARD"
+        execution_direction_backward_converted = 0
+        execution_direction_forward_converted = 0
         for converted_event in converted_events:
-            if converted_event.startswith('{"event_type": "exec_finished"'):
+            if converted_event.startswith('{"event_type": "exec_started"'):
+                if '"direction": "BACKWARD"' in converted_event:
+                    execution_direction_backward_converted += 1
+                elif '"direction": "FORWARD"' in converted_event:
+                    execution_direction_forward_converted += 1
+            elif converted_event.startswith('{"event_type": "exec_finished"'):
                 self.assertTrue('"item_state": "SUCCESS"' in converted_event)
-                n += 1
-        self.assertEqual(4, n)
+                item_execution_finish_states_converted += 1
+                if '"direction": "BACKWARD"' in converted_event:
+                    execution_direction_backward_converted += 1
+                elif '"direction": "FORWARD"' in converted_event:
+                    execution_direction_forward_converted += 1
+        self.assertEqual(4, item_execution_finish_states_converted)
+        self.assertEqual(4, execution_direction_backward_converted)
+        self.assertEqual(4, execution_direction_forward_converted)
 
     def test_convert_deconvert(self):
         """Converts events, then deconverts them back."""
