@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -31,8 +32,8 @@ class SpineDBServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 class _RequestHandler(socketserver.BaseRequestHandler):
     def handle(self):
         data = self.request.recv(1024).decode("UTF8")
-        req_args_sep = '\u001f'  # Unit separator
-        args_sep = '\u0091'  # Private Use 1
+        req_args_sep = "\u001f"  # Unit separator
+        args_sep = "\u0091"  # Private Use 1
         request, args = data.split(req_args_sep)
         args = args.split(args_sep)
         handler = {

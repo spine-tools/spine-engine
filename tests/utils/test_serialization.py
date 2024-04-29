@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -143,5 +144,5 @@ class TestPathInDir(unittest.TestCase):
         self.assertFalse(path_in_dir("/path/to/my/file.dat", "/another/path"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

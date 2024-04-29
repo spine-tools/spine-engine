@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -9,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for `load_project_items` module.
-
-"""
+"""Unit tests for `load_project_items` module."""
 import os.path
 import unittest
 import sys
@@ -44,5 +42,5 @@ class TestLoadProjectItems(unittest.TestCase):
         self.assertTrue(issubclass(factories["TestItem"], ProjectItemSpecificationFactory))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

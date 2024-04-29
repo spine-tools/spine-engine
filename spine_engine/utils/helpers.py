@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -9,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Helpers functions and classes.
-
-"""
+"""Helper functions and classes."""
 import collections
 import os
 import sys
@@ -25,7 +23,7 @@ from enum import Enum, auto, unique
 import networkx
 from jupyter_client.kernelspec import find_kernel_specs
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
-from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON
+from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON, is_frozen
 
 
 @unique
@@ -61,14 +59,10 @@ class Singleton(type):
 
 
 class AppSettings:
-    """
-    A QSettings replacement.
-    """
+    """A QSettings replacement."""
 
     def __init__(self, settings):
         """
-        Init.
-
         Args:
             settings (dict)
         """
@@ -113,36 +107,72 @@ def resolve_conda_executable(conda_path):
     return conda_exe
 
 
-def resolve_python_interpreter(python_path):
-    """If given python_path is empty, returns the
-    full path to Python interpreter depending on user's
-    settings and whether the app is frozen or not.
+def resolve_python_interpreter(settings):
+    """Returns a path to Python interpreter in settings or the current executable if none is set.
+
+    Args:
+        settings (AppSettings): settings
+
+    Returns:
+        str: path to Python interpreter
     """
-    if python_path != "":
-        return python_path
-    if not getattr(sys, "frozen", False):
-        return sys.executable  # Use current Python
-    # We are frozen
+    path = settings.value("appSettings/pythonPath")
+    if path:
+        return path
+    return resolve_current_python_interpreter()
+
+
+def resolve_current_python_interpreter():
+    """Returns a path to current Python interpreter.
+
+    Returns:
+        str: path to Python interpreter
+    """
+    if not is_frozen():
+        return sys.executable
     path = resolve_executable_from_path(PYTHON_EXECUTABLE)
     if path != "":
-        return path  # Use Python from PATH
-    return EMBEDDED_PYTHON  # Use embedded <app_install_dir>/Tools/python.exe
+        return path
+    return EMBEDDED_PYTHON
 
 
-def resolve_julia_executable(julia_path):
-    """if given julia_path is empty, tries to find the path to Julia
-    in user's PATH env variable. If Julia is not found in PATH,
-    returns an empty string.
+def resolve_julia_executable(settings):
+    """Returns path to Julia executable from settings, and, if not set, path to default Julia executable.
 
-    Note: In the long run, we should decide whether this is something we want to do
-    because adding julia-x.x./bin/ dir to the PATH is not recommended because this
-    also exposes some .dlls to other programs on user's (windows) system. I.e. it
-    may break other programs, and this is why the Julia installer does not
-    add (and does not even offer the chance to add) Julia to PATH.
+    Args:
+        settings (AppSettings): application settings
+
+    Returns:
+        str: path to Julia executable
     """
-    if julia_path != "":
-        return julia_path
+    path = settings.value("appSettings/juliaPath")
+    if path:
+        return path
+    return resolve_default_julia_executable()
+
+
+def resolve_default_julia_executable():
+    """Returns path to default Julia executable.
+
+    Tries to find the path to Julia in user's PATH env variable.
+    If Julia is not found in PATH, returns an empty string.
+
+    Returns:
+        str: path to Julia executable
+    """
     return resolve_executable_from_path(JULIA_EXECUTABLE)
+
+
+def resolve_julia_project(settings):
+    """Returns path to Julia environment (project) from settings or an empty string if not available.
+
+    Args:
+        settings (AppSettings): application settings
+
+    Returns:
+        str: path to Julia environment
+    """
+    return settings.value("appSettings/juliaProjectPath")
 
 
 def resolve_gams_executable(gams_path):
@@ -201,34 +231,16 @@ def inverted(input_):
     return output
 
 
-def get_julia_command(settings):
-    """
-    Args:
-        settings (QSettings, AppSettings)
-
-    Returns:
-        list of str: e.g. ["path/to/julia", "--project=path/to/project/"]
-    """
-    env = get_julia_env(settings)
-    if env is None:
-        return None
-    julia, project = env
-    command = [julia]
-    if project:
-        command.append(f"--project={project}")
-    return command
-
-
 def get_julia_env(settings):
     """
     Args:
         settings (QSettings, AppSettings)
 
     Returns:
-        tuple, NoneType: (julia_exe, julia_project), or None if none found
+        Union[tuple, None]: (julia_exe, julia_project), or None if none found
     """
-    use_julia_kernel = settings.value("appSettings/useJuliaKernel", defaultValue="2") == "2"
-    if use_julia_kernel:
+    use_jupyter_console = settings.value("appSettings/useJuliaKernel", defaultValue="0") == "2"
+    if use_jupyter_console:
         kernel_name = settings.value("appSettings/juliaKernel", defaultValue="")
         resource_dir = find_kernel_specs().get(kernel_name)
         if resource_dir is None:
@@ -531,3 +543,7 @@ class PartCount:
 
     def __repr__(self):
         return str(self._count)
+
+
+def serializable_error_info_from_exc_info(exc_info):
+    return exc_info

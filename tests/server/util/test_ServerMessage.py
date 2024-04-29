@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -21,149 +22,149 @@ from spine_engine.server.util.server_message import ServerMessage
 class TestServerMessage(unittest.TestCase):
     def make_engine_data1(self):
         engine_data = {
-            'items': {
-                'T1': {
-                    'type': 'Tool',
-                    'description': '',
-                    'x': -81.09856329675559,
-                    'y': -7.8289158512399695,
-                    'specification': 'a',
-                    'execute_in_work': True,
-                    'cmd_line_args': [],
+            "items": {
+                "T1": {
+                    "type": "Tool",
+                    "description": "",
+                    "x": -81.09856329675559,
+                    "y": -7.8289158512399695,
+                    "specification": "a",
+                    "execute_in_work": True,
+                    "cmd_line_args": [],
                 },
-                'DC1': {
-                    'type': 'Data Connection',
-                    'description': '',
-                    'x': -249.4143275244174,
-                    'y': -122.2554094109619,
-                    'file_references': [],
-                    'db_references': [],
-                    'db_credentials': {},
+                "DC1": {
+                    "type": "Data Connection",
+                    "description": "",
+                    "x": -249.4143275244174,
+                    "y": -122.2554094109619,
+                    "file_references": [],
+                    "db_references": [],
+                    "db_credentials": {},
                 },
             },
-            'specifications': {
-                'Tool': [
+            "specifications": {
+                "Tool": [
                     {
-                        'name': 'a',
-                        'tooltype': 'python',
-                        'includes': ['a.py'],
-                        'description': '',
-                        'inputfiles': ['a.txt'],
-                        'inputfiles_opt': [],
-                        'outputfiles': [],
-                        'cmdline_args': [],
-                        'includes_main_path': '.',
-                        'execution_settings': {
-                            'env': '',
-                            'kernel_spec_name': 'python38',
-                            'use_jupyter_console': False,
-                            'executable': '',
+                        "name": "a",
+                        "tooltype": "python",
+                        "includes": ["a.py"],
+                        "description": "",
+                        "inputfiles": ["a.txt"],
+                        "inputfiles_opt": [],
+                        "outputfiles": [],
+                        "cmdline_args": [],
+                        "includes_main_path": ".",
+                        "execution_settings": {
+                            "env": "",
+                            "kernel_spec_name": "python38",
+                            "use_jupyter_console": False,
+                            "executable": "",
                         },
-                        'definition_file_path': 'C:\\Users\\ttepsa\\OneDrive - Teknologian Tutkimuskeskus VTT\\Documents\\SpineToolboxProjects\\remote test 2 dags\\.spinetoolbox\\specifications\\Tool\\a.json',
+                        "definition_file_path": "C:\\Users\\ttepsa\\OneDrive - Teknologian Tutkimuskeskus VTT\\Documents\\SpineToolboxProjects\\remote test 2 dags\\.spinetoolbox\\specifications\\Tool\\a.json",
                     }
                 ]
             },
-            'connections': [{'name': 'from DC1 to T1', 'from': ['DC1', 'right'], 'to': ['T1', 'left']}],
-            'jumps': [],
-            'execution_permits': {'T1': True, 'DC1': True},
-            'items_module_name': 'spine_items',
-            'settings': {
-                'engineSettings/remoteExecutionEnabled': 'true',
-                'engineSettings/remoteHost': '192.168.56.69',
-                'engineSettings/remotePort': 50001,
-                'engineSettings/remoteSecurityFolder': '',
-                'engineSettings/remoteSecurityModel': '',
+            "connections": [{"name": "from DC1 to T1", "from": ["DC1", "right"], "to": ["T1", "left"]}],
+            "jumps": [],
+            "execution_permits": {"T1": True, "DC1": True},
+            "items_module_name": "spine_items",
+            "settings": {
+                "engineSettings/remoteExecutionEnabled": "true",
+                "engineSettings/remoteHost": "192.168.56.69",
+                "engineSettings/remotePort": 50001,
+                "engineSettings/remoteSecurityFolder": "",
+                "engineSettings/remoteSecurityModel": "",
             },
-            'project_dir': 'C:/Users/ttepsa/OneDrive - Teknologian Tutkimuskeskus VTT/Documents/SpineToolboxProjects/remote test 2 dags',
+            "project_dir": "C:/Users/ttepsa/OneDrive - Teknologian Tutkimuskeskus VTT/Documents/SpineToolboxProjects/remote test 2 dags",
         }
         return engine_data
 
     def make_engine_data2(self):
         engine_data = {
-            'items': {
-                'Importer 1': {
-                    'type': 'Importer',
-                    'description': '',
-                    'x': 72.45758726309028,
-                    'y': -80.20321040425301,
-                    'specification': 'Importer 1 - pekka_units.xlsx - 0',
-                    'cancel_on_error': True,
-                    'purge_before_writing': True,
-                    'on_conflict': 'replace',
-                    'file_selection': [['<pekka data>/pekka_units.xlsx', True]],
+            "items": {
+                "Importer 1": {
+                    "type": "Importer",
+                    "description": "",
+                    "x": 72.45758726309028,
+                    "y": -80.20321040425301,
+                    "specification": "Importer 1 - pekka_units.xlsx - 0",
+                    "cancel_on_error": True,
+                    "purge_before_writing": True,
+                    "on_conflict": "replace",
+                    "file_selection": [["<pekka data>/pekka_units.xlsx", True]],
                 },
-                'DS1': {
-                    'type': 'Data Store',
-                    'description': '',
-                    'x': 211.34193262411353,
-                    'y': -152.99750295508272,
-                    'url': {
-                        'dialect': 'sqlite',
-                        'username': '',
-                        'password': '',
-                        'host': '',
-                        'port': '',
-                        'database': {'type': 'path', 'relative': True, 'path': '.spinetoolbox/items/ds1/DS1.sqlite'},
+                "DS1": {
+                    "type": "Data Store",
+                    "description": "",
+                    "x": 211.34193262411353,
+                    "y": -152.99750295508272,
+                    "url": {
+                        "dialect": "sqlite",
+                        "username": "",
+                        "password": "",
+                        "host": "",
+                        "port": "",
+                        "database": {"type": "path", "relative": True, "path": ".spinetoolbox/items/ds1/DS1.sqlite"},
                     },
                 },
-                'pekka data': {
-                    'type': 'Data Connection',
-                    'description': '',
-                    'x': -78.23453014184398,
-                    'y': -145.98354018912534,
-                    'file_references': [],
-                    'db_references': [],
-                    'db_credentials': {},
+                "pekka data": {
+                    "type": "Data Connection",
+                    "description": "",
+                    "x": -78.23453014184398,
+                    "y": -145.98354018912534,
+                    "file_references": [],
+                    "db_references": [],
+                    "db_credentials": {},
                 },
             },
-            'specifications': {
-                'Importer': [
+            "specifications": {
+                "Importer": [
                     {
-                        'name': 'Importer 1 - pekka_units.xlsx - 0',
-                        'item_type': 'Importer',
-                        'mapping': {
-                            'table_mappings': {
-                                'Sheet1': [
+                        "name": "Importer 1 - pekka_units.xlsx - 0",
+                        "item_type": "Importer",
+                        "mapping": {
+                            "table_mappings": {
+                                "Sheet1": [
                                     {
-                                        'map_type': 'ObjectClass',
-                                        'name': {'map_type': 'column', 'reference': 0},
-                                        'parameters': {'map_type': 'None'},
-                                        'skip_columns': [],
-                                        'read_start_row': 0,
-                                        'objects': {'map_type': 'column', 'reference': 1},
+                                        "map_type": "ObjectClass",
+                                        "name": {"map_type": "column", "reference": 0},
+                                        "parameters": {"map_type": "None"},
+                                        "skip_columns": [],
+                                        "read_start_row": 0,
+                                        "objects": {"map_type": "column", "reference": 1},
                                     }
                                 ]
                             },
-                            'table_options': {},
-                            'table_types': {'Sheet1': {'0': 'string', '1': 'string'}},
-                            'table_row_types': {},
-                            'selected_tables': ['Sheet1'],
-                            'source_type': 'ExcelConnector',
+                            "table_options": {},
+                            "table_types": {"Sheet1": {"0": "string", "1": "string"}},
+                            "table_row_types": {},
+                            "selected_tables": ["Sheet1"],
+                            "source_type": "ExcelConnector",
                         },
-                        'description': None,
-                        'definition_file_path': 'C:\\Users\\ttepsa\\OneDrive - Teknologian Tutkimuskeskus VTT\\Documents\\SpineToolboxProjects\\Simple Importer\\Importer 1 - pekka_units.xlsx - 0.json',
+                        "description": None,
+                        "definition_file_path": "C:\\Users\\ttepsa\\OneDrive - Teknologian Tutkimuskeskus VTT\\Documents\\SpineToolboxProjects\\Simple Importer\\Importer 1 - pekka_units.xlsx - 0.json",
                     }
                 ]
             },
-            'connections': [
+            "connections": [
                 {
-                    'name': 'from pekka data to Importer 1',
-                    'from': ['pekka data', 'right'],
-                    'to': ['Importer 1', 'left'],
+                    "name": "from pekka data to Importer 1",
+                    "from": ["pekka data", "right"],
+                    "to": ["Importer 1", "left"],
                 },
-                {'name': 'from Importer 1 to DS1', 'from': ['Importer 1', 'right'], 'to': ['DS1', 'left']},
+                {"name": "from Importer 1 to DS1", "from": ["Importer 1", "right"], "to": ["DS1", "left"]},
             ],
-            'jumps': [],
-            'execution_permits': {'Importer 1': True, 'DS1': True, 'pekka data': True},
-            'items_module_name': 'spine_items',
-            'settings': {
-                'engineSettings/remoteExecutionEnabled': 'true',
-                'engineSettings/remoteHost': '192.168.56.69',
-                'engineSettings/remotePort': 50001,
-                'engineSettings/remoteSecurityFolder': '',
-                'engineSettings/remoteSecurityModel': '',
+            "jumps": [],
+            "execution_permits": {"Importer 1": True, "DS1": True, "pekka data": True},
+            "items_module_name": "spine_items",
+            "settings": {
+                "engineSettings/remoteExecutionEnabled": "true",
+                "engineSettings/remoteHost": "192.168.56.69",
+                "engineSettings/remotePort": 50001,
+                "engineSettings/remoteSecurityFolder": "",
+                "engineSettings/remoteSecurityModel": "",
             },
-            'project_dir': 'C:/Users/ttepsa/OneDrive - Teknologian Tutkimuskeskus VTT/Documents/SpineToolboxProjects/Simple Importer',
+            "project_dir": "C:/Users/ttepsa/OneDrive - Teknologian Tutkimuskeskus VTT/Documents/SpineToolboxProjects/Simple Importer",
         }
         return engine_data
 
@@ -225,5 +226,5 @@ class TestServerMessage(unittest.TestCase):
         self.assertEqual(len(msg.getFileNames()), 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

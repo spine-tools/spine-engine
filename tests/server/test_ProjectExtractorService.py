@@ -1,5 +1,6 @@
 #####################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -46,9 +47,9 @@ class TestProjectExtractorService(unittest.TestCase):
     )
     def test_project_extraction(self, mock_proj_dir):
         mock_proj_dir.return_value = self._temp_dir.name
-        with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "zippedproject.zip"), "rb") as f:
             file_data = f.read()
-        msg = ServerMessage("prepare_execution", "1", json.dumps("helloworld"), ["helloworld.zip"])
+        msg = ServerMessage("prepare_execution", "1", json.dumps("project_name"), ["zippedproject.zip"])
         self.socket.send_multipart([msg.to_bytes(), file_data])
         response = self.socket.recv_multipart()
         response_msg = ServerMessage.parse(response[1])
@@ -58,25 +59,25 @@ class TestProjectExtractorService(unittest.TestCase):
 
     def test_project_file_name_missing(self):
         """File name list in request is empty."""
-        with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "zippedproject.zip"), "rb") as f:
             file_data = f.read()
-        msg = ServerMessage("prepare_execution", "1", json.dumps("helloworld"), [])
+        msg = ServerMessage("prepare_execution", "1", json.dumps("project_name"), [])
         self.socket.send_multipart([msg.to_bytes(), file_data])
         response = self.socket.recv_multipart()
         self.check_correct_error_response(response[1], "Project ZIP file name missing")
 
     def test_project_name_missing(self):
         """Project name missing from request."""
-        with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "zippedproject.zip"), "rb") as f:
             data_file = f.read()
-        msg = ServerMessage("prepare_execution", "1", "", ["helloworld.zip"])
+        msg = ServerMessage("prepare_execution", "1", "", ["zippedproject.zip"])
         self.socket.send_multipart([msg.to_bytes(), data_file])
         response = self.socket.recv_multipart()
         self.check_correct_error_response(response[1], "Project name missing")
 
     def test_zip_file_missing(self):
         """Project zip-file missing from request."""
-        msg = ServerMessage("prepare_execution", "1", json.dumps("projekti"), ["helloworld.zip"])
+        msg = ServerMessage("prepare_execution", "1", json.dumps("project_name"), ["missing_zip_file.zip"])
         self.socket.send_multipart([msg.to_bytes()])
         response = self.socket.recv_multipart()
         self.check_correct_error_response(response[1], "Project ZIP file missing")

@@ -10,3 +10,4 @@ spine_engine/server/received_projects
 spine_engine/version.py
 tests/server/test_project
 tests/server/util/output
+docs/source/autoapi/

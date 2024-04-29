@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -145,15 +146,21 @@ class PersistentManagerBase:
 
     def _log_stdout(self):
         """Puts stdout from the process into the queue (it will be consumed by issue_command())."""
-        for line in iter(self._persistent.stdout.readline, b''):
-            data = line.decode("UTF8", "replace").rstrip()
-            self._msg_queue.put(dict(type="stdout", data=data))
+        try:
+            for line in iter(self._persistent.stdout.readline, b""):
+                data = line.decode("UTF8", "replace").rstrip()
+                self._msg_queue.put(dict(type="stdout", data=data))
+        except ValueError:
+            pass
 
     def _log_stderr(self):
         """Puts stderr from the process into the queue (it will be consumed by issue_command())."""
-        for line in iter(self._persistent.stderr.readline, b''):
-            data = line.decode("UTF8", "replace").rstrip()
-            self._msg_queue.put(dict(type="stderr", data=data))
+        try:
+            for line in iter(self._persistent.stderr.readline, b""):
+                data = line.decode("UTF8", "replace").rstrip()
+                self._msg_queue.put(dict(type="stderr", data=data))
+        except ValueError:
+            pass
 
     def make_complete_command(self, cmd):
         lines = cmd.splitlines()
@@ -330,8 +337,8 @@ class PersistentManagerBase:
         """
         if not self.is_persistent_alive():
             raise PersistentIsDead()
-        req_args_sep = '\u001f'  # Unit separator
-        args_sep = '\u0091'  # Private Use 1
+        req_args_sep = "\u001f"  # Unit separator
+        args_sep = "\u0091"  # Private Use 1
         args = args_sep.join(args)
         msg = f"{request}{req_args_sep}{args}"
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -566,7 +573,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
             constructor (Callable): the persistent manager constructor
             logger (LoggerInterface)
             args (list): the arguments to launch the persistent process
-            group_id (str): item group that will execute using this persistent
+            group_id (str): Item group for sharing this persistent process
 
         Returns:
             PersistentManagerBase: persistent manager or None if factory has been closed
@@ -781,12 +788,12 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
     def __init__(self, logger, args, commands, alias, kill_completed_processes, group_id=None):
         """
         Args:
-            logger (LoggerInterface): a logger instance
-            args (list): List of args to start the persistent process
-            commands (list): List of commands to execute in the persistent process
-            alias (str): an alias name for the manager
-            kill_completed_processes (bool): if True, the persistent process will be killed after execution
-            group_id (str, optional): item group that will execute using this kernel
+            logger (LoggerInterface): Logger instance
+            args (list): Program and cmd line args for the persistent process
+            commands (list): List of commands to execute in the persistent process (including the script cmd line args)
+            alias (str): Alias name for the manager
+            kill_completed_processes (bool): If True, the persistent process will be killed after execution
+            group_id (str, optional): Item group for sharing this persistent process
         """
         super().__init__(logger)
         self._args = args

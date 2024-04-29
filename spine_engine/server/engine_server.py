@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -56,9 +57,9 @@ class EngineServer(threading.Thread):
             if not sec_folder:
                 raise ValueError("Path to security folder missing")
             base_dir = sec_folder
-            self.keys_dir = os.path.join(base_dir, 'certificates')
-            self.public_keys_dir = os.path.join(base_dir, 'public_keys')
-            self.secret_keys_dir = os.path.join(base_dir, 'private_keys')
+            self.keys_dir = os.path.join(base_dir, "certificates")
+            self.public_keys_dir = os.path.join(base_dir, "public_keys")
+            self.secret_keys_dir = os.path.join(base_dir, "private_keys")
             if not os.path.exists(self.keys_dir):
                 raise ValueError(f"Security folder: {self.keys_dir} does not exist")
             if not os.path.exists(self.public_keys_dir):
@@ -161,8 +162,8 @@ class EngineServer(threading.Thread):
                             msg = f"Answering prompt failed. Worker for job_id:{request.request_id()} not found."
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
-                        item_name, accepted = request.data()
-                        worker.answer_prompt(item_name, accepted)
+                        prompter_id, answer = request.data()
+                        worker.answer_prompt(prompter_id, answer)
                         continue
                     elif request.cmd() == "retrieve_project":
                         project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
@@ -337,7 +338,7 @@ class EngineServer(threading.Thread):
         allowed_str = "\n".join(allowed)
         print(f"StoneHouse security activated. Allowed endpoints ({len(allowed)}):\n{allowed_str}")
         # Tell the authenticator how to handle CURVE requests
-        auth.configure_curve(domain='*', location=zmq.auth.CURVE_ALLOW_ANY)
+        auth.configure_curve(domain="*", location=zmq.auth.CURVE_ALLOW_ANY)
         server_secret_file = os.path.join(self.secret_keys_dir, "server.key_secret")
         server_public, server_secret = zmq.auth.load_certificate(server_secret_file)
         frontend.curve_secretkey = server_secret

@@ -1,5 +1,6 @@
 #####################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -38,9 +39,9 @@ class TestProjectRemoverService(unittest.TestCase):
 
     def test_remove_project_service(self):
         """Extracts a project into received_projects folder, then removes it using the ProjectRemoverService."""
-        with open(os.path.join(str(Path(__file__).parent), "helloworld.zip"), "rb") as f:
+        with open(os.path.join(str(Path(__file__).parent), "zippedproject.zip"), "rb") as f:
             file_data = f.read()
-        msg = ServerMessage("prepare_execution", "1", json.dumps("helloworld"), ["helloworld.zip"])
+        msg = ServerMessage("prepare_execution", "1", json.dumps("project_name"), ["zippedproject.zip"])
         self.socket.send_multipart([msg.to_bytes(), file_data])
         r1 = self.socket.recv_multipart()
         r1_msg = ServerMessage.parse(r1[1])

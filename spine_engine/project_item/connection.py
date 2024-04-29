@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -8,20 +9,17 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-"""
-Provides connection classes for linking project items.
-
-"""
+""" Provides connection classes for linking project items. """
 from dataclasses import asdict, dataclass, field
 import os
 import subprocess
 import tempfile
 from contextlib import ExitStack
-from datapackage import Package
 from multiprocessing import Lock
+from datapackage import Package
 from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
-from spinedb_api.filters.tool_filter import TOOL_FILTER_TYPE
+from spinedb_api.filters.alternative_filter import ALTERNATIVE_FILTER_TYPE
 from spinedb_api.purge import purge_url
 from spine_engine.project_item.project_item_resource import (
     file_resource,
@@ -30,12 +28,15 @@ from spine_engine.project_item.project_item_resource import (
     labelled_resource_args,
 )
 from spine_engine.utils.helpers import (
-    resolve_python_interpreter,
+    resolve_current_python_interpreter,
     ItemExecutionFinishState,
     PartCount,
     ExecutionDirection as ED,
 )
 from spine_engine.utils.queue_logger import QueueLogger
+
+
+SUPPORTED_FILTER_TYPES = {ALTERNATIVE_FILTER_TYPE, SCENARIO_FILTER_TYPE}
 
 
 class ConnectionBase:
@@ -164,6 +165,9 @@ class ConnectionBase:
         self._logger.flash.emit()
 
 
+DEFAULT_ENABLED_FILTER_TYPES = {ALTERNATIVE_FILTER_TYPE: False, SCENARIO_FILTER_TYPE: True}
+
+
 @dataclass
 class FilterSettings:
     """Filter settings for resource converting connections."""
@@ -172,6 +176,17 @@ class FilterSettings:
     """mapping from resource labels and filter types to filter online statuses"""
     auto_online: bool = True
     """if True, set unknown filters automatically online"""
+    enabled_filter_types: dict = field(default_factory=DEFAULT_ENABLED_FILTER_TYPES.copy)
+
+    def __post_init__(self):
+        for resource, online_filters in self.known_filters.items():
+            supported_filters = {
+                filter_type: online
+                for filter_type, online in online_filters.items()
+                if filter_type in SUPPORTED_FILTER_TYPES
+            }
+            if supported_filters:
+                self.known_filters[resource] = supported_filters
 
     def has_filters(self):
         """Tests if there are filters.
@@ -180,8 +195,8 @@ class FilterSettings:
             bool: True if filters of any type exists, False otherwise
         """
         for filters_by_type in self.known_filters.values():
-            for filters in filters_by_type.values():
-                if filters:
+            for filter_type, filters in filters_by_type.items():
+                if self.enabled_filter_types[filter_type] and filters:
                     return True
         return False
 
@@ -192,8 +207,8 @@ class FilterSettings:
             bool: True if any filter is online, False otherwise
         """
         for filters_by_type in self.known_filters.values():
-            for filters in filters_by_type.values():
-                if any(filters.values()):
+            for filter_type, filters in filters_by_type.items():
+                if self.enabled_filter_types[filter_type] and any(filters.values()):
                     return True
         return False
 
@@ -206,6 +221,8 @@ class FilterSettings:
         Returns:
             bool: True if any filter of filter_type is online, False otherwise
         """
+        if not self.enabled_filter_types[filter_type]:
+            return False
         for filters_by_type in self.known_filters.values():
             if any(filters_by_type.get(filter_type, {}).values()):
                 return True
@@ -307,19 +324,32 @@ class ResourceConvertingConnection(ConnectionBase):
         Returns:
             bool: True if online filters are required, False otherwise
         """
-        return self.options.get("require_" + filter_type, False)
+        return self._filter_settings.enabled_filter_types[filter_type] and self.options.get(
+            "require_" + filter_type, False
+        )
+
+    def is_filter_type_enabled(self, filter_type):
+        """Tests if filter type is enabled.
+
+        Args:
+            filter_type (str): filter type
+
+        Returns:
+            bool: True if filter type is enabled, False otherwise
+        """
+        return self._filter_settings.enabled_filter_types[filter_type]
 
     def notifications(self):
         """See base class."""
         notifications = []
-        for filter_type in (SCENARIO_FILTER_TYPE, TOOL_FILTER_TYPE):
+        for filter_type in (SCENARIO_FILTER_TYPE, ALTERNATIVE_FILTER_TYPE):
             filter_settings = self._filter_settings
             if self.require_filter_online(filter_type) and (
                 not filter_settings.has_filter_online(filter_type)
                 if filter_settings.has_filters()
                 else not filter_settings.auto_online
             ):
-                filter_name = {SCENARIO_FILTER_TYPE: "scenario", TOOL_FILTER_TYPE: "tool"}[filter_type]
+                filter_name = {SCENARIO_FILTER_TYPE: "scenario", ALTERNATIVE_FILTER_TYPE: "alternative"}[filter_type]
                 notifications.append(f"At least one {filter_name} filter must be active.")
         return notifications
 
@@ -362,6 +392,8 @@ class ResourceConvertingConnection(ConnectionBase):
             to_urls = (r.url for r in resources if r.type_ == "database")
             for url in to_urls:
                 purge_url(url, self.purge_settings, self._logger)
+            return to_urls
+        return []
 
     def _apply_use_memory_db(self, resources):
         if not self.use_memory_db:
@@ -412,7 +444,7 @@ class ResourceConvertingConnection(ConnectionBase):
 
     def ready_to_execute(self):
         """See base class."""
-        for filter_type in (SCENARIO_FILTER_TYPE, TOOL_FILTER_TYPE):
+        for filter_type in (SCENARIO_FILTER_TYPE, ALTERNATIVE_FILTER_TYPE):
             if self.require_filter_online(filter_type) and not self._filter_settings.has_filter_online(filter_type):
                 return False
         return True
@@ -426,8 +458,7 @@ class ResourceConvertingConnection(ConnectionBase):
         d = super().to_dict()
         if self.options:
             d["options"] = self.options.copy()
-        if self._filter_settings.has_filters():
-            d["filter_settings"] = self._filter_settings.to_dict()
+        d["filter_settings"] = self._filter_settings.to_dict()
         return d
 
     @staticmethod
@@ -462,7 +493,7 @@ class Connection(ResourceConvertingConnection):
             filter_settings (FilterSettings, optional): filter settings
         """
         super().__init__(source_name, source_position, destination_name, destination_position, options, filter_settings)
-        self._enabled_filter_names = None
+        self._enabled_filter_values = None
         self._source_visited = False
 
     def visit_source(self):
@@ -484,46 +515,67 @@ class Connection(ResourceConvertingConnection):
         Returns:
             dict: mapping from filter type to list of online filter names
         """
-        if self._enabled_filter_names is None:
-            self._prepare_enabled_filter_names()
-        return self._enabled_filter_names.get(resource_label)
+        if self._enabled_filter_values is None:
+            self._prepare_enabled_filter_values()
+        return self._enabled_filter_values.get(resource_label)
 
-    def _prepare_enabled_filter_names(self):
+    def _prepare_enabled_filter_values(self):
         """Reads filter information from database."""
-        self._enabled_filter_names = {}
+        self._enabled_filter_values = {}
         for resource in self._resources:
             url = resource.url
             if not url:
                 continue
             try:
-                db_map = DatabaseMapping(url)
+                with DatabaseMapping(url) as db_map:
+                    known_filters = self._filter_settings.known_filters.get(resource.label, {})
+                    enabled_filter_values = self._enabled_filter_values.setdefault(resource.label, {})
+                    if self._filter_settings.enabled_filter_types[SCENARIO_FILTER_TYPE]:
+                        enabled_scenarios = self._fetch_scenario_filter_values(db_map, known_filters)
+                        if enabled_scenarios:
+                            enabled_filter_values[SCENARIO_FILTER_TYPE] = enabled_scenarios
+                    if self._filter_settings.enabled_filter_types[ALTERNATIVE_FILTER_TYPE]:
+                        enabled_alternatives = self._fetch_alternative_filter_values(db_map, known_filters)
+                        if enabled_alternatives:
+                            enabled_filter_values[ALTERNATIVE_FILTER_TYPE] = enabled_alternatives
             except (SpineDBAPIError, SpineDBVersionError):
                 continue
-            try:
-                scenario_filter_settings = self._filter_settings.known_filters.get(resource.label, {}).get(
-                    SCENARIO_FILTER_TYPE, {}
-                )
-                available_scenarios = {row.name for row in db_map.query(db_map.scenario_sq)}
-                enabled_scenarios = set()
-                for name in available_scenarios:
-                    if scenario_filter_settings.get(name, self._filter_settings.auto_online):
-                        enabled_scenarios.add(name)
-                if enabled_scenarios:
-                    self._enabled_filter_names.setdefault(resource.label, {})[SCENARIO_FILTER_TYPE] = sorted(
-                        list(enabled_scenarios)
-                    )
-                tool_filter_settings = self._filter_settings.known_filters.get(resource.label, {}).get(
-                    TOOL_FILTER_TYPE, {}
-                )
-                available_tools = {row.name for row in db_map.query(db_map.tool_sq)}
-                enabled_tools = set()
-                for name in available_tools:
-                    if tool_filter_settings.get(name, self._filter_settings.auto_online):
-                        enabled_tools.add(name)
-                if enabled_tools:
-                    self._enabled_filter_names.setdefault(resource.label, {})[TOOL_FILTER_TYPE] = sorted(enabled_tools)
-            finally:
-                db_map.connection.close()
+
+    def _fetch_scenario_filter_values(self, db_map, known_filters):
+        """Fetches scenario names from database and picks the ones that are enabled by filter settings.
+
+        Args:
+            db_map (DatabaseMapping): database mapping
+            known_filters (dict): mapping from filter type to filter settings
+
+        Returns:
+            list of str: scenario filter values
+        """
+        filter_settings = known_filters.get(SCENARIO_FILTER_TYPE, {})
+        available_scenarios = {row.name for row in db_map.query(db_map.scenario_sq)}
+        enabled_scenarios = set()
+        for scenario_name in available_scenarios:
+            if filter_settings.get(scenario_name, self._filter_settings.auto_online):
+                enabled_scenarios.add(scenario_name)
+        return sorted(enabled_scenarios)
+
+    def _fetch_alternative_filter_values(self, db_map, known_filters):
+        """Fetches enabled alternative names from database.
+
+        Args:
+            db_map (DatabaseMapping): database mapping
+            known_filters (dict): mapping from filter type to filter settings
+
+        Returns:
+            list of list of str: alternative filter values
+        """
+        filter_settings = known_filters.get(ALTERNATIVE_FILTER_TYPE, {})
+        available_alternatives = {row.name for row in db_map.query(db_map.alternative_sq)}
+        enabled_alternatives = set()
+        for alternative_name in available_alternatives:
+            if filter_settings.get(alternative_name, self._filter_settings.auto_online):
+                enabled_alternatives.add(alternative_name)
+        return [list(enabled_alternatives)] if enabled_alternatives else []
 
     @classmethod
     def from_dict(cls, connection_dict):
@@ -543,7 +595,7 @@ class Jump(ConnectionBase):
     """Represents a conditional jump between two project items."""
 
     def __init__(
-        self, source_name, source_position, destination_name, destination_position, condition=None, cmd_line_args=()
+        self, source_name, source_position, destination_name, destination_position, condition={}, cmd_line_args=()
     ):
         """
         Args:
@@ -554,15 +606,13 @@ class Jump(ConnectionBase):
             condition (dict): jump condition
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
-        self.condition = condition if condition is not None else {"type": "python-script", "script": "exit(1)"}
+        default_condition = {"type": "python-script", "script": "exit(1)", "specification": ""}
+        self.condition = condition if condition else default_condition
         self._resources_from_source = set()
         self._resources_from_destination = set()
         self.cmd_line_args = list(cmd_line_args)
         self._engine = None
-        self.source_solid = None
-        self.destination_solid = None
         self.item_names = set()
-        self.solid_names = set()
 
     def set_engine(self, engine):
         self._engine = engine
@@ -617,7 +667,7 @@ class Jump(ConnectionBase):
             with tempfile.TemporaryFile("w+", encoding="utf-8") as script_file:
                 script_file.write(script)
                 script_file.seek(0)
-                python = resolve_python_interpreter("")
+                python = resolve_current_python_interpreter()
                 result = subprocess.run(
                     [python, "-", *expanded_args], encoding="utf-8", stdin=script_file, capture_output=True
                 )
@@ -678,9 +728,11 @@ def _restore_legacy_disabled_filters(disabled_filter_names):
     Returns:
         dict: known filters
     """
+    deprecated_types = {"tool_filter"}
     converted = {}
     for label, names_by_type in disabled_filter_names.items():
         converted_names_by_type = converted.setdefault(label, {})
         for filter_type, names in names_by_type.items():
-            converted_names_by_type[filter_type] = {name: False for name in names}
+            if filter_type not in deprecated_types:
+                converted_names_by_type[filter_type] = {name: False for name in names}
     return converted
