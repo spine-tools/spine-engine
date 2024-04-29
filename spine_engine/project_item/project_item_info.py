@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -16,21 +17,24 @@ Provides the ProjectItemInfo class.
 
 class ProjectItemInfo:
     @staticmethod
-    def item_category():
-        """
-        Returns the item category string, e.g., "Tools".
-
-        Returns:
-            str: item's category
-        """
-        raise NotImplementedError()
-
-    @staticmethod
     def item_type():
         """
         Returns the item type string, e.g., "Importer".
 
         Returns:
             str: item's type
+        """
+        raise NotImplementedError()
+
+    @staticmethod
+    def specification_icon(specification):
+        """
+        Returns the specification icon resource path.
+
+        Args:
+            specification (ProjectItemSpecification): Item's specification
+
+        Returns:
+            str: Path to the resource
         """
         raise NotImplementedError()

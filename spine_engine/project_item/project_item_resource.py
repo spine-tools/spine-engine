@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -73,7 +74,10 @@ class ProjectItemResource:
             }
             db_server_manager_queue = self.metadata["db_server_manager_queue"]
             with closing_spine_db_server(
-                db_server_manager_queue, self.url, memory=self.metadata.get("memory", False), ordering=ordering
+                self.url,
+                memory=self.metadata.get("memory", False),
+                ordering=ordering,
+                server_manager_queue=db_server_manager_queue,
             ) as server_url:
                 if db_checkin:
                     SpineDBClient.from_server_url(server_url).db_checkin()
@@ -155,13 +159,12 @@ class ProjectItemResource:
     def url(self, url):
         self._url = url
         self._parsed_url = urlparse(self._url)
-        self._filepath = url2pathname(self._parsed_url.path)
 
     @property
     def path(self):
         """Returns the resource path in the local syntax, as obtained from parsing the url."""
         if not self._filepath:
-            self._filepath = url2pathname(self._parsed_url.path)
+            self._filepath = url2pathname(self._parsed_url.path) if self._parsed_url.path else ""
         return self._filepath
 
     @property

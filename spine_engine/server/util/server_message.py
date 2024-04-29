@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -71,14 +72,14 @@ class ServerMessage:
         jsonFileNames = self._getJSONFileNames()
         retStr = ""
         retStr += "{\n"
-        retStr += "   \"command\": \"" + self._command + "\",\n"
-        retStr += "   \"id\":\"" + self._id + "\",\n"
+        retStr += '   "command": "' + self._command + '",\n'
+        retStr += '   "id":"' + self._id + '",\n'
 
         if len(self._data) == 0:
-            retStr += "   \"data\":\"\",\n"
+            retStr += '   "data":"",\n'
         else:
-            retStr += "   \"data\":" + self._data + ",\n"
-        retStr += "   \"files\": " + jsonFileNames
+            retStr += '   "data":' + self._data + ",\n"
+        retStr += '   "files": ' + jsonFileNames
         retStr += "}"
         return retStr
 
@@ -86,13 +87,13 @@ class ServerMessage:
         fileNameCount = len(self._files)
         if fileNameCount == 0:
             return "{}\n"
-        retStr = '{\n'
+        retStr = "{\n"
         i = 0
         for fName in self._files:
             if i + 1 < fileNameCount:
-                retStr = retStr + "    \"name-" + str(i) + "\": \"" + fName + "\",\n"
+                retStr = retStr + '    "name-' + str(i) + '": "' + fName + '",\n'
             else:
-                retStr = retStr + "    \"name-" + str(i) + "\": \"" + fName + "\"\n"
+                retStr = retStr + '    "name-' + str(i) + '": "' + fName + '"\n'
             i += 1
         retStr = retStr + "    }\n"
         return retStr
@@ -123,7 +124,7 @@ class ServerMessage:
         if len(filenames) > 0:
             for f in filenames:
                 parsed_filenames.append(filenames[f])
-            msg = cls(parsed_msg['command'], parsed_msg['id'], data, parsed_filenames)
+            msg = cls(parsed_msg["command"], parsed_msg["id"], data, parsed_filenames)
         else:
-            msg = cls(parsed_msg['command'], parsed_msg['id'], data, None)
+            msg = cls(parsed_msg["command"], parsed_msg["id"], data, None)
         return msg

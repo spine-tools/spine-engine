@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -8,11 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-
-"""
-Split command line arguments.
-
-"""
+""" Split command line arguments. """
 
 
 def split_cmdline_args(arg_string):
@@ -39,7 +36,7 @@ def split_cmdline_args(arg_string):
             quoted_context = False
         elif not character.isspace() or quoted_context:
             current_word = current_word + character
-        else:
+        elif current_word:
             tokens.append(current_word)
             current_word = ""
     if current_word:

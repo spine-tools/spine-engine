@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -15,12 +16,12 @@ from tempfile import TemporaryDirectory
 from spine_engine.execution_managers.process_execution_manager import ProcessExecutionManager
 
 
-class TestStandardExecutionManager(unittest.TestCase):
+class TestProcessExecutionManager(unittest.TestCase):
     def test_run(self):
         logger = MagicMock()
         logger.msg_proc = MagicMock()
         logger.msg_proc.attach_mock(MagicMock(), "emit")
-        exec_manager = ProcessExecutionManager(logger, "python", "-c", "print('hello')")
+        exec_manager = ProcessExecutionManager(logger, "python", ["-c", "print('hello')"])
         ret = exec_manager.run_until_complete()
         logger.msg_proc.emit.assert_called_once()
         logger.msg_proc.emit.assert_called_with("hello")
@@ -30,7 +31,7 @@ class TestStandardExecutionManager(unittest.TestCase):
         logger = MagicMock()
         logger.msg_proc_error = MagicMock()
         logger.msg_proc_error.attach_mock(MagicMock(), "emit")
-        exec_manager = ProcessExecutionManager(logger, "python", "-c", "gibberish")
+        exec_manager = ProcessExecutionManager(logger, "python", ["-c", "gibberish"])
         ret = exec_manager.run_until_complete()
         logger.msg_proc_error.emit.assert_called_with("NameError: name 'gibberish' is not defined")
         self.assertEqual(ret, 1)
@@ -43,7 +44,7 @@ class TestStandardExecutionManager(unittest.TestCase):
         logger.msg_proc.attach_mock(MagicMock(), "emit")
         logger.msg_proc_error.attach_mock(MagicMock(), "emit")
         logger.msg_standard_execution.attach_mock(MagicMock(), "emit")
-        exec_manager = ProcessExecutionManager(logger, "unknown_program")
+        exec_manager = ProcessExecutionManager(logger, "unknown_program", [])
         ret = exec_manager.run_until_complete()
         logger.msg_proc.emit.assert_not_called()
         logger.msg_proc_error.emit.assert_not_called()
@@ -58,7 +59,7 @@ class TestStandardExecutionManager(unittest.TestCase):
         logger.msg_proc_error.attach_mock(MagicMock(), "emit")
         with TemporaryDirectory() as workdir:
             exec_manager = ProcessExecutionManager(
-                logger, "python", "-c", "import os; print(os.getcwd())", workdir=workdir
+                logger, "python", ["-c", "import os; print(os.getcwd())"], workdir=workdir
             )
             ret = exec_manager.run_until_complete()
         logger.msg_proc.emit.assert_called_once()
@@ -66,5 +67,5 @@ class TestStandardExecutionManager(unittest.TestCase):
         self.assertEqual(ret, 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

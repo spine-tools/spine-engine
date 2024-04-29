@@ -1,5 +1,6 @@
 ######################################################################################################################
 # Copyright (C) 2017-2022 Spine project consortium
+# Copyright Spine Engine contributors
 # This file is part of Spine Engine.
 # Spine Engine is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General
 # Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option)
@@ -14,17 +15,14 @@ Unit tests for `spine_engine` module.
 
 Inspired from tests for spinetoolbox.ExecutionInstance and spinetoolbox.ResourceMap,
 and intended to supersede them.
-
 """
 import os.path
 import sys
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock, NonCallableMagicMock, call, patch
-
-from spinedb_api import DatabaseMapping, import_scenarios, import_tools
+from spinedb_api import DatabaseMapping, import_scenarios
 from spinedb_api.filters.scenario_filter import scenario_filter_config
-from spinedb_api.filters.tool_filter import tool_filter_config
 from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.tools import clear_filter_configs
 from spine_engine.exception import EngineInitFailed
@@ -66,7 +64,7 @@ class TestSpineEngine(unittest.TestCase):
             resources_backward = []
         item = NonCallableMagicMock()
         item.name = name
-        item.short_name = name.lower().replace(' ', '_')
+        item.short_name = name.lower().replace(" ", "_")
         item.execute.return_value = execute_outcome
         item.exclude_execution = MagicMock()
         for r in resources_forward + resources_backward:
@@ -81,7 +79,7 @@ class TestSpineEngine(unittest.TestCase):
     def _default_forward_url_resource(url, predecessor_name):
         resource = _make_url_resource(url)
         resource.provider_name = predecessor_name
-        resource.metadata = {'filter_id': '', 'filter_stack': ()}
+        resource.metadata = {"filter_id": "", "filter_stack": ()}
         return resource
 
     @staticmethod
@@ -280,11 +278,9 @@ class TestSpineEngine(unittest.TestCase):
         """Tests filter stacks are properly applied."""
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
-            db_map = DatabaseMapping(url, create=True)
-            import_scenarios(db_map, (("scen1", True), ("scen2", True)))
-            import_tools(db_map, ("toolA",))
-            db_map.commit_session("Add test data.")
-            db_map.connection.close()
+            with DatabaseMapping(url, create=True) as db_map:
+                import_scenarios(db_map, (("scen1", True), ("scen2", True)))
+                db_map.commit_session("Add test data.")
             url_a_fw = _make_url_resource(url)
             url_b_fw1 = _make_url_resource("db:///url_b_fw")
             url_b_fw2 = _make_url_resource("db:///url_b_fw")
@@ -308,7 +304,7 @@ class TestSpineEngine(unittest.TestCase):
                 {
                     "from": ("item_a", "right"),
                     "to": ("item_b", "left"),
-                    "disabled_filters": {url_a_fw.label: {"scenario_filter": [], "tool_filter": []}},
+                    "disabled_filters": {url_a_fw.label: {"scenario_filter": []}},
                 },
                 {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
             ]
@@ -318,45 +314,43 @@ class TestSpineEngine(unittest.TestCase):
             self.assertEqual(mock_item_a.filter_id, "")
             # Check that item_b has been executed two times, with the right filters
             expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", url)
-            expected_filter_stack1 = (scenario_filter_config("scen1"), tool_filter_config("toolA"))
+            expected_filter_stack1 = (scenario_filter_config("scen1"),)
             expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
             expected_bw_resource1 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen1"])
             item_b_execution_args = [[[expected_fw_resource1], [expected_bw_resource1]]]
             self._assert_resource_args(mock_item_b1.execute.call_args_list, item_b_execution_args)
-            self.assertEqual(mock_item_b1.filter_id, "scen1, toolA - item_a")
+            self.assertEqual(mock_item_b1.filter_id, "scen1 - item_a")
             expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", url)
-            expected_filter_stack2 = (scenario_filter_config("scen2"), tool_filter_config("toolA"))
+            expected_filter_stack2 = (scenario_filter_config("scen2"),)
             expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
             expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen2"])
             item_b_execution_args = [[[expected_fw_resource2], [expected_bw_resource2]]]
             self._assert_resource_args(mock_item_b2.execute.call_args_list, item_b_execution_args)
-            self.assertEqual(mock_item_b2.filter_id, "scen2, toolA - item_a")
+            self.assertEqual(mock_item_b2.filter_id, "scen2 - item_a")
             # Check that item_c has been executed twice, with the right filters
             expected_fw_resource1 = ProjectItemResource("item_b", "database", "label", "db:///url_b_fw")
             expected_fw_resource1.metadata = {
                 "filter_stack": expected_filter_stack1,
-                "filter_id": "scen1, toolA - item_a",
+                "filter_id": "scen1 - item_a",
             }
             item_c_execution_args = [[[expected_fw_resource1], []]]
             self._assert_resource_args(mock_item_c1.execute.call_args_list, item_c_execution_args)
-            self.assertEqual(mock_item_c1.filter_id, "scen1, toolA - item_b")
+            self.assertEqual(mock_item_c1.filter_id, "scen1 - item_b")
             expected_fw_resource2 = ProjectItemResource("item_b", "database", "label", "db:///url_b_fw")
             expected_fw_resource2.metadata = {
                 "filter_stack": expected_filter_stack2,
-                "filter_id": "scen2, toolA - item_a",
+                "filter_id": "scen2 - item_a",
             }
             item_c_execution_args = [[[expected_fw_resource2], []]]
             self._assert_resource_args(mock_item_c2.execute.call_args_list, item_c_execution_args)
-            self.assertEqual(mock_item_c2.filter_id, "scen2, toolA - item_b")
+            self.assertEqual(mock_item_c2.filter_id, "scen2 - item_b")
 
     def test_parallel_execution_ends_when_no_output_resources_are_generated(self):
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
-            db_map = DatabaseMapping(url, create=True)
-            import_scenarios(db_map, (("scen1", True), ("scen2", True)))
-            import_tools(db_map, ("toolA",))
-            db_map.commit_session("Add test data.")
-            db_map.connection.close()
+            with DatabaseMapping(url, create=True) as db_map:
+                import_scenarios(db_map, (("scen1", True), ("scen2", True)))
+                db_map.commit_session("Add test data.")
             url_a_fw = _make_url_resource(url)
             url_c_bw = _make_url_resource("db:///url_c_bw")
             mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
@@ -373,7 +367,7 @@ class TestSpineEngine(unittest.TestCase):
                 {
                     "from": ("item_a", "right"),
                     "to": ("item_b", "left"),
-                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2]}},
                 },
                 {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
             ]
@@ -383,19 +377,19 @@ class TestSpineEngine(unittest.TestCase):
             self.assertEqual(mock_item_a.filter_id, "")
             # Check that item_b has been executed two times, with the right filters
             expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", url)
-            expected_filter_stack1 = (scenario_filter_config("scen1"), tool_filter_config("toolA"))
+            expected_filter_stack1 = (scenario_filter_config("scen1"),)
             expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
             expected_bw_resource1 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen1"])
             item_b_execution_args = [[[expected_fw_resource1], [expected_bw_resource1]]]
             self._assert_resource_args(mock_item_b1.execute.call_args_list, item_b_execution_args)
-            self.assertEqual(mock_item_b1.filter_id, "scen1, toolA - item_a")
+            self.assertEqual(mock_item_b1.filter_id, "scen1 - item_a")
             expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", url)
-            expected_filter_stack2 = (scenario_filter_config("scen2"), tool_filter_config("toolA"))
+            expected_filter_stack2 = (scenario_filter_config("scen2"),)
             expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
             expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen2"])
             item_b_execution_args = [[[expected_fw_resource2], [expected_bw_resource2]]]
             self._assert_resource_args(mock_item_b2.execute.call_args_list, item_b_execution_args)
-            self.assertEqual(mock_item_b2.filter_id, "scen2, toolA - item_a")
+            self.assertEqual(mock_item_b2.filter_id, "scen2 - item_a")
             # Check that item_c has been executed only once
             self._assert_resource_args(mock_item_c.execute.call_args_list, [[[], []]])
             self.assertEqual(mock_item_c.filter_id, "")
@@ -404,11 +398,9 @@ class TestSpineEngine(unittest.TestCase):
         """Multiple file output resources should be combined correctly for a successor"""
         with TemporaryDirectory() as temp_dir:
             url = "sqlite:///" + os.path.join(temp_dir, "db.sqlite")
-            db_map = DatabaseMapping(url, create=True)
-            import_scenarios(db_map, (("scen1", True), ("scen2", True)))
-            import_tools(db_map, ("toolA",))
-            db_map.commit_session("Add test data.")
-            db_map.connection.close()
+            with DatabaseMapping(url, create=True) as db_map:
+                import_scenarios(db_map, (("scen1", True), ("scen2", True)))
+                db_map.commit_session("Add test data.")
             url_a_fw = _make_url_resource(url)
             file_b_fw_11 = ProjectItemResource("item_b", "file", "label_1")
             file_b_fw_12 = ProjectItemResource("item_b", "file", "label_1")
@@ -438,7 +430,7 @@ class TestSpineEngine(unittest.TestCase):
                 {
                     "from": ("item_a", "right"),
                     "to": ("item_b", "left"),
-                    "disabled_filters": {url_a_fw.label: {"scenario_filter": [], "tool_filter": []}},
+                    "disabled_filters": {url_a_fw.label: {"scenario_filter": []}},
                 },
                 {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
             ]
@@ -448,61 +440,57 @@ class TestSpineEngine(unittest.TestCase):
             self.assertEqual(mock_item_a.filter_id, "")
             # Check that item_b has been executed two times, with the right filters
             expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", url)
-            expected_filter_stack1 = (scenario_filter_config("scen1"), tool_filter_config("toolA"))
+            expected_filter_stack1 = (scenario_filter_config("scen1"),)
             expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
             expected_bw_resource1 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen1"])
             item_b_execution_args = [[[expected_fw_resource1], [expected_bw_resource1]]]
             self._assert_resource_args(mock_item_b1.execute.call_args_list, item_b_execution_args)
-            self.assertEqual(mock_item_b1.filter_id, "scen1, toolA - item_a")
+            self.assertEqual(mock_item_b1.filter_id, "scen1 - item_a")
             expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", url)
-            expected_filter_stack2 = (scenario_filter_config("scen2"), tool_filter_config("toolA"))
+            expected_filter_stack2 = (scenario_filter_config("scen2"),)
             expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
             expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen2"])
             item_b_execution_args = [[[expected_fw_resource2], [expected_bw_resource2]]]
             self._assert_resource_args(mock_item_b2.execute.call_args_list, item_b_execution_args)
-            self.assertEqual(mock_item_b2.filter_id, "scen2, toolA - item_a")
+            self.assertEqual(mock_item_b2.filter_id, "scen2 - item_a")
             # Check that item_c has been executed twice, with the right filters
             expected_fw_resource1 = ProjectItemResource("item_b", "file", "label_1")
             expected_fw_resource1.metadata = {
                 "filter_stack": expected_filter_stack1,
-                "filter_id": "scen1, toolA - item_a",
+                "filter_id": "scen1 - item_a",
             }
             expected_fw_resource2 = ProjectItemResource("item_b", "file", "label_2")
             expected_fw_resource2.metadata = {
                 "filter_stack": expected_filter_stack1,
-                "filter_id": "scen1, toolA - item_a",
+                "filter_id": "scen1 - item_a",
             }
             item_c_execution_args = [[[expected_fw_resource1, expected_fw_resource2], []]]
             self._assert_resource_args(mock_item_c1.execute.call_args_list, item_c_execution_args)
-            self.assertEqual(mock_item_c1.filter_id, "scen1, toolA - item_a")
+            self.assertEqual(mock_item_c1.filter_id, "scen1 - item_a")
             expected_fw_resource3 = ProjectItemResource("item_b", "file", "label_1")
             expected_fw_resource3.metadata = {
                 "filter_stack": expected_filter_stack2,
-                "filter_id": "scen2, toolA - item_a",
+                "filter_id": "scen2 - item_a",
             }
             expected_fw_resource4 = ProjectItemResource("item_b", "file", "label_2")
             expected_fw_resource4.metadata = {
                 "filter_stack": expected_filter_stack2,
-                "filter_id": "scen2, toolA - item_a",
+                "filter_id": "scen2 - item_a",
             }
             item_c_execution_args = [[[expected_fw_resource3, expected_fw_resource4], []]]
             self._assert_resource_args(mock_item_c2.execute.call_args_list, item_c_execution_args)
-            self.assertEqual(mock_item_c2.filter_id, "scen2, toolA - item_a")
+            self.assertEqual(mock_item_c2.filter_id, "scen2 - item_a")
 
     def test_merge_two_filtered_database_branches(self):
         with TemporaryDirectory() as temp_dir:
             urlA = "sqlite:///" + os.path.join(temp_dir, "dbA.sqlite")
-            db_map = DatabaseMapping(urlA, create=True)
-            import_scenarios(db_map, (("scenA1", True), ("scenA2", True)))
-            import_tools(db_map, ("toolA",))
-            db_map.commit_session("Add test data.")
-            db_map.connection.close()
+            with DatabaseMapping(urlA, create=True) as db_map:
+                import_scenarios(db_map, (("scenA1", True), ("scenA2", True)))
+                db_map.commit_session("Add test data.")
             urlB = "sqlite:///" + os.path.join(temp_dir, "dbB.sqlite")
-            db_map = DatabaseMapping(urlB, create=True)
-            import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
-            import_tools(db_map, ("toolB",))
-            db_map.commit_session("Add test data.")
-            db_map.connection.close()
+            with DatabaseMapping(urlB, create=True) as db_map:
+                import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
+                db_map.commit_session("Add test data.")
             url_a_fw = _make_url_resource(urlA)
             url_b_fw = _make_url_resource(urlB)
             mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
@@ -525,12 +513,12 @@ class TestSpineEngine(unittest.TestCase):
                 {
                     "from": ("item_a", "right"),
                     "to": ("item_c", "left"),
-                    "disabled_filters": {url_a_fw.label: {"scenario_filter": [], "tool_filter": []}},
+                    "disabled_filters": {url_a_fw.label: {"scenario_filter": []}},
                 },
                 {
                     "from": ("item_b", "right"),
                     "to": ("item_c", "left"),
-                    "disabled_filters": {url_b_fw.label: {"scenario_filter": [], "tool_filter": []}},
+                    "disabled_filters": {url_b_fw.label: {"scenario_filter": []}},
                 },
             ]
             self._run_engine(items, connections, item_instances)
@@ -540,20 +528,20 @@ class TestSpineEngine(unittest.TestCase):
             self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execution_args)
             # Check that item_c has been executed four times, with all combinations of item_a and item_b filters
             expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", urlA)
-            expected_filter_stack1 = (scenario_filter_config("scenA1"), tool_filter_config("toolA"))
+            expected_filter_stack1 = (scenario_filter_config("scenA1"),)
             expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
             expected_fw_resource2 = ProjectItemResource("item_b", "database", "label", urlB)
-            expected_filter_stack2 = (scenario_filter_config("scenB1"), tool_filter_config("toolB"))
+            expected_filter_stack2 = (scenario_filter_config("scenB1"),)
             expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
             item_c_execution_args = [[[expected_fw_resource1, expected_fw_resource2], []]]
             self._assert_resource_args(mock_item_c1.execute.call_args_list, item_c_execution_args)
             expected_fw_resource3 = ProjectItemResource("item_b", "database", "label", urlB)
-            expected_filter_stack3 = (scenario_filter_config("scenB2"), tool_filter_config("toolB"))
+            expected_filter_stack3 = (scenario_filter_config("scenB2"),)
             expected_fw_resource3.metadata = {"filter_stack": expected_filter_stack3, "filter_id": ""}
             item_c_execution_args = [[[expected_fw_resource1, expected_fw_resource3], []]]
             self._assert_resource_args(mock_item_c2.execute.call_args_list, item_c_execution_args)
             expected_fw_resource4 = ProjectItemResource("item_a", "database", "label", urlA)
-            expected_filter_stack4 = (scenario_filter_config("scenA2"), tool_filter_config("toolA"))
+            expected_filter_stack4 = (scenario_filter_config("scenA2"),)
             expected_fw_resource4.metadata = {"filter_stack": expected_filter_stack4, "filter_id": ""}
             item_c_execution_args = [[[expected_fw_resource4, expected_fw_resource2], []]]
             self._assert_resource_args(mock_item_c3.execute.call_args_list, item_c_execution_args)
@@ -563,17 +551,13 @@ class TestSpineEngine(unittest.TestCase):
     def test_merge_two_filtered_file_resource_branches(self):
         with TemporaryDirectory() as temp_dir:
             urlA = "sqlite:///" + os.path.join(temp_dir, "dbA.sqlite")
-            db_map = DatabaseMapping(urlA, create=True)
-            import_scenarios(db_map, (("scenA1", True), ("scenA2", True)))
-            import_tools(db_map, ("toolA",))
-            db_map.commit_session("Add test data.")
-            db_map.connection.close()
+            with DatabaseMapping(urlA, create=True) as db_map:
+                import_scenarios(db_map, (("scenA1", True), ("scenA2", True)))
+                db_map.commit_session("Add test data.")
             urlB = "sqlite:///" + os.path.join(temp_dir, "dbB.sqlite")
-            db_map = DatabaseMapping(urlB, create=True)
-            import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
-            import_tools(db_map, ("toolB",))
-            db_map.commit_session("Add test data.")
-            db_map.connection.close()
+            with DatabaseMapping(urlB, create=True) as db_map:
+                import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
+                db_map.commit_session("Add test data.")
             url_a_fw = _make_url_resource(urlA)
             url_b_fw = _make_url_resource(urlB)
             file_c_fw_11 = ProjectItemResource("item_c", "file", "label_1")
@@ -620,12 +604,12 @@ class TestSpineEngine(unittest.TestCase):
                 {
                     "from": ("item_a", "right"),
                     "to": ("item_c", "left"),
-                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                    "resource_filters": {url_a_fw.label: {"scenario_filter": [1, 2]}},
                 },
                 {
                     "from": ("item_b", "right"),
                     "to": ("item_d", "left"),
-                    "resource_filters": {url_b_fw.label: {"scenario_filter": [1, 2], "tool_filter": [1]}},
+                    "resource_filters": {url_b_fw.label: {"scenario_filter": [1, 2]}},
                 },
                 {"from": ("item_c", "right"), "to": ("item_e", "left")},
                 {"from": ("item_d", "bottom"), "to": ("item_e", "top")},
@@ -639,95 +623,95 @@ class TestSpineEngine(unittest.TestCase):
             self.assertEqual(mock_item_b.filter_id, "")
             # Check that item_c has been executed twice, with all combinations of item_a's filters
             expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", urlA)
-            expected_filter_stack1 = (scenario_filter_config("scenA1"), tool_filter_config("toolA"))
+            expected_filter_stack1 = (scenario_filter_config("scenA1"),)
             expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
             item_c_execution_args = [[[expected_fw_resource1], []]]
             self._assert_resource_args(mock_item_c1.execute.call_args_list, item_c_execution_args)
-            self.assertEqual(mock_item_c1.filter_id, "scenA1, toolA - item_a")
+            self.assertEqual(mock_item_c1.filter_id, "scenA1 - item_a")
             expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", urlA)
-            expected_filter_stack2 = (scenario_filter_config("scenA2"), tool_filter_config("toolA"))
+            expected_filter_stack2 = (scenario_filter_config("scenA2"),)
             expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
             item_c_execution_args = [[[expected_fw_resource2], []]]
             self._assert_resource_args(mock_item_c2.execute.call_args_list, item_c_execution_args)
-            self.assertEqual(mock_item_c2.filter_id, "scenA2, toolA - item_a")
+            self.assertEqual(mock_item_c2.filter_id, "scenA2 - item_a")
             # Check that item_d has been executed twice, with all combinations of item_b's filters
             expected_fw_resource3 = ProjectItemResource("item_b", "database", "label", urlB)
-            expected_filter_stack3 = (scenario_filter_config("scenB1"), tool_filter_config("toolB"))
+            expected_filter_stack3 = (scenario_filter_config("scenB1"),)
             expected_fw_resource3.metadata = {"filter_stack": expected_filter_stack3, "filter_id": ""}
             item_d_execution_args = [[[expected_fw_resource3], []]]
             self._assert_resource_args(mock_item_d1.execute.call_args_list, item_d_execution_args)
-            self.assertEqual(mock_item_d1.filter_id, "scenB1, toolB - item_b")
+            self.assertEqual(mock_item_d1.filter_id, "scenB1 - item_b")
             expected_fw_resource4 = ProjectItemResource("item_b", "database", "label", urlB)
-            expected_filter_stack4 = (scenario_filter_config("scenB2"), tool_filter_config("toolB"))
+            expected_filter_stack4 = (scenario_filter_config("scenB2"),)
             expected_fw_resource4.metadata = {"filter_stack": expected_filter_stack4, "filter_id": ""}
             item_d_execution_args = [[[expected_fw_resource4], []]]
             self._assert_resource_args(mock_item_d2.execute.call_args_list, item_d_execution_args)
-            self.assertEqual(mock_item_d2.filter_id, "scenB2, toolB - item_b")
+            self.assertEqual(mock_item_d2.filter_id, "scenB2 - item_b")
             # Check that item_e has been executed four times, with all combinations of item_c's and item_d's resources.
             expected_fw_resource5 = ProjectItemResource("item_c", "file", "label_1")
-            expected_filter_stack5 = (scenario_filter_config("scenA1"), tool_filter_config("toolA"))
+            expected_filter_stack5 = (scenario_filter_config("scenA1"),)
             expected_fw_resource5.metadata = {
                 "filter_stack": expected_filter_stack5,
-                "filter_id": "scenA1, toolA - item_a",
+                "filter_id": "scenA1 - item_a",
             }
             expected_fw_resource6 = ProjectItemResource("item_c", "file", "label_2")
             expected_fw_resource6.metadata = {
                 "filter_stack": expected_filter_stack5,
-                "filter_id": "scenA1, toolA - item_a",
+                "filter_id": "scenA1 - item_a",
             }
             expected_fw_resource7 = ProjectItemResource("item_d", "file", "label_3")
-            expected_filter_stack7 = (scenario_filter_config("scenB1"), tool_filter_config("toolB"))
+            expected_filter_stack7 = (scenario_filter_config("scenB1"),)
             expected_fw_resource7.metadata = {
                 "filter_stack": expected_filter_stack7,
-                "filter_id": "scenB1, toolB - item_b",
+                "filter_id": "scenB1 - item_b",
             }
             expected_fw_resource8 = ProjectItemResource("item_d", "file", "label_4")
             expected_fw_resource8.metadata = {
                 "filter_stack": expected_filter_stack7,
-                "filter_id": "scenB1, toolB - item_b",
+                "filter_id": "scenB1 - item_b",
             }
             item_e_execution_args = [
                 [[expected_fw_resource5, expected_fw_resource6, expected_fw_resource7, expected_fw_resource8], []]
             ]
             self._assert_resource_args(mock_item_e1.execute.call_args_list, item_e_execution_args)
-            self.assertEqual(mock_item_e1.filter_id, "scenA1, toolA - item_a & scenB1, toolB - item_b")
+            self.assertEqual(mock_item_e1.filter_id, "scenA1 - item_a & scenB1 - item_b")
             expected_fw_resource9 = ProjectItemResource("item_d", "file", "label_3")
-            expected_filter_stack9 = (scenario_filter_config("scenB2"), tool_filter_config("toolB"))
+            expected_filter_stack9 = (scenario_filter_config("scenB2"),)
             expected_fw_resource9.metadata = {
                 "filter_stack": expected_filter_stack9,
-                "filter_id": "scenB2, toolB - item_b",
+                "filter_id": "scenB2 - item_b",
             }
             expected_fw_resource10 = ProjectItemResource("item_d", "file", "label_4")
             expected_fw_resource10.metadata = {
                 "filter_stack": expected_filter_stack9,
-                "filter_id": "scenB2, toolB - item_b",
+                "filter_id": "scenB2 - item_b",
             }
             item_e_execution_args = [
                 [[expected_fw_resource5, expected_fw_resource6, expected_fw_resource9, expected_fw_resource10], []]
             ]
             self._assert_resource_args(mock_item_e2.execute.call_args_list, item_e_execution_args)
-            self.assertEqual(mock_item_e2.filter_id, "scenA1, toolA - item_a & scenB2, toolB - item_b")
+            self.assertEqual(mock_item_e2.filter_id, "scenA1 - item_a & scenB2 - item_b")
             expected_fw_resource11 = ProjectItemResource("item_c", "file", "label_1")
-            expected_filter_stack11 = (scenario_filter_config("scenA2"), tool_filter_config("toolA"))
+            expected_filter_stack11 = (scenario_filter_config("scenA2"),)
             expected_fw_resource11.metadata = {
                 "filter_stack": expected_filter_stack11,
-                "filter_id": "scenA2, toolA - item_a",
+                "filter_id": "scenA2 - item_a",
             }
             expected_fw_resource12 = ProjectItemResource("item_c", "file", "label_2")
             expected_fw_resource12.metadata = {
                 "filter_stack": expected_filter_stack11,
-                "filter_id": "scenA2, toolA - item_a",
+                "filter_id": "scenA2 - item_a",
             }
             item_e_execution_args = [
                 [[expected_fw_resource11, expected_fw_resource12, expected_fw_resource7, expected_fw_resource8], []]
             ]
             self._assert_resource_args(mock_item_e3.execute.call_args_list, item_e_execution_args)
-            self.assertEqual(mock_item_e3.filter_id, "scenA2, toolA - item_a & scenB1, toolB - item_b")
+            self.assertEqual(mock_item_e3.filter_id, "scenA2 - item_a & scenB1 - item_b")
             item_e_execution_args = [
                 [[expected_fw_resource11, expected_fw_resource12, expected_fw_resource9, expected_fw_resource10], []]
             ]
             self._assert_resource_args(mock_item_e4.execute.call_args_list, item_e_execution_args)
-            self.assertEqual(mock_item_e4.filter_id, "scenA2, toolA - item_a & scenB2, toolB - item_b")
+            self.assertEqual(mock_item_e4.filter_id, "scenA2 - item_a & scenB2 - item_b")
 
     def test_self_jump_succeeds(self):
         mock_item = self._mock_item("item", resources_forward=[], resources_backward=[])
@@ -750,96 +734,110 @@ class TestSpineEngine(unittest.TestCase):
         self.assertEqual(mock_item.execute.call_args_list, [call([], [], lock_1), call([], [], lock_2)])
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
-    @unittest.skip("Hangs because something's not right in SpineDBServer")
     def test_jump_resources_get_passed_correctly(self):
-        resource_fw_a = _make_url_resource("db:///fw_a")
-        resource_bw_a = _make_url_resource("db:///bw_a")
-        item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
-        resource_fw_b = _make_url_resource("db:///fw_b")
-        resource_bw_b = _make_url_resource("db:///bw_b")
-        item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
-        resource_fw_c = _make_url_resource("db:///fw_c")
-        resource_bw_c = _make_url_resource("db:///bw_c")
-        item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
-        resource_fw_d = _make_url_resource("db:///fw_d")
-        resource_bw_d = _make_url_resource("db:///bw_d")
-        item_d = self._mock_item("d", resources_forward=[resource_fw_d], resources_backward=[resource_bw_d])
-        item_instances = {"a": [item_a], "b": [item_b, item_b], "c": [item_c, item_c], "d": [item_d]}
-        items = {
-            "a": {"type": "TestItem"},
-            "b": {"type": "TestItem"},
-            "c": {"type": "TestItem"},
-            "d": {"type": "TestItem"},
-        }
-        connections = [
-            c.to_dict()
-            for c in (
-                Connection("a", "right", "b", "left"),
-                Connection("b", "bottom", "c", "top"),
-                Connection("c", "left", "d", "right"),
-            )
-        ]
-        jumps = [Jump("c", "right", "b", "right", self._LOOP_TWICE).to_dict()]
-        self._run_engine(items, connections, item_instances, jumps=jumps)
-        self._assert_resource_args(
-            item_a.execute.call_args_list, [[[], [self._default_backward_url_resource("db:///bw_b", "a", "b")]]]
-        )
-        self._assert_resource_args(
-            item_b.execute.call_args_list,
-            2
-            * [
-                [
-                    [self._default_forward_url_resource("db:///fw_a", "a")],
-                    [self._default_backward_url_resource("db:///bw_c", "b", "c")],
-                ]
-            ],
-        )
-        self._assert_resource_args(
-            item_c.execute.call_args_list,
-            2
-            * [
-                [
-                    [self._default_forward_url_resource("db:///fw_b", "b")],
-                    [self._default_backward_url_resource("db:///bw_d", "c", "d")],
-                ]
-            ],
-        )
-        self._assert_resource_args(
-            item_d.execute.call_args_list, [[[self._default_forward_url_resource("db:///fw_c", "c")], []]]
-        )
-
-    @unittest.skip("Hangs because something's not right in SpineDBServer")
-    def test_nested_jump_with_inner_self_jump(self):
-        resource_fw_a = _make_url_resource("db:///fw_a")
-        resource_bw_a = _make_url_resource("db:///bw_a")
-        item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
-        resource_fw_b = _make_url_resource("db:///fw_b")
-        resource_bw_b = _make_url_resource("db:///bw_b")
-        item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
-        resource_fw_c = _make_url_resource("db:///fw_c")
-        resource_bw_c = _make_url_resource("db:///bw_c")
-        item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
-        item_instances = {"a": 2 * [item_a], "b": 4 * [item_b], "c": 2 * [item_c]}
-        items = {"a": {"type": "TestItem"}, "b": {"type": "TestItem"}, "c": {"type": "TestItem"}}
-        connections = [
-            c.to_dict() for c in (Connection("a", "right", "b", "left"), Connection("b", "bottom", "c", "top"))
-        ]
-        jumps = [
-            Jump("c", "right", "a", "right", self._LOOP_TWICE).to_dict(),
-            Jump("b", "top", "b", "top", self._LOOP_TWICE).to_dict(),
-        ]
-        self._run_engine(items, connections, item_instances, jumps=jumps)
-        expected = 2 * [[[], [self._default_backward_url_resource("db:///bw_b", "a", "b")]]]
-        self._assert_resource_args(item_a.execute.call_args_list, expected)
-        expected = 4 * [
-            [
-                [self._default_forward_url_resource("db:///fw_a", "a")],
-                [self._default_backward_url_resource("db:///bw_c", "b", "c")],
+        with TemporaryDirectory() as temp_dir:
+            url_fw_a = "sqlite:///" + os.path.join(temp_dir, "fw_a")
+            url_bw_a = "sqlite:///" + os.path.join(temp_dir, "bw_a")
+            url_fw_b = "sqlite:///" + os.path.join(temp_dir, "fw_b")
+            url_bw_b = "sqlite:///" + os.path.join(temp_dir, "bw_b")
+            url_fw_c = "sqlite:///" + os.path.join(temp_dir, "fw_c")
+            url_bw_c = "sqlite:///" + os.path.join(temp_dir, "bw_c")
+            url_fw_d = "sqlite:///" + os.path.join(temp_dir, "fw_d")
+            url_bw_d = "sqlite:///" + os.path.join(temp_dir, "bw_d")
+            resource_fw_a = _make_url_resource(url_fw_a)
+            resource_bw_a = _make_url_resource(url_bw_a)
+            item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
+            resource_fw_b = _make_url_resource(url_fw_b)
+            resource_bw_b = _make_url_resource(url_bw_b)
+            item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
+            resource_fw_c = _make_url_resource(url_fw_c)
+            resource_bw_c = _make_url_resource(url_bw_c)
+            item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
+            resource_fw_d = _make_url_resource(url_fw_d)
+            resource_bw_d = _make_url_resource(url_bw_d)
+            item_d = self._mock_item("d", resources_forward=[resource_fw_d], resources_backward=[resource_bw_d])
+            item_instances = {"a": [item_a], "b": [item_b, item_b], "c": [item_c, item_c], "d": [item_d]}
+            items = {
+                "a": {"type": "TestItem"},
+                "b": {"type": "TestItem"},
+                "c": {"type": "TestItem"},
+                "d": {"type": "TestItem"},
+            }
+            connections = [
+                c.to_dict()
+                for c in (
+                    Connection("a", "right", "b", "left"),
+                    Connection("b", "bottom", "c", "top"),
+                    Connection("c", "left", "d", "right"),
+                )
             ]
-        ]
-        self._assert_resource_args(item_b.execute.call_args_list, expected)
-        expected = 2 * [[[self._default_forward_url_resource("db:///fw_b", "b")], []]]
-        self._assert_resource_args(item_c.execute.call_args_list, expected)
+            jumps = [Jump("c", "right", "b", "right", self._LOOP_TWICE).to_dict()]
+            self._run_engine(items, connections, item_instances, jumps=jumps)
+            self._assert_resource_args(
+                item_a.execute.call_args_list, [[[], [self._default_backward_url_resource(url_bw_b, "a", "b")]]]
+            )
+            self._assert_resource_args(
+                item_b.execute.call_args_list,
+                2
+                * [
+                    [
+                        [self._default_forward_url_resource(url_fw_a, "a")],
+                        [self._default_backward_url_resource(url_bw_c, "b", "c")],
+                    ]
+                ],
+            )
+            self._assert_resource_args(
+                item_c.execute.call_args_list,
+                2
+                * [
+                    [
+                        [self._default_forward_url_resource(url_fw_b, "b")],
+                        [self._default_backward_url_resource(url_bw_d, "c", "d")],
+                    ]
+                ],
+            )
+            self._assert_resource_args(
+                item_d.execute.call_args_list, [[[self._default_forward_url_resource(url_fw_c, "c")], []]]
+            )
+
+    def test_nested_jump_with_inner_self_jump(self):
+        with TemporaryDirectory() as temp_dir:
+            url_fw_a = "sqlite:///" + os.path.join(temp_dir, "fw_a")
+            url_bw_a = "sqlite:///" + os.path.join(temp_dir, "bw_a")
+            url_fw_b = "sqlite:///" + os.path.join(temp_dir, "fw_b")
+            url_bw_b = "sqlite:///" + os.path.join(temp_dir, "bw_b")
+            url_fw_c = "sqlite:///" + os.path.join(temp_dir, "fw_c")
+            url_bw_c = "sqlite:///" + os.path.join(temp_dir, "bw_c")
+            resource_fw_a = _make_url_resource(url_fw_a)
+            resource_bw_a = _make_url_resource(url_bw_a)
+            item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
+            resource_fw_b = _make_url_resource(url_fw_b)
+            resource_bw_b = _make_url_resource(url_bw_b)
+            item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
+            resource_fw_c = _make_url_resource(url_fw_c)
+            resource_bw_c = _make_url_resource(url_bw_c)
+            item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
+            item_instances = {"a": 2 * [item_a], "b": 4 * [item_b], "c": 2 * [item_c]}
+            items = {"a": {"type": "TestItem"}, "b": {"type": "TestItem"}, "c": {"type": "TestItem"}}
+            connections = [
+                c.to_dict() for c in (Connection("a", "right", "b", "left"), Connection("b", "bottom", "c", "top"))
+            ]
+            jumps = [
+                Jump("c", "right", "a", "right", self._LOOP_TWICE).to_dict(),
+                Jump("b", "top", "b", "top", self._LOOP_TWICE).to_dict(),
+            ]
+            self._run_engine(items, connections, item_instances, jumps=jumps)
+            expected = 2 * [[[], [self._default_backward_url_resource(url_bw_b, "a", "b")]]]
+            self._assert_resource_args(item_a.execute.call_args_list, expected)
+            expected = 4 * [
+                [
+                    [self._default_forward_url_resource(url_fw_a, "a")],
+                    [self._default_backward_url_resource(url_bw_c, "b", "c")],
+                ]
+            ]
+            self._assert_resource_args(item_b.execute.call_args_list, expected)
+            expected = 2 * [[[self._default_forward_url_resource(url_fw_b, "b")], []]]
+            self._assert_resource_args(item_c.execute.call_args_list, expected)
 
     def _assert_resource_args(self, arg_packs, expected_packs):
         self.assertEqual(len(arg_packs), len(expected_packs))
@@ -867,5 +865,5 @@ class TestValidateSingleJump(unittest.TestCase):
             self.fail("validate_single_jump shouldn't have raised")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
