@@ -34,6 +34,7 @@ GAMS_EXECUTABLE = _executable("gams")
 # Julia
 JULIA_EXECUTABLE = _executable("julia")
 
+
 # Python
 def is_frozen():
     """Checks if we are currently running as frozen bundle.

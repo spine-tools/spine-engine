@@ -83,9 +83,9 @@ def serialize_url(url, project_dir):
         serialized = {
             "type": "file_url",
             "relative": is_relative,
-            "path": os.path.relpath(path, project_dir).replace(os.sep, "/")
-            if is_relative
-            else path.replace(os.sep, "/"),
+            "path": (
+                os.path.relpath(path, project_dir).replace(os.sep, "/") if is_relative else path.replace(os.sep, "/")
+            ),
             "scheme": parsed.scheme,
         }
         if parsed.query:
