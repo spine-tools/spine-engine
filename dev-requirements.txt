@@ -1,4 +1,4 @@
-black == 19.3b0
+black == 24.4.2
 pre-commit == 2.0.1
 pylint >= 2.3.0
 -r "docs/requirements.txt"

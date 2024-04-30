@@ -406,9 +406,11 @@ class SpineEngine:
                 r.metadata["db_server_manager_queue"] = self._db_server_manager_queue
             yield Output(value=resources)
             yield Finalization(
-                item_finish_state=ItemExecutionFinishState.SUCCESS
-                if self._execution_permits[item_name]
-                else ItemExecutionFinishState.EXCLUDED
+                item_finish_state=(
+                    ItemExecutionFinishState.SUCCESS
+                    if self._execution_permits[item_name]
+                    else ItemExecutionFinishState.EXCLUDED
+                )
             )
 
         return SolidDefinition(item_name=item_name, direction=ED.BACKWARD, input_defs=[], compute_fn=compute_fn)

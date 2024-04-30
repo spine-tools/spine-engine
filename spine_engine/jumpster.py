@@ -59,7 +59,7 @@ class JumpsterEvent(DefinitionBase):
     def __init__(self, event_type, item_name, direction, **kwargs):
         super().__init__(item_name, direction)
         self.event_type = event_type
-        for (key, value) in kwargs.items():
+        for key, value in kwargs.items():
             setattr(self, key, value)
 
 
