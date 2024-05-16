@@ -1,0 +1,2 @@
+-e git+https://github.com/spine-tools/Spine-Database-API.git#egg=spinedb_api
+-e .
