@@ -5,4 +5,4 @@ recommonmark
 sphinx_rtd_theme
 sphinx-autoapi
 pylint
-black == 21.12b
+black == 24.4.2
