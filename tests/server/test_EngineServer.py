@@ -10,9 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for EngineServer class.
-"""
+""" Unit tests for EngineServer class. """
 
 import threading
 import unittest
@@ -175,7 +173,7 @@ class TestEngineServer(unittest.TestCase):
         self.assertTrue(server.ctrl_msg_sender.closed)  # PAIR socket should be closed
         self.assertTrue(server._context.closed)  # Context should be closed
         self.assertFalse(server.is_alive())  # server thread should not be alive
-        self.assertEqual(threading.active_count(), 1)  # Only one thread running after close
+        self.assertTrue(all(thread.name != "EngineServerThread" for thread in threading.enumerate()))
 
 
 if __name__ == "__main__":
