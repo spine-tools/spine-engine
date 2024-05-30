@@ -83,7 +83,8 @@ class EngineServer(threading.Thread):
         """Closes the server by sending a KILL message to this thread using a PAIR socket."""
         if self.auth is not None:
             self.auth.stop()
-            time.sleep(0.2)  # wait a bit until authenticator has been closed
+            while self.auth.is_alive():
+                pass
         self.ctrl_msg_sender.send(b"KILL")
         self.join()  # Wait for the thread to finish and sockets to close
         self.ctrl_msg_sender.close()  # Close this in the same thread that it was created in
