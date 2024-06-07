@@ -130,9 +130,10 @@ def resolve_current_python_interpreter():
     """
     if not is_frozen():
         return sys.executable
-    path = resolve_executable_from_path(PYTHON_EXECUTABLE)
-    if path != "":
-        return path
+    if not sys.platform == "win32":
+        path = resolve_executable_from_path(PYTHON_EXECUTABLE)
+        if path != "":
+            return path
     return EMBEDDED_PYTHON
 
 

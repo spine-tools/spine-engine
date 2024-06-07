@@ -10,11 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Application constants.
-
-"""
-
+"""Spine Engine constants."""
 import os
 import sys
 
