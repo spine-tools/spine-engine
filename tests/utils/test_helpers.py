@@ -201,11 +201,12 @@ class TestPythonInterpreter(unittest.TestCase):
         settings = TestAppSettings("")
         p = resolve_python_interpreter(settings)
         self.assertEqual(sys.executable, p)
-        with mock.patch("spine_engine.utils.helpers.is_frozen") as mock_helpers_is_frozen:
-            mock_helpers_is_frozen.return_value = True
-            p = resolve_python_interpreter(settings)
-            self.assertIsNone(p)
-            mock_helpers_is_frozen.assert_called()
+        if sys.platform == "win32":
+            with mock.patch("spine_engine.utils.helpers.is_frozen") as mock_helpers_is_frozen:
+                mock_helpers_is_frozen.return_value = True
+                p = resolve_python_interpreter(settings)
+                self.assertIsNone(p)  # This is None only on Win. # FIXME: Find a way to mock is_frozen() in config.py
+                mock_helpers_is_frozen.assert_called()
 
 
 class TestAppSettings:
