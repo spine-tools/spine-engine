@@ -10,16 +10,20 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for chunk module.
-
-"""
+"""Unit tests for chunk module."""
+import sys
 import unittest
-
+from unittest import mock
 from spine_engine.project_item.connection import Connection, FilterSettings
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.helpers import remove_credentials_from_url
-from spine_engine.utils.helpers import make_dag, gather_leaf_data, get_file_size, required_items_for_execution
+from spine_engine.utils.helpers import (
+    make_dag,
+    gather_leaf_data,
+    get_file_size,
+    required_items_for_execution,
+    resolve_python_interpreter,
+)
 
 
 class TestRequiredItemsForExecution(unittest.TestCase):
@@ -186,6 +190,31 @@ class TestGetFileSize(unittest.TestCase):
         expected_output = "2.0 GB"
         output = get_file_size(s)
         self.assertEqual(expected_output, output)
+
+
+class TestPythonInterpreter(unittest.TestCase):
+    def test_resolve_python_interpreter(self):
+        expected_path = "path_to_python"
+        settings = TestAppSettings(expected_path)
+        p = resolve_python_interpreter(settings)
+        self.assertEqual(expected_path, p)
+        settings = TestAppSettings("")
+        p = resolve_python_interpreter(settings)
+        self.assertEqual(sys.executable, p)
+        with mock.patch("spine_engine.utils.helpers.is_frozen") as mock_helpers_is_frozen:
+            mock_helpers_is_frozen.return_value = True
+            p = resolve_python_interpreter(settings)
+            self.assertIsNone(p)
+            mock_helpers_is_frozen.assert_called()
+
+
+class TestAppSettings:
+    def __init__(self, test_path):
+        self.test_path = test_path
+
+    def value(self, key):
+        if key == "appSettings/pythonPath":
+            return self.test_path
 
 
 if __name__ == "__main__":
