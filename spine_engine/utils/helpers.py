@@ -21,7 +21,7 @@ import json
 from pathlib import Path
 from enum import Enum, auto, unique
 import networkx
-from jupyter_client.kernelspec import find_kernel_specs
+from jupyter_client.kernelspec import KernelSpecManager
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
 from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON, is_frozen
 
@@ -216,6 +216,21 @@ def resolve_executable_from_path(executable_name):
     return ""
 
 
+def custom_find_kernel_specs(ensure_native_kernel=True):
+    """Finds kernel specs including the native kernel if enabled.
+
+    Args:
+        ensure_native_kernel (bool): True includes the native kernel (python3 for Python) into the
+        returned dict, False skips it.
+
+    Returns:
+        dict[str, str]: A dict mapping kernel names to resource directories
+    """
+    ksm = KernelSpecManager()
+    ksm.ensure_native_kernel = ensure_native_kernel
+    return ksm.find_kernel_specs()
+
+
 def inverted(input_):
     """Inverts a dictionary of list values.
 
@@ -243,7 +258,7 @@ def get_julia_env(settings):
     use_jupyter_console = settings.value("appSettings/useJuliaKernel", defaultValue="0") == "2"
     if use_jupyter_console:
         kernel_name = settings.value("appSettings/juliaKernel", defaultValue="")
-        resource_dir = find_kernel_specs().get(kernel_name)
+        resource_dir = custom_find_kernel_specs().get(kernel_name)
         if resource_dir is None:
             return None
         filepath = os.path.join(resource_dir, "kernel.json")
