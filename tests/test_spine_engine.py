@@ -163,13 +163,13 @@ class TestSpineEngine(unittest.TestCase):
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         self.assertEqual(mock_item_a.filter_id, "")
         mock_item_a.exclude_execution.assert_not_called()
-        expected_fw_resource = self._default_forward_url_resource(url_prefix + "url_a_fw", "item_a")
+        expected_fw_resource = self._default_forward_url_resource("db:///url_a_fw", "item_a")
         expected_bw_resource = self._default_backward_url_resource(url_prefix + "url_c_bw", "item_b", "item_c")
         item_b_execute_args = [[[expected_fw_resource], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execute_args)
         self.assertEqual(mock_item_b.filter_id, "")
         mock_item_b.exclude_execution.assert_not_called()
-        expected_fw_resource = self._default_forward_url_resource(url_prefix + "url_b_fw", "item_b")
+        expected_fw_resource = self._default_forward_url_resource("db:///url_b_fw", "item_b")
         item_c_execute_args = [[[expected_fw_resource], []]]
         self._assert_resource_args(mock_item_c.execute.call_args_list, item_c_execute_args)
         mock_item_c.exclude_execution.assert_not_called()
@@ -194,13 +194,13 @@ class TestSpineEngine(unittest.TestCase):
         ]
         url_prefix = "db:///" if sys.platform == "win32" else "db:////"
         self._run_engine(items, connections, item_instances)
-        expected_bw_resource1 = self._default_backward_url_resource("db:///url_b_bw", "item_a", "item_b")
-        expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_a", "item_c")
+        expected_bw_resource1 = self._default_backward_url_resource(url_prefix + "url_b_bw", "item_a", "item_b")
+        expected_bw_resource2 = self._default_backward_url_resource(url_prefix + "url_c_bw", "item_a", "item_c")
         item_a_execute_args = [[[], [expected_bw_resource1, expected_bw_resource2]]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         self.assertEqual(mock_item_a.filter_id, "")
         mock_item_a.exclude_execution.assert_not_called()
-        expected_fw_resource = self._default_forward_url_resource(url_prefix + "url_a_fw", "item_a")
+        expected_fw_resource = self._default_forward_url_resource("db:///url_a_fw", "item_a")
         item_b_execute_calls = [[[expected_fw_resource], []]]
         self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execute_calls)
         mock_item_b.exclude_execution.assert_not_called()
@@ -237,8 +237,8 @@ class TestSpineEngine(unittest.TestCase):
         item_b_execute_calls = [[[], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execute_calls)
         self.assertEqual(mock_item_b.filter_id, "")
-        expected_fw_resource1 = self._default_forward_url_resource(url_prefix + "url_a_fw", "item_a")
-        expected_fw_resource2 = self._default_forward_url_resource(url_prefix + "url_b_fw", "item_b")
+        expected_fw_resource1 = self._default_forward_url_resource("db:///url_a_fw", "item_a")
+        expected_fw_resource2 = self._default_forward_url_resource("db:///url_b_fw", "item_b")
         item_c_execute_calls = [[[expected_fw_resource1, expected_fw_resource2], []]]
         self._assert_resource_args(mock_item_c.execute.call_args_list, item_c_execute_calls)
         self.assertEqual(mock_item_c.filter_id, "")
@@ -268,12 +268,12 @@ class TestSpineEngine(unittest.TestCase):
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         mock_item_a.exclude_execution.assert_not_called()
         mock_item_b.execute.assert_not_called()
-        expected_fw_resource = self._default_forward_url_resource(url_prefix + "url_a_fw", "item_a")
+        expected_fw_resource = self._default_forward_url_resource("db:///url_a_fw", "item_a")
         expected_bw_resource = self._default_backward_url_resource(url_prefix + "url_c_bw", "item_b", "item_c")
         item_b_skip_execution_args = [[[expected_fw_resource], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_b.exclude_execution.call_args_list, item_b_skip_execution_args)
         mock_item_b.output_resources.assert_called()
-        expected_fw_resource = self._default_forward_url_resource(url_prefix + "url_b_fw", "item_b")
+        expected_fw_resource = self._default_forward_url_resource("db:///url_b_fw", "item_b")
         item_c_execute_calls = [[[expected_fw_resource], []]]
         self._assert_resource_args(mock_item_c.execute.call_args_list, item_c_execute_calls)
         mock_item_c.exclude_execution.assert_not_called()
