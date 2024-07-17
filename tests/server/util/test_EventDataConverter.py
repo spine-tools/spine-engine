@@ -11,10 +11,10 @@
 ######################################################################################################################
 
 """Unit tests for EventDataConverter class."""
-import unittest
 from copy import deepcopy
-from spine_engine.spine_engine import ItemExecutionFinishState
+import unittest
 from spine_engine.server.util.event_data_converter import EventDataConverter
+from spine_engine.spine_engine import ItemExecutionFinishState
 from spine_engine.utils.helpers import ExecutionDirection
 
 

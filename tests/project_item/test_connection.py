@@ -14,9 +14,9 @@ import os.path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import Mock
-from spinedb_api import DatabaseMapping, import_entity_classes, import_scenarios, import_alternatives
 from spine_engine.project_item.connection import Connection, FilterSettings, Jump
 from spine_engine.project_item.project_item_resource import database_resource
+from spinedb_api import DatabaseMapping, import_alternatives, import_entity_classes, import_scenarios
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 
 

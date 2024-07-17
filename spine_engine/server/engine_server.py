@@ -13,24 +13,24 @@
 """
 Contains EngineServer class for running a Zero-MQ server with Spine Engine.
 """
+import enum
+import ipaddress
 import json.decoder
 import os
 import queue
-import time
 import threading
-import ipaddress
-import enum
+import time
 import uuid
 import zmq
 from zmq.auth.thread import ThreadAuthenticator
-from spine_engine.server.util.server_message import ServerMessage
-from spine_engine.server.request import Request
-from spine_engine.server.remote_execution_service import RemoteExecutionService
+from spine_engine.server.persistent_execution_service import PersistentExecutionService
 from spine_engine.server.ping_service import PingService
 from spine_engine.server.project_extractor_service import ProjectExtractorService
-from spine_engine.server.project_retriever_service import ProjectRetrieverService
-from spine_engine.server.persistent_execution_service import PersistentExecutionService
 from spine_engine.server.project_remover_service import ProjectRemoverService
+from spine_engine.server.project_retriever_service import ProjectRetrieverService
+from spine_engine.server.remote_execution_service import RemoteExecutionService
+from spine_engine.server.request import Request
+from spine_engine.server.util.server_message import ServerMessage
 
 
 class ServerSecurityModel(enum.Enum):

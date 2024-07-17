@@ -18,8 +18,8 @@ https://github.com/zeromq/pyzmq/blob/main/examples/security/generate_certificate
 """
 
 import os
-import sys
 import shutil
+import sys
 import zmq.auth
 
 

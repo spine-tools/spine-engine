@@ -16,9 +16,9 @@ Functions to (de)serialize stuff.
 """
 
 import os
+from pathlib import Path
 import sys
 import urllib
-from pathlib import Path
 from urllib.parse import urljoin
 
 

@@ -14,15 +14,15 @@
 Contains a class for extracting a project ZIP file into a new directory on server.
 """
 
-import os
 import json
+import os
 import threading
 import uuid
 import zmq
-from spine_engine.utils.helpers import get_file_size
 from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.zip_handler import ZipHandler
+from spine_engine.utils.helpers import get_file_size
 
 
 class ProjectExtractorService(threading.Thread, ServiceBase):

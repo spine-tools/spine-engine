@@ -14,15 +14,15 @@
 Unit tests for ProjectExtractorService class.
 """
 
-import unittest
-import os
 import json
+import os
 from pathlib import Path
-from unittest import mock
 from tempfile import TemporaryDirectory
+import unittest
+from unittest import mock
 import zmq
-from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
+from spine_engine.server.util.server_message import ServerMessage
 
 
 class TestProjectExtractorService(unittest.TestCase):

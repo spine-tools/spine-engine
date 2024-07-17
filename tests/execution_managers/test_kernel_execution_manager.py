@@ -11,12 +11,12 @@
 ######################################################################################################################
 """Unit tests for ``kernel_execution_manager`` module."""
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock
-from tempfile import TemporaryDirectory
-from pathlib import Path
-from spine_engine.execution_managers.kernel_execution_manager import KernelExecutionManager, _kernel_manager_factory
 from jupyter_client.kernelspec import NATIVE_KERNEL_NAME  # =='python3'
+from spine_engine.execution_managers.kernel_execution_manager import KernelExecutionManager, _kernel_manager_factory
 
 
 class TestKernelExecutionManager(unittest.TestCase):

@@ -14,13 +14,13 @@
 Unit tests for ProjectRemoverService class.
 """
 
-import unittest
-import os
 import json
+import os
 from pathlib import Path
+import unittest
 import zmq
-from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
+from spine_engine.server.util.server_message import ServerMessage
 
 
 class TestProjectRemoverService(unittest.TestCase):

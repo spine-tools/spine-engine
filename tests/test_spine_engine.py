@@ -21,16 +21,16 @@ import sys
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock, NonCallableMagicMock, call, patch
-from spinedb_api import DatabaseMapping, import_scenarios
-from spinedb_api.filters.scenario_filter import scenario_filter_config
-from spinedb_api.filters.execution_filter import execution_filter_config
-from spinedb_api.filters.tools import clear_filter_configs
+from spine_engine import ExecutionDirection, ItemExecutionFinishState, SpineEngine, SpineEngineState
 from spine_engine.exception import EngineInitFailed
+from spine_engine.project_item.connection import Connection, Jump
+from spine_engine.project_item.project_item_resource import ProjectItemResource
 from spine_engine.spine_engine import validate_single_jump
 from spine_engine.utils.helpers import make_dag
-from spine_engine import ExecutionDirection, SpineEngine, SpineEngineState, ItemExecutionFinishState
-from spine_engine.project_item.connection import Jump, Connection
-from spine_engine.project_item.project_item_resource import ProjectItemResource
+from spinedb_api import DatabaseMapping, import_scenarios
+from spinedb_api.filters.execution_filter import execution_filter_config
+from spinedb_api.filters.scenario_filter import scenario_filter_config
+from spinedb_api.filters.tools import clear_filter_configs
 
 
 def _make_url_resource(url):

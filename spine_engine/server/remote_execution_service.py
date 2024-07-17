@@ -15,9 +15,9 @@ import os
 import threading
 import zmq
 from spine_engine import SpineEngine
-from spine_engine.utils.helpers import get_file_size
 from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.event_data_converter import EventDataConverter
+from spine_engine.utils.helpers import get_file_size
 
 
 class RemoteExecutionService(threading.Thread, ServiceBase):

@@ -14,12 +14,11 @@
 Unit tests for serialization module.
 
 """
-import sys
-import unittest
 from pathlib import Path
-from tempfile import gettempdir, TemporaryDirectory, NamedTemporaryFile
-
-from spine_engine.utils.serialization import deserialize_path, path_in_dir, serialize_url, serialize_path
+import sys
+from tempfile import NamedTemporaryFile, TemporaryDirectory, gettempdir
+import unittest
+from spine_engine.utils.serialization import deserialize_path, path_in_dir, serialize_path, serialize_url
 
 
 class TestSerialization(unittest.TestCase):

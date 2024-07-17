@@ -15,10 +15,10 @@ The ReturningProcess class.
 
 """
 
-import multiprocessing as mp
-import threading
 from contextlib import contextmanager
 from enum import Enum, auto, unique
+import multiprocessing as mp
+import threading
 from .execution_resources import one_shot_process_semaphore
 
 

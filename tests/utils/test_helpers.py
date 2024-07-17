@@ -15,15 +15,15 @@ import sys
 import unittest
 from unittest import mock
 from spine_engine.project_item.connection import Connection, FilterSettings
-from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
-from spinedb_api.helpers import remove_credentials_from_url
 from spine_engine.utils.helpers import (
-    make_dag,
     gather_leaf_data,
     get_file_size,
+    make_dag,
     required_items_for_execution,
     resolve_python_interpreter,
 )
+from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
+from spinedb_api.helpers import remove_credentials_from_url
 
 
 class TestRequiredItemsForExecution(unittest.TestCase):

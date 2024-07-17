@@ -14,9 +14,9 @@
 Unit tests for FileExtractor class.
 """
 
-import unittest
 import os
 from pathlib import Path
+import unittest
 from spine_engine.server.util.zip_handler import ZipHandler
 
 

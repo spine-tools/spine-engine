@@ -10,31 +10,26 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Provides connection classes for linking project items. """
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
+from multiprocessing import Lock
 import os
 import subprocess
 import tempfile
-from contextlib import ExitStack
-from multiprocessing import Lock
 from datapackage import Package
-from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
-from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
-from spinedb_api.filters.alternative_filter import ALTERNATIVE_FILTER_TYPE
-from spinedb_api.purge import purge_url
 from spine_engine.project_item.project_item_resource import (
-    file_resource,
-    make_cmd_line_arg,
     expand_cmd_line_args,
+    file_resource,
     labelled_resource_args,
+    make_cmd_line_arg,
 )
-from spine_engine.utils.helpers import (
-    resolve_current_python_interpreter,
-    ItemExecutionFinishState,
-    PartCount,
-    ExecutionDirection as ED,
-)
+from spine_engine.utils.helpers import ExecutionDirection as ED
+from spine_engine.utils.helpers import ItemExecutionFinishState, PartCount, resolve_current_python_interpreter
 from spine_engine.utils.queue_logger import QueueLogger
-
+from spinedb_api import DatabaseMapping, SpineDBAPIError, SpineDBVersionError
+from spinedb_api.filters.alternative_filter import ALTERNATIVE_FILTER_TYPE
+from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
+from spinedb_api.purge import purge_url
 
 SUPPORTED_FILTER_TYPES = {ALTERNATIVE_FILTER_TYPE, SCENARIO_FILTER_TYPE}
 

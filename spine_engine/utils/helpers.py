@@ -12,18 +12,18 @@
 
 """Helper functions and classes."""
 import collections
-import os
-import sys
 import datetime
-import itertools
-import time
-import json
-from pathlib import Path
 from enum import Enum, auto, unique
-import networkx
+import itertools
+import json
+import os
+from pathlib import Path
+import sys
+import time
 from jupyter_client.kernelspec import KernelSpecManager
+import networkx
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
-from ..config import PYTHON_EXECUTABLE, JULIA_EXECUTABLE, GAMS_EXECUTABLE, EMBEDDED_PYTHON, is_frozen
+from ..config import EMBEDDED_PYTHON, GAMS_EXECUTABLE, JULIA_EXECUTABLE, PYTHON_EXECUTABLE, is_frozen
 
 
 @unique

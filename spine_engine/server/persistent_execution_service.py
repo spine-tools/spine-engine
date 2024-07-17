@@ -14,8 +14,8 @@
 Contains a class for remote persistent execution manager related actions.
 """
 
-import threading
 import json
+import threading
 import zmq
 from spine_engine.server.service_base import ServiceBase
 

@@ -11,46 +11,46 @@
 ######################################################################################################################
 """ Contains the SpineEngine class for running Spine Toolbox DAGs. """
 from enum import Enum, unique
+from itertools import product
+import multiprocessing as mp
 import os
 import threading
-import multiprocessing as mp
-from itertools import product
 import networkx as nx
 from spinedb_api import append_filter_config, name_from_dict
-from spinedb_api.spine_db_server import db_server_manager
-from spinedb_api.filters.tools import filter_config
-from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.execution_filter import execution_filter_config
+from spinedb_api.filters.scenario_filter import scenario_name_from_dict
+from spinedb_api.filters.tools import filter_config
+from spinedb_api.spine_db_server import db_server_manager
 from .exception import EngineInitFailed
 from .execution_managers.persistent_execution_manager import (
     disable_persistent_process_creation,
     enable_persistent_process_creation,
 )
-from .utils.helpers import (
-    AppSettings,
-    required_items_for_execution,
-    inverted,
-    create_timestamp,
-    make_dag,
-    ExecutionDirection as ED,
-    ItemExecutionFinishState,
-    dag_edges,
-    make_connections,
-)
-from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
-from .utils.queue_logger import QueueLogger
-from .project_item_loader import ProjectItemLoader
 from .jumpster import (
-    execute_pipeline_iterator,
-    JumpsterEventType,
-    PipelineDefinition,
-    SolidDefinition,
-    InputDefinition,
-    Output,
     Failure,
     Finalization,
+    InputDefinition,
+    JumpsterEventType,
+    Output,
+    PipelineDefinition,
+    SolidDefinition,
+    execute_pipeline_iterator,
 )
 from .project_item.connection import Connection, Jump
+from .project_item_loader import ProjectItemLoader
+from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
+from .utils.helpers import (
+    ItemExecutionFinishState,
+    create_timestamp,
+    dag_edges,
+    inverted,
+    make_connections,
+    make_dag,
+    required_items_for_execution,
+)
+from .utils.helpers import AppSettings
+from .utils.helpers import ExecutionDirection as ED
+from .utils.queue_logger import QueueLogger
 
 
 @unique
