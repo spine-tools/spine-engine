@@ -141,6 +141,7 @@ class TestSpineEngine(unittest.TestCase):
 
     def test_linear_execution(self):
         """Test execution with items a-b-c in a line."""
+        url_prefix = "db:///" if sys.platform == "win32" else "db:////"
         url_a_fw = _make_url_resource("db:///url_a_fw")
         url_b_fw = _make_url_resource("db:///url_b_fw")
         url_c_fw = _make_url_resource("db:///url_c_fw")
@@ -157,18 +158,18 @@ class TestSpineEngine(unittest.TestCase):
             {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
         ]
         self._run_engine(items, connections, item_instances)
-        expected_bw_resource = self._default_backward_url_resource("db:///url_b_bw", "item_a", "item_b")
+        expected_bw_resource = self._default_backward_url_resource(url_prefix + "url_b_bw", "item_a", "item_b")
         item_a_execute_args = [[[], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         self.assertEqual(mock_item_a.filter_id, "")
         mock_item_a.exclude_execution.assert_not_called()
-        expected_fw_resource = self._default_forward_url_resource("db:///url_a_fw", "item_a")
-        expected_bw_resource = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c")
+        expected_fw_resource = self._default_forward_url_resource(url_prefix + "url_a_fw", "item_a")
+        expected_bw_resource = self._default_backward_url_resource(url_prefix + "url_c_bw", "item_b", "item_c")
         item_b_execute_args = [[[expected_fw_resource], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execute_args)
         self.assertEqual(mock_item_b.filter_id, "")
         mock_item_b.exclude_execution.assert_not_called()
-        expected_fw_resource = self._default_forward_url_resource("db:///url_b_fw", "item_b")
+        expected_fw_resource = self._default_forward_url_resource(url_prefix + "url_b_fw", "item_b")
         item_c_execute_args = [[[expected_fw_resource], []]]
         self._assert_resource_args(mock_item_c.execute.call_args_list, item_c_execute_args)
         mock_item_c.exclude_execution.assert_not_called()
@@ -191,6 +192,7 @@ class TestSpineEngine(unittest.TestCase):
             {"from": ("item_a", "right"), "to": ("item_b", "left")},
             {"from": ("item_a", "bottom"), "to": ("item_c", "left")},
         ]
+        url_prefix = "db:///" if sys.platform == "win32" else "db:////"
         self._run_engine(items, connections, item_instances)
         expected_bw_resource1 = self._default_backward_url_resource("db:///url_b_bw", "item_a", "item_b")
         expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_a", "item_c")
@@ -198,7 +200,7 @@ class TestSpineEngine(unittest.TestCase):
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         self.assertEqual(mock_item_a.filter_id, "")
         mock_item_a.exclude_execution.assert_not_called()
-        expected_fw_resource = self._default_forward_url_resource("db:///url_a_fw", "item_a")
+        expected_fw_resource = self._default_forward_url_resource(url_prefix + "url_a_fw", "item_a")
         item_b_execute_calls = [[[expected_fw_resource], []]]
         self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execute_calls)
         mock_item_b.exclude_execution.assert_not_called()
@@ -226,16 +228,17 @@ class TestSpineEngine(unittest.TestCase):
             {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
         ]
         self._run_engine(items, connections, item_instances)
-        expected_bw_resource = self._default_backward_url_resource("db:///url_c_bw", "item_a", "item_c")
+        url_prefix = "db:///" if sys.platform == "win32" else "db:////"
+        expected_bw_resource = self._default_backward_url_resource(url_prefix + "url_c_bw", "item_a", "item_c")
         item_a_execute_args = [[[], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         self.assertEqual(mock_item_a.filter_id, "")
-        expected_bw_resource = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c")
+        expected_bw_resource = self._default_backward_url_resource(url_prefix + "url_c_bw", "item_b", "item_c")
         item_b_execute_calls = [[[], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_b.execute.call_args_list, item_b_execute_calls)
         self.assertEqual(mock_item_b.filter_id, "")
-        expected_fw_resource1 = self._default_forward_url_resource("db:///url_a_fw", "item_a")
-        expected_fw_resource2 = self._default_forward_url_resource("db:///url_b_fw", "item_b")
+        expected_fw_resource1 = self._default_forward_url_resource(url_prefix + "url_a_fw", "item_a")
+        expected_fw_resource2 = self._default_forward_url_resource(url_prefix + "url_b_fw", "item_b")
         item_c_execute_calls = [[[expected_fw_resource1, expected_fw_resource2], []]]
         self._assert_resource_args(mock_item_c.execute.call_args_list, item_c_execute_calls)
         self.assertEqual(mock_item_c.filter_id, "")
@@ -259,17 +262,18 @@ class TestSpineEngine(unittest.TestCase):
         ]
         execution_permits = {"item_a": True, "item_b": False, "item_c": True}
         self._run_engine(items, connections, item_instances, execution_permits=execution_permits)
-        expected_bw_resource = self._default_backward_url_resource("db:///url_b_bw", "item_a", "item_b")
+        url_prefix = "db:///" if sys.platform == "win32" else "db:////"
+        expected_bw_resource = self._default_backward_url_resource(url_prefix + "url_b_bw", "item_a", "item_b")
         item_a_execute_args = [[[], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_a.execute.call_args_list, item_a_execute_args)
         mock_item_a.exclude_execution.assert_not_called()
         mock_item_b.execute.assert_not_called()
-        expected_fw_resource = self._default_forward_url_resource("db:///url_a_fw", "item_a")
-        expected_bw_resource = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c")
+        expected_fw_resource = self._default_forward_url_resource(url_prefix + "url_a_fw", "item_a")
+        expected_bw_resource = self._default_backward_url_resource(url_prefix + "url_c_bw", "item_b", "item_c")
         item_b_skip_execution_args = [[[expected_fw_resource], [expected_bw_resource]]]
         self._assert_resource_args(mock_item_b.exclude_execution.call_args_list, item_b_skip_execution_args)
         mock_item_b.output_resources.assert_called()
-        expected_fw_resource = self._default_forward_url_resource("db:///url_b_fw", "item_b")
+        expected_fw_resource = self._default_forward_url_resource(url_prefix + "url_b_fw", "item_b")
         item_c_execute_calls = [[[expected_fw_resource], []]]
         self._assert_resource_args(mock_item_c.execute.call_args_list, item_c_execute_calls)
         mock_item_c.exclude_execution.assert_not_called()
@@ -281,6 +285,7 @@ class TestSpineEngine(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 import_scenarios(db_map, (("scen1", True), ("scen2", True)))
                 db_map.commit_session("Add test data.")
+            url_prefix = "db:///" if sys.platform == "win32" else "db:////"
             url_a_fw = _make_url_resource(url)
             url_b_fw1 = _make_url_resource("db:///url_b_fw")
             url_b_fw2 = _make_url_resource("db:///url_b_fw")
@@ -316,14 +321,18 @@ class TestSpineEngine(unittest.TestCase):
             expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", url)
             expected_filter_stack1 = (scenario_filter_config("scen1"),)
             expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
-            expected_bw_resource1 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen1"])
+            expected_bw_resource1 = self._default_backward_url_resource(
+                url_prefix + "url_c_bw", "item_b", "item_c", ["scen1"]
+            )
             item_b_execution_args = [[[expected_fw_resource1], [expected_bw_resource1]]]
             self._assert_resource_args(mock_item_b1.execute.call_args_list, item_b_execution_args)
             self.assertEqual(mock_item_b1.filter_id, "scen1 - item_a")
             expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", url)
             expected_filter_stack2 = (scenario_filter_config("scen2"),)
             expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
-            expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen2"])
+            expected_bw_resource2 = self._default_backward_url_resource(
+                url_prefix + "url_c_bw", "item_b", "item_c", ["scen2"]
+            )
             item_b_execution_args = [[[expected_fw_resource2], [expected_bw_resource2]]]
             self._assert_resource_args(mock_item_b2.execute.call_args_list, item_b_execution_args)
             self.assertEqual(mock_item_b2.filter_id, "scen2 - item_a")
@@ -351,6 +360,7 @@ class TestSpineEngine(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 import_scenarios(db_map, (("scen1", True), ("scen2", True)))
                 db_map.commit_session("Add test data.")
+            url_prefix = "db:///" if sys.platform == "win32" else "db:////"
             url_a_fw = _make_url_resource(url)
             url_c_bw = _make_url_resource("db:///url_c_bw")
             mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
@@ -379,14 +389,18 @@ class TestSpineEngine(unittest.TestCase):
             expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", url)
             expected_filter_stack1 = (scenario_filter_config("scen1"),)
             expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
-            expected_bw_resource1 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen1"])
+            expected_bw_resource1 = self._default_backward_url_resource(
+                url_prefix + "url_c_bw", "item_b", "item_c", ["scen1"]
+            )
             item_b_execution_args = [[[expected_fw_resource1], [expected_bw_resource1]]]
             self._assert_resource_args(mock_item_b1.execute.call_args_list, item_b_execution_args)
             self.assertEqual(mock_item_b1.filter_id, "scen1 - item_a")
             expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", url)
             expected_filter_stack2 = (scenario_filter_config("scen2"),)
             expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
-            expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen2"])
+            expected_bw_resource2 = self._default_backward_url_resource(
+                url_prefix + "url_c_bw", "item_b", "item_c", ["scen2"]
+            )
             item_b_execution_args = [[[expected_fw_resource2], [expected_bw_resource2]]]
             self._assert_resource_args(mock_item_b2.execute.call_args_list, item_b_execution_args)
             self.assertEqual(mock_item_b2.filter_id, "scen2 - item_a")
@@ -401,6 +415,7 @@ class TestSpineEngine(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 import_scenarios(db_map, (("scen1", True), ("scen2", True)))
                 db_map.commit_session("Add test data.")
+            url_prefix = "db:///" if sys.platform == "win32" else "db:////"
             url_a_fw = _make_url_resource(url)
             file_b_fw_11 = ProjectItemResource("item_b", "file", "label_1")
             file_b_fw_12 = ProjectItemResource("item_b", "file", "label_1")
@@ -442,14 +457,18 @@ class TestSpineEngine(unittest.TestCase):
             expected_fw_resource1 = ProjectItemResource("item_a", "database", "label", url)
             expected_filter_stack1 = (scenario_filter_config("scen1"),)
             expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
-            expected_bw_resource1 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen1"])
+            expected_bw_resource1 = self._default_backward_url_resource(
+                url_prefix + "url_c_bw", "item_b", "item_c", ["scen1"]
+            )
             item_b_execution_args = [[[expected_fw_resource1], [expected_bw_resource1]]]
             self._assert_resource_args(mock_item_b1.execute.call_args_list, item_b_execution_args)
             self.assertEqual(mock_item_b1.filter_id, "scen1 - item_a")
             expected_fw_resource2 = ProjectItemResource("item_a", "database", "label", url)
             expected_filter_stack2 = (scenario_filter_config("scen2"),)
             expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
-            expected_bw_resource2 = self._default_backward_url_resource("db:///url_c_bw", "item_b", "item_c", ["scen2"])
+            expected_bw_resource2 = self._default_backward_url_resource(
+                url_prefix + "url_c_bw", "item_b", "item_c", ["scen2"]
+            )
             item_b_execution_args = [[[expected_fw_resource2], [expected_bw_resource2]]]
             self._assert_resource_args(mock_item_b2.execute.call_args_list, item_b_execution_args)
             self.assertEqual(mock_item_b2.filter_id, "scen2 - item_a")

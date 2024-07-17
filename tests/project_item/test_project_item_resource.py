@@ -12,6 +12,7 @@
 """ Unit tests for ``project_item_resource`` module. """
 from contextlib import ExitStack
 from pathlib import Path
+import sys
 import unittest
 from unittest import mock
 from spine_engine.project_item.project_item_resource import (
@@ -124,7 +125,7 @@ class TestDatabaseResource(unittest.TestCase):
         self.assertEqual(resource.metadata, {"schema": "my_schema"})
 
     def test_empty_label_is_replaced_by_url_without_filter_configs(self):
-        url = "sqlite:///path/to/db.sqlite"
+        url = "sqlite:///path/to/db.sqlite" if sys.platform == "win32" else "sqlite:////path/to/db.sqlite"
         filter_config = scenario_filter_config("my_scenario")
         filtered_url = append_filter_config(url, filter_config)
         self.assertNotEqual(url, filtered_url)
