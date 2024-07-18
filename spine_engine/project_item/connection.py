@@ -154,7 +154,7 @@ class ConnectionBase:
         """
 
     def make_logger(self, queue):
-        self._logger = QueueLogger(queue, self.name, None, dict())
+        self._logger = QueueLogger(queue, self.name, None, {})
 
     def emit_flash(self):
         self._logger.flash.emit()
@@ -259,7 +259,7 @@ class ResourceConvertingConnection(ConnectionBase):
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
         self._filter_settings = filter_settings if filter_settings is not None else FilterSettings()
-        self.options = options if options is not None else dict()
+        self.options = options if options is not None else {}
         self._resources = set()
 
     def __eq__(self, other):

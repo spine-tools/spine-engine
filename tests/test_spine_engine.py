@@ -87,7 +87,7 @@ class TestSpineEngine(unittest.TestCase):
         resource = _make_url_resource(url)
         resource.provider_name = successor_name
         if scenarios is None:
-            scenarios = list()
+            scenarios = []
         resource.metadata = {
             "filter_stack": (
                 execution_filter_config(

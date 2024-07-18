@@ -188,7 +188,7 @@ class ExecutableItemBase:
         Returns:
             list: a list of ProjectItemResources
         """
-        return list()
+        return []
 
     # pylint: disable=no-self-use
     def _output_resources_backward(self):
@@ -199,7 +199,7 @@ class ExecutableItemBase:
         Returns:
             list: a list of ProjectItemResources
         """
-        return list()
+        return []
 
     @classmethod
     def from_dict(cls, item_dict, name, project_dir, app_settings, specifications, logger):

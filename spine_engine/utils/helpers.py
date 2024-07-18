@@ -240,10 +240,10 @@ def inverted(input_):
     Returns:
         dict: keys are list items, and values are keys listing that item from the input dictionary
     """
-    output = dict()
+    output = {}
     for key, value_list in input_.items():
         for value in value_list:
-            output.setdefault(value, list()).append(key)
+            output.setdefault(value, []).append(key)
     return output
 
 
@@ -405,7 +405,7 @@ def make_connections(connections, permitted_items):
         list of Connection: List of permitted Connections or an empty list if the DAG contains no connections
     """
     if not connections:
-        return list()
+        return []
     connections = connections_to_selected_items(connections, permitted_items)
     return connections
 
@@ -433,10 +433,10 @@ def dag_edges(connections):
     Returns:
         dict: DAG edges. Mapping of source item (node) to a list of destination items (nodes)
     """
-    edges = dict()
+    edges = {}
     for connection in connections:
         source, destination = connection.source, connection.destination
-        edges.setdefault(source, list()).append(destination)
+        edges.setdefault(source, []).append(destination)
     return edges
 
 

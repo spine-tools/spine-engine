@@ -75,7 +75,7 @@ class EngineServer(threading.Thread):
         self._context = zmq.Context()
         self.ctrl_msg_sender = self._context.socket(zmq.PAIR)
         self.ctrl_msg_sender.bind("inproc://ctrl_msg")  # inproc:// transport requires a bind() before connect()
-        self.persistent_exec_mngrs = dict()
+        self.persistent_exec_mngrs = {}
         self.start()  # Start serving
 
     def close(self):
@@ -112,8 +112,8 @@ class EngineServer(threading.Thread):
             poller.register(ctrl_msg_listener, zmq.POLLIN)
         except Exception as e:
             raise ValueError(f"Initializing serve() failed due to exception: {e}")
-        workers = dict()
-        project_dirs = dict()  # Mapping of job Id to an abs. path to a project directory ready for execution
+        workers = {}
+        project_dirs = {}  # Mapping of job Id to an abs. path to a project directory ready for execution
         persistent_exec_mngr_q = queue.Queue()
         while True:
             try:
@@ -326,7 +326,7 @@ class EngineServer(threading.Thread):
         if not endpoints:
             raise ValueError("No endpoints configured. Please add allowed IP's into allowEndPoints.txt")
         # Allow configured endpoints
-        allowed = list()
+        allowed = []
         for ep in endpoints:
             try:
                 ep = ep.strip()
