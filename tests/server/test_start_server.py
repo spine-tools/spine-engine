@@ -13,9 +13,9 @@
 """
 Unit tests for start_server.py script.
 """
-import unittest
-import time
 from multiprocessing import Process
+import time
+import unittest
 from spine_engine.server.start_server import main
 
 

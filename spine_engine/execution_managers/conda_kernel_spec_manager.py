@@ -2,19 +2,18 @@
 # https://github.com/Anaconda-Platform/nb_conda_kernels/blob/master/nb_conda_kernels/manager.py
 
 # -*- coding: utf-8 -*-
-import logging
+import glob
 import json
+import logging
+import os
+from os.path import abspath, basename, dirname, join, split
 import re
 import shutil
 import subprocess
 import sys
 import time
-import glob
-
-import os
-from os.path import join, split, dirname, basename, abspath
-from traitlets import Bool, Unicode, TraitError, validate
-from jupyter_client.kernelspec import KernelSpecManager, KernelSpec, NoSuchKernel
+from jupyter_client.kernelspec import KernelSpec, KernelSpecManager, NoSuchKernel
+from traitlets import Bool, TraitError, Unicode, validate
 
 CACHE_TIMEOUT = 60
 
@@ -109,7 +108,7 @@ class CondaKernelSpecManager(KernelSpecManager):
             kname.encode("ascii")
         except UnicodeEncodeError:
             # Replace accented characters with unaccented equivalents
-            import unicodedata
+            import unicodedata  # pylint: disable=import-outside-toplevel
 
             nfkd_form = unicodedata.normalize("NFKD", kname)
             kname = "".join([c for c in nfkd_form if not unicodedata.combining(c)])

@@ -15,20 +15,20 @@ Contains PersistentManagerBase, PersistentExecutionManagerBase classes and subcl
 as well as some convenience functions.
 
 """
-import uuid
+from dataclasses import dataclass
+from multiprocessing import Lock, Process
+import os
+from queue import Empty, Queue
+import signal
 import socket
 import socketserver
+from subprocess import PIPE, Popen
 import sys
-import os
-import signal
 import threading
 import time
-from dataclasses import dataclass
-from subprocess import Popen, PIPE
-from multiprocessing import Process, Lock
-from queue import Queue, Empty
-from ..utils.helpers import Singleton
+import uuid
 from ..utils.execution_resources import persistent_process_semaphore
+from ..utils.helpers import Singleton
 from .execution_manager_base import ExecutionManagerBase
 
 if sys.platform == "win32":

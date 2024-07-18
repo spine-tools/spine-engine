@@ -12,12 +12,13 @@
 """
 In-house dagster replacement that also handles jumps.
 """
+from collections import namedtuple
+from enum import Enum, unique
+import queue
 import sys
 import threading
-import queue
-from enum import Enum, unique
-from collections import namedtuple
-from .utils.helpers import serializable_error_info_from_exc_info, ExecutionDirection as ED
+from .utils.helpers import ExecutionDirection as ED
+from .utils.helpers import serializable_error_info_from_exc_info
 
 
 @unique

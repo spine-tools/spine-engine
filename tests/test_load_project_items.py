@@ -12,8 +12,8 @@
 
 """Unit tests for `load_project_items` module."""
 import os.path
-import unittest
 import sys
+import unittest
 from spine_engine.load_project_items import load_executable_item_classes, load_item_specification_factories
 from spine_engine.project_item.executable_item_base import ExecutableItemBase
 from spine_engine.project_item.project_item_specification_factory import ProjectItemSpecificationFactory

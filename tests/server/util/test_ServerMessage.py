@@ -14,8 +14,8 @@
 Unit tests for ServerMessage class.
 """
 
-import unittest
 import json
+import unittest
 from spine_engine.server.util.server_message import ServerMessage
 
 

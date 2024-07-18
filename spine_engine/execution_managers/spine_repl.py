@@ -10,14 +10,14 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-import socketserver
-import socket
-import threading
 import code
+import socket
+import socketserver
+import threading
 
 try:
-    import readline
     import itertools
+    import readline
 
     _history_offset = -1
     _history_saved_line = ""

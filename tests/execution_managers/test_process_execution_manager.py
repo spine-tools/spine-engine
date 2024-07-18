@@ -10,9 +10,9 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for ``process_execution_manager`` module."""
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock
-from tempfile import TemporaryDirectory
 from spine_engine.execution_managers.process_execution_manager import ProcessExecutionManager
 
 

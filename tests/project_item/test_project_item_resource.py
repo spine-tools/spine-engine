@@ -17,6 +17,7 @@ import unittest
 from unittest import mock
 from spine_engine.project_item.project_item_resource import (
     CmdLineArg,
+    LabelArg,
     database_resource,
     expand_cmd_line_args,
     file_resource,
@@ -24,7 +25,6 @@ from spine_engine.project_item.project_item_resource import (
     get_labelled_source_resources,
     get_source,
     get_source_extras,
-    LabelArg,
     labelled_resource_args,
     transient_file_resource,
     url_resource,

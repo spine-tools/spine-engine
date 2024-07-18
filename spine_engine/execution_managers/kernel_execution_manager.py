@@ -16,14 +16,14 @@ Contains the KernelExecutionManager class and subclasses, and some convenience f
 """
 
 import os
-import sys
 import subprocess
+import sys
 import uuid
-from jupyter_client.manager import KernelManager
 from jupyter_client.kernelspec import NoSuchKernel
+from jupyter_client.manager import KernelManager
+from spine_engine.execution_managers.conda_kernel_spec_manager import CondaKernelSpecManager
 from ..utils.helpers import Singleton
 from .execution_manager_base import ExecutionManagerBase
-from spine_engine.execution_managers.conda_kernel_spec_manager import CondaKernelSpecManager
 
 
 class GroupedKernelManager(KernelManager):

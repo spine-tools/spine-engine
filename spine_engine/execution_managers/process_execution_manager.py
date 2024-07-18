@@ -15,11 +15,11 @@ Contains the ProcessExecutionManager class.
 
 """
 
-import sys
 import subprocess
+import sys
 from threading import Thread
-from .execution_manager_base import ExecutionManagerBase
 from ..utils.execution_resources import one_shot_process_semaphore
+from .execution_manager_base import ExecutionManagerBase
 
 
 class ProcessExecutionManager(ExecutionManagerBase):

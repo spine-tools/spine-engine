@@ -10,15 +10,15 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Provides the ProjectItemResource class. """
-import copy
-import uuid
 from contextlib import contextmanager
+import copy
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import url2pathname
+import uuid
 from spinedb_api.filters.tools import clear_filter_configs
-from spinedb_api.spine_db_server import closing_spine_db_server, quick_db_checkout
 from spinedb_api.spine_db_client import SpineDBClient
+from spinedb_api.spine_db_server import closing_spine_db_server, quick_db_checkout
 from ..utils.helpers import PartCount
 
 

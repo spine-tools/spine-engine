@@ -12,11 +12,11 @@
 
 """ Unit tests for EngineServer class. """
 
+import os
+import pathlib
 import threading
 import unittest
 import zmq
-import os
-import pathlib
 from spine_engine.server.engine_server import EngineServer, ServerSecurityModel
 from spine_engine.server.util.server_message import ServerMessage
 

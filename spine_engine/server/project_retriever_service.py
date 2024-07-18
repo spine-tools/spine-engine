@@ -14,14 +14,14 @@
 Contains a class for sending a finished project back to client.
 """
 
+import json
 import os
 import shutil
 import threading
-import json
-import zmq
-from spine_engine.utils.helpers import get_file_size
+import zmq  # pylint: disable=unused-import
 from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.server_message import ServerMessage
+from spine_engine.utils.helpers import get_file_size
 
 
 class ProjectRetrieverService(threading.Thread, ServiceBase):

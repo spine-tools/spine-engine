@@ -2,11 +2,9 @@
 # https://github.com/Anaconda-Platform/nb_conda_kernels/blob/master/nb_conda_kernels/runner.py
 
 from __future__ import print_function
-
 import os
-import sys
 import subprocess
-import locale
+import sys
 
 try:
     from shlex import quote

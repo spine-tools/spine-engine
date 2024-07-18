@@ -14,9 +14,9 @@
 Contains a class for handling ping requests.
 """
 
-import threading
 import json
-import zmq
+import threading
+import zmq  # pylint: disable=unused-import
 from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.server_message import ServerMessage
 

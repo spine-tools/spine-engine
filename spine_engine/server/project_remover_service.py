@@ -17,7 +17,7 @@ Contains a class for sending a finished project back to client.
 import os
 import shutil
 import threading
-import zmq
+import zmq  # pylint: disable=unused-import
 from spine_engine.server.service_base import ServiceBase
 
 
