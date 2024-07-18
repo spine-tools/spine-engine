@@ -2,7 +2,6 @@
 # https://github.com/Anaconda-Platform/nb_conda_kernels/blob/master/nb_conda_kernels/runner.py
 
 from __future__ import print_function
-import locale
 import os
 import subprocess
 import sys

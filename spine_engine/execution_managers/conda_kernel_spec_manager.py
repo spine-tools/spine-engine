@@ -108,7 +108,7 @@ class CondaKernelSpecManager(KernelSpecManager):
             kname.encode("ascii")
         except UnicodeEncodeError:
             # Replace accented characters with unaccented equivalents
-            import unicodedata
+            import unicodedata  # pylint: disable=import-outside-toplevel
 
             nfkd_form = unicodedata.normalize("NFKD", kname)
             kname = "".join([c for c in nfkd_form if not unicodedata.combining(c)])

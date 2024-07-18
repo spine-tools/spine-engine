@@ -18,7 +18,7 @@ import json
 import os
 import threading
 import uuid
-import zmq
+import zmq  # pylint: disable=unused-import
 from spine_engine.server.service_base import ServiceBase
 from spine_engine.server.util.server_message import ServerMessage
 from spine_engine.server.util.zip_handler import ZipHandler

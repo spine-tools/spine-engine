@@ -19,7 +19,6 @@ import json.decoder
 import os
 import queue
 import threading
-import time
 import uuid
 import zmq
 from zmq.auth.thread import ThreadAuthenticator
