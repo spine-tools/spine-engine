@@ -32,7 +32,7 @@ class PingService(threading.Thread, ServiceBase):
             request (Request): Client request
             job_id (str): Worker thread Id
         """
-        super(PingService, self).__init__(name="PingServiceThread")
+        super().__init__(name="PingServiceThread")
         ServiceBase.__init__(self, context, request, job_id)
 
     def run(self):

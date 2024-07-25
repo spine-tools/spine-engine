@@ -54,7 +54,7 @@ class PersistentManagerBase:
         self._is_running_lock = Lock()
         self._is_running = True
         self._persistent_resources_release_lock = Lock()
-        self._kwargs = dict(stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        self._kwargs = {"stdin": PIPE, "stdout": PIPE, "stderr": PIPE}
         if sys.platform == "win32":
             self._kwargs["creationflags"] = CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
             # Setup Popen to not show console in frozen app. Another option is to use
@@ -149,7 +149,7 @@ class PersistentManagerBase:
         try:
             for line in iter(self._persistent.stdout.readline, b""):
                 data = line.decode("UTF8", "replace").rstrip()
-                self._msg_queue.put(dict(type="stdout", data=data))
+                self._msg_queue.put({"type": "stdout", "data": data})
         except ValueError:
             pass
 
@@ -158,7 +158,7 @@ class PersistentManagerBase:
         try:
             for line in iter(self._persistent.stderr.readline, b""):
                 data = line.decode("UTF8", "replace").rstrip()
-                self._msg_queue.put(dict(type="stderr", data=data))
+                self._msg_queue.put({"type": "stderr", "data": data})
         except ValueError:
             pass
 
@@ -464,6 +464,7 @@ class PersistentManagerBase:
 
 
 def _send_ctrl_c(pid):
+    # pylint: disable=possibly-used-before-assignment
     kernel = ctypes.windll.kernel32
     kernel.FreeConsole()
     kernel.AttachConsole(pid)
@@ -549,7 +550,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
 
     @staticmethod
     def _emit_persistent_started(logger, key, language):
-        msg = dict(type="persistent_started", key=key, language=language)
+        msg = {"type": "persistent_started", "key": key, "language": language}
         logger.msg_persistent_execution.emit(msg)
 
     def _get_idle_persistent_managers(self):
@@ -602,7 +603,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         try:
             pm = self.persistent_managers[key] = constructor(args, group_id)
         except OSError as err:
-            msg = dict(type="persistent_failed_to_start", args=" ".join(args), error=str(err))
+            msg = {"type": "persistent_failed_to_start", "args": " ".join(args), "error": str(err)}
             logger.msg_persistent_execution.emit(msg)
             return None
         self._emit_persistent_started(logger, key, pm.language)
@@ -658,8 +659,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         pm = self.persistent_managers.get(key)
         if pm is None:
             return ()
-        for msg in pm.issue_command(cmd, add_history=True, catch_exception=False):
-            yield msg
+        yield from pm.issue_command(cmd, add_history=True, catch_exception=False)
 
     def is_persistent_command_complete(self, key, cmd):
         """Checks whether a command is complete.
@@ -688,7 +688,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         """
         pm = self.persistent_managers.get(key)
         if pm is None:
-            return
+            return []
         return pm.get_completions(text)
 
     def get_persistent_history_item(self, key, text, prefix, backwards):
@@ -702,7 +702,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         """
         pm = self.persistent_managers.get(key)
         if pm is None:
-            return
+            return ""
         return pm.get_history_item(text, prefix, backwards)
 
     def kill_manager_processes(self):
@@ -824,10 +824,10 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             return -1
         self._persistent_manager.set_running_until_completion(True)
         try:
-            msg = dict(type="execution_started", args=" ".join(self._args))
+            msg = {"type": "execution_started", "args": " ".join(self._args)}
             self._logger.msg_persistent_execution.emit(msg)
             fmt_alias = "# Running " + self._alias.rstrip()
-            self._logger.msg_persistent_execution.emit(dict(type="stdin", data=fmt_alias))
+            self._logger.msg_persistent_execution.emit({"type": "stdin", "data": fmt_alias})
             for cmd in self._commands:
                 for msg in self._persistent_manager.issue_command(cmd):
                     if msg["type"] != "stdin":

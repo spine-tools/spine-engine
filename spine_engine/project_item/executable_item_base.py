@@ -179,7 +179,6 @@ class ExecutableItemBase:
         """Stops executing this item."""
         self._logger.msg.emit(f"Stopping {self._name}")
 
-    # pylint: disable=no-self-use
     def _output_resources_forward(self):
         """Returns output resources for forward execution.
 
@@ -188,9 +187,8 @@ class ExecutableItemBase:
         Returns:
             list: a list of ProjectItemResources
         """
-        return list()
+        return []
 
-    # pylint: disable=no-self-use
     def _output_resources_backward(self):
         """Returns output resources for backward execution.
 
@@ -199,7 +197,7 @@ class ExecutableItemBase:
         Returns:
             list: a list of ProjectItemResources
         """
-        return list()
+        return []
 
     @classmethod
     def from_dict(cls, item_dict, name, project_dir, app_settings, specifications, logger):

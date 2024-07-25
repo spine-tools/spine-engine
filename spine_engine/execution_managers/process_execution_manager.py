@@ -54,10 +54,10 @@ class ProcessExecutionManager(ExecutionManagerBase):
                     creationflags=cf,
                 )
             except OSError as e:
-                msg = dict(type="execution_failed_to_start", error=str(e), program=self._program)
+                msg = {"type": "execution_failed_to_start", "error": str(e), "program": self._program}
                 self._logger.msg_standard_execution.emit(msg)
                 return 1
-            msg = dict(type="execution_started", program=self._program, args=" ".join(self._args))
+            msg = {"type": "execution_started", "program": self._program, "args": " ".join(self._args)}
             self._logger.msg_standard_execution.emit(msg)
             running = "# Running" + " ".join([self._program] + self._args)
             self._logger.msg_standard_execution.emit({"type": "stdin", "data": running})

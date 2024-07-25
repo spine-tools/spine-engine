@@ -75,7 +75,7 @@ def break_event_data(event_type, data):
     Returns:
         dict or str: Edited data dictionary or data string as it was.
     """
-    if type(data) != str:
+    if not isinstance(data, str):
         if "item_state" in data.keys():
             data["item_state"] = str(data["item_state"])  # Cast ItemExecutionFinishState instance to string
         if "url" in data.keys():
@@ -98,7 +98,7 @@ def break_event_data(event_type, data):
             # Print warning if there are any tuples used as keys in the data dictionary.
             # Tuples are converted to lists by json.dumps(). Lists must be converted back to tuples
             # on client side (in fix_event_data()).
-            if type(data[key]) == tuple:
+            if isinstance(data[key], tuple):
                 print(f"[WARNING] Found tuple in message {event_type}: {data}. Fix this on client side.")
     return data
 
@@ -114,7 +114,7 @@ def fix_event_data(event):
     """
     # Convert item_state str back to ItemExecutionFinishState. This was converted to str on server because
     # it is not JSON serializable
-    if type(event[1]) == str:
+    if isinstance(event[1], str):
         return event
     if "item_state" in event[1].keys():
         event[1]["item_state"] = convert_execution_finish_state(event[1]["item_state"])

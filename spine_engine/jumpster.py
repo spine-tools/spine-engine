@@ -153,7 +153,7 @@ class MultithreadExecutor:
         while not self._is_complete() or active_iters:
             # start iterators
             while len(active_iters) < self._max_concurrent:
-                candidate_steps = self._get_steps_to_execute(limit=(self._max_concurrent - len(active_iters)))
+                candidate_steps = self._get_steps_to_execute(limit=self._max_concurrent - len(active_iters))
                 step_by_key.update({step.key: step for step in candidate_steps})
                 # Add all waiting steps
                 candidate_steps += list(waiting.values())
@@ -257,12 +257,9 @@ class MultithreadExecutor:
                 del active_iters[key]
         errs = {tid: err for tid, err in errors.items() if err}
         if errs:
+            error_list = "\n".join([f"In thread {tid}: {err.to_string()}" for tid, err in errs.items()])
             raise JumpsterThreadError(
-                "During multithread execution errors occurred in threads:\n{error_list}".format(
-                    error_list="\n".join(
-                        ["In thread {tid}: {err}".format(tid=tid, err=err.to_string()) for tid, err in errs.items()]
-                    )
-                ),
+                f"During multithread execution errors occurred in threads:\n{error_list}",
                 thread_error_infos=list(errs.values()),
             )
 

@@ -39,7 +39,7 @@ class ProjectExtractorService(threading.Thread, ServiceBase):
             request (Request): Client request
             job_id (str): Worker thread Id
         """
-        super(ProjectExtractorService, self).__init__(name="ProjectExtractorServiceThread")
+        super().__init__(name="ProjectExtractorServiceThread")
         ServiceBase.__init__(self, context, request, job_id)
 
     def run(self):

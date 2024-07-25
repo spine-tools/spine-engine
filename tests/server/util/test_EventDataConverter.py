@@ -113,7 +113,7 @@ class TestEventDataConverter(unittest.TestCase):
 
     def test_convert(self):
         event_data = self.make_event_data()
-        converted_events = list()
+        converted_events = []
         for event in event_data:
             json_str = EventDataConverter.convert(event[0], event[1])
             converted_events.append(json_str)
@@ -144,12 +144,12 @@ class TestEventDataConverter(unittest.TestCase):
         """Converts events, then deconverts them back."""
         event_data = self.make_event_data()
         expected_data = deepcopy(event_data)
-        converted_events = list()
+        converted_events = []
         for event in event_data:
             json_str = EventDataConverter.convert(event[0], event[1])
             converted_events.append(json_str)
         self.assertEqual(16, len(converted_events))
-        deconverted_events = list()
+        deconverted_events = []
         for conv_event in converted_events:
             event_tuple = EventDataConverter.deconvert(conv_event.encode("utf-8"))
             deconverted_events.append(event_tuple)

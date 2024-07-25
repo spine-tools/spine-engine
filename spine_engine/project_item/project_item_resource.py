@@ -59,7 +59,7 @@ class ProjectItemResource:
         self._url = url
         self._filepath = None
         self._parsed_url = urlparse(self._url)
-        self.metadata = metadata if metadata is not None else dict()
+        self.metadata = metadata if metadata is not None else {}
         self._filterable = filterable
         self._identifier = identifier if identifier is not None else uuid.uuid4().hex
 
@@ -313,13 +313,13 @@ def extract_packs(resources):
     Returns:
         tuple: list of non-pack resources and dictionary of packs keyed by label
     """
-    singles = list()
-    packs = dict()
+    singles = []
+    packs = {}
     for resource in resources:
         if resource.type_ != "file_pack":
             singles.append(resource)
         else:
-            packs.setdefault(resource.label, list()).append(resource)
+            packs.setdefault(resource.label, []).append(resource)
     return singles, packs
 
 
@@ -360,7 +360,7 @@ def get_source(resource):
     """
     if resource.type_ in _DATABASE_RESOURCE_TYPES:
         return resource.url
-    elif resource.hasfilepath:
+    if resource.hasfilepath:
         return resource.path
     return None
 
@@ -429,7 +429,7 @@ def expand_cmd_line_args(args, label_to_arg, logger):
     Returns:
         list of str: command line arguments as strings
     """
-    expanded_args = list()
+    expanded_args = []
     for arg in args:
         if not isinstance(arg, LabelArg):
             expanded_args.append(str(arg))

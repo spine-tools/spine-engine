@@ -38,10 +38,10 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         self.engine = None
         self.push_socket = self.context.socket(zmq.PUSH)  # Transmits events and files directly to client
         self.local_project_dir = project_dir
-        self.persistent_keys = dict()  # Mapping of item_name to a persistent execution manager key
-        self.persistent_exec_mngrs = dict()  # Mapping of per. execution manager key to per. execution manager
+        self.persistent_keys = {}  # Mapping of item_name to a persistent execution manager key
+        self.persistent_exec_mngrs = {}  # Mapping of per. execution manager key to per. execution manager
         self.persist_q = persistent_exec_mngr_q
-        self.items = list()
+        self.items = []
 
     def collect_persistent_keys(self, event_type, data):
         """Collects the keys used in identifying persistent execution managers
@@ -73,7 +73,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
 
     def collect_resources(self):
         """Returns a dictionary containing items name, type and ProjectItemResources."""
-        resources = dict()
+        resources = {}
         for item in self.items:
             resources[item.name] = [item.item_type(), item._output_resources_forward()]
         return resources
@@ -100,7 +100,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                 self.collect_running_items(self.engine._running_items)
                 json_event = EventDataConverter.convert(event_type, data)
                 self.push_socket.send_multipart([json_event.encode("utf-8")])  # Blocks until the client pulls
-                if data == "COMPLETED" or data == "FAILED" or data == "USER_STOPPED":
+                if data in {"COMPLETED", "FAILED", "USER_STOPPED"}:
                     break
         except StopIteration:
             # Raised by SpineEngine._get_event_stream() generator if we try to get_event() after
