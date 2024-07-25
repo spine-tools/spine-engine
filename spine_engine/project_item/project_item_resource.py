@@ -360,7 +360,7 @@ def get_source(resource):
     """
     if resource.type_ in _DATABASE_RESOURCE_TYPES:
         return resource.url
-    elif resource.hasfilepath:
+    if resource.hasfilepath:
         return resource.path
     return None
 

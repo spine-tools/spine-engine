@@ -101,17 +101,14 @@ class EngineServer(threading.Thread):
             ctrl_msg_listener = self._context.socket(zmq.PAIR)
             ctrl_msg_listener.connect("inproc://ctrl_msg")
             if self._sec_model_state == ServerSecurityModel.STONEHOUSE:
-                try:
-                    self.auth = self.enable_stonehouse_security(frontend)
-                except ValueError:
-                    raise
+                self.auth = self.enable_stonehouse_security(frontend)
             frontend.bind(self.protocol + "://*:" + str(self.port))
             poller = zmq.Poller()
             poller.register(frontend, zmq.POLLIN)
             poller.register(backend, zmq.POLLIN)
             poller.register(ctrl_msg_listener, zmq.POLLIN)
         except Exception as e:
-            raise ValueError(f"Initializing serve() failed due to exception: {e}")
+            raise ValueError(f"Initializing serve() failed due to exception: {e}") from e
         workers = {}
         project_dirs = {}  # Mapping of job Id to an abs. path to a project directory ready for execution
         persistent_exec_mngr_q = queue.Queue()
@@ -242,7 +239,7 @@ class EngineServer(threading.Thread):
         n_exec_mngrs = len(self.persistent_exec_mngrs)
         if n_exec_mngrs > 0:
             print(f"Closing {len(self.persistent_exec_mngrs)} persistent execution manager processes")
-            for k, exec_mngr in self.persistent_exec_mngrs.items():
+            for exec_mngr in self.persistent_exec_mngrs.values():
                 exec_mngr._persistent_manager.kill_process()
             self.persistent_exec_mngrs.clear()
 
@@ -333,8 +330,8 @@ class EngineServer(threading.Thread):
                 ipaddress.ip_address(ep)
                 auth.allow(ep)
                 allowed.append(ep)  # Just for printing
-            except:
-                raise ValueError(f"Invalid IP address in allowEndpoints.txt:'{ep}'")
+            except Exception as exc:
+                raise ValueError(f"Invalid IP address in allowEndpoints.txt:'{ep}'") from exc
         allowed_str = "\n".join(allowed)
         print(f"StoneHouse security activated. Allowed endpoints ({len(allowed)}):\n{allowed_str}")
         # Tell the authenticator how to handle CURVE requests

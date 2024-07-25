@@ -80,7 +80,7 @@ class CondaKernelSpecManager(KernelSpecManager):
 
     def __init__(self, **kwargs):
         self._conda_executable = kwargs.pop("conda_exe")
-        super(CondaKernelSpecManager, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.log = logging.getLogger(__name__)
         self.log.setLevel(logging.WARNING)
         self._conda_info_cache = None
@@ -140,7 +140,7 @@ class CondaKernelSpecManager(KernelSpecManager):
                 ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
                 result = ansi_escape.sub("", p)  # Remove ANSI Escape Sequences, such as ESC[0m
                 conda_info = json.loads(result)
-            except Exception as err:
+            except Exception:
                 conda_info = None
                 self.log.error("Obtaining 'conda info --json' failed")
             self._conda_info_cache = conda_info
@@ -183,12 +183,12 @@ class CondaKernelSpecManager(KernelSpecManager):
                 # as created by, say, conda or anaconda-project. The name
                 # of the parent directory, then, provides useful context.
                 if basename(env_base) == "envs" and (env_base != envs_prefix or env_name in all_envs):
-                    env_name = "{}-{}".format(basename(dirname(env_base)), env_name)
+                    env_name = f"{basename(dirname(env_base))}-{env_name}"
             # Further disambiguate, if necessary, with a counter.
             if env_name in all_envs:
                 base_name = env_name
                 for count in range(len(all_envs)):
-                    env_name = "{}-{}".format(base_name, count + 2)
+                    env_name = f"{base_name}-{count + 2}"
                     if env_name not in all_envs:
                         break
             all_envs[env_name] = env_path
@@ -235,7 +235,7 @@ class CondaKernelSpecManager(KernelSpecManager):
                 elif kernel_name == "ir":
                     kernel_name = "r"
                 kernel_prefix = "" if env_name == "root" else "env-"
-                kernel_name = "conda-{}{}-{}".format(kernel_prefix, env_name, kernel_name)
+                kernel_name = f"conda-{kernel_prefix}{env_name}-{kernel_name}"
                 # Replace invalid characters with dashes
                 kernel_name = self.clean_kernel_name(kernel_name)
 
@@ -326,7 +326,7 @@ class CondaKernelSpecManager(KernelSpecManager):
         if self.conda_only:
             kspecs = {}
         else:
-            kspecs = super(CondaKernelSpecManager, self).find_kernel_specs()
+            kspecs = super().find_kernel_specs()
 
         # add conda envs kernelspecs
         if self.whitelist:
@@ -350,7 +350,7 @@ class CondaKernelSpecManager(KernelSpecManager):
             return None
         self.log.info(f"res.argv:{res.argv}")
         if res is None and not self.conda_only:
-            res = super(CondaKernelSpecManager, self).get_kernel_spec(kernel_name)
+            res = super().get_kernel_spec(kernel_name)
         return res
 
     def get_all_specs(self):
@@ -377,7 +377,7 @@ class CondaKernelSpecManager(KernelSpecManager):
             self.ensure_native_kernel = False
             # Conda environment kernelspec are only virtual, so remove can only be applied
             # on non-virtual kernels.
-            specs = super(CondaKernelSpecManager, self).find_kernel_specs()
+            specs = super().find_kernel_specs()
         finally:
             self.ensure_native_kernel = save_native
         spec_dir = specs[name]

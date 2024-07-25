@@ -100,7 +100,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                 self.collect_running_items(self.engine._running_items)
                 json_event = EventDataConverter.convert(event_type, data)
                 self.push_socket.send_multipart([json_event.encode("utf-8")])  # Blocks until the client pulls
-                if data == "COMPLETED" or data == "FAILED" or data == "USER_STOPPED":
+                if data in {"COMPLETED", "FAILED", "USER_STOPPED"}:
                     break
         except StopIteration:
             # Raised by SpineEngine._get_event_stream() generator if we try to get_event() after

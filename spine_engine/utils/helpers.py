@@ -130,7 +130,7 @@ def resolve_current_python_interpreter():
     """
     if not is_frozen():
         return sys.executable
-    if not sys.platform == "win32":
+    if sys.platform != "win32":
         path = resolve_executable_from_path(PYTHON_EXECUTABLE)
         if path != "":
             return path
@@ -537,10 +537,9 @@ def get_file_size(size_in_bytes):
         return str(size_in_bytes) + " B"
     if kb < size_in_bytes <= mb:
         return str(round(size_in_bytes / kb, 1)) + " KB"
-    elif mb < size_in_bytes < gb:
+    if mb < size_in_bytes < gb:
         return str(round(size_in_bytes / mb, 1)) + " MB"
-    else:
-        return str(round(size_in_bytes / gb, 1)) + " GB"
+    return str(round(size_in_bytes / gb, 1)) + " GB"
 
 
 class PartCount:

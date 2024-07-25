@@ -157,7 +157,7 @@ class ConnectionBase:
         self._logger = QueueLogger(queue, self.name, None, {})
 
     def emit_flash(self):
-        self._logger.flash.emit()
+        self._logger.flash.emit("")
 
 
 DEFAULT_ENABLED_FILTER_TYPES = {ALTERNATIVE_FILTER_TYPE: False, SCENARIO_FILTER_TYPE: True}
@@ -590,7 +590,7 @@ class Jump(ConnectionBase):
     """Represents a conditional jump between two project items."""
 
     def __init__(
-        self, source_name, source_position, destination_name, destination_position, condition={}, cmd_line_args=()
+        self, source_name, source_position, destination_name, destination_position, condition=None, cmd_line_args=()
     ):
         """
         Args:
@@ -664,7 +664,7 @@ class Jump(ConnectionBase):
                 script_file.seek(0)
                 python = resolve_current_python_interpreter()
                 result = subprocess.run(
-                    [python, "-", *expanded_args], encoding="utf-8", stdin=script_file, capture_output=True
+                    [python, "-", *expanded_args], encoding="utf-8", stdin=script_file, capture_output=True, check=False
                 )
                 if result.stdout:
                     self._logger.msg_proc.emit(result.stdout)

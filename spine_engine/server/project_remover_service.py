@@ -33,7 +33,7 @@ class ProjectRemoverService(threading.Thread, ServiceBase):
             job_id (str): Thread job Id
             project_dir (str): Absolute path to project directory
         """
-        super(ProjectRemoverService, self).__init__(name="ProjectRemoverServiceThread")
+        super().__init__(name="ProjectRemoverServiceThread")
         ServiceBase.__init__(self, context, request, job_id)
         self.project_dir = project_dir
 

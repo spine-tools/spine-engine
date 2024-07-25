@@ -179,7 +179,6 @@ class ExecutableItemBase:
         """Stops executing this item."""
         self._logger.msg.emit(f"Stopping {self._name}")
 
-    # pylint: disable=no-self-use
     def _output_resources_forward(self):
         """Returns output resources for forward execution.
 
@@ -190,7 +189,6 @@ class ExecutableItemBase:
         """
         return []
 
-    # pylint: disable=no-self-use
     def _output_resources_backward(self):
         """Returns output resources for backward execution.
 
