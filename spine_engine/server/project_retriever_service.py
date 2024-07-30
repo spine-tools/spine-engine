@@ -36,7 +36,7 @@ class ProjectRetrieverService(threading.Thread, ServiceBase):
             job_id (str): Thread job Id
             project_dir (str): Absolute path to project directory
         """
-        super().__init__(name="ProjectRetrieverServiceThread")
+        super(ProjectRetrieverService, self).__init__(name="ProjectRetrieverServiceThread")
         ServiceBase.__init__(self, context, request, job_id)
         self.project_dir = project_dir
 

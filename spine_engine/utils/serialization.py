@@ -125,7 +125,7 @@ def deserialize_path(serialized, project_dir):
         if path_type == "url":
             return serialized["path"]
     except KeyError as error:
-        raise RuntimeError(f"Key '{error}' missing from serialized path") from error
+        raise RuntimeError(f"Key '{error}' missing from serialized path")
     raise RuntimeError(f"Cannot deserialize: unknown path type '{path_type}'")
 
 
@@ -142,4 +142,4 @@ def deserialize_remote_path(serialized, base_path):
         path = serialized["path"]
         return urljoin(base_path, path)
     except KeyError as error:
-        raise RuntimeError(f"Key '{error}' missing from serialized url") from error
+        raise RuntimeError(f"Key '{error}' missing from serialized url")

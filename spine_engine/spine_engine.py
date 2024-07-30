@@ -210,8 +210,8 @@ class SpineEngine:
                 notifications = " ".join(connection.notifications())
                 raise EngineInitFailed(f"Link {connection.name} is not ready for execution. {notifications}")
             source, destination = connection.source, connection.destination
-            self._connections_by_source.setdefault(source, []).append(connection)
-            self._connections_by_destination.setdefault(destination, []).append(connection)
+            self._connections_by_source.setdefault(source, list()).append(connection)
+            self._connections_by_destination.setdefault(destination, list()).append(connection)
 
     def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
         """Instantiates item specifications.
@@ -230,7 +230,7 @@ class SpineEngine:
             factory = specification_factories.get(item_type)
             if factory is None:
                 continue
-            item_specifications[item_type] = {}
+            item_specifications[item_type] = dict()
             for spec_dict in spec_dicts:
                 spec = factory.make_specification(spec_dict, self._settings, None)
                 item_specifications[item_type][spec.name] = spec
@@ -557,17 +557,17 @@ class SpineEngine:
         """
 
         def check_resource_affinity(filtered_forward_resources):
-            filter_ids_by_provider = {}
+            filter_ids_by_provider = dict()
             for r in filtered_forward_resources:
                 filter_ids_by_provider.setdefault(r.provider_name, set()).add(r.metadata.get("filter_id"))
             return all(len(filter_ids) == 1 for filter_ids in filter_ids_by_provider.values())
 
-        resource_filter_stacks = {}
-        unfiltered_resource_lists = {}
+        resource_filter_stacks = dict()
+        unfiltered_resource_lists = dict()
         for stack in forward_resource_stacks:
             if not stack:
                 continue
-            unfiltered = []
+            unfiltered = list()
             for resource in stack:
                 filter_stacks = self._filter_stacks(item_name, resource.provider_name, resource.label)
                 if not filter_stacks:
@@ -575,14 +575,14 @@ class SpineEngine:
                 else:
                     resource_filter_stacks[resource] = filter_stacks
             if unfiltered:
-                unfiltered_resource_lists.setdefault(stack[0].provider_name, []).append(unfiltered)
+                unfiltered_resource_lists.setdefault(stack[0].provider_name, list()).append(unfiltered)
         forward_resource_stacks_iterator = (
             self._expand_resource_stack(resource, filter_stacks)
             for resource, filter_stacks in resource_filter_stacks.items()
         )
         backward_resources = self._convert_backward_resources(item_name, backward_resources)
         for resources_or_lists in product(*unfiltered_resource_lists.values(), *forward_resource_stacks_iterator):
-            filtered_forward_resources = []
+            filtered_forward_resources = list()
             for item in resources_or_lists:
                 if isinstance(item, list):
                     filtered_forward_resources += item
@@ -671,7 +671,7 @@ class SpineEngine:
         connections = self._connections_by_source.get(item_name, [])
         resources_by_provider = {}
         for r in resources:
-            resources_by_provider.setdefault(r.provider_name, []).append(r)
+            resources_by_provider.setdefault(r.provider_name, list()).append(r)
         for c in connections:
             resources_from_destination = resources_by_provider.get(c.destination)
             if resources_from_destination is None:
@@ -698,7 +698,7 @@ class SpineEngine:
         connections = self._connections_by_destination.get(item_name, [])
         resources_by_provider = {}
         for r in resources:
-            resources_by_provider.setdefault(r.provider_name, []).append(r)
+            resources_by_provider.setdefault(r.provider_name, list()).append(r)
         for c in connections:
             resources_from_source = resources_by_provider.get(c.source)
             if resources_from_source is None:

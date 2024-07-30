@@ -38,7 +38,10 @@ class ZipHandler:
             fname (str): Name of the ZIP-file without extension (it's added by shutil.make_archive())
         """
         zip_path = os.path.join(dst_folder, fname)
-        shutil.make_archive(zip_path, "zip", src_folder)
+        try:
+            shutil.make_archive(zip_path, "zip", src_folder)
+        except OSError:
+            raise
 
     @staticmethod
     def extract(zip_file, output_folder):
@@ -74,4 +77,7 @@ class ZipHandler:
             raise ValueError("Invalid input. No folder given.")
         if not os.path.isdir(folder):
             raise ValueError(f"Given dir:{folder} does not exist.")
-        shutil.rmtree(folder)
+        try:
+            shutil.rmtree(folder)
+        except OSError:
+            raise

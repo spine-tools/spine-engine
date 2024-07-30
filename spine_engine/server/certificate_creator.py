@@ -42,8 +42,8 @@ class CertificateCreator:
             os.mkdir(d)
 
         # create new keys in certificates dir
-        zmq.auth.create_certificates(keys_dir, "server")
-        zmq.auth.create_certificates(keys_dir, "client")
+        server_public_file, server_secret_file = zmq.auth.create_certificates(keys_dir, "server")
+        client_public_file, client_secret_file = zmq.auth.create_certificates(keys_dir, "client")
         # move public keys to appropriate directory
         for key_file in os.listdir(keys_dir):
             if key_file.endswith(".key"):
@@ -58,6 +58,7 @@ def main(args):
     if len(args) < 2:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         base_dir = os.path.join(script_dir, "certs")
+        cert_dir = os.path.join(base_dir, "certificates")
         if os.path.exists(base_dir):
             print(f"Directory {base_dir} already exists. Please remove it to recreate certificates.")
             return 0

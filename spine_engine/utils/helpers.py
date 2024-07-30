@@ -130,7 +130,7 @@ def resolve_current_python_interpreter():
     """
     if not is_frozen():
         return sys.executable
-    if sys.platform != "win32":
+    if not sys.platform == "win32":
         path = resolve_executable_from_path(PYTHON_EXECUTABLE)
         if path != "":
             return path
@@ -240,10 +240,10 @@ def inverted(input_):
     Returns:
         dict: keys are list items, and values are keys listing that item from the input dictionary
     """
-    output = {}
+    output = dict()
     for key, value_list in input_.items():
         for value in value_list:
-            output.setdefault(value, []).append(key)
+            output.setdefault(value, list()).append(key)
     return output
 
 
@@ -405,7 +405,7 @@ def make_connections(connections, permitted_items):
         list of Connection: List of permitted Connections or an empty list if the DAG contains no connections
     """
     if not connections:
-        return []
+        return list()
     connections = connections_to_selected_items(connections, permitted_items)
     return connections
 
@@ -433,10 +433,10 @@ def dag_edges(connections):
     Returns:
         dict: DAG edges. Mapping of source item (node) to a list of destination items (nodes)
     """
-    edges = {}
+    edges = dict()
     for connection in connections:
         source, destination = connection.source, connection.destination
-        edges.setdefault(source, []).append(destination)
+        edges.setdefault(source, list()).append(destination)
     return edges
 
 
@@ -537,9 +537,10 @@ def get_file_size(size_in_bytes):
         return str(size_in_bytes) + " B"
     if kb < size_in_bytes <= mb:
         return str(round(size_in_bytes / kb, 1)) + " KB"
-    if mb < size_in_bytes < gb:
+    elif mb < size_in_bytes < gb:
         return str(round(size_in_bytes / mb, 1)) + " MB"
-    return str(round(size_in_bytes / gb, 1)) + " GB"
+    else:
+        return str(round(size_in_bytes / gb, 1)) + " GB"
 
 
 class PartCount:
