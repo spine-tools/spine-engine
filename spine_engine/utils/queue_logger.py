@@ -34,8 +34,8 @@ class _MessageBase:
         self._filter_id = filter_id
 
     def emit(self, msg):
-        msg = {"filter_id": self._filter_id, **msg}
-        full_msg = (self._event_type, {"item_name": self._item_name, **msg})
+        msg = dict(filter_id=self._filter_id, **msg)
+        full_msg = (self._event_type, dict(item_name=self._item_name, **msg))
         self._queue.put(full_msg)
         for slot in self._slots:
             slot(msg)
@@ -52,8 +52,8 @@ class _Message(_MessageBase):
         super().__init__(queue, item_name, event_type)
         self._msg_type = msg_type
 
-    def emit(self, msg):
-        super().emit({"msg_type": self._msg_type, "msg_text": msg})
+    def emit(self, msg_text):
+        super().emit({"msg_type": self._msg_type, "msg_text": msg_text})
 
 
 class _ExecutionMessage(_MessageBase):
@@ -79,11 +79,11 @@ class _Prompt(_MessageBase):
         self._prompt_queue = prompt_queue
         self._answered_prompts = answered_prompts
 
-    def emit(self, msg):
-        key = str(msg)
+    def emit(self, prompt_data):
+        key = str(prompt_data)
         if key not in self._answered_prompts:
             self._answered_prompts[key] = self._PENDING
-            prompt = {"prompter_id": id(self._prompt_queue), "data": msg}
+            prompt = {"prompter_id": id(self._prompt_queue), "data": prompt_data}
             self._queue.put(("prompt", prompt))
             self._answered_prompts[key] = self._prompt_queue.get()
         while self._answered_prompts[key] is self._PENDING:
@@ -95,7 +95,7 @@ class _Flash(_MessageBase):
     def __init__(self, queue, item_name):
         super().__init__(queue, item_name, "flash")
 
-    def emit(self, msg):
+    def emit(self):
         self._queue.put(("flash", {"item_name": self._item_name}))
 
 

@@ -69,8 +69,9 @@ class _KernelManagerFactory(metaclass=Singleton):
         """
         if not filter_id == "":
             group_id = filter_id  # Ignore group ID in case filter ID exists
-        for km in self._kernel_managers.values():
+        for k in self._kernel_managers:
             # Reuse kernel manager if using same group id and kernel and it's idle
+            km = self._kernel_managers[k]
             if km.group_id() == group_id and km.kernel_name == kernel_name:
                 if not km.is_busy():
                     return km
@@ -100,11 +101,11 @@ class _KernelManagerFactory(metaclass=Singleton):
         conda_exe = kwargs.pop("conda_exe", "")
         if environment == "conda":
             if not os.path.exists(conda_exe):
-                logger.msg_kernel_execution.emit({"type": "conda_not_found"})
+                logger.msg_kernel_execution.emit(msg=dict(type="conda_not_found"))
                 self._kernel_managers.pop(self.get_kernel_manager_key(km))
                 return None
             km.kernel_spec_manager = CondaKernelSpecManager(conda_exe=conda_exe)
-        msg = {"kernel_name": kernel_name}
+        msg = dict(kernel_name=kernel_name)
         if not km.is_alive():
             try:
                 if not km.kernel_spec:
@@ -217,7 +218,7 @@ class _KernelManagerFactory(metaclass=Singleton):
         """Shuts down all kernel managers stored in the factory."""
         while True:
             try:
-                _, km = self._kernel_managers.popitem()
+                key, km = self._kernel_managers.popitem()
                 if km.is_alive():
                     km.shutdown_kernel(now=True)
             except KeyError:
@@ -282,7 +283,7 @@ class KernelExecutionManager(ExecutionManagerBase):
             **kwargs (optional): Keyword arguments passed to ``KernelManager.start_kernel()``
         """
         super().__init__(logger)
-        self._msg_head = {"kernel_name": kernel_name}
+        self._msg_head = dict(kernel_name=kernel_name)
         self._commands = commands
         self._cmd_failed = False
         self.std_out = kwargs["stdout"] = open(os.devnull, "w")
@@ -305,7 +306,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         if self._kill_completed:
             conn_file = self._kernel_manager.connection_file
             shutdown_kernel_manager(conn_file)
-            self._logger.msg_kernel_execution.emit({"type": "kernel_shutdown", **self._msg_head})
+            self._logger.msg_kernel_execution.emit(dict(type="kernel_shutdown", **self._msg_head))
         if self._cmd_failed or not run_succeeded:
             return -1
         return 0
@@ -314,12 +315,12 @@ class KernelExecutionManager(ExecutionManagerBase):
         try:
             self._kernel_client.wait_for_ready(timeout=self._startup_timeout)
         except RuntimeError as e:
-            msg = {"type": "execution_failed_to_start", "error": str(e), **self._msg_head}
+            msg = dict(type="execution_failed_to_start", error=str(e), **self._msg_head)
             self._logger.msg_kernel_execution.emit(msg)
             self._kernel_client.stop_channels()
             self._kernel_manager.shutdown_kernel(now=True)
             return False
-        msg = {"type": "execution_started", **self._msg_head}
+        msg = dict(type="execution_started", **self._msg_head)
         self._logger.msg_kernel_execution.emit(msg)
         for cmd in self._commands:
             self._cmd_failed = False
@@ -340,7 +341,7 @@ class KernelExecutionManager(ExecutionManagerBase):
         elif msg["header"]["msg_type"] == "status":
             # Set kernel manager busy if execution is starting or in progress
             exec_state = msg["content"]["execution_state"]
-            if exec_state in {"busy", "starting"}:
+            if exec_state == "busy" or exec_state == "starting":
                 self._kernel_manager.set_busy(True)
             else:  # exec_state == 'idle'
                 self._kernel_manager.set_busy(False)
@@ -356,4 +357,4 @@ class KernelExecutionManager(ExecutionManagerBase):
             if self._kill_completed:
                 conn_file = self._kernel_manager.connection_file
                 shutdown_kernel_manager(conn_file)
-                self._logger.msg_kernel_execution.emit({"type": "kernel_shutdown", **self._msg_head})
+                self._logger.msg_kernel_execution.emit(dict(type="kernel_shutdown", **self._msg_head))

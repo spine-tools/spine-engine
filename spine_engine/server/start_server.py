@@ -54,7 +54,8 @@ def main(argv):
             except Exception as e:
                 print(f"start_server.main(): {type(e).__name__}: {e}")
             break
-        time.sleep(0.1)
+        else:
+            time.sleep(0.1)
     return
 
 

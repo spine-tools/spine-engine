@@ -47,7 +47,7 @@ class ServerMessage:
         self._id = req_id
         self._data = data
         if not files:
-            self._files = []
+            self._files = list()
         else:
             self._files = files  # Name of the file where zip-file is saved to. Does not need to be the same as original
 
@@ -120,7 +120,7 @@ class ServerMessage:
         parsed_msg = json.loads(message.decode("utf-8"))  # Load JSON string into dictionary
         filenames = parsed_msg["files"]  # dict
         data = parsed_msg["data"]  # list
-        parsed_filenames = []
+        parsed_filenames = list()
         if len(filenames) > 0:
             for f in filenames:
                 parsed_filenames.append(filenames[f])

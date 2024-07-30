@@ -47,7 +47,9 @@ def exec_in_env(conda_prefix, env_path, *command):
             os.execvp(quoted_command[0], quoted_command)
         else:
             activate = os.path.join(conda_prefix, "bin", "activate")
-            ecomm = f". '{activate}' '{env_path}' && echo CONDA_PREFIX=$CONDA_PREFIX && exec {' '.join(quoted_command)}"
+            ecomm = ". '{}' '{}' && echo CONDA_PREFIX=$CONDA_PREFIX && exec {}".format(
+                activate, env_path, " ".join(quoted_command)
+            )
             ecomm = ["sh" if "bsd" in sys.platform else "bash", "-c", ecomm]
             os.execvp(ecomm[0], ecomm)
 
