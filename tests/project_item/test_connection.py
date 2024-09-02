@@ -11,11 +11,12 @@
 ######################################################################################################################
 """ Uni tests for the ``connection`` module. """
 import os.path
+import pathlib
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import Mock
 from spine_engine.project_item.connection import Connection, FilterSettings, Jump
-from spine_engine.project_item.project_item_resource import database_resource
+from spine_engine.project_item.project_item_resource import LabelArg, database_resource, file_resource
 from spinedb_api import DatabaseMapping, import_alternatives, import_entity_classes, import_scenarios
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 
@@ -168,6 +169,31 @@ class TestJump(unittest.TestCase):
         jump = Jump("source", "bottom", "destination", "top", condition)
         jump.make_logger(Mock())
         self.assertTrue(jump.is_condition_true(23))
+
+    def test_command_line_args_with_whitespace_are_not_broken_into_tokens(self):
+        # Curiously, this test fails when run under PyCharm's debugger.
+        with TemporaryDirectory() as temp_dir:
+            path = pathlib.Path(temp_dir) / "path with spaces" / "file name.txt"
+            condition = {
+                "type": "python-script",
+                "script": "\n".join(
+                    (
+                        "from pathlib import Path",
+                        "import sys",
+                        "if len(sys.argv) != 3:",
+                        "    exit(1)",
+                        f"expected_path = Path(r'{str(path)}').resolve()",
+                        "if Path(sys.argv[1]).resolve() != expected_path:",
+                        "    exit(1)",
+                        "exit(0 if int(sys.argv[2]) == 23 else 1)",
+                    )
+                ),
+            }
+            jump = Jump("source", "bottom", "destination", "top", condition, [LabelArg("arg_label")])
+            resource = file_resource("provider: unit test", str(path), "arg_label")
+            jump.receive_resources_from_source([resource])
+            jump.make_logger(Mock())
+            self.assertTrue(jump.is_condition_true(23))
 
     def test_dictionary(self):
         jump = Jump("source", "bottom", "destination", "top", {"type": "python-script", "script": "exit(23)"})
