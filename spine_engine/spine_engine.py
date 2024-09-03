@@ -101,7 +101,6 @@ class SpineEngine:
         Raises:
             EngineInitFailed: Raised if initialization fails
         """
-        super().__init__()
         self._queue = mp.Queue()
         if items is None:
             items = {}
@@ -109,7 +108,7 @@ class SpineEngine:
         if execution_permits is None:
             execution_permits = {}
         self._execution_permits = execution_permits
-        connections = list(map(Connection.from_dict, connections))  # Deserialize connections
+        connections = list(map(Connection.from_dict, connections))
         project_item_loader = ProjectItemLoader()
         self._executable_item_classes = project_item_loader.load_executable_item_classes(items_module_name)
         required_items = required_items_for_execution(
@@ -137,8 +136,11 @@ class SpineEngine:
         self._item_names = list(self._dag)  # Names of permitted items and their neighbors
         if jumps is None:
             jumps = []
-        self._jumps = list(map(Jump.from_dict, jumps))
-        validate_jumps(self._jumps, self._dag)
+        else:
+            jumps = list(map(Jump.from_dict, jumps))
+        items_by_jump = _get_items_by_jump(jumps, self._dag)
+        self._jumps = filter_unneeded_jumps(jumps, items_by_jump, execution_permits)
+        validate_jumps(self._jumps, items_by_jump, self._dag)
         for x in self._connections + self._jumps:
             x.make_logger(self._queue)
         for x in self._jumps:
@@ -761,14 +763,25 @@ def _validate_dag(dag):
         raise EngineInitFailed("DAG contains unconnected items.")
 
 
-def validate_jumps(jumps, dag):
+def filter_unneeded_jumps(jumps, items_by_jump, execution_permits):
+    """Drops jumps whose items are not going to be executed.
+
+    Args:
+        jumps (Iterable of Jump): jumps to filter
+        items_by_jump (dict): mapping from jump to list of item names
+        execution_permits (dict): mapping from item name to boolean telling if its is permitted to execute
+    """
+    return [jump for jump in jumps if all(execution_permits[item] for item in items_by_jump[jump])]
+
+
+def validate_jumps(jumps, items_by_jump, dag):
     """Raises an exception in case jumps are not valid.
 
     Args:
         jumps (list of Jump): jumps
+        items_by_jump (dict): mapping from jump to list of item names
         dag (DiGraph): jumps' DAG
     """
-    items_by_jump = _get_items_by_jump(jumps, dag)
     for jump in jumps:
         validate_single_jump(jump, jumps, dag, items_by_jump)
 
@@ -778,7 +791,7 @@ def validate_single_jump(jump, jumps, dag, items_by_jump=None):
 
     Args:
         jump (Jump): the jump to check
-        jumps (list of Jump): all jumps in dag
+        jumps (list of Jump): all jumps in DAG
         dag (DiGraph): jumps' DAG
         items_by_jump (dict, optional): mapping jumps to a set of items in between destination and source
     """

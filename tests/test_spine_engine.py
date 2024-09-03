@@ -869,31 +869,44 @@ class TestSpineEngine(unittest.TestCase):
             self._assert_resource_args(item_c.execute.call_args_list, expected)
 
     def test_stopping_execution_in_the_middle_of_a_loop_does_not_leave_multithread_executor_running(self):
-        with TemporaryDirectory() as temp_dir:
-            item_a = self._mock_item("a")
-            item_b = self._mock_item("b")
-            item_instances = {"a": [item_a, item_a, item_a, item_a], "b": [item_b]}
-            items = {
-                "a": {"type": "TestItem"},
-                "b": {"type": "TestItem"},
-            }
-            connections = [c.to_dict() for c in (Connection("a", "right", "b", "left"),)]
-            jumps = [Jump("a", "right", "a", "right", self._LOOP_FOREVER).to_dict()]
-            engine = self._create_engine(items, connections, item_instances, jumps=jumps)
+        item_a = self._mock_item("a")
+        item_b = self._mock_item("b")
+        item_instances = {"a": [item_a, item_a, item_a, item_a], "b": [item_b]}
+        items = {
+            "a": {"type": "TestItem"},
+            "b": {"type": "TestItem"},
+        }
+        connections = [c.to_dict() for c in (Connection("a", "right", "b", "left"),)]
+        jumps = [Jump("a", "right", "a", "right", self._LOOP_FOREVER).to_dict()]
+        engine = self._create_engine(items, connections, item_instances, jumps=jumps)
 
-            def execute_item_a(loop_counter, *args, **kwargs):
-                if loop_counter[0] == 2:
-                    engine.stop()
-                    return ItemExecutionFinishState.STOPPED
-                loop_counter[0] += 1
-                return ItemExecutionFinishState.SUCCESS
+        def execute_item_a(loop_counter, *args, **kwargs):
+            if loop_counter[0] == 2:
+                engine.stop()
+                return ItemExecutionFinishState.STOPPED
+            loop_counter[0] += 1
+            return ItemExecutionFinishState.SUCCESS
 
-            loop_counter = [0]
-            item_a.execute.side_effect = partial(execute_item_a, loop_counter)
-            engine.run()
-            self.assertEqual(engine.state(), SpineEngineState.USER_STOPPED)
-            self.assertEqual(item_a.execute.call_count, 3)
-            item_b.execute.assert_not_called()
+        loop_counter = [0]
+        item_a.execute.side_effect = partial(execute_item_a, loop_counter)
+        engine.run()
+        self.assertEqual(engine.state(), SpineEngineState.USER_STOPPED)
+        self.assertEqual(item_a.execute.call_count, 3)
+        item_b.execute.assert_not_called()
+
+    def test_executing_loop_source_item_only_does_not_execute_the_loop(self):
+        item_a = self._mock_item("a")
+        item_b = self._mock_item("b")
+        item_instances = {"a": [item_a, item_a, item_a, item_a], "b": [item_b, item_b, item_b, item_b]}
+        items = {
+            "a": {"type": "TestItem"},
+            "b": {"type": "TestItem"},
+        }
+        connections = [c.to_dict() for c in (Connection("a", "right", "b", "left"),)]
+        jumps = [Jump("b", "right", "a", "right", self._LOOP_FOREVER).to_dict()]
+        self._run_engine(items, connections, item_instances, execution_permits={"a": False, "b": True}, jumps=jumps)
+        self.assertEqual(item_a.execute.call_count, 0)
+        self.assertEqual(item_b.execute.call_count, 1)
 
     def _assert_resource_args(self, arg_packs, expected_packs):
         self.assertEqual(len(arg_packs), len(expected_packs))

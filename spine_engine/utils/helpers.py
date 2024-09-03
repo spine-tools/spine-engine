@@ -405,7 +405,7 @@ def make_connections(connections, permitted_items):
         list of Connection: List of permitted Connections or an empty list if the DAG contains no connections
     """
     if not connections:
-        return list()
+        return []
     connections = connections_to_selected_items(connections, permitted_items)
     return connections
 
@@ -433,10 +433,10 @@ def dag_edges(connections):
     Returns:
         dict: DAG edges. Mapping of source item (node) to a list of destination items (nodes)
     """
-    edges = dict()
+    edges = {}
     for connection in connections:
         source, destination = connection.source, connection.destination
-        edges.setdefault(source, list()).append(destination)
+        edges.setdefault(source, []).append(destination)
     return edges
 
 
