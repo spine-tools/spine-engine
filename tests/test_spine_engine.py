@@ -16,6 +16,7 @@ Unit tests for `spine_engine` module.
 Inspired from tests for spinetoolbox.ExecutionInstance and spinetoolbox.ResourceMap,
 and intended to supersede them.
 """
+from functools import partial
 import os.path
 import sys
 from tempfile import TemporaryDirectory
@@ -41,6 +42,11 @@ class TestSpineEngine(unittest.TestCase):
     _LOOP_TWICE = {
         "type": "python-script",
         "script": "\n".join(["import sys", "loop_counter = int(sys.argv[1])", "exit(0 if loop_counter < 2 else 1)"]),
+    }
+
+    _LOOP_FOREVER = {
+        "type": "python-script",
+        "script": "\n".join(["exit(0)"]),
     }
 
     @staticmethod
@@ -97,7 +103,7 @@ class TestSpineEngine(unittest.TestCase):
         }
         return resource
 
-    def _run_engine(self, items, connections, item_instances, execution_permits=None, jumps=None):
+    def _create_engine(self, items, connections, item_instances, execution_permits=None, jumps=None):
         if execution_permits is None:
             execution_permits = {item_name: True for item_name in items}
         with patch("spine_engine.spine_engine.create_timestamp") as mock_create_timestamp:
@@ -116,6 +122,10 @@ class TestSpineEngine(unittest.TestCase):
             return item_instances[name][0]
 
         engine.make_item = make_item
+        return engine
+
+    def _run_engine(self, items, connections, item_instances, execution_permits=None, jumps=None):
+        engine = self._create_engine(items, connections, item_instances, execution_permits, jumps)
         engine.run()
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
 
@@ -857,6 +867,33 @@ class TestSpineEngine(unittest.TestCase):
             self._assert_resource_args(item_b.execute.call_args_list, expected)
             expected = 2 * [[[self._default_forward_url_resource(url_fw_b, "b")], []]]
             self._assert_resource_args(item_c.execute.call_args_list, expected)
+
+    def test_stopping_execution_in_the_middle_of_a_loop_does_not_leave_multithread_executor_running(self):
+        with TemporaryDirectory() as temp_dir:
+            item_a = self._mock_item("a")
+            item_b = self._mock_item("b")
+            item_instances = {"a": [item_a, item_a, item_a, item_a], "b": [item_b]}
+            items = {
+                "a": {"type": "TestItem"},
+                "b": {"type": "TestItem"},
+            }
+            connections = [c.to_dict() for c in (Connection("a", "right", "b", "left"),)]
+            jumps = [Jump("a", "right", "a", "right", self._LOOP_FOREVER).to_dict()]
+            engine = self._create_engine(items, connections, item_instances, jumps=jumps)
+
+            def execute_item_a(loop_counter, *args, **kwargs):
+                if loop_counter[0] == 2:
+                    engine.stop()
+                    return ItemExecutionFinishState.STOPPED
+                loop_counter[0] += 1
+                return ItemExecutionFinishState.SUCCESS
+
+            loop_counter = [0]
+            item_a.execute.side_effect = partial(execute_item_a, loop_counter)
+            engine.run()
+            self.assertEqual(engine.state(), SpineEngineState.USER_STOPPED)
+            self.assertEqual(item_a.execute.call_count, 3)
+            item_b.execute.assert_not_called()
 
     def _assert_resource_args(self, arg_packs, expected_packs):
         self.assertEqual(len(arg_packs), len(expected_packs))

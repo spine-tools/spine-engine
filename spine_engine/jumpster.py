@@ -65,7 +65,7 @@ class JumpsterEvent(DefinitionBase):
 
 
 class Failure(BaseException):
-    """A failure"""
+    """Item execution stopped by failure or user interruption."""
 
 
 class Output:
@@ -80,7 +80,7 @@ class Finalization:
 
 class JumpsterThreadError(Exception):
     """An exception has occurred in one or more of the threads jumpster manages.
-    This error forwards the message and stack trace for all of the collected errors.
+    This error forwards the message and stack trace for all the collected errors.
     """
 
     def __init__(self, *args, **kwargs):
@@ -251,7 +251,6 @@ class MultithreadExecutor:
                     empty_iters.append(key)
                 except StopIteration:
                     empty_iters.append(key)
-                    # TODO: Anything about loops?
             # clear and mark complete finished iterators
             for key in empty_iters:
                 del active_iters[key]
@@ -259,9 +258,7 @@ class MultithreadExecutor:
         if errs:
             raise JumpsterThreadError(
                 "During multithread execution errors occurred in threads:\n{error_list}".format(
-                    error_list="\n".join(
-                        ["In thread {tid}: {err}".format(tid=tid, err=err.to_string()) for tid, err in errs.items()]
-                    )
+                    error_list="\n".join([f"In thread {tid}: {err.to_string()}" for tid, err in errs.items()])
                 ),
                 thread_error_infos=list(errs.values()),
             )
@@ -338,6 +335,7 @@ def execute_step_in_thread(step, errors):
 
     Args:
         step (Step): step to execute
+        errors (dict): mapping from thread id to error info
     """
     event_queue = queue.Queue()
     thread = threading.Thread(target=_do_execute_step_in_thread, args=(event_queue, step))
@@ -394,4 +392,4 @@ def _do_execute_step_in_thread(event_queue, step):
             ThreadSystemErrorEvent(tid=tid, error_info=serializable_error_info_from_exc_info(sys.exc_info()))
         )
     except Failure:
-        pass
+        event_queue.put(JumpsterEvent(JumpsterEventType.STEP_FAILURE, step.item_name, step.direction))

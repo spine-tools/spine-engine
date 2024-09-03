@@ -275,10 +275,11 @@ class SpineEngine:
         self._thread.start()
         while True:
             msg = self._queue.get()
-            yield msg
             if msg[0] == "dag_exec_finished":
                 break
+            yield msg
         self._thread.join()
+        yield msg
 
     def answer_prompt(self, prompter_id, answer):
         """Answers the prompt for the specified prompter id."""
