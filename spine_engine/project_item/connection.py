@@ -589,8 +589,10 @@ class Connection(ResourceConvertingConnection):
 class Jump(ConnectionBase):
     """Represents a conditional jump between two project items."""
 
+    _DEFAULT_CONDITION = {"type": "python-script", "script": "exit(1)", "specification": ""}
+
     def __init__(
-        self, source_name, source_position, destination_name, destination_position, condition={}, cmd_line_args=()
+        self, source_name, source_position, destination_name, destination_position, condition=None, cmd_line_args=()
     ):
         """
         Args:
@@ -598,11 +600,11 @@ class Jump(ConnectionBase):
             source_position (str): source anchor's position
             destination_name (str): destination project item's name
             destination_position (str): destination anchor's position
-            condition (dict): jump condition
+            condition (dict, optional): jump condition
+            cmd_line_args (Iterable of str): command line arguments
         """
         super().__init__(source_name, source_position, destination_name, destination_position)
-        default_condition = {"type": "python-script", "script": "exit(1)", "specification": ""}
-        self.condition = condition if condition else default_condition
+        self.condition = condition if condition is not None else self._DEFAULT_CONDITION
         self._resources_from_source = set()
         self._resources_from_destination = set()
         self.cmd_line_args = list(cmd_line_args)

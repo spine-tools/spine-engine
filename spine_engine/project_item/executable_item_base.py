@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains ExecutableItem, a project item's counterpart in execution as well as support utilities.
-
-"""
+""" Contains ExecutableItem, a project item's counterpart in execution as well as support utilities. """
 from hashlib import sha1
 from pathlib import Path
 from ..utils.helpers import ExecutionDirection, ItemExecutionFinishState, shorten
@@ -28,6 +25,7 @@ class ExecutableItemBase:
             name (str): item's name
             project_dir (str): absolute path to project directory
             logger (LoggerInterface): a logger
+            group_id (str, optional): execution group identifier
         """
         self._name = name
         self._project_dir = project_dir
