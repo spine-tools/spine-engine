@@ -273,8 +273,8 @@ def get_julia_env(use_jupyter_console, julia_kernel, julia_path, julia_project_p
         project = "" if project_arg is None else project_arg.split("--project=")[1]
         return julia, project
     if julia_path == "":
-        julia = resolve_executable_from_path(JULIA_EXECUTABLE)
-        if julia == "":
+        julia_path = resolve_executable_from_path(JULIA_EXECUTABLE)
+        if julia_path == "":
             return None
     return julia_path, julia_project_path
 
