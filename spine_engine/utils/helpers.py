@@ -247,18 +247,19 @@ def inverted(input_):
     return output
 
 
-def get_julia_env(settings):
+def get_julia_env(use_jupyter_console, julia_kernel, julia_path, julia_project_path):
     """
     Args:
-        settings (QSettings, AppSettings)
+        use_jupyter_console (bool): True if Jupyter console is in use
+        julia_kernel (str): Julia kernel name
+        julia_path (str): Path to Julia executable
+        julia_project_path (str): Path to Julia project/environment folder
 
     Returns:
         Union[tuple, None]: (julia_exe, julia_project), or None if none found
     """
-    use_jupyter_console = settings.value("appSettings/useJuliaKernel", defaultValue="0") == "2"
     if use_jupyter_console:
-        kernel_name = settings.value("appSettings/juliaKernel", defaultValue="")
-        resource_dir = custom_find_kernel_specs().get(kernel_name)
+        resource_dir = custom_find_kernel_specs().get(julia_kernel)
         if resource_dir is None:
             return None
         filepath = os.path.join(resource_dir, "kernel.json")
@@ -271,13 +272,11 @@ def get_julia_env(settings):
         project_arg = next((arg for arg in kernel_spec["argv"] if arg.startswith("--project=")), None)
         project = "" if project_arg is None else project_arg.split("--project=")[1]
         return julia, project
-    julia = settings.value("appSettings/juliaPath", defaultValue="")
-    if julia == "":
-        julia = resolve_executable_from_path(JULIA_EXECUTABLE)
-        if julia == "":
+    if julia_path == "":
+        julia_path = resolve_executable_from_path(JULIA_EXECUTABLE)
+        if julia_path == "":
             return None
-    project = settings.value("appSettings/juliaProjectPath", defaultValue="")
-    return julia, project
+    return julia_path, julia_project_path
 
 
 def required_items_for_execution(items, connections, executable_item_classes, execution_permits):
