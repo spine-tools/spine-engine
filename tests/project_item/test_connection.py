@@ -142,14 +142,13 @@ class TestConnectionWithDatabase(unittest.TestCase):
         )
         resources = [database_resource("unit_test", self._url, "my_database")]
         connection.clean_up_backward_resources(resources)
-        database_map = DatabaseMapping(self._url)
-        entity_class_list = database_map.query(database_map.entity_class_sq).all()
-        self.assertEqual(len(entity_class_list), 0)
-        alternative_list = database_map.query(database_map.alternative_sq).all()
-        self.assertEqual(len(alternative_list), 2)
-        self.assertEqual(alternative_list[0].name, "Base")
-        self.assertEqual(alternative_list[1].name, "my_alternative")
-        database_map.close()
+        with DatabaseMapping(self._url) as database_map:
+            entity_class_list = database_map.query(database_map.entity_class_sq).all()
+            self.assertEqual(len(entity_class_list), 0)
+            alternative_list = database_map.query(database_map.alternative_sq).all()
+            self.assertEqual(len(alternative_list), 2)
+            self.assertEqual(alternative_list[0].name, "Base")
+            self.assertEqual(alternative_list[1].name, "my_alternative")
 
 
 class TestJump(unittest.TestCase):
