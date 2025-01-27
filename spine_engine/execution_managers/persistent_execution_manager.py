@@ -13,7 +13,6 @@
 """
 Contains PersistentManagerBase, PersistentExecutionManagerBase classes and subclasses,
 as well as some convenience functions.
-
 """
 from dataclasses import dataclass
 from multiprocessing import Lock, Process
@@ -546,6 +545,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
     persistent_managers = {}
     """Maps keys to associated PersistentManagerBase instances."""
     _factory_open = OpenSign()
+    _idle_manager_lock = threading.Lock()
 
     @staticmethod
     def _emit_persistent_started(logger, key, language):
@@ -581,16 +581,17 @@ class _PersistentManagerFactory(metaclass=Singleton):
         while not persistent_process_semaphore.acquire(timeout=0.5):
             if not self._factory_open:
                 return None
-            idle_pms = self._get_idle_persistent_managers()
-            # Try to reuse
-            pm = self._reuse_persistent_manager(idle_pms, logger, args, group_id)
-            if pm:
-                return pm
-            # Kill an idle pm if any
-            if idle_pms:
-                key, pm = idle_pms[0]
-                pm.kill_process()
-                del self.persistent_managers[key]
+            with self._idle_manager_lock:
+                idle_pms = self._get_idle_persistent_managers()
+                # Try to reuse
+                pm = self._reuse_persistent_manager(idle_pms, logger, args, group_id)
+                if pm:
+                    return pm
+                # Kill an idle pm if any
+                if idle_pms:
+                    key, pm = idle_pms[0]
+                    pm.kill_process()
+                    del self.persistent_managers[key]
         # We got permission to create a new process
         # Try to reuse one last time just in case things changed quickly
         idle_pms = self._get_idle_persistent_managers()
@@ -615,12 +616,13 @@ class _PersistentManagerFactory(metaclass=Singleton):
 
         Args:
             key (tuple): persistent identifier
-        Returns:
-            generator: stdout and stderr messages (dictionaries with two keys: type, and data)
+
+        Yields:
+            dict: stdout and stderr messages (dictionaries with two keys: type, and data)
         """
         pm = self.persistent_managers.get(key)
         if pm is None:
-            return ()
+            return
         yield from pm.restart_persistent()
 
     def interrupt_persistent(self, key):
@@ -652,14 +654,13 @@ class _PersistentManagerFactory(metaclass=Singleton):
             key (tuple): persistent identifier
             cmd (str): command to issue
 
-        Returns:
-            generator: stdin, stdout, and stderr messages (dictionaries with two keys: type, and data)
+        Yields:
+            dict: stdin, stdout, and stderr messages (dictionaries with two keys: type, and data)
         """
         pm = self.persistent_managers.get(key)
         if pm is None:
-            return ()
-        for msg in pm.issue_command(cmd, add_history=True, catch_exception=False):
-            yield msg
+            return
+        yield from pm.issue_command(cmd, add_history=True, catch_exception=False)
 
     def is_persistent_command_complete(self, key, cmd):
         """Checks whether a command is complete.
@@ -702,7 +703,7 @@ class _PersistentManagerFactory(metaclass=Singleton):
         """
         pm = self.persistent_managers.get(key)
         if pm is None:
-            return
+            return ""
         return pm.get_history_item(text, prefix, backwards)
 
     def kill_manager_processes(self):
