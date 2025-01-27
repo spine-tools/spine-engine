@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Utilities for managing execution resources such as processes.
-
-"""
+""" Utilities for managing execution resources such as processes. """
 import threading
 
 
