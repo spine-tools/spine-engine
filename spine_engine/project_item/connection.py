@@ -418,9 +418,12 @@ class ResourceConvertingConnection(ConnectionBase):
         final_resources = []
         csv_filepaths = []
         for r in resources:
-            if r.hasfilepath and os.path.splitext(r.path)[1].lower() == ".csv":
-                csv_filepaths.append(r.path)
-                continue
+            if r.hasfilepath:
+                if os.path.splitext(r.path)[1].lower() == ".csv":
+                    csv_filepaths.append(r.path)
+                    continue
+                if os.path.basename(r.path) == "datapackage.json":
+                    continue
             final_resources.append(r)
         if not csv_filepaths:
             return final_resources

@@ -15,10 +15,55 @@ import pathlib
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import Mock
-from spine_engine.project_item.connection import Connection, FilterSettings, Jump
+from spine_engine.project_item.connection import Connection, FilterSettings, Jump, ResourceConvertingConnection
 from spine_engine.project_item.project_item_resource import LabelArg, database_resource, file_resource
 from spinedb_api import DatabaseMapping, import_alternatives, import_entity_classes, import_scenarios
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
+
+
+class TestResourceConvertingConnection(unittest.TestCase):
+    def test_apply_use_datapackage_with_empty_resources(self):
+        connection = ResourceConvertingConnection(
+            "Data source", "bottom", "Data sink", "left", {"use_datapackage": True}
+        )
+        self.assertEqual(connection._apply_use_datapackage([]), [])
+
+    def test_apply_use_datapackage_with_non_csv_resources(self):
+        connection = ResourceConvertingConnection(
+            "Data source", "bottom", "Data sink", "left", {"use_datapackage": True}
+        )
+        path = str(pathlib.Path("/") / "data" / "non_csv.xlsx")
+        resources = [file_resource("Data source", path)]
+        self.assertEqual(connection._apply_use_datapackage(resources), [file_resource("Data source", path)])
+
+    def test_apply_use_datapackage_generates_package_json(self):
+        with TemporaryDirectory() as temp_dir:
+            csv_path = pathlib.Path(temp_dir) / "data.csv"
+            csv_path.touch()
+            connection = ResourceConvertingConnection(
+                "Data source", "bottom", "Data sink", "left", {"use_datapackage": True}
+            )
+            resources = [file_resource("Data source", str(csv_path))]
+            datapackage_resources = connection._apply_use_datapackage(resources)
+            datapackage_path = pathlib.Path(temp_dir) / "datapackage.json"
+            self.assertEqual(datapackage_resources, [file_resource("Data source", str(datapackage_path))])
+            self.assertTrue(datapackage_path.exists())
+
+    def test_apply_use_datapackage_doesnt_include_datapackage_json_twice(self):
+        with TemporaryDirectory() as temp_dir:
+            csv_path = pathlib.Path(temp_dir) / "data.csv"
+            csv_path.touch()
+            datapackage_path = pathlib.Path(temp_dir) / "datapackage.json"
+            connection = ResourceConvertingConnection(
+                "Data source", "bottom", "Data sink", "left", {"use_datapackage": True}
+            )
+            resources = [
+                file_resource("Data source", str(csv_path)),
+                file_resource("Data source", str(datapackage_path)),
+            ]
+            datapackage_resources = connection._apply_use_datapackage(resources)
+            self.assertEqual(datapackage_resources, [file_resource("Data source", str(datapackage_path))])
+            self.assertTrue(datapackage_path.exists())
 
 
 class TestConnection(unittest.TestCase):
@@ -90,12 +135,12 @@ class TestConnectionWithDatabase(unittest.TestCase):
         self._db_map = DatabaseMapping(self._url, create=True)
 
     def tearDown(self):
-        self._db_map.close()
         self._temp_dir.cleanup()
 
     def test_serialization_with_filters(self):
-        import_scenarios(self._db_map, ("my_scenario",))
-        self._db_map.commit_session("Add test data.")
+        with self._db_map:
+            import_scenarios(self._db_map, ("my_scenario",))
+            self._db_map.commit_session("Add test data.")
         filter_settings = FilterSettings(
             {"my_database": {"scenario_filter": {"my_scenario": False}}}, auto_online=False
         )
@@ -111,8 +156,9 @@ class TestConnectionWithDatabase(unittest.TestCase):
         self.assertEqual(restored._filter_settings, filter_settings)
 
     def test_enabled_scenarios_with_auto_enable_on(self):
-        import_scenarios(self._db_map, ("scenario_1", "scenario_2"))
-        self._db_map.commit_session("Add test data.")
+        with self._db_map:
+            import_scenarios(self._db_map, ("scenario_1", "scenario_2"))
+            self._db_map.commit_session("Add test data.")
         filter_settings = FilterSettings({"my_database": {"scenario_filter": {"scenario_1": False}}})
         connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
         resources = [database_resource("unit_test", self._url, "my_database", filterable=True)]
@@ -120,8 +166,9 @@ class TestConnectionWithDatabase(unittest.TestCase):
         self.assertEqual(connection.enabled_filters("my_database"), {"scenario_filter": ["scenario_2"]})
 
     def test_enabled_scenarios_with_auto_enable_off(self):
-        import_scenarios(self._db_map, ("scenario_1", "scenario_2"))
-        self._db_map.commit_session("Add test data.")
+        with self._db_map:
+            import_scenarios(self._db_map, ("scenario_1", "scenario_2"))
+            self._db_map.commit_session("Add test data.")
         filter_settings = FilterSettings({"my_database": {"scenario_filter": {"scenario_1": True}}}, auto_online=False)
         connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
         resources = [database_resource("unit_test", self._url, "my_database", filterable=True)]
@@ -129,10 +176,10 @@ class TestConnectionWithDatabase(unittest.TestCase):
         self.assertEqual(connection.enabled_filters("my_database"), {"scenario_filter": ["scenario_1"]})
 
     def test_purge_data_before_writing(self):
-        import_alternatives(self._db_map, ("my_alternative",))
-        import_entity_classes(self._db_map, ("my_object_class",))
-        self._db_map.commit_session("Add test data.")
-        self._db_map.close()
+        with self._db_map:
+            import_alternatives(self._db_map, ("my_alternative",))
+            import_entity_classes(self._db_map, ("my_object_class",))
+            self._db_map.commit_session("Add test data.")
         connection = Connection(
             "source",
             "bottom",
