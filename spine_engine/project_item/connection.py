@@ -16,7 +16,7 @@ from multiprocessing import Lock
 import os
 import subprocess
 import tempfile
-from datapackage import Package
+from frictionless import Package, Resource
 from spine_engine.project_item.project_item_resource import (
     expand_cmd_line_args,
     file_resource,
@@ -429,11 +429,11 @@ class ResourceConvertingConnection(ConnectionBase):
             return final_resources
         # Build Package from CSVs and add it to the resources
         base_path = os.path.dirname(os.path.commonpath(csv_filepaths))
-        package = Package(base_path=base_path)
+        package = Package(basepath=base_path)
         for path in csv_filepaths:
-            package.add_resource({"path": os.path.relpath(path, base_path)})
+            package.add_resource(Resource(path=os.path.relpath(path, base_path)))
         package_path = os.path.join(base_path, "datapackage.json")
-        package.save(package_path)
+        package.to_json(package_path)
         provider = resources[0].provider_name
         package_resource = file_resource(provider, package_path, label=f"datapackage@{provider}")
         package_resource.metadata = resources[0].metadata
