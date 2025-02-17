@@ -112,7 +112,7 @@ class ProjectItemSpecification:
         Returns True if two specifications are essentially the same.
 
         Args:
-            other (DataTransformerSpecification): specification to compare to
+            other (ProjectItemSpecification): specification to compare to
 
         Returns:
             bool: True if the specifications are equivalent, False otherwise

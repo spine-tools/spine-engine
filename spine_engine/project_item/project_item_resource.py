@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Provides the ProjectItemResource class. """
+from __future__ import annotations
 from contextlib import contextmanager
 import copy
 from pathlib import Path
@@ -123,6 +124,18 @@ class ProjectItemResource:
             url=self._url,
             metadata=metadata,
             filterable=self._filterable,
+            identifier=self._identifier,
+        )
+
+    def clone_with_new_provider(self, provider_name: str, filterable: bool) -> ProjectItemResource:
+        """Clones the resource with new provider."""
+        return ProjectItemResource(
+            provider_name,
+            self.type_,
+            label=self.label,
+            url=self._url,
+            metadata=copy.deepcopy(self.metadata),
+            filterable=filterable,
             identifier=self._identifier,
         )
 
