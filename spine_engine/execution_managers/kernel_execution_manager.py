@@ -299,7 +299,7 @@ class KernelExecutionManager(ExecutionManagerBase):
 
     def run_until_complete(self):
         if self._kernel_client is None:
-            return 0
+            return -1
         self._kernel_client.start_channels()
         run_succeeded = self._do_run()
         self._kernel_client.stop_channels()
