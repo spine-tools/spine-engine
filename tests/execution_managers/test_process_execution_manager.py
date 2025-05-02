@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for ``process_execution_manager`` module."""
+import os.path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import MagicMock
@@ -63,7 +64,10 @@ class TestProcessExecutionManager(unittest.TestCase):
             )
             ret = exec_manager.run_until_complete()
         logger.msg_proc.emit.assert_called_once()
-        logger.msg_proc.emit.assert_called_with(f"{workdir}")
+        message_args = logger.msg_proc.emit.call_args.args
+        self.assertEqual(len(message_args), 1)
+        path_in_args = message_args[0]
+        self.assertTrue(workdir == path_in_args or os.path.realpath(workdir) == path_in_args)
         self.assertEqual(ret, 0)
 
 
