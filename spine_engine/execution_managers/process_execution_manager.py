@@ -10,10 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains the ProcessExecutionManager class.
-
-"""
+""" Contains the ProcessExecutionManager class. """
 
 import subprocess
 import sys
