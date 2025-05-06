@@ -322,7 +322,6 @@ class SpineEngine:
                     {
                         "item_name": event.item_name,
                         "direction": event.direction,
-                        "state": str(self._state),
                         "item_state": ItemExecutionFinishState.FAILURE,
                     },
                 )
@@ -339,7 +338,6 @@ class SpineEngine:
                     {
                         "item_name": event.item_name,
                         "direction": event.direction,
-                        "state": str(self._state),
                         "item_state": event.item_finish_state,
                     },
                 )
@@ -362,7 +360,6 @@ class SpineEngine:
                 {
                     "item_name": item.name,
                     "direction": ED.FORWARD,
-                    "state": str(self._state),
                     "item_state": ItemExecutionFinishState.STOPPED,
                 },
             )

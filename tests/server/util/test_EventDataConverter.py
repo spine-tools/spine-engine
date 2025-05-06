@@ -28,7 +28,6 @@ class TestEventDataConverter(unittest.TestCase):
                 {
                     "item_name": "helloworld",
                     "direction": ExecutionDirection.BACKWARD,
-                    "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
             ),
@@ -37,7 +36,6 @@ class TestEventDataConverter(unittest.TestCase):
                 {
                     "item_name": "Data Connection 1",
                     "direction": ExecutionDirection.BACKWARD,
-                    "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
             ),
@@ -56,7 +54,6 @@ class TestEventDataConverter(unittest.TestCase):
                 {
                     "item_name": "Data Connection 1",
                     "direction": ExecutionDirection.FORWARD,
-                    "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
             ),
@@ -103,7 +100,6 @@ class TestEventDataConverter(unittest.TestCase):
                 {
                     "item_name": "helloworld",
                     "direction": ExecutionDirection.FORWARD,
-                    "state": "RUNNING",
                     "item_state": ItemExecutionFinishState.SUCCESS,
                 },
             ),
