@@ -23,23 +23,29 @@ from spine_engine.server.service_base import ServiceBase
 class PersistentExecutionService(threading.Thread, ServiceBase):
     """Class for interacting with a persistent execution manager running on server."""
 
-    def __init__(self, context, request, job_id, persistent_exec_mngr):
+    def __init__(self, context, request, job_id, persistent_exec_mngr, frontend_port):
         """
         Args:
             context (zmq.Context): Context for this handler.
             request (Request): Client request
             job_id (str): Worker thread Id
             persistent_exec_mngr (PersistentExecutionManagerBase): Persistent execution manager
+            frontend_port (int): Server frontend port
         """
         super(PersistentExecutionService, self).__init__(name="PersistentExecutionService")
         ServiceBase.__init__(self, context, request, job_id)
         self.persistent_exec_mngr = persistent_exec_mngr
         self.push_socket = self.context.socket(zmq.PUSH)
+        self.frontend_port = frontend_port
 
     def run(self):
         """Executes client's command in execution service and returns the response back to client."""
         self.worker_socket.connect("inproc://backend")
-        pub_port = self.push_socket.bind_to_random_port("tcp://*")
+        pub_port = self.push_socket.bind_to_random_port(
+            "tcp://*",
+            min_port=self.frontend_port,
+            max_port=self.frontend_port + self.n_port_range,
+        )
         pm = self.persistent_exec_mngr._persistent_manager
         cmd_type = self.request.data()[1]  # Command type for persistent manager, e.g. 'is_complete'
         cmd = self.request.data()[2]  # Command to process in persistent manager

@@ -32,6 +32,7 @@ class ServiceBase:
         self.request = request
         self.job_id = job_id
         self.worker_socket = self.context.socket(zmq.DEALER)
+        self.n_port_range = 50  # Port range for push and pub ports
 
     def close(self):
         """Closes socket after thread has finished."""
