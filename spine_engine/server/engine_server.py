@@ -143,7 +143,7 @@ class EngineServer(threading.Thread):
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
                         worker = RemoteExecutionService(
-                            self._context, request, job_id, project_dir, persistent_exec_mngr_q
+                            self._context, request, job_id, project_dir, persistent_exec_mngr_q, self.port,
                         )
                     elif request.cmd() == "stop_execution":
                         worker = workers.get(request.request_id(), None)  # Get DAG execution worker based on job Id
@@ -187,7 +187,7 @@ class EngineServer(threading.Thread):
                             )
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
-                        worker = PersistentExecutionService(self._context, request, job_id, exec_mngr)
+                        worker = PersistentExecutionService(self._context, request, job_id, exec_mngr, self.port)
                     elif request.cmd() == "remove_project":
                         project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
                         if not project_dir:

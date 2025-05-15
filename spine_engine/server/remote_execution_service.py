@@ -24,7 +24,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
     """Executes a DAG contained in the client request. Project must
     be on server before running this service."""
 
-    def __init__(self, context, request, job_id, project_dir, persistent_exec_mngr_q):
+    def __init__(self, context, request, job_id, project_dir, persistent_exec_mngr_q, frontend_port):
         """
         Args:
             context (zmq.Context): Context for this handler.
@@ -32,6 +32,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
             job_id (str): Worker thread Id
             project_dir (str): Absolute path to a server directory where the project has been extracted to
             persistent_exec_mngr_q (queue.Queue): Queue for storing persistent exec. managers (consumed in frontend)
+            frontend_port (int): Server frontend port number
         """
         super().__init__(name="RemoteExecutionServiceThread")
         ServiceBase.__init__(self, context, request, job_id)
@@ -41,6 +42,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         self.persistent_keys = dict()  # Mapping of item_name to a persistent execution manager key
         self.persistent_exec_mngrs = dict()  # Mapping of per. execution manager key to per. execution manager
         self.persist_q = persistent_exec_mngr_q
+        self.frontend_port = frontend_port
         self.items = list()
 
     def collect_persistent_keys(self, event_type, data):
@@ -82,7 +84,13 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         """Sends an execution started response to start execution request. Runs Spine Engine
         and sends the events to the client using a publish socket."""
         self.worker_socket.connect("inproc://backend")
-        push_port = self.push_socket.bind_to_random_port("tcp://*")
+        # Bind to specific port range, so we know which ports to open for containers
+        # min_port is inclusive, max_port is exclusive
+        push_port = self.push_socket.bind_to_random_port(
+            "tcp://*",
+            min_port=self.frontend_port,
+            max_port=self.frontend_port+self.n_port_range
+        )
         engine_data = self.request.data()
         print(f"Executing DAG [{self.job_id}] ...")
         # Send reply to 'start_execution' request to client with the push socket port for
