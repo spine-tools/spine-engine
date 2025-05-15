@@ -143,7 +143,12 @@ class EngineServer(threading.Thread):
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
                         worker = RemoteExecutionService(
-                            self._context, request, job_id, project_dir, persistent_exec_mngr_q, self.port,
+                            self._context,
+                            request,
+                            job_id,
+                            project_dir,
+                            persistent_exec_mngr_q,
+                            self.port,
                         )
                     elif request.cmd() == "stop_execution":
                         worker = workers.get(request.request_id(), None)  # Get DAG execution worker based on job Id

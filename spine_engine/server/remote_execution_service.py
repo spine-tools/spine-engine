@@ -87,9 +87,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
         # Bind to specific port range, so we know which ports to open for containers
         # min_port is inclusive, max_port is exclusive
         push_port = self.push_socket.bind_to_random_port(
-            "tcp://*",
-            min_port=self.frontend_port,
-            max_port=self.frontend_port+self.n_port_range
+            "tcp://*", min_port=self.frontend_port, max_port=self.frontend_port + self.n_port_range
         )
         engine_data = self.request.data()
         print(f"Executing DAG [{self.job_id}] ...")
