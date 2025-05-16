@@ -106,7 +106,7 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                 self.collect_running_items(self.engine._running_items)
                 json_event = EventDataConverter.convert(event_type, data)
                 self.push_socket.send_multipart([json_event.encode("utf-8")])  # Blocks until the client pulls
-                if data == "COMPLETED" or data == "FAILED" or data == "USER_STOPPED":
+                if event_type == "dag_exec_finished":
                     break
         except StopIteration:
             # Raised by SpineEngine._get_event_stream() generator if we try to get_event() after
@@ -122,8 +122,6 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
             self.push_socket.send_multipart([json_error_event.encode("utf-8")])
             self.send_completed()
             return
-        finally:
-            self.engine.wait()
         if data != "USER_STOPPED":
             resources = self.collect_resources()
             self.persist_q.put(self.persistent_exec_mngrs)  # Put new persistent execution managers to queue
