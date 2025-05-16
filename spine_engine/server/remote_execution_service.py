@@ -196,24 +196,26 @@ class RemoteExecutionService(threading.Thread, ServiceBase):
                     rel_def_file_path = original_def_file_path.replace(remote_folder + "/", "")
                     modified = os.path.join(local_project_dir, rel_def_file_path)  # Absolute path on server machine
                     input_data["specifications"][specs_key][i]["definition_file_path"] = modified
-                # Modify Python executable path and kernel spec because those refer to paths on client's machine
+                # Modify Python and Julia execution settings to refer to server paths
                 if "execution_settings" in item_info and item_info["tooltype"] == "python":
                     if item_info["execution_settings"].get("use_jupyter_console", False):
                         # Replace kernel_spec_name with the default kernel spec 'python3' (must be available on server)
                         item_info["execution_settings"]["kernel_spec_name"] = "python3"
                     else:
-                        # Replace Python executable exec with "" because client's Python is not available on server
+                        # Replace Python executable with "" because client's Python is not available on server
                         item_info["execution_settings"]["executable"] = ""
+                if "execution_settings" in item_info and item_info["tooltype"] == "julia":
+                    if item_info["execution_settings"].get("use_jupyter_console", False):
+                        # Replace kernel with the default kernel 'julia-1.11' (must be available on server)
+                        item_info["execution_settings"]["kernel_spec_name"] = "julia-1.11"
+                    else:
+                        # Replace Julia executable with "" and Julia project
+                        item_info["execution_settings"]["executable"] = "julia"
+                        item_info["execution_settings"]["project"] = ""
         # Loop items
         items_keys = input_data["items"].keys()
         for items_key in items_keys:
             # Force execute in source dir
             if "execute_in_work" in input_data["items"][items_key]:
                 input_data["items"][items_key]["execute_in_work"] = False
-        # Edit app settings dictionary
-        # Replace Julia path and Julia project path with an empty string so that the server uses the Julia in PATH
-        input_data["settings"]["appSettings/juliaPath"] = ""
-        input_data["settings"]["appSettings/juliaProjectPath"] = ""
-        # Replace Julia kernel
-        input_data["settings"]["appSettings/juliaKernel"] = "julia-1.8"  # (must be available on server)
         return input_data
