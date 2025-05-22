@@ -7,3 +7,4 @@ sphinx-autoapi
 pylint
 black == 24.4.2
 pre-commit
+pytest-cov >= 6
