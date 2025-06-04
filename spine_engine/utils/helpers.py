@@ -227,8 +227,62 @@ def custom_find_kernel_specs(ensure_native_kernel=True):
         dict[str, str]: A dict mapping kernel names to resource directories
     """
     ksm = KernelSpecManager()
+    kdir = os.path.join(legacy_kernel_dir(), "kernels")
+    ksm.kernel_dirs.insert(0, kdir)  # Insert legacy kernel dir as a kernel search dir for backwards compatibility
     ksm.ensure_native_kernel = ensure_native_kernel
     return ksm.find_kernel_specs()
+
+
+def legacy_kernel_dir():
+    """Returns the path to folder where kernel resource dirs are located on jupyter_core < 6.
+
+    This solves the following warning:
+    ***
+        DeprecationWarning: Jupyter is migrating its paths to use standard platformdirs
+          given by the platformdirs library.  To remove this warning and
+          see the appropriate new directories, set the environment variable
+          `JUPYTER_PLATFORM_DIRS=1` and then run `jupyter --paths`.
+
+          The use of platformdirs will be the default in `jupyter_core` v6
+          from jupyter_core.paths import jupyter_data_dir, jupyter_runtime_dir, secure_write
+    ***
+
+    If this path is not added to kernel search dirs, users won't see any kernels when
+    jupyter_client is updated to use jupyter_core v6.
+
+    The following is borrowed from jupyter_core/paths.py to keep backwards compatibility.
+    """
+    def get_home_dir() -> str:
+        """Get the real path of the home directory"""
+        homedir = Path("~").expanduser()
+        # Next line will make things work even when /home/ is a symlink to
+        # /usr/home as it is on FreeBSD, for example
+        return str(Path(homedir).resolve())
+
+    def jupyter_config_dir() -> str:
+        """Get the Jupyter config directory for this platform and user.
+
+        Returns JUPYTER_CONFIG_DIR if defined, otherwise the appropriate
+        directory for the platform.
+        """
+        if os.environ.get("JUPYTER_CONFIG_DIR"):
+            return os.environ["JUPYTER_CONFIG_DIR"]
+        home_dir = get_home_dir()
+        return os.path.join(home_dir, ".jupyter")
+
+    home = get_home_dir()
+    if sys.platform == "darwin":
+        return str(Path(home, "Library", "Jupyter"))
+    if sys.platform == "win32":
+        appdata = os.environ.get("APPDATA", None)
+        if appdata:
+            return str(Path(appdata, "jupyter").resolve())
+        return os.path.join(jupyter_config_dir(), "data")
+    # Linux, non-OS X Unix, AIX, etc.
+    xdg = os.environ.get("XDG_DATA_HOME", None)
+    if not xdg:
+        xdg = os.path.join(home, ".local", "share")
+    return os.path.join(xdg, "jupyter")
 
 
 def inverted(input_):
