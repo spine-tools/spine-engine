@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Unit tests for chunk module."""
+import os
 import sys
 import unittest
 from unittest import mock
@@ -21,9 +22,12 @@ from spine_engine.utils.helpers import (
     make_dag,
     required_items_for_execution,
     resolve_python_interpreter,
+    custom_find_kernel_specs,
+    legacy_kernel_dir,
 )
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.helpers import remove_credentials_from_url
+from jupyter_client.kernelspec import KernelSpecManager
 
 
 class TestRequiredItemsForExecution(unittest.TestCase):
@@ -207,6 +211,26 @@ class TestPythonInterpreter(unittest.TestCase):
                 p = resolve_python_interpreter(settings)
                 self.assertIsNone(p)  # This is None only on Win. # FIXME: Find a way to mock is_frozen() in config.py
                 mock_helpers_is_frozen.assert_called()
+
+
+class TestFindKernelSpecs(unittest.TestCase):
+    def test_custom_find_kernel_specs(self):
+        kernels = custom_find_kernel_specs(True)
+        self.assertIsInstance(kernels, dict)
+
+    def test_adding_legacy_kernel_dir(self):
+        ksm = KernelSpecManager()
+        n_kernel_dirs = len(ksm.kernel_dirs)
+        kdir = os.path.join(legacy_kernel_dir(), "kernels")
+        ksm.kernel_dirs.insert(0, kdir)
+        self.assertEqual(n_kernel_dirs+1, len(ksm.kernel_dirs))
+        kernels = ksm.find_kernel_specs()
+        self.assertIsInstance(kernels, dict)
+        # Add a non-existing path to kernel search dirs to make sure there are no tracebacks
+        ksm.kernel_dirs.append(os.path.join("/path", "to", "nowhere"))
+        self.assertEqual(n_kernel_dirs+2, len(ksm.kernel_dirs))
+        kernels = ksm.find_kernel_specs()
+        self.assertIsInstance(kernels, dict)
 
 
 class TestAppSettings:

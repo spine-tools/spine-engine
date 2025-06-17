@@ -250,7 +250,7 @@ def legacy_kernel_dir():
     If this path is not added to kernel search dirs, users won't see any kernels when
     jupyter_client is updated to use jupyter_core v6.
 
-    The following is borrowed from jupyter_core/paths.py to keep backwards compatibility.
+    The following is borrowed from jupyter_core/paths.py  (jupyter_core 5.7.2) to keep backwards compatibility.
     """
 
     def get_home_dir() -> str:
