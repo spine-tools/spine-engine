@@ -252,6 +252,7 @@ def legacy_kernel_dir():
 
     The following is borrowed from jupyter_core/paths.py to keep backwards compatibility.
     """
+
     def get_home_dir() -> str:
         """Get the real path of the home directory"""
         homedir = Path("~").expanduser()
