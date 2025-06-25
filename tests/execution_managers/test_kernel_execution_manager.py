@@ -84,8 +84,7 @@ class TestKernelExecutionManager(unittest.TestCase):
         retval = exec_mngr.run_until_complete()  # Run commands
         self.assertEqual(0, retval)
         self.assertFalse(exec_mngr._kernel_manager.is_alive())
-        exec_mngr = self.release_exec_mngr_resources(exec_mngr)
-        exec_mngr = None
+        self.release_exec_mngr_resources(exec_mngr)
         self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
         message_emits = logger.msg_kernel_execution.emit.call_args_list
         expected_msg = {"type": "execution_started", "kernel_name": NATIVE_KERNEL_NAME}
@@ -120,10 +119,8 @@ class TestKernelExecutionManager(unittest.TestCase):
         retval2 = exec_mngr2.run_until_complete()  # Run commands
         self.assertEqual(0, retval2)
         # Close
-        exec_mngr1 = self.release_exec_mngr_resources(exec_mngr1)
-        exec_mngr2 = self.release_exec_mngr_resources(exec_mngr2)
-        exec_mngr1 = None
-        exec_mngr2 = None
+        self.release_exec_mngr_resources(exec_mngr1)
+        self.release_exec_mngr_resources(exec_mngr2)
         _kernel_manager_factory.kill_kernel_managers()
         self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
         # Check emitted messages
@@ -164,10 +161,8 @@ class TestKernelExecutionManager(unittest.TestCase):
         retval2 = exec_mngr2.run_until_complete()  # Run commands
         self.assertEqual(0, retval2)
         # Close
-        exec_mngr1 = self.release_exec_mngr_resources(exec_mngr1)
-        exec_mngr2 = self.release_exec_mngr_resources(exec_mngr2)
-        exec_mngr1 = None
-        exec_mngr2 = None
+        self.release_exec_mngr_resources(exec_mngr1)
+        self.release_exec_mngr_resources(exec_mngr2)
         _kernel_manager_factory.kill_kernel_managers()
         self.assertEqual(0, _kernel_manager_factory.n_kernel_managers())
         # Check emitted messages
@@ -187,10 +182,7 @@ class TestKernelExecutionManager(unittest.TestCase):
         we do on Toolbox side. Don't really understand why we need to do this, but I think
         it's because of the 'classic' race condition in jupyter-client < 7.0.
         This may be fixed in a more recent version of jupyter-client."""
-        # exec_mngr._kernel_client.stop_channels()
-        # exec_mngr._kernel_client.context.term()  # ResourceWarning: Unclosed <zmq.Context() happens without this
         exec_mngr._kernel_manager.load_connection_file()
         kc = exec_mngr._kernel_manager.client()  # Make new client
-        # kc.start_channels()
         exec_mngr._kernel_client = kc  # Replace the original client
         return exec_mngr
