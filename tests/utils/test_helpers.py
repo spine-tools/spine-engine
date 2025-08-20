@@ -195,10 +195,10 @@ class TestGetFileSize(unittest.TestCase):
 class TestPythonInterpreter(unittest.TestCase):
     def test_resolve_python_interpreter(self):
         expected_path = "path_to_python"
-        settings = TestAppSettings(expected_path)
+        settings = MockAppSettings(expected_path)
         p = resolve_python_interpreter(settings)
         self.assertEqual(expected_path, p)
-        settings = TestAppSettings("")
+        settings = MockAppSettings("")
         p = resolve_python_interpreter(settings)
         self.assertEqual(sys.executable, p)
         if sys.platform == "win32":
@@ -209,7 +209,7 @@ class TestPythonInterpreter(unittest.TestCase):
                 mock_helpers_is_frozen.assert_called()
 
 
-class TestAppSettings:
+class MockAppSettings:
     def __init__(self, test_path):
         self.test_path = test_path
 

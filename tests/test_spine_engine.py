@@ -17,6 +17,7 @@ Inspired from tests for spinetoolbox.ExecutionInstance and spinetoolbox.Resource
 and intended to supersede them.
 """
 from functools import partial
+import gc
 import os.path
 import sys
 from tempfile import TemporaryDirectory
@@ -128,6 +129,7 @@ class TestSpineEngine(unittest.TestCase):
         engine = self._create_engine(items, connections, item_instances, execution_permits, jumps)
         engine.run()
         self.assertEqual(engine.state(), SpineEngineState.COMPLETED)
+        gc.collect()
 
     def setUp(self):
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "mock_project_items"))
@@ -295,6 +297,7 @@ class TestSpineEngine(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 import_scenarios(db_map, (("scen1", True), ("scen2", True)))
                 db_map.commit_session("Add test data.")
+            db_map.close()
             url_prefix = "db:///" if sys.platform == "win32" else "db:////"
             url_a_fw = _make_url_resource(url)
             url_b_fw1 = _make_url_resource("db:///url_b_fw")
@@ -370,6 +373,7 @@ class TestSpineEngine(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 import_scenarios(db_map, (("scen1", True), ("scen2", True)))
                 db_map.commit_session("Add test data.")
+            db_map.close()
             url_prefix = "db:///" if sys.platform == "win32" else "db:////"
             url_a_fw = _make_url_resource(url)
             url_c_bw = _make_url_resource("db:///url_c_bw")
@@ -425,6 +429,7 @@ class TestSpineEngine(unittest.TestCase):
             with DatabaseMapping(url, create=True) as db_map:
                 import_scenarios(db_map, (("scen1", True), ("scen2", True)))
                 db_map.commit_session("Add test data.")
+            db_map.close()
             url_prefix = "db:///" if sys.platform == "win32" else "db:////"
             url_a_fw = _make_url_resource(url)
             file_b_fw_11 = ProjectItemResource("item_b", "file", "label_1")
@@ -516,10 +521,12 @@ class TestSpineEngine(unittest.TestCase):
             with DatabaseMapping(urlA, create=True) as db_map:
                 import_scenarios(db_map, (("scenA1", True), ("scenA2", True)))
                 db_map.commit_session("Add test data.")
+            db_map.close()
             urlB = "sqlite:///" + os.path.join(temp_dir, "dbB.sqlite")
             with DatabaseMapping(urlB, create=True) as db_map:
                 import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
                 db_map.commit_session("Add test data.")
+            db_map.close()
             url_a_fw = _make_url_resource(urlA)
             url_b_fw = _make_url_resource(urlB)
             mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
@@ -583,10 +590,12 @@ class TestSpineEngine(unittest.TestCase):
             with DatabaseMapping(urlA, create=True) as db_map:
                 import_scenarios(db_map, (("scenA1", True), ("scenA2", True)))
                 db_map.commit_session("Add test data.")
+            db_map.close()
             urlB = "sqlite:///" + os.path.join(temp_dir, "dbB.sqlite")
             with DatabaseMapping(urlB, create=True) as db_map:
                 import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
                 db_map.commit_session("Add test data.")
+            db_map.close()
             url_a_fw = _make_url_resource(urlA)
             url_b_fw = _make_url_resource(urlB)
             file_c_fw_11 = ProjectItemResource("item_c", "file", "label_1")
