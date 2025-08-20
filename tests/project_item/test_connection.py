@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Uni tests for the ``connection`` module. """
+import gc
 import os.path
 import pathlib
 from tempfile import TemporaryDirectory
@@ -135,6 +136,8 @@ class TestConnectionWithDatabase(unittest.TestCase):
         self._db_map = DatabaseMapping(self._url, create=True)
 
     def tearDown(self):
+        self._db_map.close()
+        gc.collect()
         self._temp_dir.cleanup()
 
     def test_serialization_with_filters(self):
