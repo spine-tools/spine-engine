@@ -19,7 +19,7 @@ import uuid
 from spinedb_api.filters.tools import clear_filter_configs
 from spinedb_api.spine_db_client import SpineDBClient
 from spinedb_api.spine_db_server import closing_spine_db_server, quick_db_checkout
-from ..utils.helpers import PartCount
+from ..utils.helpers import PartCount, urls_equal
 
 
 class ProjectItemResource:
@@ -128,12 +128,15 @@ class ProjectItemResource:
 
     def __eq__(self, other):
         if not isinstance(other, ProjectItemResource):
-            # don't attempt to compare against unrelated types
             return NotImplemented
         return (
             self.provider_name == other.provider_name
             and self.type_ == other.type_
-            and self._url == other._url
+            and (
+                urls_equal(self._url, other._url)
+                if self._url is not None and other._url is not None
+                else self._url == other._url
+            )
             and self.metadata == other.metadata
             and self._filterable == other._filterable
         )
