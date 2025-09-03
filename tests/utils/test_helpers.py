@@ -21,6 +21,7 @@ from spine_engine.utils.helpers import (
     make_dag,
     required_items_for_execution,
     resolve_python_interpreter,
+    urls_equal,
 )
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
 from spinedb_api.helpers import remove_credentials_from_url
@@ -209,6 +210,32 @@ class TestPythonInterpreter(unittest.TestCase):
                 mock_helpers_is_frozen.assert_called()
 
 
+class TestDatabaseUrlsEqual:
+    def test_sqlite_urls(self):
+        assert urls_equal("sqlite:///", "sqlite:///")
+        assert not urls_equal("sqlite:///", "sqlite:///var/db/data.sqlite")
+        assert not urls_equal("sqlite:///var/db/data.sqlite", "https://example.com")
+        assert urls_equal("sqlite:///var/db/data.sqlite", "sqlite:///var/db/data.sqlite")
+        if sys.platform == "win32":
+            assert urls_equal("sqlite:///c:/users/tester/db.sqlite", "sqlite:///C:/USERS/TESTER/DB.SQLITE")
+        else:
+            assert not urls_equal("sqlite:///var/db/data.sqlite", "sqlite:///var/db/DATA.sqlite")
+
+    def test_generic_database_schemes(self):
+        assert urls_equal("mysql://example.com/path/my_db", "mysql://example.com/path/my_db")
+        assert not urls_equal("mysql://example.com/path/my_db", "mysql://example.com/Path/my_db")
+        assert not urls_equal("mysql://example.com/path/my_db", "sqlite:///home/modeller/input.sqlite")
+
+    def test_file_urls(self):
+        assert not urls_equal("file:///var/log/syslog", "https://example.com")
+        if sys.platform == "win32":
+            assert urls_equal("file://c:\\users\\arial\\data.dat", "file://C:\\USERS\\Arial\\data.dat")
+            assert not urls_equal("file://c:\\users\\comicsans\\data.dat", "file://C:\\USERS\\Arial\\data.dat")
+        else:
+            assert urls_equal("file:///home/arial/data.dat", "file:///home/arial/data.dat")
+            assert not urls_equal("file:///home/arial/data.dat", "file:///home/Arial/DATA.dat")
+
+
 class MockAppSettings:
     def __init__(self, test_path):
         self.test_path = test_path
@@ -216,7 +243,3 @@ class MockAppSettings:
     def value(self, key):
         if key == "appSettings/pythonPath":
             return self.test_path
-
-
-if __name__ == "__main__":
-    unittest.main()

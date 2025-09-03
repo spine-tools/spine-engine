@@ -17,6 +17,7 @@ from enum import Enum, auto, unique
 import itertools
 import json
 import os
+import pathlib
 from pathlib import Path
 import sys
 import time
@@ -562,3 +563,19 @@ class PartCount:
 
 def serializable_error_info_from_exc_info(exc_info):
     return exc_info
+
+
+def urls_equal(url1: str, url2: str) -> bool:
+    if url1.startswith("sqlite://"):
+        if not url2.startswith("sqlite://"):
+            return False
+        return _file_urls_equal(url1, url2, len("sqlite:///"))
+    if url1.startswith("file://"):
+        if not url2.startswith("file://"):
+            return False
+        return _file_urls_equal(url1, url2, len("file://"))
+    return url1 == url2
+
+
+def _file_urls_equal(url1: str, url2: str, prefix_length: int) -> bool:
+    return pathlib.Path(url1[prefix_length:]) == pathlib.Path(url2[prefix_length:])
