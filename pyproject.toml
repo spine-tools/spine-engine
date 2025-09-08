@@ -15,7 +15,7 @@ requires-python = ">=3.10"
 dependencies = [
     "networkx>2.5.1",
     "jupyter_client>=6.0",
-    "spinedb_api>=0.35.0",
+    "spinedb_api>=0.36.0",
     "pyzmq >=21.0",
 ]
 
