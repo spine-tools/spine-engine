@@ -11,20 +11,27 @@
 ######################################################################################################################
 
 """Helper functions and classes."""
+from __future__ import annotations
 import collections
+from collections.abc import Hashable, Iterable
 import datetime
 from enum import Enum, auto, unique
 import itertools
 import json
 import os
 import pathlib
-from pathlib import Path
 import sys
 import time
+from typing import TYPE_CHECKING, Type
 from jupyter_client.kernelspec import KernelSpecManager
 import networkx
+import networkx as nx
 from spinedb_api.spine_io.gdx_utils import find_gams_directory
 from ..config import EMBEDDED_PYTHON, GAMS_EXECUTABLE, JULIA_EXECUTABLE, PYTHON_EXECUTABLE, is_frozen
+
+if TYPE_CHECKING:
+    from ..project_item.connection import Connection
+    from ..project_item.executable_item_base import ExecutableItemBase
 
 
 @unique
@@ -62,23 +69,19 @@ class Singleton(type):
 class AppSettings:
     """A QSettings replacement."""
 
-    def __init__(self, settings):
-        """
-        Args:
-            settings (dict)
-        """
+    def __init__(self, settings: dict[str, str]):
         self._settings = settings
 
-    def value(self, key, defaultValue=""):
+    def value(self, key: str, defaultValue: str = "") -> str:
         return self._settings.get(key, defaultValue)
 
 
-def shorten(name):
+def shorten(name: str) -> str:
     """Returns the 'short name' version of given name."""
     return name.lower().replace(" ", "_")
 
 
-def create_log_file_timestamp():
+def create_log_file_timestamp() -> str:
     """Creates a new timestamp string that is used as Data Store and Importer error log file.
 
     Returns:
@@ -93,11 +96,11 @@ def create_log_file_timestamp():
     return extension
 
 
-def create_timestamp():
+def create_timestamp() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def resolve_conda_executable(conda_path):
+def resolve_conda_executable(conda_path: str) -> str:
     """If given conda_path is an empty str, returns current Conda
     executable from CONDA_EXE env variable if the app was started
     on Conda, otherwise returns an empty string.
@@ -108,14 +111,14 @@ def resolve_conda_executable(conda_path):
     return conda_exe
 
 
-def resolve_python_interpreter(settings):
+def resolve_python_interpreter(settings: AppSettings) -> str:
     """Returns a path to Python interpreter in settings or the current executable if none is set.
 
     Args:
-        settings (AppSettings): settings
+        settings: settings
 
     Returns:
-        str: path to Python interpreter
+        path to Python interpreter
     """
     path = settings.value("appSettings/pythonPath")
     if path:
@@ -123,11 +126,11 @@ def resolve_python_interpreter(settings):
     return resolve_current_python_interpreter()
 
 
-def resolve_current_python_interpreter():
+def resolve_current_python_interpreter() -> str:
     """Returns a path to current Python interpreter.
 
     Returns:
-        str: path to Python interpreter
+        path to Python interpreter
     """
     if not is_frozen():
         return sys.executable
@@ -138,14 +141,14 @@ def resolve_current_python_interpreter():
     return EMBEDDED_PYTHON
 
 
-def resolve_julia_executable(settings):
+def resolve_julia_executable(settings: AppSettings) -> str:
     """Returns path to Julia executable from settings, and, if not set, path to default Julia executable.
 
     Args:
-        settings (AppSettings): application settings
+        settings: application settings
 
     Returns:
-        str: path to Julia executable
+        path to Julia executable
     """
     path = settings.value("appSettings/juliaPath")
     if path:
@@ -153,40 +156,40 @@ def resolve_julia_executable(settings):
     return resolve_default_julia_executable()
 
 
-def resolve_default_julia_executable():
+def resolve_default_julia_executable() -> str:
     """Returns path to default Julia executable.
 
     Tries to find the path to Julia in user's PATH env variable.
     If Julia is not found in PATH, returns an empty string.
 
     Returns:
-        str: path to Julia executable
+        path to Julia executable
     """
     return resolve_executable_from_path(JULIA_EXECUTABLE)
 
 
-def resolve_julia_project(settings):
+def resolve_julia_project(settings: AppSettings) -> str:
     """Returns path to Julia environment (project) from settings or an empty string if not available.
 
     Args:
-        settings (AppSettings): application settings
+        settings: application settings
 
     Returns:
-        str: path to Julia environment
+        path to Julia environment
     """
     return settings.value("appSettings/juliaProjectPath")
 
 
-def resolve_gams_executable(gams_path):
+def resolve_gams_executable(gams_path: str) -> str:
     """If given gams_path is empty, tries to find the path to GAMS executable.
 
     If GAMS is not found, returns an empty string.
 
     Args:
-        gams_path (str): current path to GAMS executable
+        gams_path: current path to GAMS executable
 
     Returns:
-        str: resolved path to GAMS executable
+        resolved path to GAMS executable
     """
     if gams_path != "":
         return gams_path
@@ -196,7 +199,7 @@ def resolve_gams_executable(gams_path):
     return os.path.join(gams_dir, GAMS_EXECUTABLE)
 
 
-def resolve_executable_from_path(executable_name):
+def resolve_executable_from_path(executable_name: str) -> str:
     """Returns full path to executable name in user's
     PATH env variable. If not found, returns an empty string.
 
@@ -204,10 +207,10 @@ def resolve_executable_from_path(executable_name):
     cmd.exe and bash respectively.
 
     Args:
-        executable_name (str): Executable filename to find (e.g. python.exe, julia.exe)
+        executable_name: Executable filename to find (e.g. python.exe, julia.exe)
 
     Returns:
-        str: Full path or empty string
+        Full path or empty string
     """
     executable_paths = os.get_exec_path()
     for path in executable_paths:
@@ -217,47 +220,49 @@ def resolve_executable_from_path(executable_name):
     return ""
 
 
-def custom_find_kernel_specs(ensure_native_kernel=True):
+def custom_find_kernel_specs(ensure_native_kernel: bool = True) -> dict[str, str]:
     """Finds kernel specs including the native kernel if enabled.
 
     Args:
-        ensure_native_kernel (bool): True includes the native kernel (python3 for Python) into the
+        ensure_native_kernel: True includes the native kernel (python3 for Python) into the
         returned dict, False skips it.
 
     Returns:
-        dict[str, str]: A dict mapping kernel names to resource directories
+        A dict mapping kernel names to resource directories
     """
     ksm = KernelSpecManager()
     ksm.ensure_native_kernel = ensure_native_kernel
     return ksm.find_kernel_specs()
 
 
-def inverted(input_):
+def inverted(input_: dict[Hashable, Iterable[Hashable]]) -> dict[Hashable, list[Hashable]]:
     """Inverts a dictionary of list values.
 
     Args:
-        input_ (dict)
+        input_: dictionary to invert
 
     Returns:
-        dict: keys are list items, and values are keys listing that item from the input dictionary
+        keys are list items, and values are keys listing that item from the input dictionary
     """
-    output = dict()
+    output = {}
     for key, value_list in input_.items():
         for value in value_list:
             output.setdefault(value, list()).append(key)
     return output
 
 
-def get_julia_env(use_jupyter_console, julia_kernel, julia_path, julia_project_path):
+def get_julia_env(
+    use_jupyter_console: bool, julia_kernel: str, julia_path: str, julia_project_path: str
+) -> tuple[str, str] | None:
     """
     Args:
-        use_jupyter_console (bool): True if Jupyter console is in use
-        julia_kernel (str): Julia kernel name
-        julia_path (str): Path to Julia executable
-        julia_project_path (str): Path to Julia project/environment folder
+        use_jupyter_console: True if Jupyter console is in use
+        julia_kernel: Julia kernel name
+        julia_path: Path to Julia executable
+        julia_project_path: Path to Julia project/environment folder
 
     Returns:
-        Union[tuple, None]: (julia_exe, julia_project), or None if none found
+        (julia_exe, julia_project), or None if none found
     """
     if use_jupyter_console:
         resource_dir = custom_find_kernel_specs().get(julia_kernel)
@@ -280,7 +285,12 @@ def get_julia_env(use_jupyter_console, julia_kernel, julia_path, julia_project_p
     return julia_path, julia_project_path
 
 
-def required_items_for_execution(items, connections, executable_item_classes, execution_permits):
+def required_items_for_execution(
+    items: dict[str, dict],
+    connections: list[Connection],
+    executable_item_classes: dict[str, Type[ExecutableItemBase]],
+    execution_permits: dict[str, bool],
+) -> set[str]:
     """Builds a list of names of items that are required for execution.
 
     An item is required if
@@ -289,13 +299,13 @@ def required_items_for_execution(items, connections, executable_item_classes, ex
     - the item is part of a filtered fork that contains an item that has an execution permit
 
     Args:
-        items (dict): mapping from item name to item dict
-        connections (list of Connection): connections
-        executable_item_classes (dict): mapping from item type to its executable class
-        execution_permits (dict): item execution permits
+        items: mapping from item name to item dict
+        connections: connections
+        executable_item_classes: mapping from item type to its executable class
+        execution_permits: item execution permits
 
     Returns:
-        set of str: names of required items
+        names of required items
     """
     first_filter_fork_nodes = _first_filter_fork_nodes(connections)
     filter_fork_terminus_nodes = _filter_fork_termini(items, executable_item_classes)
@@ -309,14 +319,14 @@ def required_items_for_execution(items, connections, executable_item_classes, ex
     return required_items
 
 
-def _first_filter_fork_nodes(connections):
+def _first_filter_fork_nodes(connections: Iterable[Connection]) -> set[str]:
     """Collects nodes that start a filtered fork.
 
     Args:
-        connections (Iterable of Connection): connections
+        connections: connections
 
     Returns:
-        set of str: item names
+        item names
     """
     nodes = set()
     for connection in connections:
@@ -325,12 +335,14 @@ def _first_filter_fork_nodes(connections):
     return nodes
 
 
-def _filter_fork_termini(items, executable_item_classes):
+def _filter_fork_termini(
+    items: dict[str, dict], executable_item_classes: dict[str, Type[ExecutableItemBase]]
+) -> set[str]:
     """Collects nodes that terminate a filtered fork.
 
     Args:
-        items (dict): mapping from item name to item dict
-        executable_item_classes (dict): mapping from item type to corresponding executable item class
+        items: mapping from item name to item dict
+        executable_item_classes: mapping from item type to corresponding executable item class
 
     Returns:
         set of str: item names
@@ -342,16 +354,18 @@ def _filter_fork_termini(items, executable_item_classes):
     return termini
 
 
-def _filtered_fork_paths(dag, first_filter_fork_nodes, filter_fork_terminus_nodes):
+def _filtered_fork_paths(
+    dag: nx.DiGraph, first_filter_fork_nodes: set[str], filter_fork_terminus_nodes: set[str]
+) -> list[list[str]]:
     """Collects all simple paths within given DAG that will be forked.
 
     Args:
-        dag (DiGraph): DAG
-        first_filter_fork_nodes (set of str): names of fork staring items
-        filter_fork_terminus_nodes (set of str): names of fork ending items
+        dag: DAG
+        first_filter_fork_nodes: names of fork staring items
+        filter_fork_terminus_nodes: names of fork ending items
 
     Returns:
-        list of list of str: items names along the paths
+        items names along the paths
     """
     sources = [node for node, in_degree in dag.in_degree if in_degree == 0]
     targets = [node for node, out_degree in dag.out_degree if out_degree == 0]
@@ -375,14 +389,14 @@ def _filtered_fork_paths(dag, first_filter_fork_nodes, filter_fork_terminus_node
     return paths
 
 
-def _dependent_items_per_item(fork_paths):
+def _dependent_items_per_item(fork_paths: list[list[str]]) -> dict[str, set[str]]:
     """Collects dependent items for each project item.
 
     Args:
-        fork_paths (list of list of str): item names along fork paths
+        fork_paths: item names along fork paths
 
     Returns:
-        dict: mapping from item name to a set of the names of its dependant items
+        mapping from item name to a set of the names of its dependant items
     """
     items_dependent_nodes = collections.defaultdict(set)
     for path in fork_paths:
@@ -391,18 +405,18 @@ def _dependent_items_per_item(fork_paths):
     return items_dependent_nodes
 
 
-def make_connections(connections, permitted_items):
+def make_connections(connections: list[Connection], permitted_items: set[str]) -> list[Connection]:
     """Returns a list of Connections based on permitted
     items. Creates Connections only for connections that
     are coming from permitted items or leaving from
     permitted items.
 
     Args:
-        connections (list of Connection): connections in the DAG
-        permitted_items (set of str): names of permitted items
+        connections: connections in the DAG
+        permitted_items: names of permitted items
 
     Returns:
-        list of Connection: List of permitted Connections or an empty list if the DAG contains no connections
+        List of permitted Connections or an empty list if the DAG contains no connections
     """
     if not connections:
         return []
@@ -410,28 +424,28 @@ def make_connections(connections, permitted_items):
     return connections
 
 
-def connections_to_selected_items(connections, selected_items):
+def connections_to_selected_items(connections: list[Connection], selected_items: set[str]) -> list[Connection]:
     """Returns a list of Connections that have a permitted item
     as its source or destination item.
 
     Args:
-        connections (list(Connection): List of Connections
-        selected_items (set of str): names of permitted items
+        connections: List of Connections
+        selected_items: names of permitted items
 
     Returns:
-        list of Connection: Connections allowed in the current DAG
+        Connections allowed in the current DAG
     """
     return [conn for conn in connections if conn.source in selected_items or conn.destination in selected_items]
 
 
-def dag_edges(connections):
+def dag_edges(connections: list[Connection]) -> dict[str, list[str]]:
     """Collects DAG edges based on Connection instances.
 
     Args:
-        connections (list(Connection): Connections
+        connections: Connections
 
     Returns:
-        dict: DAG edges. Mapping of source item (node) to a list of destination items (nodes)
+        DAG edges. Mapping of source item (node) to a list of destination items (nodes)
     """
     edges = {}
     for connection in connections:
@@ -440,15 +454,15 @@ def dag_edges(connections):
     return edges
 
 
-def make_dag(edges, permitted_nodes=None):
+def make_dag(edges: dict[str, list[str]], permitted_nodes: dict[str, bool] | None = None) -> nx.DiGraph:
     """Builds a DAG from edges or if no edges exist, from permitted_nodes.
 
     Args:
-        edges (dict): Mapping from item name to list of its successors' names
-        permitted_nodes (dict, optional): Mapping from item name to boolean value indicating if item is selected
+        edges: Mapping from item name to list of its successors' names
+        permitted_nodes: Mapping from item name to boolean value indicating if item is selected
 
     Returns:
-        DiGraph: Directed acyclic graph
+        Directed acyclic graph
     """
     graph = networkx.DiGraph()
     if not edges:
@@ -465,27 +479,27 @@ def make_dag(edges, permitted_nodes=None):
     return graph
 
 
-def write_filter_id_file(filter_id, path):
+def write_filter_id_file(filter_id: str, path: pathlib.Path | str) -> None:
     """Writes filter id to disk.
 
     Args:
-        filter_id (str): filter id
-        path (Path or str): full path to directory where the filter id file will be written
+        filter_id : filter id
+        path: full path to directory where the filter id file will be written
     """
-    with Path(path, ".filter_id").open("w") as filter_id_file:
+    with pathlib.Path(path, ".filter_id").open("w") as filter_id_file:
         filter_id_file.writelines([filter_id + "\n"])
 
 
-def gather_leaf_data(input_dict, paths, pop=False):
+def gather_leaf_data(input_dict: dict, paths: list[tuple], pop: bool = False) -> dict:
     """Gathers data defined by 'paths' of keys from nested dicts.
 
     Args:
-        input_dict (dict): dict to pop from
-        paths (list of tuple): 'paths' of dict keys to leaf entries
-        pop (bool): if True, pops the leaf data modifying ''input_dict''
+        input_dict: dict to pop from
+        paths: 'paths' of dict keys to leaf entries
+        pop: if True, pops the leaf data modifying ''input_dict''
 
     Returns:
-        dict: popped data
+        popped data
     """
 
     def travel_to_leaf(dict_to_travel, path_to_leaf):
@@ -516,7 +530,7 @@ def gather_leaf_data(input_dict, paths, pop=False):
     return output_dict
 
 
-def get_file_size(size_in_bytes):
+def get_file_size(size_in_bytes: int) -> str:
     """Returns a human readable string of the size of a file. Given size_in_bytes arg
     is designed as the output of os.path.getsize().
 
@@ -525,10 +539,10 @@ def get_file_size(size_in_bytes):
     1 GB = 1024*1024*1024 bytes
 
     Args:
-        size_in_bytes (int): Size in bytes [B]
+        size_in_bytes: Size in bytes [B]
 
     Returns:
-        str: Human readable file size
+        Human readable file size
     """
     kb = 1024
     mb = 1024 * 1024

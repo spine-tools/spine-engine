@@ -10,27 +10,26 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Functions to (de)serialize stuff.
-
-"""
+""" Functions to (de)serialize stuff. """
 
 import os
 from pathlib import Path
 import sys
+from typing import Literal, TypedDict
 import urllib
 from urllib.parse import urljoin
+from typing_extensions import NotRequired
 
 
-def path_in_dir(path, directory):
+def path_in_dir(path: str | Path, directory: str | Path) -> bool:
     """Returns True if the given path is in the given directory.
 
     Args:
-        path (str): path to test
-        directory (str): directory to test against
+        path: path to test
+        directory: directory to test against
 
     Returns:
-        bool: True if path is in directory, False otherwise
+        True if path is in directory, False otherwise
     """
     path = Path(path)
     directory = Path(directory)
@@ -39,7 +38,15 @@ def path_in_dir(path, directory):
     return Path(os.path.commonpath((path, directory))) == Path(directory)
 
 
-def serialize_path(path, project_dir):
+class PathDict(TypedDict):
+    type: Literal["path", "url", "file_url"]
+    relative: bool
+    path: str
+    scheme: NotRequired[str]
+    query: NotRequired[str]
+
+
+def serialize_path(path: str, project_dir: str) -> PathDict:
     """
     Returns a dict representation of the given path.
 
@@ -53,7 +60,7 @@ def serialize_path(path, project_dir):
         dict: Dictionary representing the given path
     """
     is_relative = path_in_dir(path, project_dir)
-    serialized = {
+    serialized: PathDict = {
         "type": "path",
         "relative": is_relative,
         "path": os.path.relpath(path, project_dir).replace(os.sep, "/") if is_relative else path.replace(os.sep, "/"),
@@ -61,18 +68,18 @@ def serialize_path(path, project_dir):
     return serialized
 
 
-def serialize_url(url, project_dir):
+def serialize_url(url: str, project_dir: str) -> PathDict:
     """
     Return a dict representation of the given URL.
 
     If the URL is a file that is in project dir, the URL is converted to a relative path.
 
     Args:
-        url (str): a URL to serialize
-        project_dir (str): path to the project directory
+        url: a URL to serialize
+        project_dir: path to the project directory
 
     Returns:
-        dict: Dictionary representing the URL
+        Dictionary representing the URL
     """
     parsed = urllib.parse.urlparse(url)
     path = urllib.parse.unquote(parsed.path)
@@ -80,7 +87,7 @@ def serialize_url(url, project_dir):
         path = path[1:]  # Remove extra '/' from the beginning
     if os.path.isfile(path):
         is_relative = path_in_dir(path, project_dir)
-        serialized = {
+        serialized: PathDict = {
             "type": "file_url",
             "relative": is_relative,
             "path": (
@@ -91,20 +98,20 @@ def serialize_url(url, project_dir):
         if parsed.query:
             serialized["query"] = parsed.query
     else:
-        serialized = {"type": "url", "relative": False, "path": url}
+        serialized: PathDict = {"type": "url", "relative": False, "path": url}
     return serialized
 
 
-def deserialize_path(serialized, project_dir):
+def deserialize_path(serialized: PathDict | str, project_dir: str) -> str:
     """
     Returns a deserialized path or URL.
 
     Args:
-        serialized (dict): a serialized path or URL
-        project_dir (str): path to the project directory
+        serialized: a serialized path or URL
+        project_dir: path to the project directory
 
     Returns:
-        str: Path or URL as string
+        Path or URL as string
     """
     if not isinstance(serialized, dict):
         return serialized
@@ -129,7 +136,7 @@ def deserialize_path(serialized, project_dir):
     raise RuntimeError(f"Cannot deserialize: unknown path type '{path_type}'")
 
 
-def deserialize_remote_path(serialized, base_path):
+def deserialize_remote_path(serialized: PathDict | str, base_path: str) -> str:
     if not isinstance(serialized, dict):
         return serialized
     try:
