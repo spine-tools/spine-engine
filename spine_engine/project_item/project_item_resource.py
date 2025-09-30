@@ -26,7 +26,7 @@ from spinedb_api.spine_db_server import closing_spine_db_server, quick_db_checko
 from ..logger_interface import LoggerInterface
 from ..utils.helpers import PartCount, urls_equal
 
-ResourceType: TypeAlias = Literal["file", "file_pack", "database", "url"]
+ResourceType: TypeAlias = Literal["file", "directory", "file_pack", "database", "url"]
 
 
 class ResourceMetadata(TypedDict):
@@ -84,7 +84,7 @@ class ProjectItemResource:
         self._url = url
         self._filepath: str | None = None
         self._parsed_url = urlparse(self._url)
-        self.metadata = metadata if metadata is not None else dict()
+        self.metadata = metadata if metadata is not None else {}
         self._filterable = filterable
         self._identifier = identifier if identifier is not None else uuid.uuid4().hex
 
@@ -204,7 +204,9 @@ class ProjectItemResource:
     def hasfilepath(self) -> bool:
         if not self._url:
             return False
-        return self.type_ in ("file", "file_pack") or (self.type_ == "database" and self.scheme == "sqlite")
+        return self.type_ in ("file", "directory", "file_pack") or (
+            self.type_ == "database" and self.scheme == "sqlite"
+        )
 
     @property
     def arg(self) -> str:
@@ -300,6 +302,21 @@ def file_resource(provider_name: str, file_path: str, label: str | None = None) 
         label = file_path
     url = Path(file_path).resolve().as_uri()
     return ProjectItemResource(provider_name, "file", label, url)
+
+
+def directory_resource(provider_name: str, path: str, label: str | None = None) -> ProjectItemResource:
+    """
+    Constructs a directory resource.
+
+    Args:
+        provider_name: resource provider's name
+        path: directory path
+        label: resource label
+    """
+    if label is None:
+        label = path
+    url = Path(path).resolve().as_uri()
+    return ProjectItemResource(provider_name, "directory", label, url)
 
 
 def transient_file_resource(provider_name: str, label: str, file_path: str | None = None) -> ProjectItemResource:
