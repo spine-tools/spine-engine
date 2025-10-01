@@ -11,6 +11,7 @@
 ######################################################################################################################
 """ Unit tests for ``project_item_resource`` module. """
 from contextlib import ExitStack
+import pathlib
 from pathlib import Path
 import sys
 import unittest
@@ -19,6 +20,7 @@ from spine_engine.project_item.project_item_resource import (
     CmdLineArg,
     LabelArg,
     database_resource,
+    directory_resource,
     expand_cmd_line_args,
     file_resource,
     file_resource_in_pack,
@@ -26,6 +28,7 @@ from spine_engine.project_item.project_item_resource import (
     get_source,
     get_source_extras,
     labelled_resource_args,
+    make_cmd_line_arg,
     transient_file_resource,
     url_resource,
 )
@@ -93,6 +96,29 @@ class TestLabelledResourceArgs(unittest.TestCase):
         self.assertEqual(labelled_args, {"pack": [file_1.path, file_2.path]})
 
 
+class TestCmdLineArg:
+    def test_construction(self):
+        arg = CmdLineArg("--dry-run")
+        assert arg.arg == "--dry-run"
+        assert not arg.missing
+
+    def test_serialization(self):
+        arg = CmdLineArg("--dry-run")
+        arg.missing = True
+        deserialized = make_cmd_line_arg(arg.to_dict())
+        assert isinstance(deserialized, CmdLineArg)
+        assert deserialized == arg
+        assert not deserialized.missing
+
+
+class TestLabelArg:
+    def test_serialization(self):
+        arg = LabelArg("<label>")
+        deserialized = make_cmd_line_arg(arg.to_dict())
+        assert isinstance(deserialized, LabelArg)
+        assert deserialized == arg
+
+
 class TestExpandCmdLineArgs(unittest.TestCase):
     def setUp(self):
         self._logger = mock.MagicMock()
@@ -145,6 +171,22 @@ class TestURLResource(unittest.TestCase):
         self.assertIsNone(resource.url)
 
 
+class TestDirectoryResource:
+    def test_makes_directory_resource(self):
+        path = str(pathlib.Path(__file__).parent)
+        resource = directory_resource("provider", path, "<label>")
+        assert resource.provider_name == "provider"
+        assert resource.label == "<label>"
+        assert resource.metadata == {}
+        assert resource.hasfilepath
+        assert resource.path == path
+
+    def test_path_is_label_if_not_explicitly_given(self):
+        path = str(pathlib.Path(__file__).parent)
+        resource = directory_resource("provider", path)
+        assert resource.label == path
+
+
 class TestTransientFileResource(unittest.TestCase):
     def test_path_works_even_when_resource_has_no_url(self):
         resource = transient_file_resource("Provider", "files@Provider")
@@ -185,7 +227,3 @@ class TestGetSourceExtras(unittest.TestCase):
     def test_transient_file_resource(self):
         resource = transient_file_resource("project item", "non-existent")
         self.assertEqual(get_source_extras(resource), {})
-
-
-if __name__ == "__main__":
-    unittest.main()

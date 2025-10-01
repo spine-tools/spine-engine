@@ -10,16 +10,32 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """ Provides the ProjectItemResource class. """
-from contextlib import contextmanager
+from __future__ import annotations
+from collections.abc import Iterable, Iterator
+from contextlib import ExitStack, contextmanager
 import copy
 from pathlib import Path
+from typing import Literal, TypeAlias, TypedDict
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 import uuid
+from typing_extensions import NotRequired
 from spinedb_api.filters.tools import clear_filter_configs
 from spinedb_api.spine_db_client import SpineDBClient
 from spinedb_api.spine_db_server import closing_spine_db_server, quick_db_checkout
+from ..logger_interface import LoggerInterface
 from ..utils.helpers import PartCount, urls_equal
+
+ResourceType: TypeAlias = Literal["file", "directory", "file_pack", "database", "url"]
+
+
+class ResourceMetadata(TypedDict):
+    filter_stack: NotRequired[tuple[dict, ...]]
+    filter_id: NotRequired[str]
+    schema: NotRequired[str]
+    part_count: NotRequired[PartCount]
+    current: NotRequired[str]
+    precursors: NotRequired[set[str]]
 
 
 class ProjectItemResource:
@@ -32,39 +48,48 @@ class ProjectItemResource:
         metadata (dict): resource's metadata
     """
 
-    def __init__(self, provider_name, type_, label, url=None, metadata=None, filterable=False, identifier=None):
+    def __init__(
+        self,
+        provider_name: str,
+        type_: ResourceType,
+        label: str,
+        url: str | None = None,
+        metadata: ResourceMetadata | None = None,
+        filterable: bool = False,
+        identifier: str | None = None,
+    ):
         """
         Args:
-            provider_name (str): The name of the item that provides the resource
-            type_ (str): The resource type, currently available types:
+            provider_name: The name of the item that provides the resource
+            type_: The resource type, currently available types:
 
                 - "file": url points to a local file
                 - "file_pack": resource is part of a pack; url points to the file's path
                 - "database": url is a Spine database url
                 - "url": url is a generic URL
-            label (str): A label that identifies the resource.
-            url (str, optional): The url of the resource.
-            metadata (dict): Additional metadata providing extra information about the resource.
+            label: A label that identifies the resource.
+            url: The url of the resource.
+            metadata: Additional metadata providing extra information about the resource.
                 Currently available keys:
 
-                - filter_stack (str): resource's filter stack
-                - filter_id (str): filter id
-                - schema (str): database schema if resource is a database resource
-            filterable (bool): If True, the resource provides opportunity for filtering
-            identifier (str): an identifier of the original instance, shared also by all the clones
+                - filter_stack: resource's filter stack
+                - filter_id: filter id
+                - schema: database schema if resource is a database resource
+            filterable: If True, the resource provides opportunity for filtering
+            identifier: an identifier of the original instance, shared also by all the clones
         """
         self.provider_name = provider_name
-        self.type_ = type_
+        self.type_: ResourceType = type_
         self.label = label
         self._url = url
-        self._filepath = None
+        self._filepath: str | None = None
         self._parsed_url = urlparse(self._url)
-        self.metadata = metadata if metadata is not None else dict()
+        self.metadata = metadata if metadata is not None else {}
         self._filterable = filterable
         self._identifier = identifier if identifier is not None else uuid.uuid4().hex
 
     @contextmanager
-    def open(self, db_checkin=False, db_checkout=False):
+    def open(self, db_checkin: bool = False, db_checkout: bool = False) -> Iterator[str]:
         if self.type_ == "database":
             ordering = {
                 "id": self._identifier,
@@ -91,7 +116,7 @@ class ProjectItemResource:
         else:
             yield self.path if self.hasfilepath else ""
 
-    def quick_db_checkout(self):
+    def quick_db_checkout(self) -> None:
         if self.type_ != "database":
             return
         db_server_manager_queue = self.metadata["db_server_manager_queue"]
@@ -103,14 +128,14 @@ class ProjectItemResource:
         }
         quick_db_checkout(db_server_manager_queue, ordering)
 
-    def clone(self, additional_metadata=None):
+    def clone(self, additional_metadata: ResourceMetadata | None = None) -> ProjectItemResource:
         """Clones this resource and optionally updates the clone's metadata.
 
         Args:
-            additional_metadata (dict): metadata to add to the clone
+            additional_metadata: metadata to add to the clone
 
         Returns:
-            ProjectItemResource: cloned resource
+            cloned resource
         """
         if additional_metadata is None:
             additional_metadata = {}
@@ -154,49 +179,51 @@ class ProjectItemResource:
         return result
 
     @property
-    def url(self):
+    def url(self) -> str:
         """Resource URL."""
         return self._url
 
     @url.setter
-    def url(self, url):
+    def url(self, url: str) -> None:
         self._url = url
         self._parsed_url = urlparse(self._url)
 
     @property
-    def path(self):
+    def path(self) -> str:
         """Returns the resource path in the local syntax, as obtained from parsing the url."""
         if not self._filepath:
             self._filepath = url2pathname(self._parsed_url.path) if self._parsed_url.path else ""
         return self._filepath
 
     @property
-    def scheme(self):
+    def scheme(self) -> str:
         """Returns the resource scheme, as obtained from parsing the url."""
         return self._parsed_url.scheme
 
     @property
-    def hasfilepath(self):
+    def hasfilepath(self) -> bool:
         if not self._url:
             return False
-        return self.type_ in ("file", "file_pack") or (self.type_ == "database" and self.scheme == "sqlite")
+        return self.type_ in ("file", "directory", "file_pack") or (
+            self.type_ == "database" and self.scheme == "sqlite"
+        )
 
     @property
-    def arg(self):
+    def arg(self) -> str:
         return self._url if self.type_ == "database" else self.path
 
     @property
-    def filterable(self):
+    def filterable(self) -> bool:
         return self._filterable
 
 
 class CmdLineArg:
     """Command line argument for items that execute shell commands."""
 
-    def __init__(self, arg):
+    def __init__(self, arg: str):
         """
         Args:
-            arg (str): command line argument
+            arg: command line argument
         """
         self.arg = arg
         self.missing = False
@@ -209,11 +236,11 @@ class CmdLineArg:
     def __str__(self):
         return self.arg
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """Serializes argument to JSON compatible dict.
 
         Returns:
-            dict: serialized command line argument
+            serialized command line argument
         """
         return {"type": "literal", "arg": self.arg}
 
@@ -221,24 +248,26 @@ class CmdLineArg:
 class LabelArg(CmdLineArg):
     """Command line argument that gets replaced by a project item's resource URL/file path."""
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """See base class."""
         return {"type": "resource", "arg": self.arg}
 
 
-def database_resource(provider_name, url, label=None, filterable=False, schema=None):
+def database_resource(
+    provider_name: str, url: str, label: str | None = None, filterable: bool = False, schema: str | None = None
+) -> ProjectItemResource:
     """
     Constructs a Spine database resource.
 
     Args:
-        provider_name (str): resource provider's name
-        url (str): database URL
-        label (str, optional): resource label
-        filterable (bool): is resource filterable
-        schema (str, optional): database schema
+        provider_name: resource provider's name
+        url: database URL
+        label: resource label
+        filterable: is resource filterable
+        schema: database schema
 
     Returns:
-        ProjectItemResources: Spine database resource
+        Spine database resource
     """
     if label is None:
         label = clear_filter_configs(url)
@@ -246,28 +275,28 @@ def database_resource(provider_name, url, label=None, filterable=False, schema=N
     return ProjectItemResource(provider_name, "database", label, url, metadata=metadata, filterable=filterable)
 
 
-def url_resource(provider_name, url, label, schema=None):
+def url_resource(provider_name: str, url: str, label: str, schema: str | None = None) -> ProjectItemResource:
     """
     Constructs a generic URL resource.
 
     Args:
-        provider_name (str): resource provider's name
-        url (str): database URL
-        label (str): resource label
-        schema (str, optional): database schema if URL is a database URL
+        provider_name: resource provider's name
+        url: database URL
+        label: resource label
+        schema: database schema if URL is a database URL
     """
     metadata = None if not schema else {"schema": schema}
     return ProjectItemResource(provider_name, "url", label, url, metadata=metadata)
 
 
-def file_resource(provider_name, file_path, label=None):
+def file_resource(provider_name: str, file_path: str, label: str | None = None) -> ProjectItemResource:
     """
     Constructs a file resource.
 
     Args:
-        provider_name (str): resource provider's name
-        file_path (str): path to file
-        label (str, optional): resource label
+        provider_name: resource provider's name
+        file_path: path to file
+        label: resource label
     """
     if label is None:
         label = file_path
@@ -275,14 +304,29 @@ def file_resource(provider_name, file_path, label=None):
     return ProjectItemResource(provider_name, "file", label, url)
 
 
-def transient_file_resource(provider_name, label, file_path=None):
+def directory_resource(provider_name: str, path: str, label: str | None = None) -> ProjectItemResource:
+    """
+    Constructs a directory resource.
+
+    Args:
+        provider_name: resource provider's name
+        path: directory path
+        label: resource label
+    """
+    if label is None:
+        label = path
+    url = Path(path).resolve().as_uri()
+    return ProjectItemResource(provider_name, "directory", label, url)
+
+
+def transient_file_resource(provider_name: str, label: str, file_path: str | None = None) -> ProjectItemResource:
     """
     Constructs a transient file resource.
 
     Args:
-        provider_name (str): resource provider's name
-        label (str): resource label
-        file_path (str, optional): file path if the file exists
+        provider_name: resource provider's name
+        label: resource label
+        file_path: file path if the file exists
     """
     if file_path is not None:
         url = Path(file_path).resolve().as_uri()
@@ -291,14 +335,14 @@ def transient_file_resource(provider_name, label, file_path=None):
     return ProjectItemResource(provider_name, "file", label, url)
 
 
-def file_resource_in_pack(provider_name, label, file_path=None):
+def file_resource_in_pack(provider_name: str, label: str, file_path: str | None = None) -> ProjectItemResource:
     """
     Constructs a file resource that is part of a resource pack.
 
     Args:
-        provider_name (str): resource provider's name
-        label (str): resource label
-        file_path (str, optional): file path if the file exists
+        provider_name: resource provider's name
+        label: resource label
+        file_path: file path if the file exists
     """
     if file_path is not None:
         url = Path(file_path).resolve().as_uri()
@@ -307,26 +351,28 @@ def file_resource_in_pack(provider_name, label, file_path=None):
     return ProjectItemResource(provider_name, "file_pack", label, url)
 
 
-def extract_packs(resources):
+def extract_packs(
+    resources: Iterable[ProjectItemResource],
+) -> tuple[list[ProjectItemResource], dict[str, list[ProjectItemResource]]]:
     """Extracts file packs from resources.
 
     Args:
-        resources (Iterable of ProjectItemResource): resources to process
+        resources: resources to process
 
     Returns:
-        tuple: list of non-pack resources and dictionary of packs keyed by label
+        list of non-pack resources and dictionary of packs keyed by label
     """
-    singles = list()
-    packs = dict()
+    singles = []
+    packs = {}
     for resource in resources:
         if resource.type_ != "file_pack":
             singles.append(resource)
         else:
-            packs.setdefault(resource.label, list()).append(resource)
+            packs.setdefault(resource.label, []).append(resource)
     return singles, packs
 
 
-def labelled_resource_filepaths(resources):
+def labelled_resource_filepaths(resources: Iterable[ProjectItemResource]) -> dict[str, str]:
     """Returns a dict mapping resource labels to file paths available in given resources.
     The label acts as an identifier for a 'transient_file'.
     """
@@ -336,14 +382,14 @@ def labelled_resource_filepaths(resources):
 _DATABASE_RESOURCE_TYPES = ("database", "url")
 
 
-def get_labelled_source_resources(resources):
+def get_labelled_source_resources(resources: Iterable[ProjectItemResource]) -> dict[str, list[ProjectItemResource]]:
     """Collects URL and file resources and keys them by resource label.
 
     Args:
-        resources (Iterable of ProjectItemResource): resources to organize
+        resources : resources to organize
 
     Returns:
-        dict: a mapping from resource label to list of URLs or file paths
+        a mapping from resource label to list of resources with URLs or file paths
     """
     d = {}
     for resource in resources:
@@ -352,14 +398,14 @@ def get_labelled_source_resources(resources):
     return d
 
 
-def get_source(resource):
+def get_source(resource: ProjectItemResource) -> str | None:
     """Gets source from resource.
 
     Args:
-        resource (ProjectItemResource): resource
+        resource: resource
 
     Returns:
-         str: source file path or URL or None if source is not available
+         source file path or URL or None if source is not available
     """
     if resource.type_ in _DATABASE_RESOURCE_TYPES:
         return resource.url
@@ -368,28 +414,28 @@ def get_source(resource):
     return None
 
 
-def get_source_extras(resource):
+def get_source_extras(resource: ProjectItemResource) -> dict:
     """Gets additional source settings from resource.
 
     Args:
-        resource (ProjectItemResource): resource
+        resource: resource
 
     Returns:
-        dict: additional source settings
+        additional source settings
     """
     if resource.type_ in _DATABASE_RESOURCE_TYPES:
         return {"schema": resource.metadata.get("schema")}
     return {}
 
 
-def make_cmd_line_arg(arg_spec):
+def make_cmd_line_arg(arg_spec: dict | str) -> CmdLineArg:
     """Deserializes argument from dictionary.
 
     Args:
-        arg_spec (dict or str): serialized command line argument
+        arg_spec: serialized command line argument
 
     Returns:
-        CmdLineArg: deserialized command line argument
+        deserialized command line argument
     """
     if not isinstance(arg_spec, dict):
         return CmdLineArg(arg_spec)
@@ -398,17 +444,19 @@ def make_cmd_line_arg(arg_spec):
     return construct(arg_spec["arg"])
 
 
-def labelled_resource_args(resources, stack, db_checkin=False, db_checkout=False):
+def labelled_resource_args(
+    resources: Iterable[ProjectItemResource], stack: ExitStack, db_checkin: bool = False, db_checkout: bool = False
+) -> dict[str, list]:
     """Generates command line arguments for each resource.
 
     Args:
-        resources (Iterable of ProjectItemResource): resources to process
-        stack (ExitStack): context manager to ensure resources get closed properly
-        db_checkin (bool): is database checkin required
-        db_checkout (bool): is database checkout required
+        resources: resources to process
+        stack: context manager to ensure resources get closed properly
+        db_checkin: is database checkin required
+        db_checkout: is database checkout required
 
-    Yields:
-        dict: mapping from resource label to a list of resource args.
+    Returns:
+        mapping from resource label to a list of resource args.
     """
     result = {}
     single_resources, pack_resources = extract_packs(resources)
@@ -421,13 +469,15 @@ def labelled_resource_args(resources, stack, db_checkin=False, db_checkout=False
     return result
 
 
-def expand_cmd_line_args(args, label_to_arg, logger):
+def expand_cmd_line_args(
+    args: list[CmdLineArg], label_to_arg: dict[str, list[CmdLineArg]], logger: LoggerInterface
+) -> list[str]:
     """Expands command line arguments by replacing resource labels by URLs/paths.
 
     Args:
-        args (list of CmdLineArg): command line arguments
-        label_to_arg (dict): a mapping from resource label to list of cmd line arguments
-        logger (LoggerInterface): a logger
+        args: command line arguments
+        label_to_arg: a mapping from resource label to list of cmd line arguments
+        logger: a logger
 
     Returns:
         list of str: command line arguments as strings
