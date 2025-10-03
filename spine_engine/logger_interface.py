@@ -11,6 +11,7 @@
 ######################################################################################################################
 """A logger interface for static type checking."""
 from typing import Protocol
+from PySide6.QtCore import Signal
 
 
 class MessageSignal(Protocol):
@@ -26,19 +27,24 @@ class MessageBoxSignal(Protocol):
 class LoggerInterface(Protocol):
     """Protocol for logger that uses signals that can be emitted to send messages to an output device."""
 
-    msg: MessageSignal
+    msg: MessageSignal | Signal
     """Emits a notification message."""
-    msg_success: MessageSignal
+    msg_success: MessageSignal | Signal
     """Emits a message on success"""
-    msg_warning: MessageSignal
+    msg_warning: MessageSignal | Signal
     """Emits a warning message."""
-    msg_error: MessageSignal
+    msg_error: MessageSignal | Signal
     """Emits an error message."""
-    msg_proc: MessageSignal
+    msg_proc: MessageSignal | Signal
     """Emits a message originating from a subprocess (usually something printed to stdout)."""
-    msg_proc_error: MessageSignal
+    msg_proc_error: MessageSignal | Signal
     """Emits an error message originating from a subprocess (usually something printed to stderr)."""
-    information_box: MessageBoxSignal
+    information_box: MessageBoxSignal | Signal
     """Requests an 'information message box' (e.g. a message window) to be opened with a given title and message."""
-    error_box: MessageBoxSignal
+    error_box: MessageBoxSignal | Signal
     """Requests an 'error message box' to be opened with a given title and message."""
+
+
+class NonImplementedSignal:
+    def emit(self, *args) -> None:
+        raise RuntimeError("logic error: signal not implemented")
