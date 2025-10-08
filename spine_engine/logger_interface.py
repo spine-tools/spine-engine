@@ -11,7 +11,6 @@
 ######################################################################################################################
 """A logger interface for static type checking."""
 from typing import Protocol
-from PySide6.QtCore import Signal
 
 
 class MessageSignal(Protocol):
@@ -27,21 +26,21 @@ class MessageBoxSignal(Protocol):
 class LoggerInterface(Protocol):
     """Protocol for logger that uses signals that can be emitted to send messages to an output device."""
 
-    msg: MessageSignal | Signal
+    msg: MessageSignal
     """Emits a notification message."""
-    msg_success: MessageSignal | Signal
+    msg_success: MessageSignal
     """Emits a message on success"""
-    msg_warning: MessageSignal | Signal
+    msg_warning: MessageSignal
     """Emits a warning message."""
-    msg_error: MessageSignal | Signal
+    msg_error: MessageSignal
     """Emits an error message."""
-    msg_proc: MessageSignal | Signal
+    msg_proc: MessageSignal
     """Emits a message originating from a subprocess (usually something printed to stdout)."""
-    msg_proc_error: MessageSignal | Signal
+    msg_proc_error: MessageSignal
     """Emits an error message originating from a subprocess (usually something printed to stderr)."""
-    information_box: MessageBoxSignal | Signal
+    information_box: MessageBoxSignal
     """Requests an 'information message box' (e.g. a message window) to be opened with a given title and message."""
-    error_box: MessageBoxSignal | Signal
+    error_box: MessageBoxSignal
     """Requests an 'error message box' to be opened with a given title and message."""
 
 
