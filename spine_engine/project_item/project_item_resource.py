@@ -446,7 +446,7 @@ def make_cmd_line_arg(arg_spec: dict | str) -> CmdLineArg:
 
 def labelled_resource_args(
     resources: Iterable[ProjectItemResource], stack: ExitStack, db_checkin: bool = False, db_checkout: bool = False
-) -> dict[str, list]:
+) -> dict[str, list[str]]:
     """Generates command line arguments for each resource.
 
     Args:
@@ -470,7 +470,7 @@ def labelled_resource_args(
 
 
 def expand_cmd_line_args(
-    args: list[CmdLineArg], label_to_arg: dict[str, list[CmdLineArg]], logger: LoggerInterface
+    args: list[CmdLineArg], label_to_arg: dict[str, list[str]], logger: LoggerInterface
 ) -> list[str]:
     """Expands command line arguments by replacing resource labels by URLs/paths.
 
@@ -480,7 +480,7 @@ def expand_cmd_line_args(
         logger: a logger
 
     Returns:
-        list of str: command line arguments as strings
+        command line arguments as strings
     """
     expanded_args = list()
     for arg in args:
@@ -488,9 +488,8 @@ def expand_cmd_line_args(
             expanded_args.append(str(arg))
             continue
         expanded = label_to_arg.get(str(arg))
-        if expanded is None:
+        if expanded is None or any(not arg for arg in expanded):
             logger.msg_warning.emit(f"No resources matching argument '{arg}'.")
             continue
-        if expanded:
-            expanded_args.extend(expanded)
+        expanded_args.extend(expanded)
     return expanded_args
