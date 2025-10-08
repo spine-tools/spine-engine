@@ -144,6 +144,13 @@ class TestExpandCmdLineArgs(unittest.TestCase):
         expanded_args = expand_cmd_line_args(args, label_to_arg, self._logger)
         self.assertEqual(expanded_args, ["--no-worries"])
 
+    def test_empty_file_pack(self):
+        args = [LabelArg("file label")]
+        label_to_arg = {"file label": [""]}
+        expanded_args = expand_cmd_line_args(args, label_to_arg, self._logger)
+        self.assertEqual(expanded_args, [])
+        self._logger.msg_warning.emit.assert_called_once_with("No resources matching argument 'file label'.")
+
 
 class TestDatabaseResource(unittest.TestCase):
     def test_schema_is_stored_in_metadata(self):
