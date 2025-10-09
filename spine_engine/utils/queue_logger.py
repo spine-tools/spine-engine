@@ -10,15 +10,17 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-The QueueLogger class.
-
-"""
+""" The QueueLogger class. """
+from collections.abc import Callable
+from multiprocessing.queues import Queue
 import time
+from typing import Any, Final
+
+Slot = Callable[[dict[str, Any]], None]
 
 
 class _MessageBase:
-    def __init__(self, queue, item_name, event_type):
+    def __init__(self, queue: Queue, item_name: str, event_type: str):
         self._queue = queue
         self._event_type = event_type
         self._item_name = item_name
@@ -26,33 +28,33 @@ class _MessageBase:
         self._slots = []
 
     @property
-    def filter_id(self):
+    def filter_id(self) -> str:
         return self._filter_id
 
     @filter_id.setter
-    def filter_id(self, filter_id):
+    def filter_id(self, filter_id: str) -> None:
         self._filter_id = filter_id
 
-    def emit(self, msg):
+    def emit(self, msg: dict[str, Any]) -> None:
         msg = dict(filter_id=self._filter_id, **msg)
         full_msg = (self._event_type, dict(item_name=self._item_name, **msg))
         self._queue.put(full_msg)
         for slot in self._slots:
             slot(msg)
 
-    def connect(self, slot):
+    def connect(self, slot: Slot) -> None:
         self._slots.append(slot)
 
-    def disconnect(self, slot):
+    def disconnect(self, slot: Slot) -> None:
         self._slots.remove(slot)
 
 
 class _Message(_MessageBase):
-    def __init__(self, queue, item_name, event_type, msg_type):
+    def __init__(self, queue: Queue, item_name: str, event_type: str, msg_type: str):
         super().__init__(queue, item_name, event_type)
         self._msg_type = msg_type
 
-    def emit(self, msg_text):
+    def emit(self, msg_text: str) -> None:
         super().emit({"msg_type": self._msg_type, "msg_text": msg_text})
 
 
@@ -62,24 +64,24 @@ class _ExecutionMessage(_MessageBase):
 
 class SuppressedMessage:
     def __init__(self, *args, **kwargs):
-        pass
+        self.filter_id = ""
 
-    def emit(self, *args, **kwargs):
+    def emit(self, *args, **kwargs) -> None:
         """Don't emit anything"""
 
-    def connect(self, *args, **kwargs):
+    def connect(self, *args, **kwargs) -> None:
         """Don't connect anything"""
 
 
 class _Prompt(_MessageBase):
-    _PENDING = object()
+    _PENDING: Final[object] = object()
 
-    def __init__(self, queue, item_name, prompt_queue, answered_prompts):
+    def __init__(self, queue: Queue, item_name: str, prompt_queue: Queue, answered_prompts: dict[str, Any]):
         super().__init__(queue, item_name, "prompt")
         self._prompt_queue = prompt_queue
         self._answered_prompts = answered_prompts
 
-    def emit(self, prompt_data):
+    def emit(self, prompt_data: Any) -> Any:
         key = str(prompt_data)
         if key not in self._answered_prompts:
             self._answered_prompts[key] = self._PENDING
@@ -92,17 +94,24 @@ class _Prompt(_MessageBase):
 
 
 class _Flash(_MessageBase):
-    def __init__(self, queue, item_name):
+    def __init__(self, queue: Queue, item_name: str):
         super().__init__(queue, item_name, "flash")
 
-    def emit(self):
+    def emit(self) -> None:
         self._queue.put(("flash", {"item_name": self._item_name}))
 
 
 class QueueLogger:
     """A :class:`LoggerInterface` compliant logger that puts messages into a Queue."""
 
-    def __init__(self, queue, item_name, prompt_queue, answered_prompts, silent=False):
+    def __init__(
+        self,
+        queue: Queue,
+        item_name: str,
+        prompt_queue: Queue | None,
+        answered_prompts: dict[str, Any] | None,
+        silent: bool = False,
+    ):
         self._silent = silent
         message = _Message if not silent else SuppressedMessage
         execution_message = _ExecutionMessage if not silent else SuppressedMessage
@@ -116,9 +125,12 @@ class QueueLogger:
         self.msg_standard_execution = execution_message(queue, item_name, "standard_execution_msg")
         self.msg_persistent_execution = execution_message(queue, item_name, "persistent_execution_msg")
         self.msg_kernel_execution = execution_message(queue, item_name, "kernel_execution_msg")
-        self.prompt = _Prompt(queue, item_name, prompt_queue, answered_prompts)
+        if prompt_queue is None:
+            self.prompt = SuppressedMessage()
+        else:
+            self.prompt = _Prompt(queue, item_name, prompt_queue, answered_prompts)
 
-    def set_filter_id(self, filter_id):
+    def set_filter_id(self, filter_id: str) -> None:
         if not self._silent:
             self.msg.filter_id = filter_id
             self.msg_success.filter_id = filter_id

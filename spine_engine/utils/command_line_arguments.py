@@ -12,7 +12,7 @@
 """ Split command line arguments. """
 
 
-def split_cmdline_args(arg_string):
+def split_cmdline_args(arg_string: str) -> list[str]:
     """
     Splits a string of command line arguments into a list of tokens.
 
@@ -21,10 +21,10 @@ def split_cmdline_args(arg_string):
     Thus, `--file="a long quoted 'file' name.txt` becomes ["--file=a long quoted 'file' name.txt"]
 
     Args:
-        arg_string (str): command line arguments as a string
+        arg_string: command line arguments as a string
 
     Returns:
-        list: a list of tokens
+        a list of tokens
     """
     tokens = list()
     current_word = ""

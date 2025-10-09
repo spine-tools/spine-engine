@@ -469,9 +469,7 @@ def labelled_resource_args(
     return result
 
 
-def expand_cmd_line_args(
-    args: list[CmdLineArg], label_to_arg: dict[str, list[str]], logger: LoggerInterface
-) -> list[str]:
+def expand_cmd_line_args(args: list, label_to_arg: dict[str, list[str]], logger: LoggerInterface) -> list[str]:
     """Expands command line arguments by replacing resource labels by URLs/paths.
 
     Args:
