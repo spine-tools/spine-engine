@@ -12,6 +12,7 @@
 
 """ Utilities for managing execution resources such as processes. """
 import threading
+from typing import Literal
 
 
 class ResourceSemaphore:
@@ -23,14 +24,14 @@ class ResourceSemaphore:
         self._process_count = 0
         self._process_count_lock = threading.Lock()
 
-    def acquire(self, timeout=None):
+    def acquire(self, timeout: float | None = None) -> bool:
         """Waits for process count to drop below the limit.
 
         Args:
-            timeout (float, optional): timeout in seconds
+            timeout: timeout in seconds
 
         Returns:
-            bool: True if semaphore was acquired, False if there were too many processes and a time out occurred
+            True if semaphore was acquired, False if there were too many processes and a timeout occurred
         """
         with self._process_count_lock:
             if self._max_processes == "unlimited":
@@ -42,11 +43,11 @@ class ResourceSemaphore:
     def __enter__(self):
         return self.acquire()
 
-    def _check_and_update_process_count(self):
+    def _check_and_update_process_count(self) -> bool:
         """Atomically checks if process count is less than the limit and if so, increments it by one.
 
         Returns:
-            bool: True if process count was incremented, False otherwise
+            True if process count was incremented, False otherwise
         """
         with self._process_count_lock:
             if self._process_count < self._max_processes:
@@ -54,7 +55,7 @@ class ResourceSemaphore:
                 return True
             return False
 
-    def release(self):
+    def release(self) -> None:
         """Decrements process count and notifies other threads."""
         with self._process_count_lock:
             self._process_count -= 1
@@ -67,11 +68,11 @@ class ResourceSemaphore:
         self.release()
         return False
 
-    def set_limit(self, limit):
+    def set_limit(self, limit: int | Literal["unlimited"]) -> None:
         """Sets maximum number of processes.
 
         Args:
-            limit (int or str): maximum number of processes or "unlimited"
+            limit: maximum number of processes or "unlimited"
         """
         with self._process_count_lock:
             if limit == self._max_processes:
