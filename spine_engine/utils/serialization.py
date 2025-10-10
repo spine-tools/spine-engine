@@ -15,7 +15,7 @@
 import os
 from pathlib import Path
 import sys
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, TypeGuard
 import urllib
 from urllib.parse import urljoin
 from typing_extensions import NotRequired
@@ -40,43 +40,50 @@ def path_in_dir(path: str | Path, directory: str | Path) -> bool:
 
 class PathDict(TypedDict):
     type: Literal["path", "url", "file_url"]
-    relative: bool
     path: str
+    relative: NotRequired[bool]
     scheme: NotRequired[str]
     query: NotRequired[str]
 
 
-def serialize_path(path: str, project_dir: str) -> PathDict:
+def is_path_dict_with_file(d: dict) -> TypeGuard[PathDict]:
+    return "type" in d and d["type"] in ("path", "file_url") and "path" in d and "relative" in d
+
+
+def serialize_path(path: str | Path, project_dir: str | Path, is_relative: bool | None = None) -> PathDict:
     """
     Returns a dict representation of the given path.
 
-    If path is in project_dir, converts the path to relative.
-
     Args:
-        path (str): path to serialize
-        project_dir (str): path to the project directory
+        path: path to serialize
+        project_dir: path to the project directory
+        is_relative: If True, make path relative to project_dir, if False, keep path absolute;
+            if None, make path relative if it points inside project_dir.
 
     Returns:
-        dict: Dictionary representing the given path
+        Dictionary representing the given path
     """
-    is_relative = path_in_dir(path, project_dir)
+    if is_relative is None:
+        is_relative = path_in_dir(path, project_dir)
     serialized: PathDict = {
         "type": "path",
         "relative": is_relative,
-        "path": os.path.relpath(path, project_dir).replace(os.sep, "/") if is_relative else path.replace(os.sep, "/"),
+        "path": (
+            os.path.relpath(path, project_dir).replace(os.sep, "/") if is_relative else str(path).replace(os.sep, "/")
+        ),
     }
     return serialized
 
 
-def serialize_url(url: str, project_dir: str) -> PathDict:
+def serialize_url(url: str, project_dir: str | Path, is_relative: bool | None = None) -> PathDict:
     """
     Return a dict representation of the given URL.
-
-    If the URL is a file that is in project dir, the URL is converted to a relative path.
 
     Args:
         url: a URL to serialize
         project_dir: path to the project directory
+        is_relative: True to make the target path (if URL points to a file) relative to project_dir,
+            False to make it absolute and None to use relative path only when the file is in project_dir
 
     Returns:
         Dictionary representing the URL
@@ -86,7 +93,8 @@ def serialize_url(url: str, project_dir: str) -> PathDict:
     if sys.platform == "win32":
         path = path[1:]  # Remove extra '/' from the beginning
     if os.path.isfile(path):
-        is_relative = path_in_dir(path, project_dir)
+        if is_relative is None:
+            is_relative = path_in_dir(path, project_dir)
         serialized: PathDict = {
             "type": "file_url",
             "relative": is_relative,
