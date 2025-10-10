@@ -75,41 +75,6 @@ def serialize_path(path: str | Path, project_dir: str | Path, is_relative: bool 
     return serialized
 
 
-def serialize_url(url: str, project_dir: str | Path, is_relative: bool | None = None) -> PathDict:
-    """
-    Return a dict representation of the given URL.
-
-    Args:
-        url: a URL to serialize
-        project_dir: path to the project directory
-        is_relative: True to make the target path (if URL points to a file) relative to project_dir,
-            False to make it absolute and None to use relative path only when the file is in project_dir
-
-    Returns:
-        Dictionary representing the URL
-    """
-    parsed = urllib.parse.urlparse(url)
-    path = urllib.parse.unquote(parsed.path)
-    if sys.platform == "win32":
-        path = path[1:]  # Remove extra '/' from the beginning
-    if os.path.isfile(path):
-        if is_relative is None:
-            is_relative = path_in_dir(path, project_dir)
-        serialized: PathDict = {
-            "type": "file_url",
-            "relative": is_relative,
-            "path": (
-                os.path.relpath(path, project_dir).replace(os.sep, "/") if is_relative else path.replace(os.sep, "/")
-            ),
-            "scheme": parsed.scheme,
-        }
-        if parsed.query:
-            serialized["query"] = parsed.query
-    else:
-        serialized: PathDict = {"type": "url", "relative": False, "path": url}
-    return serialized
-
-
 def deserialize_path(serialized: PathDict | str, project_dir: str) -> str:
     """
     Returns a deserialized path or URL.

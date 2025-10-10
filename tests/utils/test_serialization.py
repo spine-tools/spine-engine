@@ -20,7 +20,6 @@ from spine_engine.utils.serialization import (
     is_path_dict_with_file,
     path_in_dir,
     serialize_path,
-    serialize_url,
 )
 
 
@@ -52,71 +51,6 @@ class TestSerializePath:
         project_path = tmp_path / "project"
         path = project_path / "data" / "file.txt"
         assert serialize_path(path, project_path, False) == {"type": "path", "relative": False, "path": path.as_posix()}
-
-
-class TestSerializeUrl:
-    def test_serialize_url_makes_file_path_in_project_dir_relative(self, tmp_path):
-        project_dir = tmp_path / "project"
-        temp_file = project_dir / "data" / "db.sqlite"
-        temp_file.parent.mkdir(parents=True)
-        temp_file.touch()
-        url = "sqlite:///" + temp_file.as_posix()
-        expected_path = Path(temp_file).relative_to(project_dir).as_posix()
-        serialized = serialize_url(url, str(project_dir))
-        assert serialized == {"type": "file_url", "relative": True, "path": expected_path, "scheme": "sqlite"}
-
-    def test_force_relative_file_path_outside_of_project_dir(self, tmp_path):
-        project_dir = tmp_path / "project"
-        temp_file = tmp_path / "data" / "db.sqlite"
-        temp_file.parent.mkdir(parents=True)
-        temp_file.touch()
-        url = "sqlite:///" + temp_file.as_posix()
-        serialized = serialize_url(url, project_dir, True)
-        assert serialized == {"type": "file_url", "relative": True, "path": "../data/db.sqlite", "scheme": "sqlite"}
-
-    def test_serialize_url_keeps_file_path_not_in_project_dir_absolute(self, tmp_path):
-        project_dir = tmp_path / "project"
-        temp_file = tmp_path / "data" / "db.sqlite"
-        temp_file.parent.mkdir(parents=True)
-        temp_file.touch()
-        expected_path = temp_file.as_posix()
-        if sys.platform == "win32":
-            url = "sqlite:///" + expected_path
-        else:
-            url = "sqlite://" + expected_path
-        serialized = serialize_url(url, str(project_dir))
-        assert serialized == {"type": "file_url", "relative": False, "path": expected_path, "scheme": "sqlite"}
-
-    def test_force_absolute_file_path_inside_project_dir(self, tmp_path):
-        project_dir = tmp_path / "project"
-        temp_file = project_dir / "data" / "db.sqlite"
-        temp_file.parent.mkdir(parents=True)
-        temp_file.touch()
-        url = "sqlite:///" + temp_file.as_posix()
-        serialized = serialize_url(url, project_dir, False)
-        assert serialized == {"type": "file_url", "relative": False, "path": temp_file.as_posix(), "scheme": "sqlite"}
-
-    def test_serialize_url_with_non_file_urls(self, tmp_path):
-        project_dir = tmp_path / "project"
-        url = "http://www.spine-model.org/"
-        serialized = serialize_url(url, str(project_dir))
-        assert serialized == {"type": "url", "relative": False, "path": url}
-
-    def test_serialize_relative_url_with_query(self, tmp_path):
-        project_dir = tmp_path / "project"
-        temp_file = project_dir / "db.sqlite"
-        temp_file.parent.mkdir(parents=True)
-        temp_file.touch()
-        url = "sqlite:///" + temp_file.as_posix() + "?filter=kol"
-        expected_path = temp_file.relative_to(project_dir).as_posix()
-        serialized = serialize_url(url, str(project_dir))
-        assert serialized == {
-            "type": "file_url",
-            "relative": True,
-            "path": expected_path,
-            "scheme": "sqlite",
-            "query": "filter=kol",
-        }
 
 
 class TestDeserializePath:
