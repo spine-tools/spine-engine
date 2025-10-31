@@ -414,7 +414,11 @@ def get_source(resource: ProjectItemResource) -> str | None:
     return None
 
 
-def get_source_extras(resource: ProjectItemResource) -> dict:
+class SourceExtras(TypedDict):
+    schema: NotRequired[str | None]
+
+
+def get_source_extras(resource: ProjectItemResource) -> SourceExtras:
     """Gets additional source settings from resource.
 
     Args:
