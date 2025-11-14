@@ -3,7 +3,15 @@
 name: Unit tests
 
 on:
-  push
+  push:
+    paths:
+      - "**.py"
+      - "dev-requirements.txt"
+      - "requirements.txt"
+      - "pyproject.toml"
+      - ".github/workflows/*.yml"
+    branches-ignore:
+      - "release"
 
 jobs:
   unit-tests:
