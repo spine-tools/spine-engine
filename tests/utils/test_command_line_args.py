@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Unit tests for command line args module. """
+"""Unit tests for command line args module."""
 
 import unittest
 from spine_engine.utils.command_line_arguments import split_cmdline_args

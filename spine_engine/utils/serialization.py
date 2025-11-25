@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Functions to (de)serialize stuff. """
+"""Functions to (de)serialize stuff."""
 
 import os
 from pathlib import Path

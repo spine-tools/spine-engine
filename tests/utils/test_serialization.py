@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Unit tests for serialization module. """
+"""Unit tests for serialization module."""
 from pathlib import Path
 import sys
 import pytest

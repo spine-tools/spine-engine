@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Provides connection classes for linking project items. """
+"""Provides connection classes for linking project items."""
 from __future__ import annotations
 from collections.abc import Iterable
 from contextlib import ExitStack
@@ -773,7 +773,7 @@ class Jump(ConnectionBase):
 
 
 def _restore_legacy_disabled_filters(
-    disabled_filter_names: dict[str, dict[str, list[str]]]
+    disabled_filter_names: dict[str, dict[str, list[str]]],
 ) -> dict[str, dict[str, dict[str, bool]]]:
     """Converts legacy serialized disabled filter names to known filters dict.
 

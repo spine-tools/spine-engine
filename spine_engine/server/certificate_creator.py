@@ -11,7 +11,7 @@
 ######################################################################################################################
 
 """
-The function of this class can be used for generation of keys for enabling security 
+The function of this class can be used for generation of keys for enabling security
 of the remote spine_server. The code has been copied based on an example at (by Chris Laws):
 https://github.com/zeromq/pyzmq/blob/main/examples/security/generate_certificates.py
 

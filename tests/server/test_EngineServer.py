@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Unit tests for EngineServer class. """
+"""Unit tests for EngineServer class."""
 
 import os
 import pathlib

@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" Contains ExecutableItem, a project item's counterpart in execution as well as support utilities. """
+"""Contains ExecutableItem, a project item's counterpart in execution as well as support utilities."""
 from hashlib import sha1
 from pathlib import Path
 from ..utils.helpers import ExecutionDirection, ItemExecutionFinishState, shorten

@@ -10,7 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-""" The QueueLogger class. """
+"""The QueueLogger class."""
 from collections.abc import Callable
 from multiprocessing.queues import Queue
 import time

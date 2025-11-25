@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Contains the SpineEngine class for running Spine Toolbox DAGs. """
+"""Contains the SpineEngine class for running Spine Toolbox DAGs."""
 from enum import Enum, unique
 from itertools import product
 import multiprocessing as mp
@@ -40,6 +40,9 @@ from .project_item.connection import Connection, Jump
 from .project_item_loader import ProjectItemLoader
 from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
 from .utils.helpers import (
+    AppSettings,
+)
+from .utils.helpers import (
     ItemExecutionFinishState,
     create_timestamp,
     dag_edges,
@@ -48,7 +51,6 @@ from .utils.helpers import (
     make_dag,
     required_items_for_execution,
 )
-from .utils.helpers import AppSettings
 from .utils.helpers import ExecutionDirection as ED
 from .utils.queue_logger import QueueLogger
 

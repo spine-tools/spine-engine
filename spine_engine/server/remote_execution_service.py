@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Contains RemoteExecutionService class that executes a single DAG on the Spine Engine Server. """
+"""Contains RemoteExecutionService class that executes a single DAG on the Spine Engine Server."""
 
 import os
 import threading

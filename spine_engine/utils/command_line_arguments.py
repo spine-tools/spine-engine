@@ -9,7 +9,7 @@
 # Public License for more details. You should have received a copy of the GNU Lesser General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
-""" Split command line arguments. """
+"""Split command line arguments."""
 
 
 def split_cmdline_args(arg_string: str) -> list[str]:
