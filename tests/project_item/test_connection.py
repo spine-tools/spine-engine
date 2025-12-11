@@ -66,6 +66,11 @@ class TestResourceConvertingConnection(unittest.TestCase):
             self.assertEqual(datapackage_resources, [file_resource("Data source", str(datapackage_path))])
             self.assertTrue(datapackage_path.exists())
 
+    def test_dict_local_entries(self):
+        self.assertEqual(
+            ResourceConvertingConnection.connection_dict_local_entries(), [("filter_settings", "known_filters")]
+        )
+
 
 class TestConnection(unittest.TestCase):
     def test_serialization_without_filters(self):

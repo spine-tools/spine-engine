@@ -251,6 +251,10 @@ class FilterSettings:
         return asdict(self)
 
     @staticmethod
+    def settings_dict_local_entries() -> list[tuple[str, ...]]:
+        return [("known_filters",)]
+
+    @staticmethod
     def from_dict(settings_dict: dict) -> FilterSettings:
         """Restores the settings from a dict.
 
@@ -495,6 +499,13 @@ class ResourceConvertingConnection(ConnectionBase):
             d["options"] = self.options.copy()
         d["filter_settings"] = self._filter_settings.to_dict()
         return d
+
+    @staticmethod
+    def connection_dict_local_entries() -> list[tuple[str, ...]]:
+        local_entries = []
+        for filter_entries in FilterSettings.settings_dict_local_entries():
+            local_entries.append(("filter_settings",) + filter_entries)
+        return local_entries
 
     @staticmethod
     def _constructor_args_from_dict(connection_dict: dict) -> dict:
