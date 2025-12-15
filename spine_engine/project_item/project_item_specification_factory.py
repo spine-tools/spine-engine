@@ -10,31 +10,33 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains project item specification factory.
-
-"""
+"""Contains project item specification factory."""
+from PySide6.QtCore import QSettings
+from spine_engine.logger_interface import LoggerInterface
+from spine_engine.project_item.project_item_specification import ProjectItemSpecification
 
 
 class ProjectItemSpecificationFactory:
     """A factory to make project item specifications."""
 
     @staticmethod
-    def item_type():
+    def item_type() -> str:
         """Returns the project item's type."""
         raise NotImplementedError()
 
     @staticmethod
-    def make_specification(definition, app_settings, logger):
+    def make_specification(
+        definition: dict, app_settings: QSettings, logger: LoggerInterface
+    ) -> ProjectItemSpecification:
         """
         Makes a project item specification.
 
         Args:
-            definition (dict): specification's definition dictionary
-            app_settings (QSettings): Toolbox settings
-            logger (LoggerInterface): a logger
+            definition: specification's definition dictionary
+            app_settings: Toolbox settings
+            logger: A logger instance.
 
         Returns:
-            ProjectItemSpecification: a specification built from the given definition
+            a specification built from the given definition
         """
         raise NotImplementedError()
