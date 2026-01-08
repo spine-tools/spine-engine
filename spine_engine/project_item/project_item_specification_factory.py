@@ -11,9 +11,9 @@
 ######################################################################################################################
 
 """Contains project item specification factory."""
-from PySide6.QtCore import QSettings
 from spine_engine.logger_interface import LoggerInterface
 from spine_engine.project_item.project_item_specification import ProjectItemSpecification
+from spine_engine.utils.helpers import AppSettings
 
 
 class ProjectItemSpecificationFactory:
@@ -26,7 +26,7 @@ class ProjectItemSpecificationFactory:
 
     @staticmethod
     def make_specification(
-        definition: dict, app_settings: QSettings, logger: LoggerInterface
+        definition: dict, app_settings: AppSettings, logger: LoggerInterface
     ) -> ProjectItemSpecification:
         """
         Makes a project item specification.

@@ -257,7 +257,7 @@ class PersistentManagerBase:
         except (BrokenPipeError, OSError):
             return False
 
-    def _wait(self):
+    def _wait(self) -> bool:
         """Waits for the persistent process to become idle.
 
         This is implemented as follows:
@@ -267,7 +267,7 @@ class PersistentManagerBase:
         in the server.
 
         Returns:
-            bool: True if persistent process finished successfully, False otherwise
+            True if persistent process finished successfully, False otherwise
         """
         queue = Queue()
         thread = threading.Thread(target=self._wait_ping, args=(queue,))
@@ -283,9 +283,11 @@ class PersistentManagerBase:
         thread.join()
         if not self.is_persistent_alive():
             self._msg_queue.put({"type": "stdout", "data": "Kernel died (×_×)"})
-            success = self._persistent.returncode == 0
-            self._release_persistent_resources()
-            return success
+            if self._persistent is not None:
+                success = self._persistent.returncode == 0
+                self._release_persistent_resources()
+                return success
+            return False
         return result == "ok"
 
     def _wait_ping(self, queue, timeout=1):
