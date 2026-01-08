@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for ``persistent_execution_manager`` module."""
+import concurrent.futures
 import unittest
 from unittest.mock import MagicMock
 from spine_engine.execution_managers.persistent_execution_manager import PythonPersistentExecutionManager
@@ -72,6 +73,34 @@ class TestPythonPersistentExecutionManager(unittest.TestCase):
             for key, expected in expected_message.items():
                 self.assertEqual(call[0][0][key], expected)
 
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_stopping_process_works_when_killing_completed_processes(self):
+        logger = MagicMock()
+        exec_mngr = PythonPersistentExecutionManager(
+            logger,
+            ["python"],
+            ["import time", "time.sleep(3)", "exit(0)"],
+            "my execution",
+            kill_completed_processes=True,
+            group_id="SomeGroup",
+        )
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future_result = executor.submit(exec_mngr.run_until_complete)
+            while not future_result.running():
+                pass
+            exec_mngr.stop_execution()
+            self.assertEqual(future_result.result(), -1)
+        self.assertTrue(exec_mngr.killed)
+        some_expected_messages = [
+            {"type": "persistent_started", "language": "python"},
+            {"type": "execution_started", "args": "python"},
+            {"type": "stdin", "data": "# Running my execution"},
+            {"type": "persistent_killed"},
+            {"type": "stdout", "data": "Kernel died (×_×)"},
+        ]
+        message_emits = logger.msg_persistent_execution.emit.call_args_list
+        for expected_message in some_expected_messages:
+            for emitted_message in message_emits:
+                if all(emitted_message[0][0][key] == expected for key, expected in expected_message.items()):
+                    break
+            else:
+                self.fail(f"Expected message {expected_message} not found in emitted messages")
