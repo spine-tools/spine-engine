@@ -25,6 +25,7 @@ from subprocess import PIPE, Popen
 import sys
 import threading
 import time
+from typing import Literal, TypeAlias
 import uuid
 from ..utils.execution_resources import persistent_process_semaphore
 from ..utils.helpers import Singleton
@@ -33,6 +34,8 @@ from .execution_manager_base import ExecutionManagerBase
 if sys.platform == "win32":
     import ctypes
     from subprocess import CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW
+
+Request: TypeAlias = Literal["add_history", "completions", "history_item", "is_complete"]
 
 
 class PersistentIsDead(Exception):
@@ -161,15 +164,12 @@ class PersistentManagerBase:
         except ValueError:
             pass
 
-    def make_complete_command(self, cmd):
+    def make_complete_command(self, cmd: str) -> str | None:
         lines = cmd.splitlines()
         cmd = os.linesep.join(lines)
         if len(lines) == 1:
             cmd += os.linesep
-        try:
-            result = self._communicate("is_complete", cmd)
-        except PersistentIsDead:
-            return None
+        result = self._communicate("is_complete", cmd)
         if result.strip() != "true":
             return None
         return cmd
@@ -207,20 +207,22 @@ class PersistentManagerBase:
             return
         t = threading.Thread(target=self._issue_command_and_wait_for_idle, args=(cmd, add_history, catch_exception))
         t.start()
-        while True:
-            msg = self._msg_queue.get()
-            if msg["type"] == "command_finished":
-                break
-            yield msg
-        t.join()
+        try:
+            while True:
+                msg = self._msg_queue.get()
+                if msg["type"] == "command_finished":
+                    break
+                yield msg
+        finally:
+            t.join()
 
-    def _issue_command_and_wait_for_idle(self, cmd, add_history, catch_exception):
+    def _issue_command_and_wait_for_idle(self, cmd: str, add_history: bool, catch_exception: bool) -> None:
         """Issues command and wait for idle.
 
         Args:
-            cmd (str): Command to pass to the persistent process
-            add_history (bool): Whether to add the command to history
-            catch_exception (bool): whether to catch and report exceptions in the REPL as errors
+            cmd: Command to pass to the persistent process
+            add_history: Whether to add the command to history
+            catch_exception: whether to catch and report exceptions in the REPL as errors
         """
         with self._lock:
             self._msg_queue.put({"type": "stdin", "data": cmd})
@@ -230,19 +232,20 @@ class PersistentManagerBase:
                     try:
                         self._communicate("add_history", cmd, receive=False)
                     except PersistentIsDead:
-                        return
-                self.command_successful &= self._wait()
+                        self.command_successful = False
+                if self.command_successful:
+                    self.command_successful &= self._wait()
         self._msg_queue.put({"type": "command_finished"})
 
-    def _issue_command(self, cmd, catch_exception=True):
+    def _issue_command(self, cmd: str, catch_exception: bool = True) -> bool:
         """Writes command to the process's stdin and flushes.
 
         Args:
-            cmd (str): Command to pass to the persistent process
-            catch_exception (bool):
+            cmd: Command to pass to the persistent process
+            catch_exception:
 
         Returns:
-            bool: True if command was issued successfully, False otherwise
+            True if command was issued successfully, False otherwise
         """
         if catch_exception:
             cmd = self._catch_exception_command(cmd) if cmd else ""
@@ -324,17 +327,17 @@ class PersistentManagerBase:
                     if not data:
                         break
 
-    def _communicate(self, request, *args, receive=True):
+    def _communicate(self, request: Request, *args, receive: bool = True) -> str | None:
         """
         Sends a request to the persistent process with the given argument.
 
         Args:
-            request (str): One of the supported requests
-            args: Request argument
-            receive (bool, optional): If True (the default) also receives the response and returns it.
+            request: One of the supported requests
+            args: Request arguments
+            receive: If True (the default) also receives the response and returns it.
 
         Returns:
-            str or NoneType: response, or None if the ``receive`` argument is False
+            response, or None if the ``receive`` argument is False
         """
         if not self.is_persistent_alive():
             raise PersistentIsDead()
@@ -348,20 +351,27 @@ class PersistentManagerBase:
                     s.connect(self._server_address)
                     break
                 except ConnectionRefusedError:
-                    time.sleep(0.02)
-            s.sendall(bytes(msg, "UTF8"))
-            if receive:
-                response = s.recv(1000000)
-                return str(response, "UTF8")
+                    if self.is_persistent_alive():
+                        time.sleep(0.02)
+                    else:
+                        raise PersistentIsDead()
+            try:
+                s.sendall(bytes(msg, "UTF8"))
+                if receive:
+                    response = s.recv(1000000)
+                    return str(response, "UTF8")
+            except ConnectionResetError:
+                raise PersistentIsDead()
+        return None
 
-    def get_completions(self, text):
+    def get_completions(self, text: str) -> list[str]:
         """Returns a list of autocompletion options for given text.
 
         Args:
-            text (str): Text to complete
+            text: Text to complete
 
         Returns:
-            list(str): List of options
+            List of options
         """
         try:
             result = self._communicate("completions", text)
@@ -371,16 +381,16 @@ class PersistentManagerBase:
             return []
         return result.strip().split(" ")
 
-    def get_history_item(self, text, prefix, backwards):
+    def get_history_item(self, text: str, prefix: str, backwards: bool) -> str:
         """Returns the history item given by index.
 
         Args:
-            text (str): text in the line edit when the search starts
-            prefix (str): return the next item that starts with this
-            backwards (bool): whether to move the history backwards or not
+            text: text in the line edit when the search starts
+            prefix: return the next item that starts with this
+            backwards: whether to move the history backwards or not
 
         Returns:
-            str
+            History item.
         """
         sense = "backwards" if backwards else "forward"
         try:
@@ -410,15 +420,15 @@ class PersistentManagerBase:
     def interrupt_persistent(self):
         """Interrupts the persistent process."""
         queue = Queue()
-        thread = threading.Thread(target=self._do_interrupt_persistent, args=(queue,))
+        thread = threading.Thread(target=self._do_interrupt_persistent, args=(queue, self._persistent))
         thread.start()
         # Wait till the process becomes idle, then put None to the queue
         self._wait()
         queue.put(None)
         thread.join()
 
-    def _do_interrupt_persistent(self, queue):
-        persistent = self._persistent  # Make local copy; other threads may set self._persistent to None while sleeping.
+    def _do_interrupt_persistent(self, queue, persistent):
+        # We need a local copy of persistent; other threads may set self._persistent to None while sleeping.
         if persistent is None:
             return
         while True:
@@ -437,12 +447,8 @@ class PersistentManagerBase:
                 pass
         self.set_running_until_completion(False)
 
-    def is_persistent_alive(self):
-        """Whether the persistent is still alive and ready to receive commands.
-
-        Returns:
-            bool
-        """
+    def is_persistent_alive(self) -> bool:
+        """Whether the persistent is still alive and ready to receive commands."""
         return self._persistent is not None and self._persistent.poll() is None
 
     def kill_process(self):
@@ -750,7 +756,7 @@ def kill_persistent_processes():
     """Kills all persistent processes.
 
     On Windows systems the work directories are reserved by the ``Popen`` objects owned by the persistent managers.
-    They need to be killed to before the directories can be modified, e.g. deleted or renamed.
+    They need to be killed before the directories can be modified, e.g. deleted or renamed.
     """
     _persistent_manager_factory.kill_manager_processes()
 
@@ -832,17 +838,22 @@ class PersistentExecutionManagerBase(ExecutionManagerBase):
             fmt_alias = "# Running " + self._alias.rstrip()
             self._logger.msg_persistent_execution.emit(dict(type="stdin", data=fmt_alias))
             for cmd in self._commands:
-                for msg in self._persistent_manager.issue_command(cmd):
-                    if msg["type"] != "stdin":
-                        self._logger.msg_persistent_execution.emit(msg)
+                try:
+                    for msg in self._persistent_manager.issue_command(cmd):
+                        if msg["type"] != "stdin":
+                            self._logger.msg_persistent_execution.emit(msg)
+                except PersistentIsDead:
+                    self.killed = True
+                    return -1
                 self.killed = not self._persistent_manager.is_persistent_alive()
                 if not self._persistent_manager.command_successful:
                     return -1
             return 0
         finally:
             self._persistent_manager.set_running_until_completion(False)
-            if self._kill_completed:
+            if self._kill_completed and not self.killed:
                 self._persistent_manager.kill_process()
+                self.killed = True
                 self._logger.msg_persistent_execution.emit({"type": "persistent_killed"})
 
     def stop_execution(self):
