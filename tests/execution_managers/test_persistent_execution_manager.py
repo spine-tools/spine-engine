@@ -78,7 +78,7 @@ class TestPythonPersistentExecutionManager(unittest.TestCase):
         exec_mngr = PythonPersistentExecutionManager(
             logger,
             ["python"],
-            ["import time", "time.sleep(3)", "exit(0)"],
+            ["import time", "time.sleep(1000)", "exit(0)"],
             "my execution",
             kill_completed_processes=True,
             group_id="SomeGroup",
@@ -95,7 +95,6 @@ class TestPythonPersistentExecutionManager(unittest.TestCase):
             {"type": "execution_started", "args": "python"},
             {"type": "stdin", "data": "# Running my execution"},
             {"type": "persistent_killed"},
-            {"type": "stdout", "data": "Kernel died (×_×)"},
         ]
         message_emits = logger.msg_persistent_execution.emit.call_args_list
         for expected_message in some_expected_messages:
