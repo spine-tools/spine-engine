@@ -19,6 +19,7 @@ import json.decoder
 import os
 import queue
 import threading
+from typing import Literal, TypeAlias
 import uuid
 import zmq
 from zmq.auth.thread import ThreadAuthenticator
@@ -37,17 +38,19 @@ class ServerSecurityModel(enum.Enum):
     STONEHOUSE = 1
 
 
+Protocol: TypeAlias = Literal["tcp"]
+
+
 class EngineServer(threading.Thread):
     """A server for receiving execution requests from Spine Toolbox."""
 
-    def __init__(self, protocol, port, sec_model, sec_folder):
-        """Initializes the server.
-
+    def __init__(self, protocol: Protocol, port: int, sec_model: ServerSecurityModel, sec_folder: str):
+        """
         Args:
-            protocol (str): Protocol to be used by the server.
-            port (int): Port to bind the server to
-            sec_model (ServerSecurityModel): Security model state
-            sec_folder (str): Folder, where security files have been stored.
+            protocol: Protocol to be used by the server.
+            port: Port to bind the server to
+            sec_model: Security model state
+            sec_folder: Folder, where security files have been stored.
         """
         super().__init__(target=self.serve, name="EngineServerThread")
         if sec_model == ServerSecurityModel.NONE:
@@ -78,7 +81,7 @@ class EngineServer(threading.Thread):
         self.persistent_exec_mngrs = dict()
         self.start()  # Start serving
 
-    def close(self):
+    def close(self) -> None:
         """Closes the server by sending a KILL message to this thread using a PAIR socket."""
         if self.auth is not None:
             self.auth.stop()
@@ -89,7 +92,7 @@ class EngineServer(threading.Thread):
         self.ctrl_msg_sender.close()  # Close this in the same thread that it was created in
         self._context.term()
 
-    def serve(self):
+    def serve(self) -> None:
         """Creates the required sockets, which are polled asynchronously. The ROUTER socket handles communicating
         with clients, DEALER sockets are for communicating with the backend processes and PAIR sockets are for
         internal server control messages."""
@@ -242,7 +245,7 @@ class EngineServer(threading.Thread):
         frontend.close()
         backend.close()
 
-    def kill_persistent_exec_mngrs(self):
+    def kill_persistent_exec_mngrs(self) -> None:
         """Kills all persistent (execution) manager processes."""
         n_exec_mngrs = len(self.persistent_exec_mngrs)
         if n_exec_mngrs > 0:
@@ -251,7 +254,7 @@ class EngineServer(threading.Thread):
                 exec_mngr._persistent_manager.kill_process()
             self.persistent_exec_mngrs.clear()
 
-    def handle_frontend_message_received(self, socket, msg):
+    def handle_frontend_message_received(self, socket: zmq.Socket, msg: list[bytes]) -> Request | None:
         """Check received message integrity.
 
         msg for ping is eg.
@@ -295,13 +298,13 @@ class EngineServer(threading.Thread):
         return Request(msg, server_msg["command"], server_msg["id"], data_str, files_list)
 
     @staticmethod
-    def send_init_failed_reply(socket, connection_id, error_msg):
+    def send_init_failed_reply(socket: zmq.Socket, connection_id: bytes, error_msg: str) -> None:
         """Sends an error reply to client when request is malformed.
 
         Args:
-            socket (ZMQSocket): Socket for sending the reply
-            connection_id (bytes): Client Id. Assigned by the frontend ROUTER socket when a request is received.
-            error_msg (str): Error message to client
+            socket: Socket for sending the reply
+            connection_id: Client Id. Assigned by the frontend ROUTER socket when a request is received.
+            error_msg: Error message to client
         """
         error_msg_tuple = ("server_init_failed", error_msg)
         err_msg_as_json = json.dumps(error_msg_tuple)
@@ -310,14 +313,14 @@ class EngineServer(threading.Thread):
         socket.send_multipart(frame)
         print("\nClient has been notified. Moving on...")
 
-    def enable_stonehouse_security(self, frontend):
+    def enable_stonehouse_security(self, frontend: zmq.Socket) -> ThreadAuthenticator:
         """Enables Stonehouse security by starting an authenticator and configuring
         the frontend socket with authenticator.
 
         implementation based on https://github.com/zeromq/pyzmq/blob/main/examples/security/stonehouse.py
 
         Args:
-            frontend (zmq.Socket): Frontend socket
+            frontend: Frontend socket
         """
         auth = ThreadAuthenticator(self._context)  # Start an authenticator for this context
         auth.start()
@@ -352,14 +355,14 @@ class EngineServer(threading.Thread):
         return auth
 
     @staticmethod
-    def _read_end_points(config_file_location):
+    def _read_end_points(config_file_location: str) -> list[str]:
         """Reads all lines from a text file and returns them in a list. Empty strings are removed from the list.
 
         Args:
-            config_file_location (str): Full path to some text file
+            config_file_location: Full path to some text file
 
         Returns:
-            list: Lines of the given file in a list
+            Lines of the given file in a list
         """
         with open(config_file_location, "r") as f:
             all_lines = f.read().splitlines()
