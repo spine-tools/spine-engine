@@ -463,9 +463,12 @@ class PersistentManagerBase:
         """Releases the resources of the persistent process."""
         with self._persistent_resources_release_lock:
             if self._persistent is not None:
-                self._persistent.stdin.close()
-                self._persistent.stdout.close()
-                self._persistent.stderr.close()
+                try:
+                    self._persistent.stdin.close()
+                    self._persistent.stdout.close()
+                    self._persistent.stderr.close()
+                except BrokenPipeError:
+                    pass
                 self._persistent = None
                 persistent_process_semaphore.release()
 
