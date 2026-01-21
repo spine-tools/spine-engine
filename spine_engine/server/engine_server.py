@@ -10,9 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Contains EngineServer class for running a Zero-MQ server with Spine Engine.
-"""
+"""Contains EngineServer class for running a Zero-MQ server with Spine Engine."""
 import enum
 import ipaddress
 import json.decoder
@@ -75,8 +73,8 @@ class EngineServer(threading.Thread):
         self.auth = None
         # NOTE: Contexts are thread-safe! Sockets are NOT! Do not use or close
         # sockets except in the thread that created them.
-        self._context = zmq.Context()
-        self.ctrl_msg_sender = self._context.socket(zmq.PAIR)
+        self._zmq_context = zmq.Context()
+        self.ctrl_msg_sender = self._zmq_context.socket(zmq.PAIR)
         self.ctrl_msg_sender.bind("inproc://ctrl_msg")  # inproc:// transport requires a bind() before connect()
         self.persistent_exec_mngrs = dict()
         self.start()  # Start serving
@@ -90,18 +88,18 @@ class EngineServer(threading.Thread):
         self.ctrl_msg_sender.send(b"KILL")
         self.join()  # Wait for the thread to finish and sockets to close
         self.ctrl_msg_sender.close()  # Close this in the same thread that it was created in
-        self._context.term()
+        self._zmq_context.term()
 
     def serve(self) -> None:
         """Creates the required sockets, which are polled asynchronously. The ROUTER socket handles communicating
         with clients, DEALER sockets are for communicating with the backend processes and PAIR sockets are for
         internal server control messages."""
         try:
-            frontend = self._context.socket(zmq.ROUTER)
-            backend = self._context.socket(zmq.DEALER)
+            frontend = self._zmq_context.socket(zmq.ROUTER)
+            backend = self._zmq_context.socket(zmq.DEALER)
             backend.bind("inproc://backend")
             # Socket for internal control input (i.e. killing the server)
-            ctrl_msg_listener = self._context.socket(zmq.PAIR)
+            ctrl_msg_listener = self._zmq_context.socket(zmq.PAIR)
             ctrl_msg_listener.connect("inproc://ctrl_msg")
             if self._sec_model_state == ServerSecurityModel.STONEHOUSE:
                 try:
@@ -132,9 +130,9 @@ class EngineServer(threading.Thread):
                     print(f"{request.cmd().upper()} request from client {request.connection_id()}")
                     job_id = uuid.uuid4().hex  # Job Id for execution worker
                     if request.cmd() == "ping":
-                        worker = PingService(self._context, request, job_id)
+                        worker = PingService(self._zmq_context, request, job_id)
                     elif request.cmd() == "prepare_execution":
-                        worker = ProjectExtractorService(self._context, request, job_id)
+                        worker = ProjectExtractorService(self._zmq_context, request, job_id)
                     elif request.cmd() == "start_execution":
                         project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
                         if not project_dir:
@@ -146,7 +144,7 @@ class EngineServer(threading.Thread):
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
                         worker = RemoteExecutionService(
-                            self._context,
+                            self._zmq_context,
                             request,
                             job_id,
                             project_dir,
@@ -183,7 +181,7 @@ class EngineServer(threading.Thread):
                             )
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
-                        worker = ProjectRetrieverService(self._context, request, job_id, project_dir)
+                        worker = ProjectRetrieverService(self._zmq_context, request, job_id, project_dir)
                     elif request.cmd() == "execute_in_persistent":
                         exec_mngr_key = request.data()[0]
                         exec_mngr = self.persistent_exec_mngrs.get(exec_mngr_key, None)
@@ -195,7 +193,7 @@ class EngineServer(threading.Thread):
                             )
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
-                        worker = PersistentExecutionService(self._context, request, job_id, exec_mngr, self.port)
+                        worker = PersistentExecutionService(self._zmq_context, request, job_id, exec_mngr, self.port)
                     elif request.cmd() == "remove_project":
                         project_dir = project_dirs.get(request.request_id(), None)  # Get project dir based on job_id
                         if not project_dir:
@@ -203,7 +201,7 @@ class EngineServer(threading.Thread):
                             msg = f"Project directory for job_id {request.request_id()} not found"
                             self.send_init_failed_reply(frontend, request.connection_id(), msg)
                             continue
-                        worker = ProjectRemoverService(self._context, request, job_id, project_dir)
+                        worker = ProjectRemoverService(self._zmq_context, request, job_id, project_dir)
                     else:
                         print(f"Unknown command {request.cmd()} requested")
                         msg = f"Server error: Unknown command '{request.cmd()}' requested"
@@ -322,7 +320,7 @@ class EngineServer(threading.Thread):
         Args:
             frontend: Frontend socket
         """
-        auth = ThreadAuthenticator(self._context)  # Start an authenticator for this context
+        auth = ThreadAuthenticator(self._zmq_context)  # Start an authenticator for this context
         auth.start()
         endpoints_file = os.path.join(self._sec_folder, "allowEndpoints.txt")
         if not os.path.exists(endpoints_file):

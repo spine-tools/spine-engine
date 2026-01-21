@@ -167,14 +167,10 @@ class TestEngineServer(unittest.TestCase):
         """Tests thread, socket, and context states after server has been closed."""
         server = EngineServer("tcp", 5555, ServerSecurityModel.NONE, "")
         self.assertFalse(server.ctrl_msg_sender.closed)
-        self.assertFalse(server._context.closed)
+        self.assertFalse(server._zmq_context.closed)
         self.assertTrue(server.is_alive())
         server.close()
         self.assertTrue(server.ctrl_msg_sender.closed)  # PAIR socket should be closed
-        self.assertTrue(server._context.closed)  # Context should be closed
+        self.assertTrue(server._zmq_context.closed)  # Context should be closed
         self.assertFalse(server.is_alive())  # server thread should not be alive
         self.assertTrue(all(thread.name != "EngineServerThread" for thread in threading.enumerate()))
-
-
-if __name__ == "__main__":
-    unittest.main()
