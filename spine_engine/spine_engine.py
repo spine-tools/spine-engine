@@ -417,15 +417,8 @@ class SpineEngine:
 
         return SolidDefinition(item_name=item_name, direction=ED.BACKWARD, input_defs=[], compute_fn=compute_fn)
 
-    def _make_forward_solid_def(self, item_name):
-        """Returns a SolidDefinition for executing the given item.
-
-        Args:
-            item_name (str)
-
-        Returns:
-            SolidDefinition
-        """
+    def _make_forward_solid_def(self, item_name: str) -> SolidDefinition:
+        """Returns a SolidDefinition for executing the given item."""
 
         def compute_fn(inputs):
             if self.state() == SpineEngineState.USER_STOPPED:
@@ -433,13 +426,28 @@ class SpineEngine:
             for conn in self._connections_by_destination.get(item_name, []):
                 conn.visit_destination()
             # Split inputs into forward and backward resources based on prefix
-            forward_resource_stacks = []
-            backward_resources = []
-            for direction, values in inputs.items():
-                if direction == ED.FORWARD:
-                    forward_resource_stacks += values
-                elif direction == ED.BACKWARD:
-                    backward_resources += values
+            if ED.FORWARD in inputs:
+                resources_by_filter_key = {}
+                for stack in inputs[ED.FORWARD]:
+                    for resource in stack:
+                        if "filter_stack" in resource.metadata:
+                            key_stack = []
+                            for filter_dict in resource.metadata["filter_stack"]:
+                                filter_key = tuple(
+                                    (key, value if isinstance(value, str) else tuple(value))
+                                    for key, value in filter_dict.items()
+                                )
+                                key_stack.append(filter_key)
+                            resources_by_filter_key.setdefault(tuple(key_stack), []).append(resource)
+                        else:
+                            resources_by_filter_key.setdefault(None, []).append(resource)
+                forward_resource_stacks = list(resources_by_filter_key.values())
+            else:
+                forward_resource_stacks = []
+            if ED.BACKWARD in inputs:
+                backward_resources = inputs[ED.BACKWARD]
+            else:
+                backward_resources = []
             item_finish_state, output_resource_stacks = self._execute_item(
                 item_name, forward_resource_stacks, backward_resources
             )
