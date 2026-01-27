@@ -10,12 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 
-"""
-Unit tests for `spine_engine` module.
-
-Inspired from tests for spinetoolbox.ExecutionInstance and spinetoolbox.ResourceMap,
-and intended to supersede them.
-"""
+"""Unit tests for `spine_engine` module."""
 from functools import partial
 import gc
 import os.path
@@ -29,8 +24,9 @@ from spine_engine.project_item.connection import Connection, Jump
 from spine_engine.project_item.project_item_resource import ProjectItemResource
 from spine_engine.spine_engine import validate_single_jump
 from spine_engine.utils.helpers import make_dag
-from spinedb_api import DatabaseMapping, import_scenarios
+from spinedb_api import DatabaseMapping, append_filter_config, import_scenarios
 from spinedb_api.filters.execution_filter import execution_filter_config
+from spinedb_api.filters.renamer import entity_class_renamer_config
 from spinedb_api.filters.scenario_filter import scenario_filter_config
 from spinedb_api.filters.tools import clear_filter_configs
 
@@ -739,6 +735,77 @@ class TestSpineEngine:
         self._assert_resource_args(mock_item_e4.execute.call_args_list, item_e_execution_args)
         assert mock_item_e4.filter_id == "scenA2 - item_a & scenB2 - item_b"
 
+    def test_same_filtered_resources_get_merged(self, tmp_path):
+        """Tests this type of workflow:
+
+        DS -> DT -> Tool1 -> Tool2
+               |               |
+               +---------------+
+        Tool2 is expected to get DB resources from DT and file resources from Tool1 under a single filter.
+        """
+        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        with DatabaseMapping(url, create=True) as db_map:
+            db_map.add_scenario(name="scenario1")
+            db_map.commit_session("Add test data.")
+        db_map.close()
+        url_fw = _make_url_resource(url)
+        mock_ds = self._mock_item("DS", resources_forward=[url_fw], resources_backward=[])
+        transformed_url = append_filter_config(url, entity_class_renamer_config(unit="not_node"))
+        transformed_url_fw = _make_url_resource(transformed_url)
+        mock_dt = self._mock_item("DT", resources_forward=[transformed_url_fw])
+        file_resource = ProjectItemResource("Tool1", "file", "label_1")
+        mock_tool1 = self._mock_item("Tool 1", resources_forward=[file_resource])
+        mock_tool2 = self._mock_item("Tool 2")
+        item_instances = {
+            "DS": [mock_ds],
+            "DT": [mock_dt],
+            "Tool 1": [mock_tool1],
+            "Tool 2": [mock_tool2],
+        }
+        items = {
+            "DS": {"type": "TestItem"},
+            "DT": {"type": "TestItem"},
+            "Tool 1": {"type": "TestItem"},
+            "Tool 2": {"type": "TestItem"},
+        }
+        connections = [
+            {
+                "from": ("DS", "left"),
+                "to": ("DT", "right"),
+                "resource_filters": {url_fw.label: {"scenario_filter": ["scenario1"]}},
+            },
+            {
+                "from": ("DT", "left"),
+                "to": ("Tool 1", "right"),
+            },
+            {"from": ("Tool 1", "left"), "to": ("Tool 2", "right")},
+            {"from": ("DT", "bottom"), "to": ("Tool 2", "bottom")},
+        ]
+        self._run_engine(items, connections, item_instances)
+        self._assert_resource_args(mock_ds.execute.call_args_list, [[[], []]])
+        assert mock_ds.filter_id == ""
+        expected_fw_resource1 = ProjectItemResource("DS", "database", "label", url)
+        expected_filter_stack = (scenario_filter_config("scenario1"),)
+        expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack, "filter_id": ""}
+        ds_execution_args = [[[expected_fw_resource1], []]]
+        self._assert_resource_args(mock_dt.execute.call_args_list, ds_execution_args)
+        assert mock_dt.filter_id == "scenario1 - DS"
+        filtered_transformed_url = append_filter_config(transformed_url, scenario_filter_config("scenario1"))
+        expected_fw_resource2 = ProjectItemResource("DT", "database", "label", filtered_transformed_url)
+        expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack, "filter_id": "scenario1 - DS"}
+        tool1_execution_args = [[[expected_fw_resource2], []]]
+        self._assert_resource_args(
+            mock_tool1.execute.call_args_list, tool1_execution_args, clear_url_resource_filters=False
+        )
+        assert mock_tool1.filter_id == "scenario1 - DT"
+        expected_fw_resource3 = ProjectItemResource("Tool 1", "file", "label_1")
+        expected_fw_resource3.metadata = {"filter_stack": expected_filter_stack, "filter_id": "scenario1 - DT"}
+        tool2_execution_args = [[[expected_fw_resource3, expected_fw_resource2], []]]
+        self._assert_resource_args(
+            mock_tool2.execute.call_args_list, tool2_execution_args, clear_url_resource_filters=False
+        )
+        assert mock_tool2.filter_id == "scenario1 - DT"
+
     def test_self_jump_succeeds(self):
         mock_item = self._mock_item("item", resources_forward=[], resources_backward=[])
         items = {"item": {"type": "TestItem"}}
@@ -904,7 +971,7 @@ class TestSpineEngine:
         assert item_b.execute.call_count == 1
 
     @staticmethod
-    def _assert_resource_args(arg_packs, expected_packs):
+    def _assert_resource_args(arg_packs, expected_packs, clear_url_resource_filters=True):
         assert len(arg_packs) == len(expected_packs)
         for pack, expected_pack in zip(arg_packs, expected_packs):
             assert len(pack) == len(expected_pack)
@@ -913,7 +980,8 @@ class TestSpineEngine:
                 for resource, expected_resource in zip(args, expected):
                     assert resource.provider_name == expected_resource.provider_name
                     assert resource.label == expected_resource.label
-                    assert clear_filter_configs(resource.url) == expected_resource.url
+                    url = clear_filter_configs(resource.url) if clear_url_resource_filters else resource.url
+                    assert url == expected_resource.url
                     for key, value in expected_resource.metadata.items():
                         assert resource.metadata[key] == value
 
