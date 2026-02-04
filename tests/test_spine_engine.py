@@ -806,6 +806,91 @@ class TestSpineEngine:
         )
         assert mock_tool2.filter_id == "scenario1 - DT"
 
+    def test_same_filter_stacks_get_merged_for_output_resources(self, tmp_path):
+        """Tests this type of workflow:
+
+        DS -> DT -> Tool1 -> Tool2 -> Tool3
+               |               |       |
+               +---------------+       |
+               +-----------------------+
+        Tool2 is expected to get DB resources from DT and file resources from Tool1 under a single filter.
+        """
+        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        with DatabaseMapping(url, create=True) as db_map:
+            db_map.add_scenario(name="scenario1")
+            db_map.commit_session("Add test data.")
+        db_map.close()
+        url_fw = _make_url_resource(url)
+        mock_ds = self._mock_item("DS", resources_forward=[url_fw], resources_backward=[])
+        transformed_url = append_filter_config(url, entity_class_renamer_config(unit="not_node"))
+        transformed_url_fw = _make_url_resource(transformed_url)
+        mock_dt = self._mock_item("DT", resources_forward=[transformed_url_fw])
+        file_resource1 = ProjectItemResource("Tool1", "file", "label_1")
+        mock_tool1 = self._mock_item("Tool 1", resources_forward=[file_resource1])
+        file_resource2 = ProjectItemResource("Tool2", "file", "label_2")
+        mock_tool2 = self._mock_item("Tool 2", resources_forward=[file_resource2])
+        mock_tool3 = self._mock_item("Tool 3")
+        item_instances = {
+            "DS": [mock_ds],
+            "DT": [mock_dt],
+            "Tool 1": [mock_tool1],
+            "Tool 2": [mock_tool2],
+            "Tool 3": [mock_tool3],
+        }
+        items = {
+            "DS": {"type": "TestItem"},
+            "DT": {"type": "TestItem"},
+            "Tool 1": {"type": "TestItem"},
+            "Tool 2": {"type": "TestItem"},
+            "Tool 3": {"type": "TestItem"},
+        }
+        connections = [
+            {
+                "from": ("DS", "left"),
+                "to": ("DT", "right"),
+                "resource_filters": {url_fw.label: {"scenario_filter": ["scenario1"]}},
+            },
+            {
+                "from": ("DT", "left"),
+                "to": ("Tool 1", "right"),
+            },
+            {"from": ("Tool 1", "left"), "to": ("Tool 2", "right")},
+            {"from": ("DT", "bottom"), "to": ("Tool 2", "bottom")},
+            {"from": ("Tool 2", "left"), "to": ("Tool 3", "right")},
+            {"from": ("DT", "bottom"), "to": ("Tool 3", "bottom")},
+        ]
+        self._run_engine(items, connections, item_instances)
+        self._assert_resource_args(mock_ds.execute.call_args_list, [[[], []]])
+        assert mock_ds.filter_id == ""
+        expected_fw_resource1 = ProjectItemResource("DS", "database", "label", url)
+        expected_filter_stack = (scenario_filter_config("scenario1"),)
+        expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack, "filter_id": ""}
+        ds_execution_args = [[[expected_fw_resource1], []]]
+        self._assert_resource_args(mock_dt.execute.call_args_list, ds_execution_args)
+        assert mock_dt.filter_id == "scenario1 - DS"
+        filtered_transformed_url = append_filter_config(transformed_url, scenario_filter_config("scenario1"))
+        expected_fw_resource2 = ProjectItemResource("DT", "database", "label", filtered_transformed_url)
+        expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack, "filter_id": "scenario1 - DS"}
+        tool1_execution_args = [[[expected_fw_resource2], []]]
+        self._assert_resource_args(
+            mock_tool1.execute.call_args_list, tool1_execution_args, clear_url_resource_filters=False
+        )
+        assert mock_tool1.filter_id == "scenario1 - DT"
+        expected_fw_resource3 = ProjectItemResource("Tool 1", "file", "label_1")
+        expected_fw_resource3.metadata = {"filter_stack": expected_filter_stack, "filter_id": "scenario1 - DT"}
+        tool2_execution_args = [[[expected_fw_resource3, expected_fw_resource2], []]]
+        self._assert_resource_args(
+            mock_tool2.execute.call_args_list, tool2_execution_args, clear_url_resource_filters=False
+        )
+        assert mock_tool2.filter_id == "scenario1 - DT"
+        expected_fw_resource4 = ProjectItemResource("Tool 2", "file", "label_2")
+        expected_fw_resource4.metadata = {"filter_stack": expected_filter_stack, "filter_id": "scenario1 - DT"}
+        tool3_execution_args = [[[expected_fw_resource4, expected_fw_resource2], []]]
+        self._assert_resource_args(
+            mock_tool3.execute.call_args_list, tool3_execution_args, clear_url_resource_filters=False
+        )
+        assert mock_tool3.filter_id == "scenario1 - DT"
+
     def test_self_jump_succeeds(self):
         mock_item = self._mock_item("item", resources_forward=[], resources_backward=[])
         items = {"item": {"type": "TestItem"}}
