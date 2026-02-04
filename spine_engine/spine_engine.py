@@ -537,7 +537,14 @@ class SpineEngine:
         else:
             item.exclude_execution(filtered_forward_resources, filtered_backward_resources, item_lock)
             item_finish_state = ItemExecutionFinishState.EXCLUDED
-        filter_stack = sum((r.metadata.get("filter_stack", ()) for r in filtered_forward_resources), ())
+        filter_stack = []
+        for fw_resource in filtered_forward_resources:
+            if "filter_stack" not in fw_resource.metadata:
+                continue
+            resource_filter_stack = fw_resource.metadata["filter_stack"]
+            if resource_filter_stack not in filter_stack:
+                filter_stack.append(resource_filter_stack)
+        filter_stack = sum(filter_stack, ())
         output_resources = item.output_resources(ED.FORWARD)
         for resource in output_resources:
             resource.metadata["filter_stack"] = filter_stack
