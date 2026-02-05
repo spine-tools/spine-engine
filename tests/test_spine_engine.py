@@ -1033,7 +1033,7 @@ class TestSpineEngine:
             "filter_id": "scenario1 - DT1 & scenario2 - DT2",
         }
 
-        tool4_execution_args = [[[expected_fw_resource4, expected_fw_resource7], []]]
+        tool4_execution_args = [[[expected_fw_resource7, expected_fw_resource4], []]]
         self._assert_resource_args(
             mock_tool4.execute.call_args_list, tool4_execution_args, clear_url_resource_filters=False
         )

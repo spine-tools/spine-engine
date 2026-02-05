@@ -430,23 +430,20 @@ class SpineEngine:
             # Split inputs into forward and backward resources based on prefix
             if ED.FORWARD in inputs:
                 resource_pools = []
-                non_pooled_resources = []
                 for stack in inputs[ED.FORWARD]:
                     for resource in stack:
                         if "filter_stack" in resource.metadata:
+                            filter_stack = resource.metadata["filter_stack"]
                             for pool in resource_pools:
-                                filter_stack = resource.metadata["filter_stack"]
-                                if any(config in pool.filter_stack_configs for config in filter_stack):
+                                if filter_stack == pool.filter_stack:
                                     pool.resources.append(resource)
-                                    pool.filter_stack_configs.extend(filter_stack)
                                     break
                             else:
-                                resource_pools.append(
-                                    _ResourcePool([resource], list(resource.metadata["filter_stack"]))
-                                )
+                                resource_pools.append(_ResourcePool([resource], filter_stack))
                         else:
-                            non_pooled_resources.append(resource)
-                forward_resource_stacks = [pool.resources for pool in resource_pools] + non_pooled_resources
+                            raise RuntimeError("logic error: no filter stack in resource stack")
+                resource_pools = _merge_pools(resource_pools)
+                forward_resource_stacks = [pool.resources for pool in resource_pools]
             else:
                 forward_resource_stacks = []
             if ED.BACKWARD in inputs:
@@ -732,7 +729,24 @@ class SpineEngine:
 @dataclass
 class _ResourcePool:
     resources: list[ProjectItemResource] = field(default_factory=list)
-    filter_stack_configs: list[dict] = field(default_factory=list)
+    filter_stack: tuple[dict] = field(default_factory=tuple)
+
+
+def _merge_pools(resource_pools: list[_ResourcePool]) -> list[_ResourcePool]:
+    merged_pool_i = _find_and_merge_pools(resource_pools)
+    while merged_pool_i is not None:
+        resource_pools = resource_pools[:merged_pool_i] + resource_pools[merged_pool_i + 1 :]
+        merged_pool_i = _find_and_merge_pools(resource_pools)
+    return resource_pools
+
+
+def _find_and_merge_pools(resource_pools: list[_ResourcePool]) -> int | None:
+    for i, pool in enumerate(resource_pools):
+        for target_pool in resource_pools[:i] + resource_pools[i + 1 :]:
+            if all(filter_config in target_pool.filter_stack for filter_config in pool.filter_stack):
+                target_pool.resources.extend(pool.resources)
+                return i
+    return None
 
 
 def _make_filter_id(resource_filter_stack):
