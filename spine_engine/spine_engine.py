@@ -762,7 +762,7 @@ def _make_filter_id(resource_filter_stack):
     for resource, stack in resource_filter_stack.items():
         if resource.type_ != "database":
             filter_id = resource.metadata.get("filter_id")
-            if filter_id is None:
+            if not filter_id:
                 continue
             provider_filters.add(filter_id)
         else:
