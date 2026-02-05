@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Contains the SpineEngine class for running Spine Toolbox DAGs."""
+from dataclasses import dataclass, field
 from enum import Enum, unique
 from itertools import product
 import multiprocessing as mp
@@ -37,6 +38,7 @@ from .jumpster import (
     execute_pipeline_iterator,
 )
 from .project_item.connection import Connection, Jump
+from .project_item.project_item_resource import ProjectItemResource
 from .project_item_loader import ProjectItemLoader
 from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
 from .utils.helpers import (
@@ -427,21 +429,24 @@ class SpineEngine:
                 conn.visit_destination()
             # Split inputs into forward and backward resources based on prefix
             if ED.FORWARD in inputs:
-                resources_by_filter_key = {}
+                resource_pools = []
+                non_pooled_resources = []
                 for stack in inputs[ED.FORWARD]:
                     for resource in stack:
                         if "filter_stack" in resource.metadata:
-                            key_stack = []
-                            for filter_dict in resource.metadata["filter_stack"]:
-                                filter_key = tuple(
-                                    (key, value if isinstance(value, str) else tuple(value))
-                                    for key, value in filter_dict.items()
+                            for pool in resource_pools:
+                                filter_stack = resource.metadata["filter_stack"]
+                                if any(config in pool.filter_stack_configs for config in filter_stack):
+                                    pool.resources.append(resource)
+                                    pool.filter_stack_configs.extend(filter_stack)
+                                    break
+                            else:
+                                resource_pools.append(
+                                    _ResourcePool([resource], list(resource.metadata["filter_stack"]))
                                 )
-                                key_stack.append(filter_key)
-                            resources_by_filter_key.setdefault(tuple(key_stack), []).append(resource)
                         else:
-                            resources_by_filter_key.setdefault(None, []).append(resource)
-                forward_resource_stacks = list(resources_by_filter_key.values())
+                            non_pooled_resources.append(resource)
+                forward_resource_stacks = [pool.resources for pool in resource_pools] + non_pooled_resources
             else:
                 forward_resource_stacks = []
             if ED.BACKWARD in inputs:
@@ -722,6 +727,12 @@ class SpineEngine:
                 continue
             resources_by_provider[c.source] = c.convert_forward_resources(resources_from_source)
         return [r for resources in resources_by_provider.values() for r in resources]
+
+
+@dataclass
+class _ResourcePool:
+    resources: list[ProjectItemResource] = field(default_factory=list)
+    filter_stack_configs: list[dict] = field(default_factory=list)
 
 
 def _make_filter_id(resource_filter_stack):
