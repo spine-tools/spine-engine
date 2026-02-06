@@ -432,17 +432,16 @@ class SpineEngine:
                 resource_pools = []
                 for stack in inputs[ED.FORWARD]:
                     for resource in stack:
-                        if "filter_stack" in resource.metadata:
-                            filter_stack = resource.metadata["filter_stack"]
-                            for pool in resource_pools:
-                                if filter_stack == pool.filter_stack:
-                                    pool.resources.append(resource)
-                                    break
-                            else:
-                                resource_pools.append(_ResourcePool([resource], filter_stack))
+                        filter_stack = resource.metadata["filter_stack"]
+                        for pool in resource_pools:
+                            if filter_stack == pool.filter_stack:
+                                pool.resources.append(resource)
+                                break
                         else:
-                            raise RuntimeError("logic error: no filter stack in resource stack")
-                resource_pools = _merge_pools(resource_pools)
+                            resource_pools.append(_ResourcePool([resource], filter_stack))
+                if len(resource_pools) > 1:
+                    resource_pools = _merge_pools(resource_pools)
+                    resource_pools = _distribute_stackless_resources_to_all_pools(resource_pools)
                 forward_resource_stacks = [pool.resources for pool in resource_pools]
             else:
                 forward_resource_stacks = []
@@ -742,11 +741,26 @@ def _merge_pools(resource_pools: list[_ResourcePool]) -> list[_ResourcePool]:
 
 def _find_and_merge_pools(resource_pools: list[_ResourcePool]) -> int | None:
     for i, pool in enumerate(resource_pools):
+        if not pool.filter_stack:
+            continue
         for target_pool in resource_pools[:i] + resource_pools[i + 1 :]:
-            if all(filter_config in target_pool.filter_stack for filter_config in pool.filter_stack):
+            if all(filter_cfg in target_pool.filter_stack for filter_cfg in pool.filter_stack):
                 target_pool.resources.extend(pool.resources)
                 return i
     return None
+
+
+def _distribute_stackless_resources_to_all_pools(resource_pools: list[_ResourcePool]) -> list[_ResourcePool]:
+    distributed_pools = []
+    for i, pool in enumerate(resource_pools):
+        if pool.filter_stack == ():
+            for target_pool in resource_pools[:i] + resource_pools[i + 1 :]:
+                target_pool.resources.extend(pool.resources)
+                distributed_pools.append(target_pool)
+            break
+    else:
+        return resource_pools
+    return distributed_pools
 
 
 def _make_filter_id(resource_filter_stack):
