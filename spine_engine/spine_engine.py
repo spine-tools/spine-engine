@@ -10,15 +10,18 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Contains the SpineEngine class for running Spine Toolbox DAGs."""
+from __future__ import annotations
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import Enum, unique
 from itertools import product
 import multiprocessing as mp
 import os
 import threading
+from typing import TYPE_CHECKING, Literal, TypeAlias
 import networkx as nx
 from spinedb_api import append_filter_config, name_from_dict
-from spinedb_api.filters.execution_filter import execution_filter_config
+from spinedb_api.filters.execution_filter import ExecutionDescriptor, execution_filter_config
 from spinedb_api.filters.scenario_filter import scenario_name_from_dict
 from spinedb_api.filters.tools import filter_config
 from spinedb_api.spine_db_server import db_server_manager
@@ -31,6 +34,7 @@ from .jumpster import (
     Failure,
     Finalization,
     InputDefinition,
+    JumpsterEvent,
     JumpsterEventType,
     Output,
     PipelineDefinition,
@@ -38,7 +42,9 @@ from .jumpster import (
     execute_pipeline_iterator,
 )
 from .project_item.connection import Connection, Jump
+from .project_item.executable_item_base import ExecutableItemBase
 from .project_item.project_item_resource import ProjectItemResource
+from .project_item.project_item_specification import ProjectItemSpecification
 from .project_item_loader import ProjectItemLoader
 from .utils.execution_resources import one_shot_process_semaphore, persistent_process_semaphore
 from .utils.helpers import (
@@ -56,6 +62,9 @@ from .utils.helpers import (
 from .utils.helpers import ExecutionDirection as ED
 from .utils.queue_logger import QueueLogger
 
+if TYPE_CHECKING:
+    from multiprocessing.synchronize import Lock as LockType
+
 
 @unique
 class SpineEngineState(Enum):
@@ -70,37 +79,55 @@ class SpineEngineState(Enum):
         return str(self.name)
 
 
+class SuccessValue:
+    def __init__(self):
+        self.value = ItemExecutionFinishState.NEVER_FINISHED
+
+
+EventType: TypeAlias = Literal[
+    "dag_exec_finished",
+    "event_msg",
+    "exec_finished",
+    "exec_started",
+    "flash",
+    "kernel_execution_msg",
+    "persistent_execution_msg",
+    "process_msg",
+    "prompt",
+    "server_status_msg",
+    "standard_execution_msg",
+]
+
+
 class SpineEngine:
-    """
-    An engine for executing a Spine Toolbox DAG-workflow.
-    """
+    """An engine for executing a Spine Toolbox DAG-workflow."""
 
     _resource_limit_lock = threading.Lock()
 
     def __init__(
         self,
-        items=None,
-        specifications=None,
-        connections=None,
-        jumps=None,
-        items_module_name="spine_items",
-        settings=None,
-        project_dir=None,
-        execution_permits=None,
-        debug=False,
+        items: dict[str, dict] | None = None,
+        specifications: dict[str, list[dict]] | None = None,
+        connections: list[dict] | None = None,
+        jumps: list[dict] | None = None,
+        items_module_name: str = "spine_items",
+        settings: dict | None = None,
+        project_dir: str | None = None,
+        execution_permits: dict[str, bool] | None = None,
+        debug: bool = False,
     ):
         """
         Args:
-            items (dict): A mapping from item name to item dict
-            specifications (dict(str,list(dict))): A mapping from item type to list of specification dicts.
-            connections (list of dict): List of connection dicts
-            jumps (list of dict, optional): List of jump dicts
-            items_module_name (str): name of the Python module that contains project items
-            settings (dict): Toolbox execution settings.
-            project_dir (str): Path to project directory.
-            execution_permits (dict(str,bool)): A mapping from item name to a boolean value, False indicating that
+            items: A mapping from item name to item dict
+            specifications: A mapping from item type to list of specification dicts.
+            connections: List of connection dicts
+            jumps: List of jump dicts
+            items_module_name: name of the Python module that contains project items
+            settings: Toolbox execution settings.
+            project_dir: Path to project directory.
+            execution_permits : A mapping from item name to a boolean value, False indicating that
                 the item is not executed
-            debug (bool): Whether debug mode is active or not.
+            debug: Whether debug mode is active or not.
 
         Raises:
             EngineInitFailed: Raised if initialization fails
@@ -119,8 +146,8 @@ class SpineEngine:
             self._items, connections, self._executable_item_classes, self._execution_permits
         )
         self._connections = make_connections(connections, required_items)
-        self._connections_by_source = {}
-        self._connections_by_destination = {}
+        self._connections_by_source: dict[str, list[Connection]] = {}
+        self._connections_by_destination: dict[str, list[Connection]] = {}
         self._validate_and_sort_connections()
         self._back_injectors = dag_edges(
             self._connections
@@ -137,7 +164,7 @@ class SpineEngine:
         )
         self._dag = make_dag(self._back_injectors, self._execution_permits)
         _validate_dag(self._dag)
-        self._item_names = list(self._dag)  # Names of permitted items and their neighbors
+        self._item_names: list[str] = list(self._dag)  # Names of permitted items and their neighbors
         if jumps is None:
             jumps = []
         else:
@@ -162,20 +189,20 @@ class SpineEngine:
         self._thread = threading.Thread(target=self.run)
         self._event_stream = self._get_event_stream()
 
-    def _descendants(self, name):
+    def _descendants(self, name: str) -> Iterator[str]:
         """Yields descendant item names.
 
         Args:
-            name (str): name of the project item whose descendants to collect
+            name: name of the project item whose descendants to collect
 
         Yields:
-            str: descendant name
+            descendant name
         """
         for c in self._connections_by_source.get(name, ()):
             yield c.destination
             yield from self._descendants(c.destination)
 
-    def _check_write_index(self):
+    def _check_write_index(self) -> None:
         """Checks if write indexes are valid."""
         conflicting_by_item = {}
         for item_name in self._items:
@@ -205,7 +232,7 @@ class SpineEngine:
         if msg:
             raise EngineInitFailed(msg)
 
-    def _validate_and_sort_connections(self):
+    def _validate_and_sort_connections(self) -> None:
         """Checks and sorts Connections by source and destination.
 
         Raises:
@@ -219,16 +246,18 @@ class SpineEngine:
             self._connections_by_source.setdefault(source, list()).append(connection)
             self._connections_by_destination.setdefault(destination, list()).append(connection)
 
-    def _make_item_specifications(self, specifications, project_item_loader, items_module_name):
+    def _make_item_specifications(
+        self, specifications: dict[str, list[dict]], project_item_loader: ProjectItemLoader, items_module_name: str
+    ) -> dict[str, dict[str, ProjectItemSpecification]]:
         """Instantiates item specifications.
 
         Args:
-            specifications (dict): A mapping from item type to list of specification dicts.
-            project_item_loader (ProjectItemLoader): loader instance
-            items_module_name (str): name of the Python module that contains the project items
+            specifications: A mapping from item type to list of specification dicts.
+            project_item_loader: loader instance
+            items_module_name: name of the Python module that contains the project items
 
         Returns:
-            dict: Mapping from item type to a dict that maps specification names to specification instances
+            Mapping from item type to a dict that maps specification names to specification instances.
         """
         specification_factories = project_item_loader.load_item_specification_factories(items_module_name)
         item_specifications = {}
@@ -242,7 +271,7 @@ class SpineEngine:
                 item_specifications[item_type][spec.name] = spec
         return item_specifications
 
-    def make_item(self, item_name, direction):
+    def make_item(self, item_name: str, direction: ED) -> ExecutableItemBase:
         """Recreates item from project item dictionary for a particular execution.
         Note that this method is called multiple times for each item:
         Once for the backward pipeline, and once for each filtered execution in the forward pipeline."""
@@ -254,14 +283,14 @@ class SpineEngine:
         )
         return self.do_make_item(item_name, item_dict, logger)
 
-    def do_make_item(self, item_name, item_dict, logger):
+    def do_make_item(self, item_name: str, item_dict: dict, logger: QueueLogger) -> ExecutableItemBase:
         item_type = item_dict["type"]
         executable_item_class = self._executable_item_classes[item_type]
         return executable_item_class.from_dict(
             item_dict, item_name, self._project_dir, self._settings, self._item_specifications, logger
         )
 
-    def get_event(self):
+    def get_event(self) -> tuple[EventType, dict]:
         """Returns the next event in the stream. Calling this after receiving the event of type "dag_exec_finished"
         will raise StopIterationError."""
         return next(self._event_stream)
@@ -270,7 +299,7 @@ class SpineEngine:
         """Returns Spine Engine state."""
         return self._state
 
-    def _get_event_stream(self):
+    def _get_event_stream(self) -> Iterator[tuple[EventType, dict]]:
         """Yields events (event_type, event_data).
 
         TODO: Describe the events in depth.
@@ -287,21 +316,21 @@ class SpineEngine:
         yield msg
         self._thread.join()
 
-    def answer_prompt(self, prompter_id, answer):
+    def answer_prompt(self, prompter_id: str, answer: str) -> None:
         """Answers the prompt for the specified prompter id."""
         self._prompt_queues[prompter_id].put(answer)
 
-    def wait(self):
+    def wait(self) -> None:
         """Waits until engine execution has finished."""
         if self._thread.is_alive():
             self._thread.join()
 
-    def run(self):
+    def run(self) -> None:
         """Starts db server manager the engine."""
         with db_server_manager() as self._db_server_manager_queue:
             self._do_run()
 
-    def _do_run(self):
+    def _do_run(self) -> None:
         """Runs this engine."""
         self._state = SpineEngineState.RUNNING
         for event in execute_pipeline_iterator(self._pipeline):
@@ -310,12 +339,8 @@ class SpineEngine:
             self._state = SpineEngineState.COMPLETED
         self._queue.put(("dag_exec_finished", str(self._state)))
 
-    def _process_event(self, event):
-        """Processes events from a pipeline.
-
-        Args:
-            event (JumpsterEvent): an event
-        """
+    def _process_event(self, event: JumpsterEvent) -> None:
+        """Processes events from a pipeline."""
         if event.event_type == JumpsterEventType.STEP_START:
             self._queue.put(("exec_started", {"item_name": event.item_name, "direction": event.direction}))
         elif event.event_type == JumpsterEventType.STEP_FAILURE and self._state != SpineEngineState.USER_STOPPED:
@@ -347,7 +372,7 @@ class SpineEngine:
                 )
             )
 
-    def stop(self):
+    def stop(self) -> None:
         """Stops the engine."""
         self._state = SpineEngineState.USER_STOPPED
         disable_persistent_process_creation()
@@ -355,7 +380,7 @@ class SpineEngine:
             self._stop_item(item)
         self._queue.put(("dag_exec_finished", str(self._state)))
 
-    def _stop_item(self, item):
+    def _stop_item(self, item: ExecutableItemBase) -> None:
         """Stops given project item."""
         item.stop_execution()
         self._queue.put(
@@ -369,12 +394,8 @@ class SpineEngine:
             )
         )
 
-    def _make_pipeline(self):
-        """Returns a PipelineDefinition for executing this engine.
-
-        Returns:
-            PipelineDefinition
-        """
+    def _make_pipeline(self) -> PipelineDefinition:
+        """Returns a PipelineDefinition for executing this engine."""
         solid_defs = [
             make_solid_def(item_name)
             for item_name in self._item_names
@@ -383,7 +404,7 @@ class SpineEngine:
         self._complete_jumps()
         return PipelineDefinition(solid_defs=solid_defs, jumps=self._jumps)
 
-    def _complete_jumps(self):
+    def _complete_jumps(self) -> None:
         """Updates jumps with item and corresponding solid information."""
         for jump in self._jumps:
             src, dst = jump.source, jump.destination
@@ -391,14 +412,14 @@ class SpineEngine:
             for path in nx.all_simple_paths(self._dag, dst, src):
                 jump.item_names.update(path)
 
-    def _make_backward_solid_def(self, item_name):
+    def _make_backward_solid_def(self, item_name: str) -> SolidDefinition:
         """Returns a SolidDefinition for executing the given item in the backward sweep.
 
         Args:
-            item_name (str): The project item that gets executed by the solid.
+            item_name: The project item that gets executed by the solid.
 
         Returns:
-            SolidDefinition: solid's definition
+            solid's definition
         """
 
         def compute_fn(inputs):
@@ -463,7 +484,12 @@ class SpineEngine:
         ] + [InputDefinition(item_name=inj, direction=ED.BACKWARD) for inj in self._back_injectors.get(item_name, [])]
         return SolidDefinition(item_name=item_name, direction=ED.FORWARD, input_defs=input_defs, compute_fn=compute_fn)
 
-    def _execute_item(self, item_name, forward_resource_stacks, backward_resources):
+    def _execute_item(
+        self,
+        item_name: str,
+        forward_resource_stacks: list[tuple[ProjectItemResource, ...]],
+        backward_resources: list[ProjectItemResource],
+    ) -> tuple[ItemExecutionFinishState, list[list[ProjectItemResource]]]:
         """Executes the given item using the given forward resource stacks and backward resources.
         Returns list of output resource stacks.
 
@@ -473,23 +499,21 @@ class SpineEngine:
         ``_execute_item_filtered``.
 
         Args:
-            item_name (str)
-            forward_resource_stacks (list(tuple(ProjectItemResource))): resources coming from predecessor items -
+            item_name: Item's name.
+            forward_resource_stacks: resources coming from predecessor items -
                 one tuple of ProjectItemResource per item, where each element in the tuple corresponds to a filtered
                 execution of the item.
-            backward_resources (list(ProjectItemResource)): resources coming from successor items - just one
-                resource per item.
+            backward_resources : resources coming from successor items - just one resource per item.
 
         Returns:
-            ItemExecutionFinishState
-            list(tuple(ProjectItemResource))
+            Execution finish state, output resources.
         """
         item = self.make_item(item_name, ED.NONE)
         if not item.ready_to_execute(self._settings):
             if not self._execution_permits[item_name]:
                 return ItemExecutionFinishState.EXCLUDED, []
             return ItemExecutionFinishState.FAILURE, []
-        success = [ItemExecutionFinishState.NEVER_FINISHED]
+        success = SuccessValue()
         output_resources_list = []
         threads = []
         resources_iterator = self._filtered_resources_iterator(
@@ -510,26 +534,32 @@ class SpineEngine:
                 thread.start()
             for thread in threads:
                 thread.join()
-        if success[0] == ItemExecutionFinishState.FAILURE:
+        if success.value == ItemExecutionFinishState.FAILURE:
             raise Failure()
         for resources in output_resources_list:
             for connection in self._connections_by_source.get(item_name, []):
                 connection.receive_resources_from_source(resources)
-        return success[0], output_resources_list
+        return success.value, output_resources_list
 
     def _execute_item_filtered(
-        self, item, filtered_forward_resources, filtered_backward_resources, output_resources_list, item_lock, success
-    ):
+        self,
+        item: ExecutableItemBase,
+        filtered_forward_resources: list[ProjectItemResource],
+        filtered_backward_resources: list[ProjectItemResource],
+        output_resources_list: list[list[ProjectItemResource]],
+        item_lock: LockType,
+        success: SuccessValue,
+    ) -> None:
         """Executes the given item using the given filtered resources. Target for threads in ``_execute_item``.
 
         Args:
-            item (ExecutableItemBase)
-            filtered_forward_resources (list(ProjectItemResource))
-            filtered_backward_resources (list(ProjectItemResource))
-            output_resources_list (list(list(ProjectItemResource))): A list to append the output resources
+            item: Executable item instance.
+            filtered_forward_resources: Item's forward resources.
+            filtered_backward_resources: Items's backward resources.
+            output_resources_list: A list to append the output resources
                 generated by the item.
-            item_lock (mp.Lock): Shared lock for parallel executions.
-            success (list): A list of one element, to write the outcome of the execution.
+            item_lock: Shared lock for parallel executions.
+            success: The outcome of the execution.
         """
         self._running_items.append(item)
         if self._execution_permits[item.name]:
@@ -552,26 +582,31 @@ class SpineEngine:
             resource.metadata["filter_id"] = item.filter_id
             resource.metadata["db_server_manager_queue"] = self._db_server_manager_queue
         output_resources_list.append(output_resources)
-        success[0] = item_finish_state  # FIXME: We need a Lock here
+        success.value = item_finish_state  # FIXME: We need a Lock here
         self._running_items.remove(item)
 
-    def _filtered_resources_iterator(self, item_name, forward_resource_stacks, backward_resources, timestamp):
+    def _filtered_resources_iterator(
+        self,
+        item_name: str,
+        forward_resource_stacks: list[tuple[ProjectItemResource, ...]],
+        backward_resources: list[ProjectItemResource],
+        timestamp: str,
+    ) -> Iterator[tuple[list[ProjectItemResource], list[ProjectItemResource], str]]:
         """Yields tuples of (filtered forward resources, filtered backward resources, filter id).
 
         Each tuple corresponds to a unique filter combination. Combinations are obtained by applying the cross-product
         over forward resource stacks.
 
         Args:
-            item_name (str)
-            forward_resource_stacks (list(tuple(ProjectItemResource))): resources coming from predecessor items -
+            item_name: item's name
+            forward_resource_stacks: resources coming from predecessor items -
                 one tuple of ProjectItemResource per item, where each element in the tuple corresponds to a filtered
                 execution of the item.
-            backward_resources (list(ProjectItemResource)): resources coming from successor items - just one
-                resource per item.
-            timestamp (str): timestamp for the execution filter
+            backward_resources: resources coming from successor items - just one resource per item.
+            timestamp: timestamp for the execution filter
 
         Yields:
-            tuple(list,list,str): forward resources, backward resources, filter id
+            forward resources, backward resources, filter id
         """
 
         def check_resource_affinity(filtered_forward_resources):
@@ -612,7 +647,11 @@ class SpineEngine:
             resource_filter_stack = {r: r.metadata.get("filter_stack", ()) for r in filtered_forward_resources}
             scenarios = {scenario_name_from_dict(cfg) for stack in resource_filter_stack.values() for cfg in stack}
             scenarios.discard(None)
-            execution = {"execution_item": item_name, "scenarios": list(scenarios), "timestamp": timestamp}
+            execution: ExecutionDescriptor = {
+                "execution_item": item_name,
+                "scenarios": list(scenarios),
+                "timestamp": timestamp,
+            }
             config = execution_filter_config(execution)
             filtered_backward_resources = []
             for resource in backward_resources:
@@ -625,7 +664,9 @@ class SpineEngine:
             yield list(filtered_forward_resources), filtered_backward_resources, filter_id
 
     @staticmethod
-    def _expand_resource_stack(resource, filter_stacks):
+    def _expand_resource_stack(
+        resource: ProjectItemResource, filter_stacks: list[tuple[dict, ...]]
+    ) -> tuple[ProjectItemResource, ...]:
         """Expands a resource according to filters defined for that resource.
 
         Returns an expanded stack of as many resources as filter stacks defined for the resource.
@@ -633,11 +674,11 @@ class SpineEngine:
         applied to the URL.
 
         Args:
-            resource (ProjectItemResource): resource to expand
-            filter_stacks (list): resource's filter stacks
+            resource: resource to expand
+            filter_stacks: resource's filter stacks
 
         Returns:
-            tuple(ProjectItemResource): expanded resources
+            expanded resources
         """
         expanded_stack = ()
         for filter_stack in filter_stacks:
@@ -647,18 +688,18 @@ class SpineEngine:
             expanded_stack += (filtered_clone,)
         return expanded_stack
 
-    def _filter_stacks(self, item_name, provider_name, resource_label):
+    def _filter_stacks(self, item_name: str, provider_name: str, resource_label: str) -> list[tuple[dict, ...]]:
         """Computes filter stacks.
 
         Stacks are computed as the cross-product of all individual filters defined for a resource.
 
         Args:
-            item_name (str): item's name
-            provider_name (str): resource provider's name
-            resource_label (str): resource's label
+            item_name: item's name
+            provider_name: resource provider's name
+            resource_label: resource's label
 
         Returns:
-            list of list: filter stacks
+            filter stacks
         """
         connections = self._connections_by_destination.get(item_name, [])
         connection = next(iter(c for c in connections if c.source == provider_name), None)
@@ -675,21 +716,23 @@ class SpineEngine:
             filter_configs_list.append(filter_configs)
         return list(product(*filter_configs_list))
 
-    def _convert_backward_resources(self, item_name, resources):
+    def _convert_backward_resources(
+        self, item_name: str, resources: list[ProjectItemResource]
+    ) -> list[ProjectItemResource]:
         """Converts resources as they're being passed backwards to given item.
         The conversion is dictated by the connection the resources traverse in order to reach the item.
 
         Args:
-            item_name (str): receiving item's name
-            resources (Iterable of ProjectItemResource): resources to convert
+            item_name: receiving item's name
+            resources: resources to convert
 
         Returns:
-            list of ProjectItemResource: converted resources
+            converted resources
         """
         connections = self._connections_by_source.get(item_name, [])
         resources_by_provider = {}
         for r in resources:
-            resources_by_provider.setdefault(r.provider_name, list()).append(r)
+            resources_by_provider.setdefault(r.provider_name, []).append(r)
         for c in connections:
             resources_from_destination = resources_by_provider.get(c.destination)
             if resources_from_destination is None:
@@ -702,16 +745,18 @@ class SpineEngine:
             )
         return [r for resources in resources_by_provider.values() for r in resources]
 
-    def _convert_forward_resources(self, item_name, resources):
+    def _convert_forward_resources(
+        self, item_name: str, resources: list[ProjectItemResource]
+    ) -> list[ProjectItemResource]:
         """Converts resources as they're being passed forwards to given item.
         The conversion is dictated by the connection the resources traverse in order to reach the item.
 
         Args:
-            item_name (str): receiving item's name
-            resources (Iterable of ProjectItemResource): resources to convert
+            item_name: receiving item's name
+            resources: resources to convert
 
         Returns:
-            list of ProjectItemResource: converted resources
+            converted resources
         """
         connections = self._connections_by_destination.get(item_name, [])
         resources_by_provider = {}
@@ -763,14 +808,14 @@ def _distribute_stackless_resources_to_all_pools(resource_pools: list[_ResourceP
     return distributed_pools
 
 
-def _make_filter_id(resource_filter_stack):
+def _make_filter_id(resource_filter_stack: dict[ProjectItemResource, tuple[dict, ...]]) -> str:
     """Builds filter id from resource filter stack.
 
     Args:
-        resource_filter_stack (dict): mapping from resource to filter stack
+        resource_filter_stack: mapping from resource to filter stack
 
     Returns:
-        str: filter id
+        filter id
     """
     provider_filters = set()
     for resource, stack in resource_filter_stack.items():
@@ -787,14 +832,14 @@ def _make_filter_id(resource_filter_stack):
     return " & ".join(sorted(provider_filters))
 
 
-def _filter_names_from_stack(stack):
+def _filter_names_from_stack(stack: tuple[dict, ...]) -> Iterator[str]:
     """Yields filter names from filter stack.
 
     Args:
-        stack (Iterable of dict): filter stack
+        stack: filter stack
 
     Yields:
-        str: filter name
+        filter name
     """
     for config in stack:
         if not config:
@@ -804,11 +849,11 @@ def _filter_names_from_stack(stack):
             yield filter_name
 
 
-def _validate_dag(dag):
+def _validate_dag(dag: nx.DiGraph) -> None:
     """Raises an exception in case DAG is not valid.
 
     Args:
-        dag (networkx.DiGraph): mapping from node name to list of direct successor nodes
+        dag: mapping from node name to list of direct successor nodes
     """
     if not nx.is_directed_acyclic_graph(dag):
         raise EngineInitFailed("Invalid DAG")
@@ -874,15 +919,15 @@ def validate_single_jump(jump, jumps, dag, items_by_jump=None):
         raise EngineInitFailed("Cannot loop between DAG branches.")
 
 
-def _get_items_by_jump(jumps, dag):
+def _get_items_by_jump(jumps: list[Jump], dag: nx.DiGraph) -> dict[Jump, set]:
     """Returns a dict mapping jumps to a set of items between destination and source.
 
     Args:
-        jumps (list of Jump): all jumps in dag
-        dag (DiGraph): jumps' DAG
+        jumps: all jumps in dag
+        dag: jumps' DAG
 
     Returns:
-        dict
+        Mapping from jump to list of items between destination and source.
     """
     items_by_jump = {}
     for jump in jumps:
@@ -895,13 +940,14 @@ def _get_items_by_jump(jumps, dag):
     return items_by_jump
 
 
-def _set_resource_limits(settings, lock):
+def _set_resource_limits(settings: AppSettings, lock: LockType) -> None:
     """Sets limits for simultaneous single-shot and persistent processes.
 
     May potentially kill existing persistent processes.
 
     Args:
-        settings (AppSettings): Engine settings
+        settings: Engine settings
+        lock: Multiprocessing lock.
     """
     with lock:
         process_limiter = settings.value("engineSettings/processLimiter", "auto")
