@@ -1039,6 +1039,81 @@ class TestSpineEngine:
         )
         assert mock_tool4.filter_id == "scenario1 - DT1 & scenario2 - DT2 & scenario2 - DT2"
 
+    def test_non_filtered_resources_get_distributed_to_all_executions(self, tmp_path):
+        """Tests this type of workflow:
+
+                    DC --+
+                         |
+        DS -> Tool1 -> Tool2
+        """
+        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        with DatabaseMapping(url, create=True) as db_map:
+            db_map.add_scenario(name="scenario1")
+            db_map.add_scenario(name="scenario2")
+            db_map.commit_session("Add test data.")
+        db_map.close()
+        url_fw = _make_url_resource(url)
+        mock_ds = self._mock_item("DS", resources_forward=[url_fw], resources_backward=[])
+        mock_dc = self._mock_item("DC", resources_forward=[ProjectItemResource("DC", "file", "DC_data")])
+        mock_tool11 = self._mock_item("Tool1", resources_forward=[ProjectItemResource("Tool1", "file", "label_1")])
+        mock_tool12 = self._mock_item("Tool1", resources_forward=[ProjectItemResource("Tool1", "file", "label_1")])
+        mock_tool21 = self._mock_item("Tool2")
+        mock_tool22 = self._mock_item("Tool2")
+        item_instances = {
+            "DS": [mock_ds],
+            "DC": [mock_dc],
+            "Tool1": [mock_tool11, mock_tool12],
+            "Tool2": [mock_tool21, mock_tool22],
+        }
+        items = {
+            "DS": {"type": "TestItem"},
+            "DC": {"type": "TestItem"},
+            "Tool1": {"type": "TestItem"},
+            "Tool2": {"type": "TestItem"},
+        }
+        connections = [
+            {
+                "from": ("DS", "right"),
+                "to": ("Tool1", "left"),
+                "filter_settings": FilterSettings(
+                    {url_fw.label: {SCENARIO_FILTER_TYPE: {"scenario1": True, "scenario2": True}}}
+                ).to_dict(),
+            },
+            {
+                "from": ("Tool1", "right"),
+                "to": ("Tool2", "left"),
+            },
+            {"from": ("DC", "left"), "to": ("Tool2", "top")},
+        ]
+        self._run_engine(items, connections, item_instances)
+        assert all(instance_list == [] for instance_list in item_instances.values())
+        self._assert_resource_args(mock_ds.execute.call_args_list, [[[], []]])
+        assert mock_ds.filter_id == ""
+        expected_fw_resource1 = ProjectItemResource("DS", "database", "label", url)
+        expected_filter_stack1 = (scenario_filter_config("scenario1"),)
+        expected_fw_resource1.metadata = {"filter_stack": expected_filter_stack1, "filter_id": ""}
+        self._assert_resource_args(mock_tool11.execute.call_args_list, [[[expected_fw_resource1], []]])
+        assert mock_tool11.filter_id == "scenario1 - DS"
+        expected_fw_resource2 = ProjectItemResource("DS", "database", "label", url)
+        expected_filter_stack2 = (scenario_filter_config("scenario2"),)
+        expected_fw_resource2.metadata = {"filter_stack": expected_filter_stack2, "filter_id": ""}
+        self._assert_resource_args(mock_tool12.execute.call_args_list, [[[expected_fw_resource2], []]])
+        assert mock_tool12.filter_id == "scenario2 - DS"
+        expected_fw_resource3 = ProjectItemResource("Tool1", "file", "label_1")
+        expected_fw_resource3.metadata = {"filter_stack": expected_filter_stack1, "filter_id": "scenario1 - DS"}
+        expected_fw_resource4 = ProjectItemResource("DC", "file", "DC_data")
+        expected_fw_resource4.metadata = {"filter_stack": ()}
+        self._assert_resource_args(
+            mock_tool21.execute.call_args_list, [[[expected_fw_resource3, expected_fw_resource4], []]]
+        )
+        assert mock_tool21.filter_id == "scenario1 - DS"
+        expected_fw_resource5 = ProjectItemResource("Tool1", "file", "label_1")
+        expected_fw_resource5.metadata = {"filter_stack": expected_filter_stack2, "filter_id": "scenario2 - DS"}
+        self._assert_resource_args(
+            mock_tool22.execute.call_args_list, [[[expected_fw_resource5, expected_fw_resource4], []]]
+        )
+        assert mock_tool22.filter_id == "scenario2 - DS"
+
     def test_self_jump_succeeds(self):
         mock_item = self._mock_item("item", resources_forward=[], resources_backward=[])
         items = {"item": {"type": "TestItem"}}
