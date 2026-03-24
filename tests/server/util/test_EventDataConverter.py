@@ -65,7 +65,7 @@ class TestEventDataConverter(unittest.TestCase):
                     "item_name": "helloworld",
                     "filter_id": "",
                     "msg_type": "msg",
-                    "msg_text": "*** Executing Tool specification <b>helloworld2</b> in <a style='color:#99CCFF;' title='C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1'href='file:///C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1'>source directory</a> ***",
+                    "msg_text": "*** Executing Tool specification <b>helloworld2</b> in <a title='C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1'href='file:///C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1'>source directory</a> ***",
                 },
             ),
             (
@@ -92,7 +92,7 @@ class TestEventDataConverter(unittest.TestCase):
                     "item_name": "helloworld",
                     "filter_id": "",
                     "msg_type": "msg",
-                    "msg_text": "*** Archiving output files to <a style='color:#BB99FF;' title='C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1\\.spinetoolbox\\items\\helloworld\\output\\2022-08-19T13.03.13' href='file:///C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1\\.spinetoolbox\\items\\helloworld\\output\\2022-08-19T13.03.13'>results directory</a> ***",
+                    "msg_text": "*** Archiving output files to <a title='C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1\\.spinetoolbox\\items\\helloworld\\output\\2022-08-19T13.03.13' href='file:///C:\\data\\GIT\\SPINEENGINE\\spine_engine\\server\\received_projects\\helloworld__35bc62cea0324e8788144ce81342f4f1\\.spinetoolbox\\items\\helloworld\\output\\2022-08-19T13.03.13'>results directory</a> ***",
                 },
             ),
             (
