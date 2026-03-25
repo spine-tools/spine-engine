@@ -344,6 +344,7 @@ class SpineEngine:
         if event.event_type == JumpsterEventType.STEP_START:
             self._queue.put(("exec_started", {"item_name": event.item_name, "direction": event.direction}))
         elif event.event_type == JumpsterEventType.STEP_FAILURE and self._state != SpineEngineState.USER_STOPPED:
+            print("*** STEP FAILURE ***")
             self._state = SpineEngineState.FAILED
             self._queue.put(
                 (
