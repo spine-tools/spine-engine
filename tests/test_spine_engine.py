@@ -22,7 +22,7 @@ from spine_engine import ExecutionDirection, ItemExecutionFinishState, SpineEngi
 from spine_engine.exception import EngineInitFailed
 from spine_engine.project_item.connection import Connection, FilterSettings, Jump
 from spine_engine.project_item.project_item_resource import ProjectItemResource, database_resource
-from spine_engine.spine_engine import validate_single_jump
+from spine_engine.spine_engine import filter_unneeded_jumps, validate_single_jump
 from spine_engine.utils.helpers import make_dag
 from spinedb_api import DatabaseMapping, append_filter_config, import_scenarios
 from spinedb_api.filters.execution_filter import execution_filter_config
@@ -1292,6 +1292,32 @@ class TestSpineEngine:
                     assert url == expected_resource.url
                     for key, value in expected_resource.metadata.items():
                         assert resource.metadata[key] == value
+
+
+class TestFilterUnneededJumps:
+    def test_jump_that_gets_through(self):
+        jumps = [Jump("source item", "right", "destination item", "left")]
+        items_by_jump = {jumps[0]: {"source item", "destination item"}}
+        execution_permits = {"source item": True, "destination item": True}
+        assert filter_unneeded_jumps(jumps, items_by_jump, execution_permits) == jumps
+
+    def test_jump_is_dropped_when_source_has_no_execution_permit(self):
+        jumps = [Jump("source item", "right", "destination item", "left")]
+        items_by_jump = {jumps[0]: {"source item", "destination item"}}
+        execution_permits = {"source item": False, "destination item": True}
+        assert filter_unneeded_jumps(jumps, items_by_jump, execution_permits) == []
+
+    def test_jump_is_dropped_when_destination_has_no_execution_permit(self):
+        jumps = [Jump("source item", "right", "destination item", "left")]
+        items_by_jump = {jumps[0]: {"source item", "destination item"}}
+        execution_permits = {"source item": True, "destination item": False}
+        assert filter_unneeded_jumps(jumps, items_by_jump, execution_permits) == []
+
+    def test_items_by_jump_is_empty(self):
+        jumps = [Jump("source item", "right", "destination item", "left")]
+        items_by_jump = {jumps[0]: set()}
+        execution_permits = {"source item": False, "destination item": False}
+        assert filter_unneeded_jumps(jumps, items_by_jump, execution_permits) == []
 
 
 class TestValidateSingleJump(unittest.TestCase):
