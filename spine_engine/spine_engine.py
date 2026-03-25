@@ -11,7 +11,7 @@
 ######################################################################################################################
 """Contains the SpineEngine class for running Spine Toolbox DAGs."""
 from __future__ import annotations
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from enum import Enum, unique
 from itertools import product
@@ -65,6 +65,8 @@ from .utils.queue_logger import QueueLogger
 if TYPE_CHECKING:
     from multiprocessing.synchronize import Lock as LockType
 
+ExecutionPermits: TypeAlias = dict[str, bool]
+
 
 @unique
 class SpineEngineState(Enum):
@@ -113,7 +115,7 @@ class SpineEngine:
         items_module_name: str = "spine_items",
         settings: dict | None = None,
         project_dir: str | None = None,
-        execution_permits: dict[str, bool] | None = None,
+        execution_permits: ExecutionPermits | None = None,
         debug: bool = False,
     ):
         """
@@ -138,7 +140,7 @@ class SpineEngine:
         self._items = items
         if execution_permits is None:
             execution_permits = {}
-        self._execution_permits = execution_permits
+        self._execution_permits: ExecutionPermits = execution_permits
         connections = list(map(Connection.from_dict, connections))
         project_item_loader = ProjectItemLoader()
         self._executable_item_classes = project_item_loader.load_executable_item_classes(items_module_name)
@@ -862,15 +864,22 @@ def _validate_dag(dag: nx.DiGraph) -> None:
         raise EngineInitFailed("DAG contains unconnected items.")
 
 
-def filter_unneeded_jumps(jumps, items_by_jump, execution_permits):
+def filter_unneeded_jumps(
+    jumps: Iterable[Jump], items_by_jump: dict[Jump, set[str]], execution_permits: ExecutionPermits
+) -> list[Jump]:
     """Drops jumps whose items are not going to be executed.
 
     Args:
-        jumps (Iterable of Jump): jumps to filter
-        items_by_jump (dict): mapping from jump to list of item names
-        execution_permits (dict): mapping from item name to boolean telling if its is permitted to execute
+        jumps: jumps to filter
+        items_by_jump: mapping from jump to list of item names
+        execution_permits: mapping from item name to boolean telling if its is permitted to execute
+
+    Returns:
+        list of needed jumps
     """
-    return [jump for jump in jumps if all(execution_permits[item] for item in items_by_jump[jump])]
+    return [
+        jump for jump in jumps if items_by_jump[jump] and all(execution_permits[item] for item in items_by_jump[jump])
+    ]
 
 
 def validate_jumps(jumps, items_by_jump, dag):
