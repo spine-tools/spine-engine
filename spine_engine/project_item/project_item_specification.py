@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Contains project item specification class."""
+
 import json
 from spine_engine.utils.helpers import gather_leaf_data, shorten
 

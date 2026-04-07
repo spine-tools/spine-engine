@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Contains the SpineEngine class for running Spine Toolbox DAGs."""
+
 from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field

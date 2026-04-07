@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Uni tests for the ``connection`` module."""
+
 import gc
 import os.path
 import pathlib

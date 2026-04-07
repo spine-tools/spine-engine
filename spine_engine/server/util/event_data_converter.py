@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Contains static methods for converting event and data information to JSON format and back."""
+
 import base64
 import json
 from spine_engine.spine_engine import ItemExecutionFinishState

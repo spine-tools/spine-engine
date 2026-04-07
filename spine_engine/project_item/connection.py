@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Provides connection classes for linking project items."""
+
 from __future__ import annotations
 from collections.abc import Iterable
 from contextlib import ExitStack

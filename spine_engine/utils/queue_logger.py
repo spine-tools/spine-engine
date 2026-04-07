@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """The QueueLogger class."""
+
 from collections.abc import Callable
 from multiprocessing.queues import Queue
 import time

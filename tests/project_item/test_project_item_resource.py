@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for ``project_item_resource`` module."""
+
 from contextlib import ExitStack
 import pathlib
 from pathlib import Path

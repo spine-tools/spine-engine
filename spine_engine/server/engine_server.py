@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Contains EngineServer class for running a Zero-MQ server with Spine Engine."""
+
 import enum
 import ipaddress
 import json.decoder
