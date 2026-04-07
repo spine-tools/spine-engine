@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Contains project item specification factory."""
+
 from spine_engine.logger_interface import LoggerInterface
 from spine_engine.project_item.project_item_specification import ProjectItemSpecification
 from spine_engine.utils.helpers import AppSettings

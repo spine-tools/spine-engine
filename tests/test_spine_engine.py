@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Unit tests for `spine_engine` module."""
+
 from functools import partial
 import gc
 import os.path

@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Provides the ProjectItemResource class."""
+
 from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from contextlib import ExitStack, contextmanager

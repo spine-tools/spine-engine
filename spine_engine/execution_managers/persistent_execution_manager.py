@@ -14,6 +14,7 @@
 Contains PersistentManagerBase, PersistentExecutionManagerBase classes and subclasses,
 as well as some convenience functions.
 """
+
 from dataclasses import dataclass
 from multiprocessing import Lock, Process
 import os

@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Unit tests for EventDataConverter class."""
+
 from copy import deepcopy
 import unittest
 from spine_engine.server.util.event_data_converter import EventDataConverter

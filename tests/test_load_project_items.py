@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Unit tests for `load_project_items` module."""
+
 import os.path
 import sys
 import unittest

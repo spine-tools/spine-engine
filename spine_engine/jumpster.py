@@ -12,6 +12,7 @@
 """
 In-house dagster replacement that also handles jumps.
 """
+
 from collections import namedtuple
 from enum import Enum, unique
 import queue

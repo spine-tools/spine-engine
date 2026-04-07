@@ -11,6 +11,7 @@
 ######################################################################################################################
 
 """Contains ExecutableItem, a project item's counterpart in execution as well as support utilities."""
+
 from hashlib import sha1
 from pathlib import Path
 from ..utils.helpers import ExecutionDirection, ItemExecutionFinishState, shorten

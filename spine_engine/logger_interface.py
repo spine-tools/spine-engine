@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """A logger interface for static type checking."""
+
 from typing import Protocol
 
 

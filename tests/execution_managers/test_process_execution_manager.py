@@ -10,6 +10,7 @@
 # this program. If not, see <http://www.gnu.org/licenses/>.
 ######################################################################################################################
 """Unit tests for ``process_execution_manager`` module."""
+
 import os.path
 from tempfile import TemporaryDirectory
 import unittest
