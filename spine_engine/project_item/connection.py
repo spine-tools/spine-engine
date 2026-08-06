@@ -593,6 +593,8 @@ class Connection(ResourceConvertingConnection):
                             enabled_filter_values[ALTERNATIVE_FILTER_TYPE] = enabled_alternatives
             except (SpineDBAPIError, SpineDBVersionError):
                 continue
+            finally:
+                db_map.close()
 
     def _fetch_scenario_filter_values(
         self, db_map: DatabaseMapping, known_filters: dict[str, dict[str, bool]]
