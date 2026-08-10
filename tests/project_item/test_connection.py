@@ -142,19 +142,19 @@ class TestConnectionWithDatabase:
                 import_scenarios(db_map, ("my_scenario",))
                 db_map.commit_session("Add test data.")
             db_map.close()
-        filter_settings = FilterSettings(
-            {"my_database": {"scenario_filter": {"my_scenario": False}}}, auto_online=False
-        )
-        connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
-        connection.receive_resources_from_source([database_resource("unit_test", db_url, "my_database")])
-        connection_dict = connection.to_dict()
-        restored = Connection.from_dict(connection_dict)
-        assert restored.source == "source"
-        assert restored.source_position == "bottom"
-        assert restored.destination == "destination"
-        assert restored.destination_position == "top"
-        assert restored.options == {}
-        assert restored._filter_settings == filter_settings
+            filter_settings = FilterSettings(
+                {"my_database": {"scenario_filter": {"my_scenario": False}}}, auto_online=False
+            )
+            connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
+            connection.receive_resources_from_source([database_resource("unit_test", db_url, "my_database")])
+            connection_dict = connection.to_dict()
+            restored = Connection.from_dict(connection_dict)
+            assert restored.source == "source"
+            assert restored.source_position == "bottom"
+            assert restored.destination == "destination"
+            assert restored.destination_position == "top"
+            assert restored.options == {}
+            assert restored._filter_settings == filter_settings
 
     def test_enabled_scenarios_with_auto_enable_on(self):
         with TemporaryDirectory() as temp_dir:
@@ -163,11 +163,11 @@ class TestConnectionWithDatabase:
                 import_scenarios(db_map, ("scenario_1", "scenario_2"))
                 db_map.commit_session("Add test data.")
             db_map.close()
-        filter_settings = FilterSettings({"my_database": {"scenario_filter": {"scenario_1": False}}})
-        connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
-        resources = [database_resource("unit_test", db_url, "my_database", filterable=True)]
-        connection.receive_resources_from_source(resources)
-        assert connection.enabled_filters("my_database") == {"scenario_filter": ["scenario_2"]}
+            filter_settings = FilterSettings({"my_database": {"scenario_filter": {"scenario_1": False}}})
+            connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
+            resources = [database_resource("unit_test", db_url, "my_database", filterable=True)]
+            connection.receive_resources_from_source(resources)
+            assert connection.enabled_filters("my_database") == {"scenario_filter": ["scenario_2"]}
 
     def test_enabled_scenarios_with_auto_enable_off(self):
         with TemporaryDirectory() as temp_dir:
@@ -176,11 +176,11 @@ class TestConnectionWithDatabase:
                 import_scenarios(db_map, ("scenario_1", "scenario_2"))
                 db_map.commit_session("Add test data.")
             db_map.close()
-        filter_settings = FilterSettings({"my_database": {"scenario_filter": {"scenario_1": True}}}, auto_online=False)
-        connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
-        resources = [database_resource("unit_test", db_url, "my_database", filterable=True)]
-        connection.receive_resources_from_source(resources)
-        assert connection.enabled_filters("my_database") == {"scenario_filter": ["scenario_1"]}
+            filter_settings = FilterSettings({"my_database": {"scenario_filter": {"scenario_1": True}}}, auto_online=False)
+            connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
+            resources = [database_resource("unit_test", db_url, "my_database", filterable=True)]
+            connection.receive_resources_from_source(resources)
+            assert connection.enabled_filters("my_database") == {"scenario_filter": ["scenario_1"]}
 
     def test_purge_data_before_writing(self):
         with TemporaryDirectory() as temp_dir:
