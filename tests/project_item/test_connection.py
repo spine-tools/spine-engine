@@ -11,8 +11,6 @@
 ######################################################################################################################
 """Uni tests for the ``connection`` module."""
 
-import gc
-import os.path
 import pathlib
 from tempfile import TemporaryDirectory
 import unittest
@@ -137,23 +135,21 @@ class TestConnection(unittest.TestCase):
 
 
 @pytest.fixture()
-def db_map(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
-    mapping = DatabaseMapping(url, create=True)
-    yield mapping
-    mapping.close()
+def db_url(tmp_path):
+    return "sqlite:///" + str(tmp_path / "db.sqlite")
 
 
 class TestConnectionWithDatabase:
-    def test_serialization_with_filters(self, db_map):
-
-        import_scenarios(db_map, ("my_scenario",))
-        db_map.commit_session("Add test data.")
+    def test_serialization_with_filters(self, db_url):
+        with DatabaseMapping(db_url, create=True) as db_map:
+            import_scenarios(db_map, ("my_scenario",))
+            db_map.commit_session("Add test data.")
+        db_map.close()
         filter_settings = FilterSettings(
             {"my_database": {"scenario_filter": {"my_scenario": False}}}, auto_online=False
         )
         connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
-        connection.receive_resources_from_source([database_resource("unit_test", db_map.db_url, "my_database")])
+        connection.receive_resources_from_source([database_resource("unit_test", db_url, "my_database")])
         connection_dict = connection.to_dict()
         restored = Connection.from_dict(connection_dict)
         assert restored.source == "source"
@@ -163,28 +159,34 @@ class TestConnectionWithDatabase:
         assert restored.options == {}
         assert restored._filter_settings == filter_settings
 
-    def test_enabled_scenarios_with_auto_enable_on(self, db_map):
-        import_scenarios(db_map, ("scenario_1", "scenario_2"))
-        db_map.commit_session("Add test data.")
+    def test_enabled_scenarios_with_auto_enable_on(self, db_url):
+        with DatabaseMapping(db_url, create=True) as db_map:
+            import_scenarios(db_map, ("scenario_1", "scenario_2"))
+            db_map.commit_session("Add test data.")
+        db_map.close()
         filter_settings = FilterSettings({"my_database": {"scenario_filter": {"scenario_1": False}}})
         connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
-        resources = [database_resource("unit_test", db_map.db_url, "my_database", filterable=True)]
+        resources = [database_resource("unit_test", db_url, "my_database", filterable=True)]
         connection.receive_resources_from_source(resources)
         assert connection.enabled_filters("my_database") == {"scenario_filter": ["scenario_2"]}
 
-    def test_enabled_scenarios_with_auto_enable_off(self, db_map):
-        import_scenarios(db_map, ("scenario_1", "scenario_2"))
-        db_map.commit_session("Add test data.")
+    def test_enabled_scenarios_with_auto_enable_off(self, db_url):
+        with DatabaseMapping(db_url, create=True) as db_map:
+            import_scenarios(db_map, ("scenario_1", "scenario_2"))
+            db_map.commit_session("Add test data.")
+        db_map.close()
         filter_settings = FilterSettings({"my_database": {"scenario_filter": {"scenario_1": True}}}, auto_online=False)
         connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
-        resources = [database_resource("unit_test", db_map.db_url, "my_database", filterable=True)]
+        resources = [database_resource("unit_test", db_url, "my_database", filterable=True)]
         connection.receive_resources_from_source(resources)
         assert connection.enabled_filters("my_database") == {"scenario_filter": ["scenario_1"]}
 
-    def test_purge_data_before_writing(self, db_map):
-        import_alternatives(db_map, ("my_alternative",))
-        import_entity_classes(db_map, ("my_object_class",))
-        db_map.commit_session("Add test data.")
+    def test_purge_data_before_writing(self, db_url):
+        with DatabaseMapping(db_url, create=True) as db_map:
+            import_alternatives(db_map, ("my_alternative",))
+            import_entity_classes(db_map, ("my_object_class",))
+            db_map.commit_session("Add test data.")
+        db_map.close()
         connection = Connection(
             "source",
             "bottom",
@@ -192,9 +194,9 @@ class TestConnectionWithDatabase:
             "top",
             options={"purge_before_writing": True, "purge_settings": {"entity_class": True}},
         )
-        resources = [database_resource("unit_test", db_map.db_url, "my_database")]
+        resources = [database_resource("unit_test", db_url, "my_database")]
         connection.clean_up_backward_resources(resources)
-        with DatabaseMapping(db_map.db_url) as database_map:
+        with DatabaseMapping(db_url) as database_map:
             entity_class_list = database_map.query(database_map.entity_class_sq).all()
             assert len(entity_class_list) == 0
             alternative_list = database_map.query(database_map.alternative_sq).all()
