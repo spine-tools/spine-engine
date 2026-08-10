@@ -65,7 +65,7 @@ jobs:
         if [ "$RUNNER_OS" != "Windows" ]; then
           export QT_QPA_PLATFORM=offscreen
         fi
-        pytest tests/ --cov --verbose
+        python -X tracemalloc=25 -m pytest tests/ --cov --verbose -W error::ResourceWarning
       shell: bash
     - name: Upload coverage report to Codecov
       uses: codecov/codecov-action@v7
