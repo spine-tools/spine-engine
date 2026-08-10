@@ -204,6 +204,7 @@ class TestConnectionWithDatabase:
             assert len(alternative_list) == 2
             assert alternative_list[0].name == "Base"
             assert alternative_list[1].name == "my_alternative"
+        database_map.close()
 
 
 class TestJump(unittest.TestCase):
