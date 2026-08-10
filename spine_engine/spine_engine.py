@@ -709,7 +709,7 @@ class SpineEngine:
         if connection is None:
             raise RuntimeError("Logic error: no connection from resource provider")
         filters = connection.enabled_filters(resource_label)
-        if filters is None:
+        if not filters:
             return []
         filter_configs_list = []
         for filter_type, values in filters.items():
