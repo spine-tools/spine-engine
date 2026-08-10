@@ -13,7 +13,6 @@
 """Unit tests for `spine_engine` module."""
 
 from functools import partial
-import gc
 import os.path
 import sys
 import unittest
@@ -25,8 +24,7 @@ from spine_engine.project_item.connection import Connection, FilterSettings, Jum
 from spine_engine.project_item.project_item_resource import ProjectItemResource, database_resource
 from spine_engine.spine_engine import filter_unneeded_jumps, validate_single_jump
 from spine_engine.utils.helpers import make_dag
-from spinedb_api import (DatabaseMapping, append_filter_config, import_scenarios, import_entity_classes,
-                         create_new_spine_database)
+from spinedb_api import DatabaseMapping, append_filter_config, import_scenarios, create_new_spine_database
 from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.renamer import entity_class_renamer_config
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE, scenario_filter_config
@@ -386,7 +384,6 @@ class TestSpineEngine:
             import_scenarios(db_map, (("scen1", True), ("scen2", True)))
             db_map.commit_session("Add test data.")
         db_map.close()
-        gc.collect()
         url_prefix = "db:///" if sys.platform == "win32" else "db:////"
         url_a_fw = _make_url_resource(url)
         url_c_bw = _make_url_resource("db:///url_c_bw")
@@ -444,7 +441,6 @@ class TestSpineEngine:
             import_scenarios(db_map, (("scen1", True), ("scen2", True)))
             db_map.commit_session("Add test data.")
         db_map.close()
-        gc.collect()
         url_prefix = "db:///" if sys.platform == "win32" else "db:////"
         url_a_fw = _make_url_resource(url)
         file_b_fw_11 = ProjectItemResource("item_b", "file", "label_1")
@@ -539,7 +535,6 @@ class TestSpineEngine:
             import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
             db_map.commit_session("Add test data.")
         db_map.close()
-        gc.collect()
         url_a_fw = _make_url_resource(urlA)
         url_b_fw = _make_url_resource(urlB)
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
@@ -612,7 +607,6 @@ class TestSpineEngine:
             import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
             db_map.commit_session("Add test data.")
         db_map.close()
-        gc.collect()
         url_a_fw = _make_url_resource(urlA)
         url_b_fw = _make_url_resource(urlB)
         file_c_fw_11 = ProjectItemResource("item_c", "file", "label_1")
