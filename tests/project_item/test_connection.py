@@ -146,9 +146,9 @@ def db_map(tmp_path):
 
 class TestConnectionWithDatabase:
     def test_serialization_with_filters(self, db_map):
-        with db_map:
-            import_scenarios(db_map, ("my_scenario",))
-            db_map.commit_session("Add test data.")
+
+        import_scenarios(db_map, ("my_scenario",))
+        db_map.commit_session("Add test data.")
         filter_settings = FilterSettings(
             {"my_database": {"scenario_filter": {"my_scenario": False}}}, auto_online=False
         )
@@ -164,9 +164,8 @@ class TestConnectionWithDatabase:
         assert restored._filter_settings == filter_settings
 
     def test_enabled_scenarios_with_auto_enable_on(self, db_map):
-        with db_map:
-            import_scenarios(db_map, ("scenario_1", "scenario_2"))
-            db_map.commit_session("Add test data.")
+        import_scenarios(db_map, ("scenario_1", "scenario_2"))
+        db_map.commit_session("Add test data.")
         filter_settings = FilterSettings({"my_database": {"scenario_filter": {"scenario_1": False}}})
         connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
         resources = [database_resource("unit_test", db_map.db_url, "my_database", filterable=True)]
@@ -174,9 +173,8 @@ class TestConnectionWithDatabase:
         assert connection.enabled_filters("my_database") == {"scenario_filter": ["scenario_2"]}
 
     def test_enabled_scenarios_with_auto_enable_off(self, db_map):
-        with db_map:
-            import_scenarios(db_map, ("scenario_1", "scenario_2"))
-            db_map.commit_session("Add test data.")
+        import_scenarios(db_map, ("scenario_1", "scenario_2"))
+        db_map.commit_session("Add test data.")
         filter_settings = FilterSettings({"my_database": {"scenario_filter": {"scenario_1": True}}}, auto_online=False)
         connection = Connection("source", "bottom", "destination", "top", filter_settings=filter_settings)
         resources = [database_resource("unit_test", db_map.db_url, "my_database", filterable=True)]
@@ -184,10 +182,9 @@ class TestConnectionWithDatabase:
         assert connection.enabled_filters("my_database") == {"scenario_filter": ["scenario_1"]}
 
     def test_purge_data_before_writing(self, db_map):
-        with db_map:
-            import_alternatives(db_map, ("my_alternative",))
-            import_entity_classes(db_map, ("my_object_class",))
-            db_map.commit_session("Add test data.")
+        import_alternatives(db_map, ("my_alternative",))
+        import_entity_classes(db_map, ("my_object_class",))
+        db_map.commit_session("Add test data.")
         connection = Connection(
             "source",
             "bottom",
