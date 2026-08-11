@@ -579,6 +579,7 @@ class Connection(ResourceConvertingConnection):
             url = resource.url
             if not url:
                 continue
+            db_map = None
             try:
                 with DatabaseMapping(url) as db_map:
                     known_filters = self._filter_settings.known_filters.get(resource.label, {})
@@ -594,7 +595,8 @@ class Connection(ResourceConvertingConnection):
             except (SpineDBAPIError, SpineDBVersionError):
                 continue
             finally:
-                db_map.close()
+                if db_map is not None:
+                    db_map.close()
 
     def _fetch_scenario_filter_values(
         self, db_map: DatabaseMapping, known_filters: dict[str, dict[str, bool]]

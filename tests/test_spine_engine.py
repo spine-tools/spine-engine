@@ -47,10 +47,6 @@ def _make_real_spine_db_url_resource(url):
     return ProjectItemResource("name", "database", "label", url, filterable=True)
 
 
-def _make_file_resource(path):
-    return ProjectItemResource("name", "file", "label", path, filterable=True)
-
-
 class TestSpineEngine:
     _LOOP_TWICE = {
         "type": "python-script",
@@ -160,12 +156,12 @@ class TestSpineEngine:
     def test_linear_execution(self):
         """Test execution with items a-b-c in a line."""
         url_prefix = "db:///" if sys.platform == "win32" else "db:////"
-        url_a_fw = _make_file_resource("db:///url_a_fw")
-        url_b_fw = _make_file_resource("db:///url_b_fw")
-        url_c_fw = _make_file_resource("db:///url_c_fw")
-        url_a_bw = _make_file_resource("db:///url_a_bw")
-        url_b_bw = _make_file_resource("db:///url_b_bw")
-        url_c_bw = _make_file_resource("db:///url_c_bw")
+        url_a_fw = _make_url_resource("db:///url_a_fw")
+        url_b_fw = _make_url_resource("db:///url_b_fw")
+        url_c_fw = _make_url_resource("db:///url_c_fw")
+        url_a_bw = _make_url_resource("db:///url_a_bw")
+        url_b_bw = _make_url_resource("db:///url_b_bw")
+        url_c_bw = _make_url_resource("db:///url_c_bw")
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
@@ -173,7 +169,7 @@ class TestSpineEngine:
         items = {"item_a": {"type": "TestItem"}, "item_b": {"type": "TestItem"}, "item_c": {"type": "TestItem"}}
         connections = [
             {"from": ("item_a", "right"), "to": ("item_b", "left")},
-            {"from": ("item_b", "right"), "to": ("item_c", "left")},
+            {"from": ("item_b", "bottom"), "to": ("item_c", "left")},
         ]
         self._run_engine(items, connections, item_instances)
         expected_bw_resource = self._default_backward_url_resource(url_prefix + "url_b_bw", "item_a", "item_b")
@@ -195,12 +191,12 @@ class TestSpineEngine:
 
     def test_fork_execution(self):
         """Test execution that forks from item a to items b and c."""
-        url_a_fw = _make_file_resource("db:///url_a_fw")
-        url_b_fw = _make_file_resource("db:///url_b_fw")
-        url_c_fw = _make_file_resource("db:///url_c_fw")
-        url_a_bw = _make_file_resource("db:///url_a_bw")
-        url_b_bw = _make_file_resource("db:///url_b_bw")
-        url_c_bw = _make_file_resource("db:///url_c_bw")
+        url_a_fw = _make_url_resource("db:///url_a_fw")
+        url_b_fw = _make_url_resource("db:///url_b_fw")
+        url_c_fw = _make_url_resource("db:///url_c_fw")
+        url_a_bw = _make_url_resource("db:///url_a_bw")
+        url_b_bw = _make_url_resource("db:///url_b_bw")
+        url_c_bw = _make_url_resource("db:///url_c_bw")
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
@@ -230,12 +226,12 @@ class TestSpineEngine:
 
     def test_branch_merge_execution(self):
         """Tests execution with items a and b as direct successors for c."""
-        url_a_fw = _make_file_resource("db:///url_a_fw")
-        url_b_fw = _make_file_resource("db:///url_b_fw")
-        url_c_fw = _make_file_resource("db:///url_c_fw")
-        url_a_bw = _make_file_resource("db:///url_a_bw")
-        url_b_bw = _make_file_resource("db:///url_b_bw")
-        url_c_bw = _make_file_resource("db:///url_c_bw")
+        url_a_fw = _make_url_resource("db:///url_a_fw")
+        url_b_fw = _make_url_resource("db:///url_b_fw")
+        url_c_fw = _make_url_resource("db:///url_c_fw")
+        url_a_bw = _make_url_resource("db:///url_a_bw")
+        url_b_bw = _make_url_resource("db:///url_b_bw")
+        url_c_bw = _make_url_resource("db:///url_c_bw")
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
@@ -263,12 +259,12 @@ class TestSpineEngine:
 
     def test_execution_permits(self):
         """Tests that the middle item of an item triplet is not executed when its execution permit is False."""
-        url_a_fw = _make_file_resource("db:///url_a_fw")
-        url_b_fw = _make_file_resource("db:///url_b_fw")
-        url_c_fw = _make_file_resource("db:///url_c_fw")
-        url_a_bw = _make_file_resource("db:///url_a_bw")
-        url_b_bw = _make_file_resource("db:///url_b_bw")
-        url_c_bw = _make_file_resource("db:///url_c_bw")
+        url_a_fw = _make_url_resource("db:///url_a_fw")
+        url_b_fw = _make_url_resource("db:///url_b_fw")
+        url_c_fw = _make_url_resource("db:///url_c_fw")
+        url_a_bw = _make_url_resource("db:///url_a_bw")
+        url_b_bw = _make_url_resource("db:///url_b_bw")
+        url_c_bw = _make_url_resource("db:///url_c_bw")
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[url_a_bw])
         mock_item_b = self._mock_item("item_b", resources_forward=[url_b_fw], resources_backward=[url_b_bw])
         mock_item_c = self._mock_item("item_c", resources_forward=[url_c_fw], resources_backward=[url_c_bw])
@@ -1290,8 +1286,6 @@ class TestSpineEngine:
 
     @staticmethod
     def _assert_resource_args(arg_packs, expected_packs, clear_url_resource_filters=True):
-        print(f"arg_packs: {arg_packs}")
-        print(f"expected_packs: {expected_packs}")
         assert len(arg_packs) == len(expected_packs)
         for pack, expected_pack in zip(arg_packs, expected_packs):
             assert len(pack) == len(expected_pack)
