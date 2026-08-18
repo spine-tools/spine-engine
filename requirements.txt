@@ -1,2 +1,2 @@
--e git+https://github.com/spine-tools/Spine-Database-API.git@dispose_engines#egg=spinedb_api
+-e git+https://github.com/spine-tools/Spine-Database-API.git#egg=spinedb_api
 -e .
