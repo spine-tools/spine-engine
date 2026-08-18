@@ -13,7 +13,6 @@
 """Unit tests for `spine_engine` module."""
 
 from functools import partial
-import gc
 import os.path
 import sys
 import unittest
@@ -25,7 +24,7 @@ from spine_engine.project_item.connection import Connection, FilterSettings, Jum
 from spine_engine.project_item.project_item_resource import ProjectItemResource, database_resource
 from spine_engine.spine_engine import filter_unneeded_jumps, validate_single_jump
 from spine_engine.utils.helpers import make_dag
-from spinedb_api import DatabaseMapping, append_filter_config, import_scenarios
+from spinedb_api import DatabaseMapping, append_filter_config, import_scenarios, create_new_spine_database
 from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.renamer import entity_class_renamer_config
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE, scenario_filter_config
@@ -39,6 +38,12 @@ def use_mock_items(monkeypatch):
 
 
 def _make_url_resource(url):
+    return ProjectItemResource("name", "database", "label", url, filterable=True)
+
+
+def _make_real_spine_db_url_resource(url):
+    engine = create_new_spine_database(url)
+    engine.dispose()
     return ProjectItemResource("name", "database", "label", url, filterable=True)
 
 
@@ -133,7 +138,6 @@ class TestSpineEngine:
         engine = self._create_engine(items, connections, item_instances, execution_permits, jumps)
         engine.run()
         assert engine.state() == SpineEngineState.COMPLETED
-        gc.collect()
 
     def test_single_item_execution(self):
         """Test execution of a single item."""
@@ -372,7 +376,6 @@ class TestSpineEngine:
             import_scenarios(db_map, (("scen1", True), ("scen2", True)))
             db_map.commit_session("Add test data.")
         db_map.close()
-        gc.collect()
         url_prefix = "db:///" if sys.platform == "win32" else "db:////"
         url_a_fw = _make_url_resource(url)
         url_c_bw = _make_url_resource("db:///url_c_bw")
@@ -430,7 +433,6 @@ class TestSpineEngine:
             import_scenarios(db_map, (("scen1", True), ("scen2", True)))
             db_map.commit_session("Add test data.")
         db_map.close()
-        gc.collect()
         url_prefix = "db:///" if sys.platform == "win32" else "db:////"
         url_a_fw = _make_url_resource(url)
         file_b_fw_11 = ProjectItemResource("item_b", "file", "label_1")
@@ -525,7 +527,6 @@ class TestSpineEngine:
             import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
             db_map.commit_session("Add test data.")
         db_map.close()
-        gc.collect()
         url_a_fw = _make_url_resource(urlA)
         url_b_fw = _make_url_resource(urlB)
         mock_item_a = self._mock_item("item_a", resources_forward=[url_a_fw], resources_backward=[])
@@ -598,7 +599,6 @@ class TestSpineEngine:
             import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
             db_map.commit_session("Add test data.")
         db_map.close()
-        gc.collect()
         url_a_fw = _make_url_resource(urlA)
         url_b_fw = _make_url_resource(urlB)
         file_c_fw_11 = ProjectItemResource("item_c", "file", "label_1")
@@ -1137,25 +1137,26 @@ class TestSpineEngine:
         assert engine.state() == SpineEngineState.COMPLETED
 
     def test_jump_resources_get_passed_correctly(self, tmp_path):
+
         url_fw_a = "sqlite:///" + str(tmp_path / "fw_a")
+        resource_fw_a = _make_real_spine_db_url_resource(url_fw_a)
         url_bw_a = "sqlite:///" + str(tmp_path / "bw_a")
+        resource_bw_a = _make_real_spine_db_url_resource(url_bw_a)
         url_fw_b = "sqlite:///" + str(tmp_path / "fw_b")
+        resource_fw_b = _make_real_spine_db_url_resource(url_fw_b)
         url_bw_b = "sqlite:///" + str(tmp_path / "bw_b")
+        resource_bw_b = _make_real_spine_db_url_resource(url_bw_b)
         url_fw_c = "sqlite:///" + str(tmp_path / "fw_c")
+        resource_fw_c = _make_real_spine_db_url_resource(url_fw_c)
         url_bw_c = "sqlite:///" + str(tmp_path / "bw_c")
+        resource_bw_c = _make_real_spine_db_url_resource(url_bw_c)
         url_fw_d = "sqlite:///" + str(tmp_path / "fw_d")
+        resource_fw_d = _make_real_spine_db_url_resource(url_fw_d)
         url_bw_d = "sqlite:///" + str(tmp_path / "bw_d")
-        resource_fw_a = _make_url_resource(url_fw_a)
-        resource_bw_a = _make_url_resource(url_bw_a)
+        resource_bw_d = _make_real_spine_db_url_resource(url_bw_d)
         item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
-        resource_fw_b = _make_url_resource(url_fw_b)
-        resource_bw_b = _make_url_resource(url_bw_b)
         item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
-        resource_fw_c = _make_url_resource(url_fw_c)
-        resource_bw_c = _make_url_resource(url_bw_c)
         item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
-        resource_fw_d = _make_url_resource(url_fw_d)
-        resource_bw_d = _make_url_resource(url_bw_d)
         item_d = self._mock_item("d", resources_forward=[resource_fw_d], resources_backward=[resource_bw_d])
         item_instances = {"a": [item_a], "b": [item_b, item_b], "c": [item_c, item_c], "d": [item_d]}
         items = {
@@ -1203,19 +1204,19 @@ class TestSpineEngine:
 
     def test_nested_jump_with_inner_self_jump(self, tmp_path):
         url_fw_a = "sqlite:///" + str(tmp_path / "fw_a")
+        resource_fw_a = _make_real_spine_db_url_resource(url_fw_a)
         url_bw_a = "sqlite:///" + str(tmp_path / "bw_a")
+        resource_bw_a = _make_real_spine_db_url_resource(url_bw_a)
         url_fw_b = "sqlite:///" + str(tmp_path / "fw_b")
+        resource_fw_b = _make_real_spine_db_url_resource(url_fw_b)
         url_bw_b = "sqlite:///" + str(tmp_path / "bw_b")
+        resource_bw_b = _make_real_spine_db_url_resource(url_bw_b)
         url_fw_c = "sqlite:///" + str(tmp_path / "fw_c")
+        resource_fw_c = _make_real_spine_db_url_resource(url_fw_c)
         url_bw_c = "sqlite:///" + str(tmp_path / "bw_c")
-        resource_fw_a = _make_url_resource(url_fw_a)
-        resource_bw_a = _make_url_resource(url_bw_a)
+        resource_bw_c = _make_real_spine_db_url_resource(url_bw_c)
         item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
-        resource_fw_b = _make_url_resource(url_fw_b)
-        resource_bw_b = _make_url_resource(url_bw_b)
         item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
-        resource_fw_c = _make_url_resource(url_fw_c)
-        resource_bw_c = _make_url_resource(url_bw_c)
         item_c = self._mock_item("c", resources_forward=[resource_fw_c], resources_backward=[resource_bw_c])
         item_instances = {"a": 2 * [item_a], "b": 4 * [item_b], "c": 2 * [item_c]}
         items = {"a": {"type": "TestItem"}, "b": {"type": "TestItem"}, "c": {"type": "TestItem"}}
