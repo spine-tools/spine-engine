@@ -17,7 +17,7 @@ from contextlib import ExitStack, contextmanager
 import copy
 from pathlib import Path
 from typing import Literal, TypeAlias, TypedDict
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 import uuid
 from typing_extensions import NotRequired
@@ -83,7 +83,7 @@ class ProjectItemResource:
         self.type_: ResourceType = type_
         self.label = label
         self._url = url
-        self._filepath: str | None = None
+        self._filepath: str = ""
         self._parsed_url = urlparse(self._url)
         self.metadata = metadata if metadata is not None else {}
         self._filterable = filterable
@@ -192,8 +192,11 @@ class ProjectItemResource:
     @property
     def path(self) -> str:
         """Returns the resource path in the local syntax, as obtained from parsing the url."""
-        if not self._filepath:
-            self._filepath = url2pathname(self._parsed_url.path) if self._parsed_url.path else ""
+        if not self._filepath and self._parsed_url.path:
+            if self._parsed_url.scheme == "sqlite":
+                self._filepath = str(Path(unquote(self._parsed_url.path[1:])))
+            else:
+                self._filepath = url2pathname(self._parsed_url.path)
         return self._filepath
 
     @property

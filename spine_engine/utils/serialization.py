@@ -14,11 +14,11 @@
 
 import os
 from pathlib import Path
-import sys
 from typing import Literal, TypedDict, TypeGuard
-import urllib
 from urllib.parse import urljoin
+from urllib.request import pathname2url
 from typing_extensions import NotRequired
+from spinedb_api.helpers import sqlite_url_string
 
 
 def path_in_dir(path: str | Path, directory: str | Path) -> bool:
@@ -86,7 +86,7 @@ def deserialize_path(serialized: PathDict | str, project_dir: str) -> str:
     Returns:
         Path or URL as string
     """
-    if not isinstance(serialized, dict):
+    if isinstance(serialized, str):
         return serialized
     try:
         path_type = serialized["type"]
@@ -101,7 +101,10 @@ def deserialize_path(serialized: PathDict | str, project_dir: str) -> str:
             query = serialized.get("query", "")
             if query:
                 query = "?" + query
-            return serialized["scheme"] + ":///" + path + query
+            scheme = serialized["scheme"]
+            if scheme == "sqlite":
+                return sqlite_url_string(path) + query
+            return scheme + ":" + pathname2url(path) + query
         if path_type == "url":
             return serialized["path"]
     except KeyError as error:
@@ -110,7 +113,7 @@ def deserialize_path(serialized: PathDict | str, project_dir: str) -> str:
 
 
 def deserialize_remote_path(serialized: PathDict | str, base_path: str) -> str:
-    if not isinstance(serialized, dict):
+    if isinstance(serialized, str):
         return serialized
     try:
         path_type = serialized["type"]

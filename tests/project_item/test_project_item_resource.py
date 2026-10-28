@@ -35,6 +35,7 @@ from spine_engine.project_item.project_item_resource import (
 )
 from spinedb_api import append_filter_config
 from spinedb_api.filters.scenario_filter import scenario_filter_config
+from spinedb_api.helpers import sqlite_url_string
 from spinedb_api.spine_db_server import db_server_manager
 
 
@@ -43,24 +44,31 @@ class TestGetLabelledSourceResources(unittest.TestCase):
         self.assertEqual(get_labelled_source_resources([]), {})
 
     def test_single_database_resource_gets_collected(self):
-        resources = [database_resource("provider", "sqlite:///file.sqlite", "my database")]
+        path = "c:\\path\\to\\db.sqlite" if sys.platform == "win32" else "/path/to/db.sqlite"
+        url = sqlite_url_string(path)
+        resources = [database_resource("provider", url, "my database")]
         expected = {"my database": [resources[0]]}
         self.assertEqual(get_labelled_source_resources(resources), expected)
 
     def test_url_resource_gets_collected(self):
-        resources = [url_resource("provider", "sqlite:///file.sqlite", "my non-Spine database")]
+        path = "c:\\path\\to\\db.sqlite" if sys.platform == "win32" else "/path/to/db.sqlite"
+        url = sqlite_url_string(path)
+        resources = [url_resource("provider", url, "my non-Spine database")]
         expected = {"my non-Spine database": [resources[0]]}
         self.assertEqual(get_labelled_source_resources(resources), expected)
 
     def test_single_file_resource_gets_collected(self):
-        resources = [file_resource("provider", "/path/to/file", "my file")]
+        path = "c:\\path\\to\\file" if sys.platform == "win32" else "/path/to/file"
+        resources = [file_resource("provider", path, "my file")]
         expected = {"my file": [resources[0]]}
         self.assertEqual(get_labelled_source_resources(resources), expected)
 
     def test_multiple_file_resources_in_packs_get_collected(self):
+        path1 = "c:\\path\\to\\file1.dat" if sys.platform == "win32" else "/path/to/file1.dat"
+        path2 = "c:\\path\\to\\file2.dat" if sys.platform == "win32" else "/path/to/file2.dat"
         resources = [
-            file_resource_in_pack("provider", "*.dat", "/path/file1.dat"),
-            file_resource_in_pack("provider", "*.dat", "/path/file2.dat"),
+            file_resource_in_pack("provider", "*.dat", path1),
+            file_resource_in_pack("provider", "*.dat", path2),
         ]
         expected = {"*.dat": [resources[0], resources[1]]}
         self.assertEqual(get_labelled_source_resources(resources), expected)
@@ -74,7 +82,8 @@ class TestLabelledResourceArgs(unittest.TestCase):
         self.assertEqual(labelled_args, {})
 
     def test_single_resources(self):
-        single_file_resource = file_resource("my provider", "/path/to/file")
+        path = "c:\\path\\to\\file" if sys.platform == "win32" else "/path/to/file"
+        single_file_resource = file_resource("my provider", path)
         remote_resource = url_resource("so-called cloud", "ftp://ftp.sausage.org/wurst", "food-url")
         with db_server_manager() as db_server_manager_queue:
             db_resource = database_resource("db provider", "sqlite://")
@@ -83,14 +92,16 @@ class TestLabelledResourceArgs(unittest.TestCase):
             with ExitStack() as exit_stack:
                 labelled_args = labelled_resource_args(resources, exit_stack)
             self.assertEqual(len(labelled_args), 3)
-            self.assertEqual(labelled_args["/path/to/file"], [single_file_resource.path])
+            self.assertEqual(labelled_args[path], [single_file_resource.path])
             self.assertEqual(len(labelled_args["sqlite://"]), 1)
             self.assertTrue(labelled_args["sqlite://"][0].startswith("http://127.0.0.1:"))
             self.assertEqual(labelled_args["food-url"], ["ftp://ftp.sausage.org/wurst"])
 
     def test_pack_resource(self):
-        file_1 = file_resource_in_pack("my provider", "pack", "/path/to/file1")
-        file_2 = file_resource_in_pack("my provider", "pack", "/path/to/file2")
+        path1 = "c:\\path\\to\\file1" if sys.platform == "win32" else "/path/to/file1"
+        path2 = "c:\\path\\to\\file2" if sys.platform == "win32" else "/path/to/file2"
+        file_1 = file_resource_in_pack("my provider", "pack", path1)
+        file_2 = file_resource_in_pack("my provider", "pack", path2)
         resources = [file_1, file_2]
         with ExitStack() as exit_stack:
             labelled_args = labelled_resource_args(resources, exit_stack)
@@ -129,19 +140,24 @@ class TestExpandCmdLineArgs(unittest.TestCase):
 
     def test_single_label_arg(self):
         args = [LabelArg("file label")]
-        label_to_arg = {"file label": ["/path/to/file"]}
+        path = "c:\\path\\to\\file" if sys.platform == "win32" else "/path/to/file"
+        label_to_arg = {"file label": [path]}
         expanded_args = expand_cmd_line_args(args, label_to_arg, self._logger)
-        self.assertEqual(expanded_args, ["/path/to/file"])
+        self.assertEqual(expanded_args, [path])
 
     def test_multiple_args_for_label(self):
         args = [LabelArg("file label")]
-        label_to_arg = {"file label": ["/path/to/file1", "/path/to/file2"]}
+        path1 = "c:\\path\\to\\file1" if sys.platform == "win32" else "/path/to/file1"
+        path2 = "c:\\path\\to\\file2" if sys.platform == "win32" else "/path/to/file2"
+        label_to_arg = {"file label": [path1, path2]}
         expanded_args = expand_cmd_line_args(args, label_to_arg, self._logger)
-        self.assertEqual(expanded_args, ["/path/to/file1", "/path/to/file2"])
+        self.assertEqual(expanded_args, [path1, path2])
 
     def test_non_label_arg(self):
         args = [CmdLineArg("--no-worries")]
-        label_to_arg = {"--no-worries": ["/path/to/file1", "/path/to/file2"]}
+        path1 = "c:\\path\\to\\file1" if sys.platform == "win32" else "/path/to/file1"
+        path2 = "c:\\path\\to\\file2" if sys.platform == "win32" else "/path/to/file2"
+        label_to_arg = {"--no-worries": [path1, path2]}
         expanded_args = expand_cmd_line_args(args, label_to_arg, self._logger)
         self.assertEqual(expanded_args, ["--no-worries"])
 
@@ -155,11 +171,14 @@ class TestExpandCmdLineArgs(unittest.TestCase):
 
 class TestDatabaseResource(unittest.TestCase):
     def test_schema_is_stored_in_metadata(self):
-        resource = database_resource("project item", "sqlite:///path/to/db.sqlite", schema="my_schema")
+        path = "c:\\path\\to\\db.sqlite" if sys.platform == "win32" else "/path/to/db.sqlite"
+        url = sqlite_url_string(path)
+        resource = database_resource("project item", url, schema="my_schema")
         self.assertEqual(resource.metadata, {"schema": "my_schema"})
 
     def test_empty_label_is_replaced_by_url_without_filter_configs(self):
-        url = "sqlite:///path/to/db.sqlite" if sys.platform == "win32" else "sqlite:////path/to/db.sqlite"
+        path = "c:\\path\\to\\db.sqlite" if sys.platform == "win32" else "/path/to/db.sqlite"
+        url = sqlite_url_string(path)
         filter_config = scenario_filter_config("my_scenario")
         filtered_url = append_filter_config(url, filter_config)
         self.assertNotEqual(url, filtered_url)
@@ -168,15 +187,25 @@ class TestDatabaseResource(unittest.TestCase):
         self.assertEqual(resource.label, url)
 
 
-class TestURLResource(unittest.TestCase):
+class TestURLResource:
     def test_schema_is_stored_in_metadata(self):
-        resource = url_resource("project item", "sqlite:///path/do/db.sqlite", "my database", schema="my_schema")
-        self.assertEqual(resource.metadata, {"schema": "my_schema"})
+        path = "c:\\path\\to\\db.sqlite" if sys.platform == "win32" else "/path/to/db.sqlite"
+        url = sqlite_url_string(path)
+        resource = url_resource("project item", url, "my database", schema="my_schema")
+        assert resource.metadata == {"schema": "my_schema"}
 
     def test_url_setter_works_when_url_is_set_to_none(self):
-        resource = url_resource("project item", "sqlite:///path/do/db.sqlite", "my database")
+        path = "c:\\path\\to\\db.sqlite" if sys.platform == "win32" else "/path/to/db.sqlite"
+        url = sqlite_url_string(path)
+        resource = url_resource("project item", url, "my database")
         resource.url = None
-        self.assertIsNone(resource.url)
+        assert resource.url is None
+
+    def test_sqlite_url_gives_correct_file_path(self):
+        path = "c:\\path\\to\\db.sqlite" if sys.platform == "win32" else "/path/to/db.sqlite"
+        url = sqlite_url_string(path)
+        resource = url_resource("resource provider", url, "my database")
+        assert resource.path == path
 
 
 class TestDirectoryResource:
@@ -203,8 +232,9 @@ class TestTransientFileResource(unittest.TestCase):
 
 class TestGetSource(unittest.TestCase):
     def test_file_resource(self):
-        resource = file_resource("project item", "/path/to/file")
-        self.assertEqual(get_source(resource), str(Path("/", "path", "to", "file").resolve()))
+        path = "c:\\path\\to\\file" if sys.platform == "win32" else "/path/to/file"
+        resource = file_resource("project item", path)
+        self.assertEqual(get_source(resource), str(Path(path).resolve()))
 
     def test_url_resource(self):
         resource = url_resource("project item", "mysql://user:psw@localhost/db", "database")
@@ -221,7 +251,8 @@ class TestGetSource(unittest.TestCase):
 
 class TestGetSourceExtras(unittest.TestCase):
     def test_file_resource(self):
-        resource = file_resource("project item", "/path/to/file")
+        path = "c:\\path\\to\\file" if sys.platform == "win32" else "/path/to/file"
+        resource = file_resource("project item", path)
         self.assertEqual(get_source_extras(resource), {})
 
     def test_url_resource(self):

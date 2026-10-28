@@ -24,11 +24,12 @@ from spine_engine.project_item.connection import Connection, FilterSettings, Jum
 from spine_engine.project_item.project_item_resource import ProjectItemResource, database_resource
 from spine_engine.spine_engine import filter_unneeded_jumps, validate_single_jump
 from spine_engine.utils.helpers import make_dag
-from spinedb_api import DatabaseMapping, append_filter_config, import_scenarios, create_new_spine_database
+from spinedb_api import DatabaseMapping, append_filter_config, create_new_spine_database, import_scenarios
 from spinedb_api.filters.execution_filter import execution_filter_config
 from spinedb_api.filters.renamer import entity_class_renamer_config
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE, scenario_filter_config
 from spinedb_api.filters.tools import clear_filter_configs
+from spinedb_api.helpers import sqlite_url_string
 
 
 @pytest.fixture(autouse=True)
@@ -294,7 +295,7 @@ class TestSpineEngine:
 
     def test_filter_stacks(self, tmp_path):
         """Tests filter stacks are properly applied."""
-        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        url = sqlite_url_string(tmp_path / "db.sqlite")
         with DatabaseMapping(url, create=True) as db_map:
             import_scenarios(db_map, (("scen1", True), ("scen2", True)))
             db_map.commit_session("Add test data.")
@@ -371,7 +372,7 @@ class TestSpineEngine:
         assert mock_item_c2.filter_id == "scen2 - item_b"
 
     def test_parallel_execution_ends_when_no_output_resources_are_generated(self, tmp_path):
-        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        url = sqlite_url_string(tmp_path / "db.sqlite")
         with DatabaseMapping(url, create=True) as db_map:
             import_scenarios(db_map, (("scen1", True), ("scen2", True)))
             db_map.commit_session("Add test data.")
@@ -428,7 +429,7 @@ class TestSpineEngine:
 
     def test_filter_stacks_and_multiple_file_output_resources(self, tmp_path):
         """Multiple file output resources should be combined correctly for a successor"""
-        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        url = sqlite_url_string(tmp_path / "db.sqlite")
         with DatabaseMapping(url, create=True) as db_map:
             import_scenarios(db_map, (("scen1", True), ("scen2", True)))
             db_map.commit_session("Add test data.")
@@ -517,12 +518,12 @@ class TestSpineEngine:
         assert mock_item_c2.filter_id == "scen2 - item_a"
 
     def test_merge_two_filtered_database_branches(self, tmp_path):
-        urlA = "sqlite:///" + str(tmp_path / "dbA.sqlite")
+        urlA = sqlite_url_string(tmp_path / "dbA.sqlite")
         with DatabaseMapping(urlA, create=True) as db_map:
             import_scenarios(db_map, (("scenA1", True), ("scenA2", True)))
             db_map.commit_session("Add test data.")
         db_map.close()
-        urlB = "sqlite:///" + str(tmp_path / "dbB.sqlite")
+        urlB = sqlite_url_string(tmp_path / "dbB.sqlite")
         with DatabaseMapping(urlB, create=True) as db_map:
             import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
             db_map.commit_session("Add test data.")
@@ -589,12 +590,12 @@ class TestSpineEngine:
         self._assert_resource_args(mock_item_c4.execute.call_args_list, item_c_execution_args)
 
     def test_merge_two_filtered_file_resource_branches(self, tmp_path):
-        urlA = "sqlite:///" + str(tmp_path / "dbA.sqlite")
+        urlA = sqlite_url_string(tmp_path / "dbA.sqlite")
         with DatabaseMapping(urlA, create=True) as db_map:
             import_scenarios(db_map, (("scenA1", True), ("scenA2", True)))
             db_map.commit_session("Add test data.")
         db_map.close()
-        urlB = "sqlite:///" + str(tmp_path / "dbB.sqlite")
+        urlB = sqlite_url_string(tmp_path / "dbB.sqlite")
         with DatabaseMapping(urlB, create=True) as db_map:
             import_scenarios(db_map, (("scenB1", True), ("scenB2", True)))
             db_map.commit_session("Add test data.")
@@ -758,7 +759,7 @@ class TestSpineEngine:
                +---------------+
         Tool2 is expected to get DB resources from DT and file resources from Tool1 under a single filter.
         """
-        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        url = sqlite_url_string(tmp_path / "db.sqlite")
         with DatabaseMapping(url, create=True) as db_map:
             db_map.add_scenario(name="scenario1")
             db_map.commit_session("Add test data.")
@@ -831,7 +832,7 @@ class TestSpineEngine:
                +-----------------------+
         Tool3 is expected to get DB resources from DT and file resources from Tool2 under a single filter.
         """
-        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        url = sqlite_url_string(tmp_path / "db.sqlite")
         with DatabaseMapping(url, create=True) as db_map:
             db_map.add_scenario(name="scenario1")
             db_map.commit_session("Add test data.")
@@ -917,7 +918,7 @@ class TestSpineEngine:
                  |                         |
                  +-------------------------+
         """
-        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        url = sqlite_url_string(tmp_path / "db.sqlite")
         with DatabaseMapping(url, create=True) as db_map:
             db_map.add_scenario(name="scenario1")
             db_map.add_scenario(name="scenario2")
@@ -1047,7 +1048,7 @@ class TestSpineEngine:
                          |
         DS -> Tool1 -> Tool2
         """
-        url = "sqlite:///" + str(tmp_path / "db.sqlite")
+        url = sqlite_url_string(tmp_path / "db.sqlite")
         with DatabaseMapping(url, create=True) as db_map:
             db_map.add_scenario(name="scenario1")
             db_map.add_scenario(name="scenario2")
@@ -1138,21 +1139,21 @@ class TestSpineEngine:
 
     def test_jump_resources_get_passed_correctly(self, tmp_path):
 
-        url_fw_a = "sqlite:///" + str(tmp_path / "fw_a")
+        url_fw_a = sqlite_url_string(tmp_path / "fw_a")
         resource_fw_a = _make_real_spine_db_url_resource(url_fw_a)
-        url_bw_a = "sqlite:///" + str(tmp_path / "bw_a")
+        url_bw_a = sqlite_url_string(tmp_path / "bw_a")
         resource_bw_a = _make_real_spine_db_url_resource(url_bw_a)
-        url_fw_b = "sqlite:///" + str(tmp_path / "fw_b")
+        url_fw_b = sqlite_url_string(tmp_path / "fw_b")
         resource_fw_b = _make_real_spine_db_url_resource(url_fw_b)
-        url_bw_b = "sqlite:///" + str(tmp_path / "bw_b")
+        url_bw_b = sqlite_url_string(tmp_path / "bw_b")
         resource_bw_b = _make_real_spine_db_url_resource(url_bw_b)
-        url_fw_c = "sqlite:///" + str(tmp_path / "fw_c")
+        url_fw_c = sqlite_url_string(tmp_path / "fw_c")
         resource_fw_c = _make_real_spine_db_url_resource(url_fw_c)
-        url_bw_c = "sqlite:///" + str(tmp_path / "bw_c")
+        url_bw_c = sqlite_url_string(tmp_path / "bw_c")
         resource_bw_c = _make_real_spine_db_url_resource(url_bw_c)
-        url_fw_d = "sqlite:///" + str(tmp_path / "fw_d")
+        url_fw_d = sqlite_url_string(tmp_path / "fw_d")
         resource_fw_d = _make_real_spine_db_url_resource(url_fw_d)
-        url_bw_d = "sqlite:///" + str(tmp_path / "bw_d")
+        url_bw_d = sqlite_url_string(tmp_path / "bw_d")
         resource_bw_d = _make_real_spine_db_url_resource(url_bw_d)
         item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
         item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
@@ -1203,17 +1204,17 @@ class TestSpineEngine:
         )
 
     def test_nested_jump_with_inner_self_jump(self, tmp_path):
-        url_fw_a = "sqlite:///" + str(tmp_path / "fw_a")
+        url_fw_a = sqlite_url_string(tmp_path / "fw_a")
         resource_fw_a = _make_real_spine_db_url_resource(url_fw_a)
-        url_bw_a = "sqlite:///" + str(tmp_path / "bw_a")
+        url_bw_a = sqlite_url_string(tmp_path / "bw_a")
         resource_bw_a = _make_real_spine_db_url_resource(url_bw_a)
-        url_fw_b = "sqlite:///" + str(tmp_path / "fw_b")
+        url_fw_b = sqlite_url_string(tmp_path / "fw_b")
         resource_fw_b = _make_real_spine_db_url_resource(url_fw_b)
-        url_bw_b = "sqlite:///" + str(tmp_path / "bw_b")
+        url_bw_b = sqlite_url_string(tmp_path / "bw_b")
         resource_bw_b = _make_real_spine_db_url_resource(url_bw_b)
-        url_fw_c = "sqlite:///" + str(tmp_path / "fw_c")
+        url_fw_c = sqlite_url_string(tmp_path / "fw_c")
         resource_fw_c = _make_real_spine_db_url_resource(url_fw_c)
-        url_bw_c = "sqlite:///" + str(tmp_path / "bw_c")
+        url_bw_c = sqlite_url_string(tmp_path / "bw_c")
         resource_bw_c = _make_real_spine_db_url_resource(url_bw_c)
         item_a = self._mock_item("a", resources_forward=[resource_fw_a], resources_backward=[resource_bw_a])
         item_b = self._mock_item("b", resources_forward=[resource_fw_b], resources_backward=[resource_bw_b])
