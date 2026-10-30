@@ -15,11 +15,13 @@
 from functools import partial
 import os.path
 import sys
+import time
 import unittest
 from unittest.mock import MagicMock, NonCallableMagicMock, call, patch
 import pytest
 from spine_engine import ExecutionDirection, ItemExecutionFinishState, SpineEngine, SpineEngineState
 from spine_engine.exception import EngineInitFailed
+from spine_engine.jumpster import Failure
 from spine_engine.project_item.connection import Connection, FilterSettings, Jump
 from spine_engine.project_item.project_item_resource import ProjectItemResource, database_resource
 from spine_engine.spine_engine import filter_unneeded_jumps, validate_single_jump
@@ -139,6 +141,41 @@ class TestSpineEngine:
         engine = self._create_engine(items, connections, item_instances, execution_permits, jumps)
         engine.run()
         assert engine.state() == SpineEngineState.COMPLETED
+
+    def test_parallel_item_executions_keep_failure_state(self):
+        """A failing filtered execution must not be overwritten by a later success."""
+        url_a = _make_url_resource("db:///url_a")
+        url_b = _make_url_resource("db:///url_b")
+        for resource in (url_a, url_b):
+            resource.provider_name = "source"
+            resource.metadata = {"filter_id": "", "filter_stack": ()}
+
+        success_output = _make_url_resource("db:///success_output")
+        failure_output = _make_url_resource("db:///failure_output")
+        success_item = self._mock_item("item_a", resources_forward=[success_output])
+        failure_item = self._mock_item("item_a", resources_forward=[failure_output])
+        item_instances = {"item_a": [success_item, failure_item]}
+        engine = self._create_engine(
+            {"item_a": {"type": "TestItem"}},
+            [{"from": ("source", "right"), "to": ("item_a", "left")}],
+            item_instances,
+        )
+
+        call_count = {"value": 0}
+
+        def execute_side_effect(*_args, **_kwargs):
+            call_count["value"] += 1
+            if call_count["value"] == 1:
+                time.sleep(0.05)
+                return ItemExecutionFinishState.SUCCESS
+            time.sleep(0.01)
+            return ItemExecutionFinishState.FAILURE
+
+        success_item.execute.side_effect = execute_side_effect
+        failure_item.execute.side_effect = execute_side_effect
+
+        with pytest.raises(Failure):
+            engine._execute_item("item_a", [(url_a,), (url_b,)], [])
 
     def test_single_item_execution(self):
         """Test execution of a single item."""
