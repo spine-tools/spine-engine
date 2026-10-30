@@ -20,6 +20,7 @@ from spine_engine.project_item.connection import Connection, FilterSettings, Jum
 from spine_engine.project_item.project_item_resource import LabelArg, database_resource, file_resource
 from spinedb_api import DatabaseMapping, import_alternatives, import_entity_classes, import_scenarios
 from spinedb_api.filters.scenario_filter import SCENARIO_FILTER_TYPE
+from spinedb_api.helpers import sqlite_url_string
 
 
 class TestResourceConvertingConnection(unittest.TestCase):
@@ -136,7 +137,7 @@ class TestConnection(unittest.TestCase):
 
 @pytest.fixture()
 def db_map(tmp_path):
-    url = "sqlite:///" + str(tmp_path / "db.sqlite")
+    url = sqlite_url_string(tmp_path / "db.sqlite")
     mapping = DatabaseMapping(url, create=True)
     yield mapping
     mapping.close()

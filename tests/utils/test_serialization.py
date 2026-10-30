@@ -14,6 +14,7 @@
 
 from pathlib import Path
 import sys
+from urllib.request import pathname2url
 import pytest
 from spine_engine.utils.serialization import (
     PathDict,
@@ -22,6 +23,7 @@ from spine_engine.utils.serialization import (
     path_in_dir,
     serialize_path,
 )
+from spinedb_api.helpers import sqlite_url_string
 
 
 class TestSerializePath:
@@ -73,6 +75,31 @@ class TestDeserializePath:
         deserialized = deserialize_path(serialized, str(project_dir))
         assert deserialized == str(tmp_path / "file.fat")
 
+    def test_deserialize_non_sqlite_file_url(self, tmp_path):
+        project_dir = tmp_path / "project"
+        serialized: PathDict = {
+            "type": "file_url",
+            "relative": False,
+            "path": (tmp_path / "data.dat").as_posix(),
+            "scheme": "file",
+        }
+        deserialized = deserialize_path(serialized, str(project_dir))
+        expected = "file:" + pathname2url(str(tmp_path / "data.dat"))
+        assert deserialized == expected
+
+    def test_deserialize_non_sqlite_file_url_wity_query(self, tmp_path):
+        project_dir = tmp_path / "project"
+        serialized: PathDict = {
+            "type": "file_url",
+            "relative": False,
+            "path": (tmp_path / "data.dat").as_posix(),
+            "scheme": "file",
+            "query": "find=nemo",
+        }
+        deserialized = deserialize_path(serialized, str(project_dir))
+        expected = "file:" + pathname2url(str(tmp_path / "data.dat")) + "?find=nemo"
+        assert deserialized == expected
+
     def test_deserialize_path_with_relative_file_url(self, tmp_path):
         project_dir = tmp_path / "project"
         serialized: PathDict = {
@@ -82,7 +109,7 @@ class TestDeserializePath:
             "scheme": "sqlite",
         }
         deserialized = deserialize_path(serialized, str(project_dir))
-        expected = "sqlite:///" + str(project_dir / "subdir" / "database.sqlite")
+        expected = sqlite_url_string(project_dir / "subdir" / "database.sqlite")
         assert deserialized == expected
 
     def test_deserialize_path_with_absolute_file_url(self, tmp_path_factory):
@@ -90,7 +117,7 @@ class TestDeserializePath:
         path = db_path.as_posix()
         serialized: PathDict = {"type": "file_url", "relative": False, "path": path, "scheme": "sqlite"}
         deserialized = deserialize_path(serialized, str(tmp_path_factory.mktemp("project")))
-        expected = "sqlite:///" + str(db_path)
+        expected = sqlite_url_string(db_path)
         assert deserialized == expected
 
     def test_deserialize_path_with_non_file_url(self, tmp_path):
@@ -108,7 +135,7 @@ class TestDeserializePath:
             "query": "filter=kax",
         }
         deserialized = deserialize_path(serialized, str(project_dir))
-        expected = "sqlite:///" + str(Path(project_dir, "subdir", "database.sqlite")) + "?filter=kax"
+        expected = sqlite_url_string(Path(project_dir, "subdir", "database.sqlite")) + "?filter=kax"
         assert deserialized == expected
 
 
