@@ -516,7 +516,7 @@ class SpineEngine:
             if not self._execution_permits[item_name]:
                 return ItemExecutionFinishState.EXCLUDED, []
             return ItemExecutionFinishState.FAILURE, []
-        success = SuccessValue()
+        success_values = []
         output_resources_list = []
         threads = []
         resources_iterator = self._filtered_resources_iterator(
@@ -528,6 +528,8 @@ class SpineEngine:
                 self.resources_per_item[item_name] = (flt_fwd_resources, flt_bwd_resources)
                 item = self.make_item(item_name, ED.FORWARD)
                 item.filter_id = filter_id
+                success = SuccessValue()
+                success_values.append(success)
                 thread = threading.Thread(
                     target=self._execute_item_filtered,
                     args=(item, flt_fwd_resources, flt_bwd_resources, output_resources_list, item_lock, success),
@@ -537,12 +539,22 @@ class SpineEngine:
                 thread.start()
             for thread in threads:
                 thread.join()
-        if success.value == ItemExecutionFinishState.FAILURE:
+        all_states = [success.value for success in success_values]
+        if any(state == ItemExecutionFinishState.FAILURE for state in all_states):
             raise Failure()
+        aggregate_success = ItemExecutionFinishState.NEVER_FINISHED
+        if any(state == ItemExecutionFinishState.SUCCESS for state in all_states):
+            aggregate_success = ItemExecutionFinishState.SUCCESS
+        elif any(state == ItemExecutionFinishState.STOPPED for state in all_states):
+            aggregate_success = ItemExecutionFinishState.STOPPED
+        elif any(state == ItemExecutionFinishState.SKIPPED for state in all_states):
+            aggregate_success = ItemExecutionFinishState.SKIPPED
+        elif any(state == ItemExecutionFinishState.EXCLUDED for state in all_states):
+            aggregate_success = ItemExecutionFinishState.EXCLUDED
         for resources in output_resources_list:
             for connection in self._connections_by_source.get(item_name, []):
                 connection.receive_resources_from_source(resources)
-        return success.value, output_resources_list
+        return aggregate_success, output_resources_list
 
     def _execute_item_filtered(
         self,
